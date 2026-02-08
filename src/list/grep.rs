@@ -4,12 +4,13 @@ use grep_regex::RegexMatcher;
 use grep_searcher::{sinks, SearcherBuilder};
 
 use fancy_regex::Regex;
+use itertools::Itertools;
 
 use crate::{
     app::Dispatches,
     buffer::Buffer,
     context::LocalSearchConfig,
-    list::{buffering_thread::buffer_entries_until_first_sorted_entry_found, Match},
+    list::{buffering_thread::buffer_entries, Match},
     quickfix_list::Location,
     selection_mode::regex::get_regex,
     thread::SendResult,
@@ -120,42 +121,50 @@ pub fn run(
     let matcher = RegexMatcher::new_line_matcher(&pattern)?;
     let regex = Regex::new(&pattern)?;
 
-    let buffering_thread = buffer_entries_until_first_sorted_entry_found(send_match);
+    let sender = buffer_entries(send_match);
 
     walk_builder_config.run_async(
         false,
         Arc::new(move |path_index, path, buffer| {
             let mut searcher = SearcherBuilder::new().build();
-            let _ = searcher.search_path(
-                &matcher,
-                path.clone(),
-                sinks::UTF8(|line_number, line| {
-                    if let Ok(locations) = to_locations(
-                        &buffer,
-                        path.clone(),
-                        line_number as usize,
-                        line,
-                        regex.clone(),
-                    ) {
-                        for location in locations {
-                            let match_ = Match {
-                                location,
-                                line: line.to_string(),
-                            };
 
-                            if buffering_thread
-                                .send_match(path_index, match_)
-                                .is_disconnected()
-                            {
-                                // Stop search if receiving thread is killed
-                                return Ok(false);
+            let matches = {
+                let receiver = {
+                    let (sender, receiver) = std::sync::mpsc::channel();
+
+                    let _ = searcher.search_path(
+                        &matcher,
+                        path.clone(),
+                        sinks::UTF8(|line_number, line| {
+                            if let Ok(locations) = to_locations(
+                                &buffer,
+                                path.clone(),
+                                line_number as usize,
+                                line,
+                                regex.clone(),
+                            ) {
+                                locations
+                                    .into_iter()
+                                    .map(|location| Match {
+                                        location,
+                                        line: line.to_string(),
+                                    })
+                                    .for_each(|m| {
+                                        let _ = sender.send(m);
+                                    })
                             }
-                        }
-                    }
-                    Ok(true)
-                }),
-            );
-            let _ = buffering_thread.notify_file_finished_searching(path_index);
+                            Ok(true)
+                        }),
+                    );
+
+                    receiver
+                };
+                receiver.into_iter().collect_vec()
+            };
+
+            // The path_index needs to be sent even if there is no matches
+            // otherwise buffer_entries will not work
+            let _ = sender.send((path_index, matches));
         }),
     )
 }

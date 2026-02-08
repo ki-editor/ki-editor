@@ -49,10 +49,6 @@ impl SendResult {
     pub fn is_receiver_disconnected(&self) -> bool {
         matches!(self, SendResult::ReceiverDisconnected)
     }
-
-    pub(crate) fn is_disconnected(&self) -> bool {
-        matches!(self, SendResult::ReceiverDisconnected)
-    }
 }
 
 impl<T> From<Result<(), SendError<T>>> for SendResult {

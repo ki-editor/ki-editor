@@ -6,12 +6,13 @@ use std::{
 
 use globset::Glob;
 use ignore::{WalkBuilder, WalkState};
+use itertools::Itertools;
 use rayon::iter::{ParallelBridge, ParallelIterator};
 use shared::canonicalized_path::CanonicalizedPath;
 
 use crate::{
-    buffer::Buffer, list::buffering_thread::buffer_entries_until_first_sorted_entry_found,
-    quickfix_list::Location, thread::SendResult,
+    buffer::Buffer, list::buffering_thread::buffer_entries, quickfix_list::Location,
+    thread::SendResult,
 };
 
 pub mod ast_grep;
@@ -34,30 +35,28 @@ impl WalkBuilderConfig {
         send_match: Arc<dyn Fn(Match) -> SendResult + Send + Sync>,
         get_ranges: Arc<GetRange>,
     ) -> anyhow::Result<()> {
-        let thread = buffer_entries_until_first_sorted_entry_found(send_match);
+        let sender = buffer_entries(send_match);
         self.run_async(
             enable_tree_sitter,
             Arc::new(move |path_index, path, buffer| {
-                for range in get_ranges(&buffer) {
-                    if let Ok(range) = buffer.byte_range_to_char_index_range(&range) {
-                        if let Ok(line) = buffer.get_line_by_char_index(range.start) {
-                            let send_result = thread.send_match(
-                                path_index,
-                                Match {
+                let matches = get_ranges(&buffer)
+                    .into_iter()
+                    .filter_map(|range| {
+                        if let Ok(range) = buffer.byte_range_to_char_index_range(&range) {
+                            if let Ok(line) = buffer.get_line_by_char_index(range.start) {
+                                return Some(Match {
                                     location: Location {
                                         path: path.clone(),
                                         range,
                                     },
                                     line: line.to_string(),
-                                },
-                            );
-                            if send_result.is_receiver_disconnected() {
-                                break;
+                                });
                             }
                         }
-                    }
-                }
-                let _ = thread.notify_file_finished_searching(path_index);
+                        None
+                    })
+                    .collect_vec();
+                let _ = sender.send((path_index, matches));
             }),
         )
     }
@@ -145,7 +144,7 @@ impl WalkBuilderConfig {
         std::thread::spawn(move || {
             WalkBuilder::new(self.root)
                 // NOTE: `sort_by_file_path` is crucial for
-                // `buffer_entries_until_first_sorted_entry_found` to work correctly.
+                // `buffer_entries` to work correctly.
                 .sort_by_file_path(|a, b| a.cmp(b))
                 .filter_entry(move |entry| {
                     let path = entry.path().display().to_string();
@@ -165,9 +164,7 @@ impl WalkBuilderConfig {
                     path.file_type()
                         .is_some_and(|file_type| file_type.is_file())
                 })
-                .enumerate()
-                .par_bridge()
-                .for_each(|(index, path)| {
+                .filter_map(|path| {
                     let path: PathBuf = path.path().into();
                     if let Ok(path) = path.try_into() {
                         // Tree-sitter should be disabled whenever possible during
@@ -176,10 +173,14 @@ impl WalkBuilderConfig {
                             if !enable_tree_sitter {
                                 debug_assert!(buffer.tree().is_none());
                             }
-                            on_visit_buffer(index, path, buffer);
+                            return Some((path, buffer));
                         }
-                    };
-                });
+                    }
+                    None
+                })
+                .enumerate()
+                .par_bridge()
+                .for_each(|(index, (path, buffer))| on_visit_buffer(index, path, buffer));
         });
         Ok(())
     }
@@ -255,7 +256,7 @@ mod test_walk_builder_config {
                 PathBuf::from("./mock_repos/rust1/.gitignore"),
                 PathBuf::from("./mock_repos/rust1/Cargo.lock"),
                 PathBuf::from("./mock_repos/rust1/Cargo.toml"),
-                PathBuf::from("./mock_repos/rust1/src/hello.ts")
+                PathBuf::from("./mock_repos/rust1/src/.ts")
             ]
         );
         Ok(())

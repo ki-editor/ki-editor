@@ -1,4 +1,6 @@
 use std::{
+    cmp::Reverse,
+    collections::BinaryHeap,
     sync::{mpsc::Sender, Arc},
     time::Instant,
 };
@@ -30,6 +32,70 @@ impl<M: Ord> BufferingThread<M> {
                 .send(BufferingSignal::FileFinishedSearching { index: path_index }),
         )
     }
+}
+
+struct Indexed<T> {
+    index: usize,
+    items: Vec<T>,
+}
+impl<T> PartialEq for Indexed<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.index == other.index
+    }
+}
+
+impl<T> Eq for Indexed<T> {}
+
+impl<T> PartialOrd for Indexed<T> {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl<T> Ord for Indexed<T> {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.index.cmp(&other.index)
+    }
+}
+
+/// Send out-of-order entries in order, based on the given indices, where 0 represents the first batch.
+///
+/// # Preconditions
+/// - Indices must start at 0 and be contiguous (0, 1, 2, ..., N)
+/// - All indices must eventually arrive (no gaps/missing indices)
+/// - Indices may arrive in any order
+pub fn buffer_entries<T: Send + Sync + 'static>(
+    send_match: Arc<dyn Fn(T) -> SendResult + Send + Sync>,
+) -> Sender<(usize, Vec<T>)> {
+    let (sender, receiver) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let mut current_index = 0;
+        let mut heap = BinaryHeap::<Reverse<Indexed<T>>>::new();
+
+        for (index, items) in receiver {
+            heap.push(Reverse(Indexed { index, items }));
+
+            while heap.peek().map(|x| x.0.index) == Some(current_index) {
+                if let Some(Reverse(batch)) = heap.pop() {
+                    for item in batch.items {
+                        send_match(item);
+                    }
+                    current_index += 1;
+                }
+            }
+        }
+
+        // Check for remaining unprocessed items
+        if !heap.is_empty() {
+            let next_index = heap.peek().unwrap().0.index;
+            panic!(
+                "Index gap detected: expected index {}, but next available is {}",
+                current_index, next_index
+            );
+        }
+    });
+
+    sender
 }
 
 /// Create a thread to buffer non-first entries, until the first sorted entry is found.
