@@ -722,7 +722,7 @@ spam baz
                     expectations: Box::new([CurrentComponentContent("foo barfoo bar")]),
                     terminal_height: None,
                     similar_vim_combos: &[],
-                    only: true,
+                    only: false,
                 },
                 Recipe {
                     description: "Duplicate backward",
@@ -733,7 +733,7 @@ spam baz
                     expectations: Box::new([CurrentComponentContent("foo barfoo bar")]),
                     terminal_height: None,
                     similar_vim_combos: &[],
-                    only: true,
+                    only: false,
                 }
             ].to_vec(),
         },
@@ -749,7 +749,7 @@ spam baz
                     expectations: Box::new([CurrentComponentContent("foo\nfoo".trim())]),
                     terminal_height: None,
                     similar_vim_combos: &[],
-                    only: true,
+                    only: false,
                 },
                 Recipe {
                     description: "Duplicate below",
@@ -763,7 +763,7 @@ spam baz
                     ]),
                     terminal_height: None,
                     similar_vim_combos: &[],
-                    only: true,
+                    only: false,
                 }
             ].to_vec(),
         },
@@ -780,7 +780,7 @@ spam baz
                     expectations: Box::new([CurrentComponentContent("foo bar bar spam")]),
                     terminal_height: None,
                     similar_vim_combos: &[],
-                    only: true,
+                    only: false,
                 },
                 Recipe {
                     description: "Duplicate Syntax Node",
@@ -791,7 +791,7 @@ spam baz
                     expectations: Box::new([CurrentComponentContent("function foo(bar: Bar, bar: Bar, spam: Spam) {}")]),
                     terminal_height: None,
                     similar_vim_combos: &[],
-                    only: true,
+                    only: false,
                 }
             ].to_vec(),
         },
