@@ -385,12 +385,19 @@ impl Editor {
                 format!("{}{}", "Change Cut", extra),
                 Dispatch::ToEditor(ChangeCut),
             ),
-            Keybinding::new_extended(
-                "c",
-                format("Copy"),
-                format!("{}{}", "Copy", extra),
-                Dispatch::ToEditor(Copy),
-            ),
+            Keybinding::momentary_layer(MomentaryLayer {
+                key: "c",
+                description: "Copy".to_string(),
+                config: KeymapLegendConfig {
+                    title: "Duplicate".to_string(),
+                    keymap: duplicate_keymap(),
+                },
+                on_tap: Some(OnTap::new(
+                    "Copy",
+                    Dispatches::one(Dispatch::ToEditor(Copy)),
+                )),
+                on_spacebar_tapped: None,
+            }),
         ]
         .into_iter()
         .chain(self.keymap_clipboard_related_actions_overridable(
@@ -1487,6 +1494,54 @@ pub fn paste_keymap() -> Keymap {
                 "k",
                 Movement::Down.format_action("Paste"),
                 Dispatch::ToEditor(PasteVertically(Direction::End)),
+            ),
+        ]
+        .as_ref(),
+    )
+}
+
+pub fn duplicate_keymap() -> Keymap {
+    Keymap::new(
+        [
+            Keybinding::new(
+                "j",
+                Movement::Left.format_action("Gap Dup"),
+                Dispatch::ToEditor(DuplicateWithMovement(GetGapMovement::Left)),
+            ),
+            Keybinding::new(
+                "l",
+                Movement::Right.format_action("Gap Dup"),
+                Dispatch::ToEditor(DuplicateWithMovement(GetGapMovement::Right)),
+            ),
+            Keybinding::new(
+                "o",
+                Movement::Next.format_action("Gap Dup"),
+                Dispatch::ToEditor(DuplicateWithMovement(GetGapMovement::Next)),
+            ),
+            Keybinding::new(
+                "u",
+                Movement::Previous.format_action("Gap Dup"),
+                Dispatch::ToEditor(DuplicateWithMovement(GetGapMovement::Previous)),
+            ),
+            Keybinding::new(
+                ";",
+                "Dup >".to_string(),
+                Dispatch::ToEditor(DuplicateWithMovement(GetGapMovement::AfterWithoutGap)),
+            ),
+            Keybinding::new(
+                "h",
+                "< Dup".to_string(),
+                Dispatch::ToEditor(DuplicateWithMovement(GetGapMovement::BeforeWithoutGap)),
+            ),
+            Keybinding::new(
+                "i",
+                Movement::Up.format_action("Dup"),
+                Dispatch::ToEditor(DuplicateVertically(Direction::Start)),
+            ),
+            Keybinding::new(
+                "k",
+                Movement::Down.format_action("Dup"),
+                Dispatch::ToEditor(DuplicateVertically(Direction::End)),
             ),
         ]
         .as_ref(),

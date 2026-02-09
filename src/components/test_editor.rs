@@ -6059,6 +6059,7 @@ fn x() {
                 Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
                 Editor(PasteVertically(direction.clone())),
                 Expect(CurrentComponentContent(expected)),
+                Expect(CurrentSelectedTexts(&["foo"])),
             ])
         })
     }

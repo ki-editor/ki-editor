@@ -1,0 +1,47 @@
+import {TutorialFallback} from '@site/src/components/TutorialFallback';
+import {KeymapFallback} from '@site/src/components/KeymapFallback';
+
+# Duplicate MoL
+
+This very similar to the Paste MoL, except that it doesn't modify the system clipboard, as it treats the current selection(s)
+as the copied text(s).
+
+## Keymap
+
+<KeymapFallback filename="Duplicate"/>
+
+## Duplicate
+
+| Action  | Meaning                                                      |
+| ------- | ------------------------------------------------------------ |
+| `< Dup` | Duplicate current selection **BEFORE** the current selection |
+| `Dup >` | Duplicate current selection **AFTER** the current selection  |
+
+Duplicate the current selection before/after the current selection, without automatic gaps insertion.
+
+<TutorialFallback filename="duplicate"/>
+
+## Vertical Duplication
+
+| Action  | Meaning                                                     |
+| ------- | ----------------------------------------------------------- |
+| `Dup ^` | Duplicate current selection **ABOVE** the current selection |
+| `Dup v` | Duplicate current selection **BELOW** the current selection |
+
+Duplicate current selection above/below the current selection, following the indentation of the first/last line of the current selection (which can be multiple lines).
+
+<TutorialFallback filename="vertical-duplicate"/>
+
+## Gapped Duplication
+
+| Action       | Meaning                                                                                                                                     |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `< Gap Dup`  | Duplicate current selection **BEFORE** the current selection with gaps between the current selection and the **`<`**/**`>`** selection(s)   |
+| `Gap Dup >`  | Duplicate current selection **AFTER** the current selection with gaps between the current selection and the **`<`**/**`>`** selection(s)    |
+| `<< Gap Dup` | Duplicate current selection **BEFORE** the current selection with gaps between the current selection and the **`<<`**/**`>>`** selection(s) |
+| `Gap Dup >>` | Duplicate current selection **AFTER** the current selection with gaps between the current selection and the **`<<`**/**`>>`** selection(s)  |
+
+Gapped Duplication works by analyzing the gap between the current selection and the
+`<`/`>`/`<<`/`>>` selection, then insert the gap before/after the pasted text.
+
+<TutorialFallback filename="duplicate-with-gaps"/>
