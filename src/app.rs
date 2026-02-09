@@ -714,6 +714,9 @@ impl<T: Frontend> App<T> {
             Dispatch::CloseCurrentWindow => {
                 self.close_current_window()?;
             }
+            Dispatch::UnmarkAllOthers => {
+                self.unmark_all_others()?;
+            }
             Dispatch::CloseCurrentWindowAndFocusParent => {
                 self.close_current_window_and_focus_parent();
             }
@@ -1174,6 +1177,24 @@ impl<T: Frontend> App<T> {
                 self.open_file(&path, BufferOwner::User, true, true)?;
             }
         }
+        Ok(())
+    }
+
+    fn unmark_all_others(&mut self) -> anyhow::Result<()> {
+        if let Some(current_file_path) = self.get_current_file_path() {
+            let paths_to_unmark: Vec<CanonicalizedPath> = self
+                .context
+                .get_marked_files()
+                .into_iter()
+                .filter(|&path| path.clone() != current_file_path)
+                .cloned() // Cloning allows us to mutate self.context below
+                .collect();
+
+            for path in paths_to_unmark {
+                self.context.unmark_path(path);
+            }
+        }
+
         Ok(())
     }
 
@@ -3475,6 +3496,7 @@ pub enum Dispatch {
     SetTheme(crate::themes::Theme),
     SetThemeFromDescriptor(crate::themes::theme_descriptor::ThemeDescriptor),
     CloseCurrentWindow,
+    UnmarkAllOthers,
     OpenFilePicker(FilePickerKind),
     OpenSearchPrompt {
         scope: Scope,

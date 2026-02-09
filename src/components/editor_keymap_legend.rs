@@ -459,12 +459,6 @@ impl Editor {
     pub fn keymap_universal(&self) -> Vec<Keybinding> {
         [
             Keybinding::new_extended(
-                "alt+v",
-                "Close".to_string(),
-                "Close current window".to_string(),
-                Dispatch::CloseCurrentWindow,
-            ),
-            Keybinding::new_extended(
                 "alt+;",
                 "⇋ Align View".to_string(),
                 "Switch view alignment".to_string(),
@@ -1607,6 +1601,18 @@ pub fn buffer_keymap() -> Keymap {
             "Mark File".to_string(),
             "Toggle File Mark".to_string(),
             Dispatch::ToggleFileMark,
+        )))
+        .chain(Some(Keybinding::new_extended(
+            "n",
+            "Close".to_string(),
+            "Close current window".to_string(),
+            Dispatch::CloseCurrentWindow,
+        )))
+        .chain(Some(Keybinding::new_extended(
+            "m",
+            "Unmark Others".to_string(),
+            "Unmark all other buffers".to_string(),
+            Dispatch::UnmarkAllOthers,
         )))
         .collect_vec(),
     )
