@@ -1481,9 +1481,7 @@ impl Editor {
                         Direction::Start => line_char_index,
                         Direction::End => {
                             line_char_index + line.chars().count()
-                                - (line.chars().last() == Some('\n'))
-                                    .then_some(1)
-                                    .unwrap_or(0)
+                                - if line.ends_with('\n') { 1 } else { 0 }
                         }
                     };
                     let insert_range = insert_position..insert_position;
