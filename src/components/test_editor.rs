@@ -5955,7 +5955,7 @@ fn test_paste_mol() -> anyhow::Result<()> {
             Editor(SetContent("foo bar spam".to_string())),
             Editor(MatchLiteral("bar".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
-            App(HandleKeyEvents(keys!("c b l release-b").to_vec())),
+            App(HandleKeyEvents(keys!("c release-c b l release-b").to_vec())),
             Expect(CurrentSelectedTexts(&["bar"])),
             Expect(CurrentComponentContent("foo bar bar spam")),
         ])
@@ -6059,6 +6059,7 @@ fn x() {
                 Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
                 Editor(PasteVertically(direction.clone())),
                 Expect(CurrentComponentContent(expected)),
+                Expect(CurrentSelectedTexts(&["foo"])),
             ])
         })
     }

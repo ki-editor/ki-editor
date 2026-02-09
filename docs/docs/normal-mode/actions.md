@@ -196,6 +196,8 @@ Copy behaves differently depending on the number of cursors.
 When there is more than one cursor, the selected texts of each cursor will be
 copied to the cursor-specific clipboard.
 
+Hold to activate the [Duplicate MoL](../momentary-layers/duplicate-mol.mdx)
+
 ### `Paste`
 
 Activates the [Paste MoL](../momentary-layers/paste-mol.mdx).

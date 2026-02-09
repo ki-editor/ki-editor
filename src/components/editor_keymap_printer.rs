@@ -12,7 +12,8 @@ use crate::{
         editor::Editor,
         editor_keymap::{shifted, QWERTY},
         editor_keymap_legend::{
-            buffer_keymap, cut_keymap, delete_keymap, insert_keymap, paste_keymap, swap_keymap,
+            buffer_keymap, cut_keymap, delete_keymap, duplicate_keymap, insert_keymap,
+            paste_keymap, swap_keymap,
         },
     },
     context::Context,
@@ -335,6 +336,7 @@ impl KeymapPrintSections {
                 &Keymap::new(&editor.keymap_transform()),
             ),
             KeymapPrintSection::from_keymap("Paste".to_string(), &paste_keymap()),
+            KeymapPrintSection::from_keymap("Duplicate".to_string(), &duplicate_keymap()),
             KeymapPrintSection::from_keymap(
                 "Multi-cursor Momentary Layer".to_string(),
                 &editor.multicursor_momentary_layer_keymap(),

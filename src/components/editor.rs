@@ -412,6 +412,10 @@ impl Component for Editor {
             }
             EnterMulticursorMode => self.mode = Mode::MultiCursor,
             PasteVertically(direction) => return self.paste_vertically(context, direction),
+            DuplicateWithMovement(get_gap_movement) => {
+                return self.duplicate_with_movement(context, get_gap_movement)
+            }
+            DuplicateVertically(direction) => return self.duplicate_vertically(context, direction),
         }
         Ok(Default::default())
     }
@@ -1475,18 +1479,23 @@ impl Editor {
 
                     let insert_position = match direction {
                         Direction::Start => line_char_index,
-                        Direction::End => line_char_index + line.chars().count(),
+                        Direction::End => {
+                            line_char_index + line.chars().count()
+                                - if line.ends_with('\n') { 1 } else { 0 }
+                        }
                     };
                     let insert_range = insert_position..insert_position;
-                    let insert_text = match direction {
-                        Direction::Start => format!("{indentation}{}\n", get_paste_text(index)),
-                        Direction::End => format!("{indentation}{}\n", get_paste_text(index)),
+                    let paste_text = get_paste_text(index);
+                    let (initial, middle, final_, start_offset, end_offset) = match direction {
+                        Direction::Start => (&indentation, &paste_text, "\n".to_string(), 0, 1),
+                        Direction::End => (&"\n".to_string(), &indentation, paste_text, 1, 0),
                     };
-                    let select_range = {
-                        let start = insert_range.start + indentation.chars().count();
-                        let end = insert_range.start + insert_text.chars().count() - 1;
-                        start..end
-                    };
+
+                    let insert_text = format!("{initial}{middle}{final_}");
+
+                    let start = insert_range.start + indentation.chars().count() + start_offset;
+                    let end = insert_range.start + insert_text.chars().count() - end_offset;
+                    let select_range = start..end;
 
                     Ok(ActionGroup::new(
                         [
@@ -4540,6 +4549,36 @@ impl Editor {
             .language()
             .and_then(|language| language.tree_sitter_grammar_id())
     }
+
+    fn duplicate_with_movement(
+        &mut self,
+        context: &mut Context,
+        get_gap_movement: GetGapMovement,
+    ) -> Result<Dispatches, anyhow::Error> {
+        let copied_texts = CopiedTexts::new(self.selection_set.map(|selection| {
+            self.buffer()
+                .slice(&selection.extended_range())
+                .unwrap_or_default()
+                .to_string()
+        }));
+        self.paste_text(get_gap_movement, copied_texts, context)
+    }
+
+    fn duplicate_vertically(
+        &mut self,
+        context: &mut Context,
+        direction: Direction,
+    ) -> Result<Dispatches, anyhow::Error> {
+        let copied_texts = CopiedTexts::new(self.selection_set.map(|selection| {
+            self.buffer()
+                .slice(&selection.extended_range())
+                .unwrap_or_default()
+                .to_string()
+        }));
+        let edit_transaction =
+            self.get_paste_vertically_edit_transaction(direction, |index| copied_texts.get(index));
+        self.apply_edit_transaction(edit_transaction, context)
+    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
@@ -4705,6 +4744,8 @@ pub enum DispatchEditor {
     AddCursorWithMovement(Movement),
     EnterMulticursorMode,
     PasteVertically(Direction),
+    DuplicateWithMovement(GetGapMovement),
+    DuplicateVertically(Direction),
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]
