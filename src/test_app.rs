@@ -3864,20 +3864,8 @@ fn closing_all_buffers_should_land_on_scratch_buffer() -> Result<(), anyhow::Err
             Expect(CurrentComponentTitle(
                 "\u{200b} 🦀 foo.rs \u{200b}".to_string(),
             )),
-            App(HandleKeyEvent(key!("alt+v"))),
-            Expect(AppGrid(
-                "[ROOT] (Cannot be saved)
-1│█
-
-
-
-
-
-
-
- Close current window"
-                    .to_string(),
-            )),
+            App(Dispatch::CloseCurrentWindow),
+            Expect(AppGrid("[ROOT] (Cannot be saved)\n1│█".to_string())),
         ])
     })
 }
