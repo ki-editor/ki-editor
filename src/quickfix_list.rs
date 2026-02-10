@@ -719,7 +719,7 @@ src/foo.rs
                 App(new_dispatch(LocalSearchConfigUpdate::Search(
                     "foo".to_string(),
                 ))),
-                WaitForAppMessage(lazy_regex::regex!("AddQuickfixListEntries")),
+                WaitForAppMessage(lazy_regex::regex!("GlobalSearchFinished")),
                 Expect(QuickfixListContent(
                     "
 src/foo.rs
