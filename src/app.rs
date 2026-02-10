@@ -3368,11 +3368,12 @@ Conflict markers will be injected in areas that cannot be merged gracefully."
                 PromptOnEnter::ParseCurrentLine {
                     parser: DispatchParser::ChangeWorkingDirectory,
                     history_key: PromptHistoryKey::ChangeWorkingDirectory,
-                    current_line: Some(format!(
-                        "{}{}",
-                        self.context.current_working_directory().display_absolute(),
-                        std::path::MAIN_SEPARATOR
-                    )),
+                    current_line: Some(
+                        self.context
+                            .current_working_directory()
+                            .canonicalize()?
+                            .display_absolute(),
+                    ),
                     suggested_items: Vec::new(),
                 },
             )

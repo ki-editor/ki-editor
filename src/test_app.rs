@@ -638,9 +638,13 @@ impl ExpectKind {
                     (&selection.range, &selection.initial_range),
                 )
             }
-            CurrentWorkingDirectory(expected) => {
-                contextualize(expected, app.context().current_working_directory())
-            }
+            CurrentWorkingDirectory(expected) => contextualize(
+                expected.canonicalize().unwrap(),
+                app.context()
+                    .current_working_directory()
+                    .canonicalize()
+                    .unwrap(),
+            ),
         })
     }
 }
@@ -1278,7 +1282,10 @@ pub fn repo_git_hunks() -> Result<(), anyhow::Error> {
                 Quickfixes(Box::new([
                     QuickfixListItem::new(
                         Location {
-                            path: path_new_file.clone().try_into().unwrap(),
+                            path: AbsolutePath::try_from(path_new_file.clone())
+                                .unwrap()
+                                .canonicalize()
+                                .unwrap(),
                             range: (CharIndex(0)..CharIndex(0)).into(),
                         },
                         strs_to_strings(&["[This file is untracked or renamed]"]),
@@ -1286,7 +1293,7 @@ pub fn repo_git_hunks() -> Result<(), anyhow::Error> {
                     ),
                     QuickfixListItem::new(
                         Location {
-                            path: s.foo_rs(),
+                            path: s.foo_rs().canonicalize().unwrap(),
                             range: (CharIndex(0)..CharIndex(32)).into(),
                         },
                         strs_to_strings(&[
@@ -1297,7 +1304,7 @@ pub fn repo_git_hunks() -> Result<(), anyhow::Error> {
                     ),
                     QuickfixListItem::new(
                         Location {
-                            path: s.main_rs(),
+                            path: s.main_rs().canonicalize().unwrap(),
                             range: (CharIndex(0)..CharIndex(0)).into(),
                         },
                         strs_to_strings(&["mod foo;"]),
@@ -3886,11 +3893,12 @@ fn closing_all_buffers_should_land_on_scratch_buffer() -> Result<(), anyhow::Err
 fn change_working_directory_prompt() -> Result<(), anyhow::Error> {
     execute_test(|s| {
         let get_path = |child: &str| {
-            format!(
-                "{}{}",
-                s.temp_dir().join(child).unwrap().display_absolute(),
-                std::path::MAIN_SEPARATOR
-            )
+            s.temp_dir()
+                .join(child)
+                .unwrap()
+                .canonicalize()
+                .unwrap()
+                .display_absolute()
         };
         Box::new([
             App(OpenFile {

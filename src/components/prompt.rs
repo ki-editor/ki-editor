@@ -96,13 +96,7 @@ impl PromptOnChangeDispatch {
                             DispatchSuggestiveEditor::Completion(Completion {
                                 items: paths
                                     .into_iter()
-                                    .map(|path| {
-                                        DropdownItem::new(format!(
-                                            "{}{}",
-                                            path.display_absolute(),
-                                            std::path::MAIN_SEPARATOR
-                                        ))
-                                    })
+                                    .map(|path| DropdownItem::new(path.display_absolute()))
                                     .collect_vec(),
                                 trigger_characters: Vec::new(),
                             }),
@@ -123,7 +117,7 @@ fn get_child_directories(path: &Path) -> anyhow::Result<Vec<AbsolutePath>> {
         .filter_map(|entry| entry.ok())
         .map(|entry| entry.path())
         .filter(|path| path.is_dir())
-        .filter_map(|path| path.try_into().ok())
+        .filter_map(|path| AbsolutePath::try_from(path.canonicalize().ok()?).ok())
         .sorted()
         .collect())
 }

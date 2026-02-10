@@ -270,6 +270,7 @@ impl DiffMode {
 
 #[cfg(test)]
 mod test_git {
+    use shared::absolute_path::AbsolutePath;
     use std::process::Command;
     use tempfile::tempdir;
 
@@ -341,25 +342,26 @@ mod test_git {
                     // Expect the new content is the latest content of the file
                     // regardless of whether it is commited/staged or not
                     new_content: "hello\nworld\nlook\nnow".to_string(),
-                    new_path: file1.clone().try_into()?,
+                    new_path: AbsolutePath::try_from(file1.clone())?.canonicalize()?,
                 },
                 // Expect unstaged files (file 2) are included
                 super::DiffEntry {
                     old_content: None,
                     new_content: "This is file 2".to_string(),
-                    new_path: file2.clone().try_into()?,
+                    new_path: AbsolutePath::try_from(file2.clone())?.canonicalize()?,
                 },
                 // Expect staged files (file 3) are included
                 super::DiffEntry {
                     old_content: None,
                     new_content: "This is file 3".to_string(),
-                    new_path: file3.clone().try_into()?,
+                    new_path: AbsolutePath::try_from(file3.clone())?.canonicalize()?,
                 },
                 // Expect untracked files under an untracked directory are also included
                 super::DiffEntry {
                     old_content: None,
                     new_content: "This is nuts".to_string(),
-                    new_path: untracked_file_in_untracked_dir.clone().try_into()?,
+                    new_path: AbsolutePath::try_from(untracked_file_in_untracked_dir.clone())?
+                        .canonicalize()?,
                 },
             ]
             .to_vec();
