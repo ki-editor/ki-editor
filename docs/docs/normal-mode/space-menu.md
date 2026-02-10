@@ -30,6 +30,10 @@ This are actions that are related to the current selection(s). Similar to the ri
 
 <KeymapFallback filename="Space Context"/>
 
+### `Pipe`
+
+Open a prompt which takes a shell command that treats the current selections as STDIN, and replace the current selections with the STDOUT of the command.
+
 ### `Code Actions`
 
 Request code actions.
@@ -150,10 +154,6 @@ Save all files.
 Reload the current file. A prompt will be shown if there are conflicts.
 
 Save all files.
-
-### `Pipe`
-
-Open a prompt which takes a shell command that treats the current selections as STDIN, and replace the current selections with the STDOUT of the command.
 
 ### `Replace all`
 
