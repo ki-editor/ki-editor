@@ -624,7 +624,7 @@ src/foo.rs
                 App(new_dispatch(LocalSearchConfigUpdate::Search(
                     search.to_string(),
                 ))),
-                WaitForAppMessage(lazy_regex::regex!("AddQuickfixListEntries")),
+                WaitForAppMessage(lazy_regex::regex!("GlobalSearchFinished")),
                 Expect(QuickfixListContent(expected.to_string().trim().to_string())),
             ])
         })
@@ -662,7 +662,7 @@ aslmlkm ki aslmlkm"
                 App(new_dispatch(LocalSearchConfigUpdate::Search(
                     "aslmlkm".to_string(),
                 ))),
-                WaitForAppMessage(lazy_regex::regex!("AddQuickfixListEntries")),
+                WaitForAppMessage(lazy_regex::regex!("GlobalSearchFinished")),
                 Expect(QuickfixListContent(
                     "
 src/foo.rs
@@ -719,7 +719,7 @@ src/foo.rs
                 App(new_dispatch(LocalSearchConfigUpdate::Search(
                     "foo".to_string(),
                 ))),
-                WaitForAppMessage(lazy_regex::regex!("AddQuickfixListEntries")),
+                WaitForAppMessage(lazy_regex::regex!("GlobalSearchFinished")),
                 Expect(QuickfixListContent(
                     "
 src/foo.rs
