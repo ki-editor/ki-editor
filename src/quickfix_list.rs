@@ -91,6 +91,7 @@ pub struct QuickfixList {
     dropdown: Dropdown,
     items: Vec<QuickfixListItem>,
     title: String,
+    buffers: HashMap<CanonicalizedPath, Rc<RefCell<Buffer>>>,
 }
 
 impl QuickfixList {
@@ -126,6 +127,7 @@ impl QuickfixList {
             }),
             items: Default::default(),
             title: Default::default(),
+            buffers: Default::default(),
         }
     }
 
@@ -134,9 +136,13 @@ impl QuickfixList {
         items: Vec<QuickfixListItem>,
         current_working_directory: &CanonicalizedPath,
     ) {
-        self.items.extend(items);
-        let (items, dropdown_items) =
-            Self::convert_items(self.items.drain(..).collect(), current_working_directory);
+        self.extend_buffers(&items, current_working_directory);
+
+        let items = {
+            self.items.extend(items);
+            self.items.drain(..).collect()
+        };
+        let (items, dropdown_items) = self.convert_items(items, current_working_directory);
         self.dropdown.set_items(dropdown_items);
         self.items = items;
     }
@@ -146,26 +152,20 @@ impl QuickfixList {
         items: Vec<QuickfixListItem>,
         current_working_directory: &CanonicalizedPath,
     ) {
-        let (items, dropdown_items) = Self::convert_items(items, current_working_directory);
+        // Clear buffers cache
+        self.buffers.clear();
+        self.extend_buffers(&items, current_working_directory);
+
+        let (items, dropdown_items) = self.convert_items(items, current_working_directory);
         self.dropdown.set_items(dropdown_items);
         self.items = items;
     }
 
     fn convert_items(
+        &mut self,
         items: Vec<QuickfixListItem>,
         current_working_directory: &CanonicalizedPath,
     ) -> (Vec<QuickfixListItem>, Vec<DropdownItem>) {
-        let buffers = items
-            .iter()
-            .map(|item| &item.location().path)
-            .unique_by(|path| path.try_display_relative_to(current_working_directory))
-            .filter_map(|path| {
-                Some((
-                    path.clone(),
-                    Rc::new(RefCell::new(Buffer::from_path(path, false).ok()?)),
-                ))
-            })
-            .collect::<HashMap<_, _>>();
         let items = items
             .into_iter()
             // Sort the items by location
@@ -184,7 +184,7 @@ impl QuickfixList {
         let items_with_position_range = items
             .iter()
             .filter_map(|item| {
-                let buffer = buffers.get(&item.location.path)?;
+                let buffer = self.buffers.get(&item.location.path)?;
                 let position_range = buffer
                     .borrow()
                     .char_index_range_to_position_range(item.location.range)
@@ -224,7 +224,7 @@ impl QuickfixList {
                     .enumerate()
                     .map(|(index, (position_range, item))| {
                         item.to_owned().into_dropdown_item(
-                            &buffers,
+                            &self.buffers,
                             position_range,
                             current_working_directory,
                             index == 0,
@@ -266,6 +266,26 @@ impl QuickfixList {
 
     pub(crate) fn set_title(&mut self, title: &str) {
         self.title = title.to_string()
+    }
+
+    fn extend_buffers(
+        &mut self,
+        items: &[QuickfixListItem],
+        current_working_directory: &CanonicalizedPath,
+    ) {
+        // Extend the buffers cache with new paths
+        for path in items
+            .iter()
+            .map(|item| &item.location().path)
+            .unique_by(|path| path.try_display_relative_to(current_working_directory))
+        {
+            self.buffers.entry(path.clone()).or_insert_with(|| {
+                Buffer::from_path(path, false)
+                    .ok()
+                    .map(|buffer| Rc::new(RefCell::new(buffer)))
+                    .unwrap_or_else(|| Rc::new(RefCell::new(Buffer::new(None, ""))))
+            });
+        }
     }
 }
 
