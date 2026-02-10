@@ -1763,7 +1763,7 @@ foo bar spam
             file_extension: "md",
             prepare_events: keys!("space ; n d s r c enter enter n d m a enter enter e k release-e space ; n d f o enter enter e k release-e space ; n d t e m enter enter e k release-e space ; n d g i t enter enter"),
             events: keys!("e l n o o o k j i p o release-e"),
-            expectations: Box::new([CurrentComponentTitle("\u{200b} # 📚 temp.md [*] \u{200b}".to_string())]),
+            expectations: Box::new([CurrentComponentTitle(" # 📚 temp.md \u{200b} 🦀 main.rs \u{200b}".to_string())]),
             terminal_height: Some(10),
             similar_vim_combos: &[],
             only: false,
