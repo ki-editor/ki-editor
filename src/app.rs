@@ -1854,7 +1854,7 @@ impl<T: Frontend> App<T> {
                 }))),
             )
         });
-        let send_match = crate::thread::batch(send_matches, Duration::from_millis(16), limit); // Around 30 ticks per second
+        let send_match = crate::thread::batch(send_matches, Duration::from_millis(100), limit); // Around 30 ticks per second
 
         // TODO: we need to create a new sender for each global search, so that it can be cancelled, but when?
         // Is it when the quickfix list is closed?

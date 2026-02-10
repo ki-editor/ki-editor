@@ -77,8 +77,13 @@ pub fn batch<T: Send + Sync + 'static>(
         let mut batch = vec![];
         let mut last_sent = Instant::now();
         while let Ok(item) = receiver.recv() {
+            // Send the first item immediatly to allow instant UI feedback
+            if count == 0 {
+                callback(BatchResult::Items(std::iter::once(item).collect()));
+            } else {
+                batch.push(item)
+            };
             count += 1;
-            batch.push(item);
             if Instant::now() - last_sent > interval {
                 callback(BatchResult::Items(std::mem::take(&mut batch)));
                 last_sent = Instant::now();
