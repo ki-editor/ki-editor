@@ -4,7 +4,7 @@ use globset::Glob;
 
 use indexmap::IndexSet;
 use itertools::{Either, Itertools};
-use shared::canonicalized_path::CanonicalizedPath;
+use shared::absolute_path::AbsolutePath;
 
 use crate::{
     app::{GlobalSearchConfigUpdate, LocalSearchConfigUpdate, Scope},
@@ -25,7 +25,7 @@ pub struct Context {
 
     #[cfg(test)]
     highlight_configs: crate::syntax_highlight::HighlightConfigs,
-    current_working_directory: CanonicalizedPath,
+    current_working_directory: AbsolutePath,
     local_search_config: LocalSearchConfig,
     global_search_config: GlobalSearchConfig,
     quickfix_list: QuickfixList,
@@ -38,9 +38,9 @@ pub struct Context {
     // We use CanonicalizedPath instead of CanonicalizedPath because these paths
     // may be deleted during program execution, and CanonicalizedPath
     // requires the path to exist on the filesystem.
-    marked_files: IndexSet<CanonicalizedPath>,
+    marked_files: IndexSet<AbsolutePath>,
 
-    marks: HashMap<CanonicalizedPath, Vec<CharIndexRange>>,
+    marks: HashMap<AbsolutePath, Vec<CharIndexRange>>,
 
     /// This is true, for example, when Ki is running as a VS Code's extension
     is_running_as_embedded: bool,
@@ -78,7 +78,7 @@ pub struct Search {
 impl Context {
     #[cfg(test)]
     pub fn default() -> Self {
-        Self::new(CanonicalizedPath::try_from(".").unwrap(), false, None)
+        Self::new(AbsolutePath::try_from(".").unwrap(), false, None)
     }
 
     pub fn persist_data(&mut self) {
@@ -111,7 +111,7 @@ impl Context {
         self.quickfix_list.items()
     }
 
-    pub fn handle_applied_edits(&mut self, path: CanonicalizedPath, edits: Vec<crate::edit::Edit>) {
+    pub fn handle_applied_edits(&mut self, path: AbsolutePath, edits: Vec<crate::edit::Edit>) {
         self.quickfix_list
             .handle_applied_edits(&path, &edits, &self.current_working_directory);
 
@@ -137,7 +137,7 @@ impl Context {
             .collect();
     }
 
-    pub fn save_marks(&mut self, path: CanonicalizedPath, marks: Vec<CharIndexRange>) {
+    pub fn save_marks(&mut self, path: AbsolutePath, marks: Vec<CharIndexRange>) {
         let old_ranges = self
             .marks
             .get(&path)
@@ -159,20 +159,16 @@ impl Context {
         );
     }
 
-    pub fn get_marks(&self, path: Option<CanonicalizedPath>) -> Vec<CharIndexRange> {
+    pub fn get_marks(&self, path: Option<AbsolutePath>) -> Vec<CharIndexRange> {
         path.map(|path| self.marks.get(&path).cloned().unwrap_or_default().to_vec())
             .unwrap_or_default()
     }
 
-    pub fn marks(&self) -> &HashMap<CanonicalizedPath, Vec<CharIndexRange>> {
+    pub fn marks(&self) -> &HashMap<AbsolutePath, Vec<CharIndexRange>> {
         &self.marks
     }
 
-    pub fn handle_file_renamed(
-        &mut self,
-        source: std::path::PathBuf,
-        destination: CanonicalizedPath,
-    ) {
+    pub fn handle_file_renamed(&mut self, source: std::path::PathBuf, destination: AbsolutePath) {
         if let Some(path) = self
             .marked_files
             .iter()
@@ -183,16 +179,13 @@ impl Context {
         }
     }
 
-    pub fn mark_files(&mut self, paths: nonempty::NonEmpty<CanonicalizedPath>) {
+    pub fn mark_files(&mut self, paths: nonempty::NonEmpty<AbsolutePath>) {
         for path in paths {
             self.mark_file(path);
         }
     }
 
-    pub fn change_working_directory(
-        &mut self,
-        path: CanonicalizedPath,
-    ) -> Result<(), std::io::Error> {
+    pub fn change_working_directory(&mut self, path: AbsolutePath) -> Result<(), std::io::Error> {
         self.current_working_directory = path;
         std::env::set_current_dir(self.current_working_directory.clone())?;
         Ok(())
@@ -235,7 +228,7 @@ impl Context {
 
 impl Context {
     pub fn new(
-        current_working_directory: CanonicalizedPath,
+        current_working_directory: AbsolutePath,
         is_running_as_embedded: bool,
         persistence: Option<Persistence>,
     ) -> Self {
@@ -246,7 +239,7 @@ impl Context {
                     persistence
                         .get_marked_files(current_working_directory.to_path_buf())?
                         .into_iter()
-                        .filter_map(|path| CanonicalizedPath::try_from(path).ok())
+                        .filter_map(|path| AbsolutePath::try_from(path).ok())
                         .collect(),
                 )
             })
@@ -367,7 +360,7 @@ impl Context {
             .highlight(language, source_code, &AtomicUsize::new(0))
     }
 
-    pub fn current_working_directory(&self) -> &CanonicalizedPath {
+    pub fn current_working_directory(&self) -> &AbsolutePath {
         &self.current_working_directory
     }
 
@@ -466,14 +459,14 @@ impl Context {
         self.location_history_forward.pop()
     }
 
-    pub fn get_marked_files(&self) -> Vec<&CanonicalizedPath> {
+    pub fn get_marked_files(&self) -> Vec<&AbsolutePath> {
         self.marked_files.iter().collect()
     }
 
     /// Returns some path if we should focus another file.
     /// If the action is to unmark a file, and the file is not the only marked file left,
     /// then we return the nearest neighbor.
-    pub fn toggle_path_mark(&mut self, path: CanonicalizedPath) -> Option<&CanonicalizedPath> {
+    pub fn toggle_path_mark(&mut self, path: AbsolutePath) -> Option<&AbsolutePath> {
         if let Some(index) = self.marked_files.get_index_of(&path) {
             self.unmark_path_impl(index, path)
         } else {
@@ -482,12 +475,12 @@ impl Context {
         }
     }
 
-    pub fn mark_file(&mut self, path: CanonicalizedPath) -> (usize, bool) {
+    pub fn mark_file(&mut self, path: AbsolutePath) -> (usize, bool) {
         self.marked_files.insert_sorted(path)
     }
 
     /// Returns true if the path to be removed is in the list
-    pub fn unmark_path(&mut self, path: CanonicalizedPath) -> Option<&CanonicalizedPath> {
+    pub fn unmark_path(&mut self, path: AbsolutePath) -> Option<&AbsolutePath> {
         if let Some(index) = self.marked_files.get_index_of(&path) {
             self.unmark_path_impl(index, path)
         } else {
@@ -495,11 +488,7 @@ impl Context {
         }
     }
 
-    fn unmark_path_impl(
-        &mut self,
-        index: usize,
-        path: CanonicalizedPath,
-    ) -> Option<&CanonicalizedPath> {
+    fn unmark_path_impl(&mut self, index: usize, path: AbsolutePath) -> Option<&AbsolutePath> {
         let _ = self.marked_files.shift_remove(&path);
         self.marked_files
             .get_index(if index == self.marked_files.len() {
@@ -513,7 +502,7 @@ impl Context {
         self.is_running_as_embedded
     }
 
-    pub fn rename_path_mark(&mut self, from: &CanonicalizedPath, to: &CanonicalizedPath) {
+    pub fn rename_path_mark(&mut self, from: &AbsolutePath, to: &AbsolutePath) {
         self.marked_files.shift_remove(from);
         self.marked_files.insert_sorted(to.clone());
     }
@@ -651,7 +640,7 @@ mod test_context {
 
     use indexmap::IndexSet;
     use itertools::Itertools;
-    use shared::canonicalized_path::CanonicalizedPath;
+    use shared::absolute_path::AbsolutePath;
 
     use crate::{
         char_index_range::CharIndexRange, components::prompt::PromptHistoryKey, context::Context,
@@ -695,13 +684,13 @@ mod test_context {
                 .cloned()
                 .collect_vec();
 
-            let expected_marked_files = vec![CanonicalizedPath::try_from(random_file.clone())?];
+            let expected_marked_files = vec![AbsolutePath::try_from(random_file.clone())?];
 
             assert_eq!(actual_marked_files, expected_marked_files);
 
             let actual_marks = context.marks;
 
-            let expected_marks: HashMap<CanonicalizedPath, Vec<CharIndexRange>> =
+            let expected_marks: HashMap<AbsolutePath, Vec<CharIndexRange>> =
                 [(random_file.try_into()?, marks)].into_iter().collect();
 
             assert_eq!(actual_marks, expected_marks);

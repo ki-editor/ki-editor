@@ -13,7 +13,7 @@ use figment::providers::Format;
 use once_cell::sync::OnceCell;
 use schemars::{JsonSchema, Schema, SchemaGenerator};
 use serde::{Deserialize, Serialize};
-use shared::canonicalized_path::CanonicalizedPath;
+use shared::absolute_path::AbsolutePath;
 use shared::language::{self, Language};
 
 #[derive(Deserialize, Serialize, JsonSchema)]
@@ -96,16 +96,16 @@ pub fn load_script(script_name: &str) -> anyhow::Result<Script> {
     // Trying reading from workspace directory first
     let workspace_path = ki_workspace_directory()?.join("scripts").join(script_name);
     let global_path = ki_global_directory().join("scripts").join(script_name);
-    if let Ok(path) = CanonicalizedPath::try_from(workspace_path.clone()) {
+    if workspace_path.exists() {
         Ok(Script {
-            path,
+            path: workspace_path.try_into().unwrap(),
             name: script_name.to_string(),
         })
     }
     // Then try reading from global directory
-    else if let Ok(path) = CanonicalizedPath::try_from(global_path.clone()) {
+    else if global_path.exists() {
         Ok(Script {
-            path,
+            path: global_path.try_into().unwrap(),
             name: script_name.to_string(),
         })
     } else {
@@ -180,7 +180,7 @@ impl AppConfig {
     }
 }
 
-pub fn from_path(path: &CanonicalizedPath) -> Option<Language> {
+pub fn from_path(path: &AbsolutePath) -> Option<Language> {
     path.extension()
         .and_then(from_extension)
         .or_else(|| from_filename(path))
@@ -194,7 +194,7 @@ pub fn from_extension(extension: &str) -> Option<Language> {
         .map(|(_, language)| (*language).clone())
 }
 
-pub fn from_filename(path: &CanonicalizedPath) -> Option<Language> {
+pub fn from_filename(path: &AbsolutePath) -> Option<Language> {
     let file_name = path.file_name()?;
     AppConfig::singleton()
         .languages()

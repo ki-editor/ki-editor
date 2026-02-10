@@ -500,7 +500,7 @@ impl SelectionMode {
         buffer: &Buffer,
         current_selection: &Selection,
         cursor_direction: &Direction,
-        working_directory: &shared::canonicalized_path::CanonicalizedPath,
+        working_directory: &shared::absolute_path::AbsolutePath,
         quickfix_list_items: &[QuickfixListItem],
         marks: &[CharIndexRange],
     ) -> anyhow::Result<Box<dyn selection_mode::SelectionModeTrait>> {

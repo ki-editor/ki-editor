@@ -8,7 +8,7 @@ use globset::Glob;
 use ignore::{WalkBuilder, WalkState};
 use itertools::Itertools;
 use rayon::iter::{ParallelBridge, ParallelIterator};
-use shared::canonicalized_path::CanonicalizedPath;
+use shared::absolute_path::AbsolutePath;
 
 use crate::{
     buffer::Buffer, list::reorder_batches::reorder_batches, quickfix_list::Location,
@@ -126,7 +126,7 @@ impl WalkBuilderConfig {
         self,
         enable_tree_sitter: bool,
         on_visit_buffer: Arc<
-            dyn Fn(/*file index (0 = first file)*/ usize, CanonicalizedPath, Buffer) + Send + Sync,
+            dyn Fn(/*file index (0 = first file)*/ usize, AbsolutePath, Buffer) + Send + Sync,
         >,
     ) -> anyhow::Result<()> {
         let build_matcher = |glob: Option<&Glob>| -> anyhow::Result<_> {

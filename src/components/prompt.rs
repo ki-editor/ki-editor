@@ -8,7 +8,7 @@ use std::{
 
 use itertools::Itertools;
 use my_proc_macros::key;
-use shared::canonicalized_path::CanonicalizedPath;
+use shared::absolute_path::AbsolutePath;
 
 use crate::{
     app::{Dispatch, DispatchParser, Dispatches},
@@ -56,7 +56,7 @@ pub struct Prompt {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum PromptOnChangeDispatch {
-    RequestWorkspaceSymbol(CanonicalizedPath),
+    RequestWorkspaceSymbol(AbsolutePath),
     SetIncrementalSearchConfig { component_id: ComponentId },
     UpdateSuggestedItemsWithChildPaths,
 }
@@ -118,7 +118,7 @@ impl PromptOnChangeDispatch {
     }
 }
 
-fn get_child_directories(path: &Path) -> anyhow::Result<Vec<CanonicalizedPath>> {
+fn get_child_directories(path: &Path) -> anyhow::Result<Vec<AbsolutePath>> {
     Ok(std::fs::read_dir(path)?
         .filter_map(|entry| entry.ok())
         .map(|entry| entry.path())
@@ -240,9 +240,7 @@ pub enum PromptItems {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum PromptItemsBackgroundTask {
-    NonGitIgnoredFiles {
-        working_directory: CanonicalizedPath,
-    },
+    NonGitIgnoredFiles { working_directory: AbsolutePath },
     HandledByMainEventLoop,
 }
 impl PromptItemsBackgroundTask {

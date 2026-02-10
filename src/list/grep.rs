@@ -14,7 +14,7 @@ use crate::{
     selection_mode::regex::get_regex,
     thread::SendResult,
 };
-use shared::canonicalized_path::CanonicalizedPath;
+use shared::absolute_path::AbsolutePath;
 
 use super::WalkBuilderConfig;
 
@@ -85,7 +85,7 @@ impl Default for RegexConfig {
 pub fn replace(
     walk_builder_config: WalkBuilderConfig,
     local_search_config: LocalSearchConfig,
-) -> anyhow::Result<(Dispatches, Vec<CanonicalizedPath>)> {
+) -> anyhow::Result<(Dispatches, Vec<AbsolutePath>)> {
     let (dispatches, paths): (Vec<_>, Vec<_>) = walk_builder_config
         .run(Box::new(move |path, sender| {
             let path = path.try_into()?;
@@ -157,7 +157,7 @@ pub fn run(
 
 fn to_locations(
     buffer: &Buffer,
-    path: CanonicalizedPath,
+    path: AbsolutePath,
     line_number: usize,
     line: &str,
     regex: Regex,

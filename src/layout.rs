@@ -24,7 +24,7 @@ use anyhow::anyhow;
 use indexmap::IndexMap;
 use itertools::Itertools;
 use nary_tree::NodeId;
-use shared::canonicalized_path::CanonicalizedPath;
+use shared::absolute_path::AbsolutePath;
 use std::{cell::RefCell, rc::Rc};
 
 #[cfg(test)]
@@ -35,7 +35,7 @@ pub type BufferContentsMap = std::collections::HashMap<String, String>;
 /// The main panel is where the user edits code, and the info panel is for displaying info like
 /// hover text, diagnostics, etc.
 pub struct Layout {
-    background_suggestive_editors: IndexMap<CanonicalizedPath, Rc<RefCell<SuggestiveEditor>>>,
+    background_suggestive_editors: IndexMap<AbsolutePath, Rc<RefCell<SuggestiveEditor>>>,
     background_file_explorer: Rc<RefCell<FileExplorer>>,
     background_quickfix_list: Option<Rc<RefCell<Editor>>>,
 
@@ -49,7 +49,7 @@ pub struct Layout {
 impl Layout {
     pub fn new(
         terminal_dimension: Dimension,
-        working_directory: &CanonicalizedPath,
+        working_directory: &AbsolutePath,
     ) -> anyhow::Result<Layout> {
         let (layout_kind, ratio) = layout_kind();
         let (rectangles, borders) = Rectangle::generate(layout_kind, 1, ratio, terminal_dimension);
@@ -86,7 +86,7 @@ impl Layout {
             .unwrap_or_else(|| self.tree.root().data().component().clone())
     }
 
-    pub fn remove_current_component(&mut self, context: &Context) -> Option<CanonicalizedPath> {
+    pub fn remove_current_component(&mut self, context: &Context) -> Option<AbsolutePath> {
         let node = self.tree.get_current_node();
         let removed_path = node.data().component().borrow().path();
         if let Some(path) = &removed_path {
@@ -112,7 +112,7 @@ impl Layout {
         self.tree.cycle_component()
     }
 
-    pub fn close_current_window(&mut self, context: &Context) -> Option<CanonicalizedPath> {
+    pub fn close_current_window(&mut self, context: &Context) -> Option<AbsolutePath> {
         self.remove_current_component(context)
     }
 
@@ -152,14 +152,14 @@ impl Layout {
 
     pub fn get_existing_editor(
         &self,
-        path: &CanonicalizedPath,
+        path: &AbsolutePath,
     ) -> Option<Rc<RefCell<SuggestiveEditor>>> {
         self.background_suggestive_editors.get(path).cloned()
     }
 
     pub fn open_file(
         &mut self,
-        path: &CanonicalizedPath,
+        path: &AbsolutePath,
         focus_editor: bool,
     ) -> Option<Rc<RefCell<SuggestiveEditor>>> {
         if let Some(matching_editor) = self.get_existing_editor(path) {
@@ -243,7 +243,7 @@ impl Layout {
         self.tree.remain_only_current_component()
     }
 
-    pub fn get_opened_files(&self) -> Vec<CanonicalizedPath> {
+    pub fn get_opened_files(&self) -> Vec<AbsolutePath> {
         self.background_suggestive_editors
             .iter()
             .filter(|(_, editor)| editor.borrow().editor().buffer().owner() == BufferOwner::User)
@@ -274,7 +274,7 @@ impl Layout {
 
     pub fn reveal_path_in_explorer(
         &mut self,
-        path: &CanonicalizedPath,
+        path: &AbsolutePath,
         context: &Context,
     ) -> anyhow::Result<Dispatches> {
         let result = self
@@ -301,7 +301,7 @@ impl Layout {
         Ok(dispatches)
     }
 
-    pub fn remove_suggestive_editor(&mut self, path: &CanonicalizedPath) {
+    pub fn remove_suggestive_editor(&mut self, path: &AbsolutePath) {
         self.background_suggestive_editors.shift_remove(path);
     }
 
@@ -353,10 +353,7 @@ impl Layout {
             .collect_vec()
     }
 
-    pub fn reload_buffers(
-        &self,
-        affected_paths: Vec<CanonicalizedPath>,
-    ) -> anyhow::Result<Dispatches> {
+    pub fn reload_buffers(&self, affected_paths: Vec<AbsolutePath>) -> anyhow::Result<Dispatches> {
         self.buffers()
             .into_iter()
             .try_fold(Dispatches::default(), |dispatches, buffer| {
@@ -533,7 +530,7 @@ impl Layout {
         self.background_file_explorer.borrow().content()
     }
 
-    pub fn file_explorer_expanded_folders(&self) -> Vec<CanonicalizedPath> {
+    pub fn file_explorer_expanded_folders(&self) -> Vec<AbsolutePath> {
         self.background_file_explorer.borrow().expanded_folders()
     }
 

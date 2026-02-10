@@ -7,7 +7,7 @@ use rayon::prelude::*;
 use git2::Repository;
 
 use itertools::Itertools;
-use shared::canonicalized_path::CanonicalizedPath;
+use shared::absolute_path::AbsolutePath;
 
 use crate::git::hunk::SimpleHunk;
 
@@ -15,13 +15,13 @@ use self::hunk::Hunk;
 
 pub struct GitRepo {
     repo: Repository,
-    path: CanonicalizedPath,
+    path: AbsolutePath,
 }
 
-impl TryFrom<&CanonicalizedPath> for GitRepo {
+impl TryFrom<&AbsolutePath> for GitRepo {
     type Error = anyhow::Error;
 
-    fn try_from(value: &CanonicalizedPath) -> Result<Self, Self::Error> {
+    fn try_from(value: &AbsolutePath) -> Result<Self, Self::Error> {
         let repo = Repository::discover(value)?;
         let path = match repo.path().parent() {
             Some(parent_path) => parent_path.try_into()?,
@@ -42,7 +42,7 @@ impl GitRepo {
             .collect())
     }
 
-    fn path(&self) -> &CanonicalizedPath {
+    fn path(&self) -> &AbsolutePath {
         &self.path
     }
 
@@ -133,7 +133,7 @@ impl GitRepo {
 }
 
 pub struct FileDiff {
-    path: CanonicalizedPath,
+    path: AbsolutePath,
     hunks: Vec<Hunk>,
 }
 impl FileDiff {
@@ -141,7 +141,7 @@ impl FileDiff {
         &self.hunks
     }
 
-    pub fn path(&self) -> &CanonicalizedPath {
+    pub fn path(&self) -> &AbsolutePath {
         &self.path
     }
 }
@@ -151,13 +151,13 @@ pub trait GitOperation {
         &self,
         current_content: &str,
         diff_mode: &DiffMode,
-        repo: &CanonicalizedPath,
+        repo: &AbsolutePath,
     ) -> anyhow::Result<FileDiff>;
     fn simple_hunks(
         &self,
         current_content: &str,
         diff_mode: &DiffMode,
-        repo: &CanonicalizedPath,
+        repo: &AbsolutePath,
     ) -> anyhow::Result<Vec<SimpleHunk>>;
     fn content_at_last_commit(
         &self,
@@ -166,12 +166,12 @@ pub trait GitOperation {
     ) -> anyhow::Result<String>;
 }
 
-impl GitOperation for CanonicalizedPath {
+impl GitOperation for AbsolutePath {
     fn file_diff(
         &self,
         current_content: &str,
         diff_mode: &DiffMode,
-        repo_path: &CanonicalizedPath,
+        repo_path: &AbsolutePath,
     ) -> anyhow::Result<FileDiff> {
         if let Ok(latest_committed_content) =
             self.content_at_last_commit(diff_mode, &repo_path.try_into()?)
@@ -194,7 +194,7 @@ impl GitOperation for CanonicalizedPath {
         &self,
         current_content: &str,
         diff_mode: &DiffMode,
-        repo_path: &CanonicalizedPath,
+        repo_path: &AbsolutePath,
     ) -> anyhow::Result<Vec<SimpleHunk>> {
         if let Ok(latest_committed_content) =
             self.content_at_last_commit(diff_mode, &repo_path.try_into()?)
@@ -227,7 +227,7 @@ use std::str;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DiffEntry {
-    new_path: CanonicalizedPath,
+    new_path: AbsolutePath,
     old_content: Option<String>,
     new_content: String,
 }
@@ -248,7 +248,7 @@ impl DiffEntry {
         }
     }
 
-    pub fn new_path(&self) -> CanonicalizedPath {
+    pub fn new_path(&self) -> AbsolutePath {
         self.new_path.clone()
     }
 }

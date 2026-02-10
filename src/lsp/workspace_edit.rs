@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use itertools::Itertools;
-use shared::canonicalized_path::CanonicalizedPath;
+use shared::absolute_path::AbsolutePath;
 
 use super::completion::PositionalEdit;
 
@@ -13,11 +13,8 @@ pub struct WorkspaceEdit {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ResourceOperation {
     Create(String),
-    Rename {
-        old: CanonicalizedPath,
-        new: PathBuf,
-    },
-    Delete(CanonicalizedPath),
+    Rename { old: AbsolutePath, new: PathBuf },
+    Delete(AbsolutePath),
 }
 
 impl TryFrom<lsp_types::ResourceOp> for ResourceOperation {
@@ -131,6 +128,6 @@ impl TryFrom<lsp_types::TextDocumentEdit> for TextDocumentEdit {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TextDocumentEdit {
-    pub path: CanonicalizedPath,
+    pub path: AbsolutePath,
     pub edits: Vec<PositionalEdit>,
 }

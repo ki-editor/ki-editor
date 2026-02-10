@@ -7,7 +7,7 @@ use crate::{
     buffer::BufferOwner,
     context::Context,
 };
-use shared::canonicalized_path::CanonicalizedPath;
+use shared::absolute_path::AbsolutePath;
 
 use super::{
     component::Component,
@@ -50,7 +50,7 @@ pub fn file_explorer_normal_mode_override() -> NormalModeOverride {
     }
 }
 impl FileExplorer {
-    pub fn new(path: &CanonicalizedPath) -> anyhow::Result<Self> {
+    pub fn new(path: &AbsolutePath) -> anyhow::Result<Self> {
         let tree = Tree::new(path)?;
         let text = tree.render();
         let mut editor = Editor::from_text(
@@ -63,7 +63,7 @@ impl FileExplorer {
         Ok(Self { editor, tree })
     }
 
-    pub fn expanded_folders(&self) -> Vec<CanonicalizedPath> {
+    pub fn expanded_folders(&self) -> Vec<AbsolutePath> {
         self.tree
             .walk_visible(Vec::new(), |result, node| Continuation {
                 state: if matches!(node.kind, NodeKind::Directory { open: true, .. }) {
@@ -75,22 +75,16 @@ impl FileExplorer {
             })
     }
 
-    pub fn reveal(
-        &mut self,
-        path: &CanonicalizedPath,
-        context: &Context,
-    ) -> anyhow::Result<Dispatches> {
+    pub fn reveal(&mut self, path: &AbsolutePath, context: &Context) -> anyhow::Result<Dispatches> {
         if !context.current_working_directory().is_parent_of(path) {
             // Use the nearest common ancestor if possible
-            let new_root_dir = CanonicalizedPath::nearest_common_ancestor(
-                context.current_working_directory(),
-                path,
-            )
-            .unwrap_or_else(|| {
-                // Otherwise just use the parent of the path,
-                // and worse case scenario we will just use the path itself.
-                path.parent().ok().flatten().unwrap_or_else(|| path.clone())
-            });
+            let new_root_dir =
+                AbsolutePath::nearest_common_ancestor(context.current_working_directory(), path)
+                    .unwrap_or_else(|| {
+                        // Otherwise just use the parent of the path,
+                        // and worse case scenario we will just use the path itself.
+                        path.parent().ok().flatten().unwrap_or_else(|| path.clone())
+                    });
             let tree = std::mem::take(&mut self.tree);
             self.tree = tree.refresh(&new_root_dir)?;
         }
@@ -130,12 +124,12 @@ impl FileExplorer {
             .collect_vec())
     }
 
-    pub fn get_selected_paths(&self) -> anyhow::Result<Vec<CanonicalizedPath>> {
+    pub fn get_selected_paths(&self) -> anyhow::Result<Vec<AbsolutePath>> {
         self.get_selected_nodes()
             .map(|nodes| nodes.into_iter().map(|node| node.path).collect_vec())
     }
 
-    pub fn get_current_path(&self) -> anyhow::Result<Option<CanonicalizedPath>> {
+    pub fn get_current_path(&self) -> anyhow::Result<Option<AbsolutePath>> {
         self.get_current_node()
             .map(|node| node.map(|node| node.path))
     }
@@ -187,12 +181,12 @@ impl FileExplorer {
     }
 }
 
-fn get_nodes(path: &CanonicalizedPath) -> anyhow::Result<Vec<Node>> {
+fn get_nodes(path: &AbsolutePath) -> anyhow::Result<Vec<Node>> {
     let directory = std::fs::read_dir(path)?;
     Ok(directory
         .flatten()
         .flat_map(|entry| -> anyhow::Result<Node> {
-            let path: CanonicalizedPath = entry.path().try_into()?;
+            let path: AbsolutePath = entry.path().try_into()?;
             let kind = if entry.file_type()?.is_dir() {
                 NodeKind::Directory {
                     open: false,
@@ -227,7 +221,7 @@ enum ContinuationKind {
 }
 
 impl Tree {
-    fn new(working_directory: &CanonicalizedPath) -> anyhow::Result<Self> {
+    fn new(working_directory: &AbsolutePath) -> anyhow::Result<Self> {
         let nodes = get_nodes(working_directory)?;
         Ok(Self { nodes })
     }
@@ -241,7 +235,7 @@ impl Tree {
         }
     }
 
-    fn toggle<F>(self, path: &CanonicalizedPath, change_open: F) -> Self
+    fn toggle<F>(self, path: &AbsolutePath, change_open: F) -> Self
     where
         F: Fn(bool) -> bool + Clone,
     {
@@ -379,12 +373,12 @@ impl Tree {
         self.render_with_indent(0)
     }
 
-    fn reveal(self, path: &CanonicalizedPath) -> anyhow::Result<Self> {
+    fn reveal(self, path: &AbsolutePath) -> anyhow::Result<Self> {
         let components = path.components();
 
         let paths = (1..=components.len())
             .map(|i| components[..i].to_vec())
-            .map(|components| -> Result<CanonicalizedPath, _> {
+            .map(|components| -> Result<AbsolutePath, _> {
                 components.join(std::path::MAIN_SEPARATOR_STR).try_into()
             })
             .collect::<Result<Vec<_>, _>>()?;
@@ -394,7 +388,7 @@ impl Tree {
             .fold(self, |tree, path| tree.toggle(&path, |_| true)))
     }
 
-    fn find_index(&self, path: &CanonicalizedPath) -> Option<usize> {
+    fn find_index(&self, path: &AbsolutePath) -> Option<usize> {
         self.find_map(|node, current_index| {
             if node.path == *path {
                 Some(current_index)
@@ -404,7 +398,7 @@ impl Tree {
         })
     }
 
-    fn refresh(self, working_directory: &CanonicalizedPath) -> anyhow::Result<Self> {
+    fn refresh(self, working_directory: &AbsolutePath) -> anyhow::Result<Self> {
         let opened_paths = self.walk_visible(Vec::new(), |result, node| Continuation {
             kind: ContinuationKind::Continue,
             state: match &node.kind {
@@ -432,7 +426,7 @@ impl Tree {
 #[derive(Clone)]
 struct Node {
     name: String,
-    path: CanonicalizedPath,
+    path: AbsolutePath,
     kind: NodeKind,
 }
 #[derive(Clone)]
@@ -744,16 +738,10 @@ mod test_file_explorer {
  - 🙈  .gitignore
  - 🔒  Cargo.lock
  - 📄  Cargo.toml
- - 📁  src/ :
-",
+ - 📂  src/ :
+   - 🦀  foo.rs
+   - 📘  hello.ts",
                 )),
-                // Expect an error is shown in the global info
-                Expect(GlobalInfo(format!(
-                    r#"Unable to reveal 'src/main.rs' due to the following error:
-
-Cannot canonicalize path: "/{}". Error: Os {{ code: 2, kind: NotFound, message: "No such file or directory" }}"#,
-                    s.main_rs().display_absolute()
-                ))),
             ])
         })
     }

@@ -3,7 +3,7 @@ use crate::embed;
 use crate::RunConfig;
 use chrono::Local;
 use clap::{Args, Parser, Subcommand};
-use shared::canonicalized_path::CanonicalizedPath;
+use shared::absolute_path::AbsolutePath;
 use std::fs::File;
 use std::io::{self, IsTerminal, Read};
 use std::path::PathBuf;
@@ -125,7 +125,7 @@ fn process_edit_args(args: EditArgs) -> anyhow::Result<RunConfig> {
                 std::fs::write(tmp_path, "")?;
             }
 
-            let path: Option<CanonicalizedPath> = Some(path.try_into()?);
+            let path: Option<AbsolutePath> = Some(path.try_into()?);
             let working_directory = match path.clone() {
                 Some(value) if value.is_dir() => Some(value),
                 _ => Default::default(),
@@ -140,7 +140,7 @@ fn process_edit_args(args: EditArgs) -> anyhow::Result<RunConfig> {
             // If no path is provided and stdin is not a terminal, read from stdin
             if !io::stdin().is_terminal() {
                 let path = read_stdin()?;
-                let canonicalized_path: Option<CanonicalizedPath> =
+                let canonicalized_path: Option<AbsolutePath> =
                     Some(path.to_string_lossy().to_string().try_into()?);
 
                 Ok(crate::RunConfig {
@@ -173,7 +173,7 @@ pub fn cli() -> anyhow::Result<()> {
             Commands::Log => {
                 println!(
                     "{}",
-                    CanonicalizedPath::try_from(grammar::default_log_file())?.display_absolute(),
+                    AbsolutePath::try_from(grammar::default_log_file())?.display_absolute(),
                 );
                 Ok(())
             }
@@ -224,7 +224,7 @@ pub fn fetch_grammars() {
 }
 #[cfg(test)]
 mod test_process_edit_args {
-    use shared::canonicalized_path::CanonicalizedPath;
+    use shared::absolute_path::AbsolutePath;
 
     use super::{process_edit_args, EditArgs};
 
@@ -267,7 +267,7 @@ mod test_process_edit_args {
         })?;
         assert_eq!(
             actual.working_directory,
-            Some(CanonicalizedPath::try_from("./docs")?)
+            Some(AbsolutePath::try_from("./docs")?)
         );
         Ok(())
     }
