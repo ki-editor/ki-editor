@@ -351,6 +351,12 @@ impl<T: Frontend> App<T> {
                 self.show_global_info(Info::new("App Error".to_string(), format!("{error:#?}")));
                 Ok(false)
             }
+            AppMessage::GlobalSearchFinished => {
+                // Does nothing because this is used for testing only at the moment
+                // In the future we can possibly update the UI to notify the user
+                // that the global search is completed
+                Ok(false)
+            }
         }
     }
 
@@ -1837,10 +1843,11 @@ impl<T: Frontend> App<T> {
         if config.search().is_empty() {
             return Ok(());
         }
-        let sender = self.sender.clone();
         let limit = 10000;
-        let send_matches = Arc::new(move |result: crate::thread::BatchResult<Match>| {
-            SendResult::from(
+        let send_matches = {
+            let sender = self.sender.clone();
+            Arc::new(move |result: crate::thread::BatchResult<Match>| {
+                SendResult::from(
                 sender.send(AppMessage::ExternalDispatch(Box::new(match result {
                     crate::thread::BatchResult::Items(matches) => {
                         Dispatch::AddQuickfixListEntries(matches)
@@ -1853,8 +1860,16 @@ impl<T: Frontend> App<T> {
                     }
                 }))),
             )
-        });
-        let send_match = crate::thread::batch(send_matches, Duration::from_millis(100), limit); // Around 30 ticks per second
+            })
+        };
+        let on_finish = {
+            let sender = self.sender.clone();
+            Callback::new(Arc::new(move |_| {
+                let _ = sender.send(AppMessage::GlobalSearchFinished);
+            }))
+        };
+        let send_match =
+            crate::thread::batch(send_matches, on_finish, Duration::from_millis(100), limit); // Around 10 ticks per second
 
         // TODO: we need to create a new sender for each global search, so that it can be cancelled, but when?
         // Is it when the quickfix list is closed?
@@ -3798,6 +3813,7 @@ pub enum AppMessage {
     ExternalDispatch(Box<Dispatch>),
     NucleoTickDebounced,
     FileWatcherEvent(FileWatcherEvent),
+    GlobalSearchFinished,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

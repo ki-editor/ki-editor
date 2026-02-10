@@ -60,13 +60,15 @@ impl<T> From<Result<(), SendError<T>>> for SendResult {
     }
 }
 
+#[derive(Debug)]
 pub enum BatchResult<T> {
     Items(Vec<T>),
     LimitReached,
 }
 
-pub fn batch<T: Send + Sync + 'static>(
+pub fn batch<T: std::fmt::Debug + Send + Sync + 'static>(
     callback: Arc<dyn Fn(BatchResult<T>) -> SendResult + Send + Sync>,
+    on_finish: Callback<()>,
     interval: Duration,
     limit: usize,
 ) -> Arc<dyn Fn(T) -> SendResult + Send + Sync> {
@@ -93,7 +95,11 @@ pub fn batch<T: Send + Sync + 'static>(
                 break;
             }
         }
-        callback(BatchResult::Items(std::mem::take(&mut batch)))
+
+        // Sending the remaining items
+        callback(BatchResult::Items(std::mem::take(&mut batch)));
+
+        on_finish.call(())
     });
 
     Arc::new(move |item| SendResult::from(sender.send(item)))
