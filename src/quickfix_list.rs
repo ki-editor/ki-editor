@@ -136,19 +136,7 @@ impl QuickfixList {
         items: Vec<QuickfixListItem>,
         current_working_directory: &CanonicalizedPath,
     ) {
-        // Extend the buffers cache with new paths
-        for path in items
-            .iter()
-            .map(|item| &item.location().path)
-            .unique_by(|path| path.try_display_relative_to(current_working_directory))
-        {
-            self.buffers.entry(path.clone()).or_insert_with(|| {
-                Buffer::from_path(path, false)
-                    .ok()
-                    .map(|buffer| Rc::new(RefCell::new(buffer)))
-                    .unwrap_or_else(|| Rc::new(RefCell::new(Buffer::new(None, ""))))
-            });
-        }
+        self.extend_buffers(&items, current_working_directory);
 
         let items = {
             self.items.extend(items);
@@ -166,6 +154,8 @@ impl QuickfixList {
     ) {
         // Clear buffers cache
         self.buffers.clear();
+        self.extend_buffers(&items, current_working_directory);
+
         let (items, dropdown_items) = self.convert_items(items, current_working_directory);
         self.dropdown.set_items(dropdown_items);
         self.items = items;
@@ -276,6 +266,26 @@ impl QuickfixList {
 
     pub(crate) fn set_title(&mut self, title: &str) {
         self.title = title.to_string()
+    }
+
+    fn extend_buffers(
+        &mut self,
+        items: &[QuickfixListItem],
+        current_working_directory: &CanonicalizedPath,
+    ) {
+        // Extend the buffers cache with new paths
+        for path in items
+            .iter()
+            .map(|item| &item.location().path)
+            .unique_by(|path| path.try_display_relative_to(current_working_directory))
+        {
+            self.buffers.entry(path.clone()).or_insert_with(|| {
+                Buffer::from_path(path, false)
+                    .ok()
+                    .map(|buffer| Rc::new(RefCell::new(buffer)))
+                    .unwrap_or_else(|| Rc::new(RefCell::new(Buffer::new(None, ""))))
+            });
+        }
     }
 }
 
