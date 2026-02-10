@@ -218,4 +218,8 @@ impl AbsolutePath {
             .find(|ancestor| path2.0.starts_with(ancestor))
             .map(|p| AbsolutePath(p.to_path_buf()))
     }
+
+    pub fn canonicalize(&self) -> anyhow::Result<Self> {
+        Ok(Self(self.0.canonicalize()?))
+    }
 }

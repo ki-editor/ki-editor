@@ -214,7 +214,7 @@ impl GitOperation for AbsolutePath {
     ) -> anyhow::Result<String> {
         let tree = repo.get_tree(diff_mode)?;
         let entry = tree.get_path(std::path::Path::new(
-            &self.display_relative_to(repo.path())?,
+            &self.canonicalize()?.display_relative_to(repo.path())?,
         ))?;
         let blob = entry.to_object(&repo.repo)?.peel_to_blob()?;
         let content = blob.content().to_vec();
