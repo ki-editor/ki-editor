@@ -214,7 +214,9 @@ impl QuickfixList {
         .count();
         let dropdown_items = items_with_position_range
             .iter()
-            .chunk_by(|(position_range, _)| position_range.start.line)
+            .chunk_by(|(position_range, item)| {
+                (position_range.start.line, item.location.path.clone())
+            })
             .into_iter()
             .flat_map(|(_, items)| {
                 items
@@ -663,6 +665,55 @@ src/foo.rs
                 Expect(QuickfixListCurrentLine("    3: 1  aslmlkm kitty aslmlkm")),
                 Editor(MoveSelection(Left)),
                 Expect(QuickfixListCurrentLine("    1: 1  aslmlkm world aslmlkm")),
+            ])
+        })
+    }
+
+    #[test]
+    fn line_number_of_next_file_entries_should_not_be_elided() -> anyhow::Result<()> {
+        execute_test(|s| {
+            let new_dispatch = |update: LocalSearchConfigUpdate| -> Dispatch {
+                UpdateLocalSearchConfig {
+                    update,
+                    scope: Scope::Global,
+                    if_current_not_found: IfCurrentNotFound::LookForward,
+                    run_search_after_config_updated: true,
+                    component_id: None,
+                }
+            };
+            Box::new([
+                App(OpenFile {
+                    path: s.foo_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                Editor(SetContent("foo bar foo\nfoo spam".trim().to_string())),
+                Editor(Save),
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                Editor(SetContent("main main\nmain foo spam".trim().to_string())),
+                Editor(Save),
+                App(new_dispatch(LocalSearchConfigUpdate::Search(
+                    "foo".to_string(),
+                ))),
+                WaitForAppMessage(lazy_regex::regex!("AddQuickfixListEntries")),
+                Expect(QuickfixListContent(
+                    "
+src/foo.rs
+    1:1  foo bar foo
+     :9  foo bar foo
+    2:1  foo spam
+
+src/main.rs
+    2:6  main foo spam
+"
+                    .to_string()
+                    .trim()
+                    .to_string(),
+                )),
             ])
         })
     }
