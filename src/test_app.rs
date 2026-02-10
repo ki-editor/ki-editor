@@ -1690,7 +1690,7 @@ fn esc_global_quickfix_mode() -> Result<(), anyhow::Error> {
                 run_search_after_config_updated: true,
                 component_id: None,
             }),
-            WaitForAppMessage(regex!("AddQuickfixListEntries")),
+            WaitForAppMessage(regex!("GlobalSearchFinished")),
             Expect(CurrentGlobalMode(Some(GlobalMode::QuickfixListItem))),
             Expect(Quickfixes(Box::new([
                 QuickfixListItem::new(
@@ -1925,7 +1925,7 @@ fn test_global_repeat_search() -> anyhow::Result<()> {
                 run_search_after_config_updated: true,
                 component_id: None,
             }),
-            WaitForAppMessage(regex!("AddQuickfixListEntries")),
+            WaitForAppMessage(regex!("GlobalSearchFinished")),
             Expect(CurrentSelectedTexts(&["bye"])),
             // Change the selection mode
             Editor(SetSelectionMode(
@@ -1938,7 +1938,7 @@ fn test_global_repeat_search() -> anyhow::Result<()> {
                 IfCurrentNotFound::LookForward,
                 None,
             )),
-            WaitForAppMessage(regex!("AddQuickfixListEntries")),
+            WaitForAppMessage(regex!("GlobalSearchFinished")),
             Expect(CurrentSelectedTexts(&["bye"])),
         ])
     })
@@ -2034,7 +2034,7 @@ foo a // Line 10
             App(new_dispatch(LocalSearchConfigUpdate::Search(
                 "foo".to_string(),
             ))),
-            WaitForAppMessage(regex!("AddQuickfixListEntries")),
+            WaitForAppMessage(regex!("GlobalSearchFinished")),
             Expect(QuickfixListContent(
                 // Line 10 should be placed below Line 2 (sorted numerically, not lexicograhically)
                 "
@@ -3871,20 +3871,8 @@ fn closing_all_buffers_should_land_on_scratch_buffer() -> Result<(), anyhow::Err
             Expect(CurrentComponentTitle(
                 "\u{200b} 🦀 foo.rs \u{200b}".to_string(),
             )),
-            App(HandleKeyEvent(key!("alt+v"))),
-            Expect(AppGrid(
-                "[ROOT] (Cannot be saved)
-1│█
-
-
-
-
-
-
-
- Close current window"
-                    .to_string(),
-            )),
+            App(Dispatch::CloseCurrentWindow),
+            Expect(AppGrid("[ROOT] (Cannot be saved)\n1│█".to_string())),
         ])
     })
 }

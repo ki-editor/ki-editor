@@ -351,6 +351,12 @@ impl<T: Frontend> App<T> {
                 self.show_global_info(Info::new("App Error".to_string(), format!("{error:#?}")));
                 Ok(false)
             }
+            AppMessage::GlobalSearchFinished => {
+                // Does nothing because this is used for testing only at the moment
+                // In the future we can possibly update the UI to notify the user
+                // that the global search is completed
+                Ok(false)
+            }
         }
     }
 
@@ -713,6 +719,9 @@ impl<T: Frontend> App<T> {
             }
             Dispatch::CloseCurrentWindow => {
                 self.close_current_window()?;
+            }
+            Dispatch::UnmarkAllOthers => {
+                self.unmark_all_others()?;
             }
             Dispatch::CloseCurrentWindowAndFocusParent => {
                 self.close_current_window_and_focus_parent();
@@ -1174,6 +1183,24 @@ impl<T: Frontend> App<T> {
                 self.open_file(&path, BufferOwner::User, true, true)?;
             }
         }
+        Ok(())
+    }
+
+    fn unmark_all_others(&mut self) -> anyhow::Result<()> {
+        if let Some(current_file_path) = self.get_current_file_path() {
+            let paths_to_unmark: Vec<CanonicalizedPath> = self
+                .context
+                .get_marked_files()
+                .into_iter()
+                .filter(|&path| path.clone() != current_file_path)
+                .cloned() // Cloning allows us to mutate self.context below
+                .collect();
+
+            for path in paths_to_unmark {
+                self.context.unmark_path(path);
+            }
+        }
+
         Ok(())
     }
 
@@ -1837,10 +1864,11 @@ impl<T: Frontend> App<T> {
         if config.search().is_empty() {
             return Ok(());
         }
-        let sender = self.sender.clone();
         let limit = 10000;
-        let send_matches = Arc::new(move |result: crate::thread::BatchResult<Match>| {
-            SendResult::from(
+        let send_matches = {
+            let sender = self.sender.clone();
+            Arc::new(move |result: crate::thread::BatchResult<Match>| {
+                SendResult::from(
                 sender.send(AppMessage::ExternalDispatch(Box::new(match result {
                     crate::thread::BatchResult::Items(matches) => {
                         Dispatch::AddQuickfixListEntries(matches)
@@ -1853,8 +1881,16 @@ impl<T: Frontend> App<T> {
                     }
                 }))),
             )
-        });
-        let send_match = crate::thread::batch(send_matches, Duration::from_millis(16), limit); // Around 30 ticks per second
+            })
+        };
+        let on_finish = {
+            let sender = self.sender.clone();
+            Callback::new(Arc::new(move |_| {
+                let _ = sender.send(AppMessage::GlobalSearchFinished);
+            }))
+        };
+        let send_match =
+            crate::thread::batch(send_matches, on_finish, Duration::from_millis(100), limit); // Around 10 ticks per second
 
         // TODO: we need to create a new sender for each global search, so that it can be cancelled, but when?
         // Is it when the quickfix list is closed?
@@ -3476,6 +3512,7 @@ pub enum Dispatch {
     SetTheme(crate::themes::Theme),
     SetThemeFromDescriptor(crate::themes::theme_descriptor::ThemeDescriptor),
     CloseCurrentWindow,
+    UnmarkAllOthers,
     OpenFilePicker(FilePickerKind),
     OpenSearchPrompt {
         scope: Scope,
@@ -3799,6 +3836,7 @@ pub enum AppMessage {
     ExternalDispatch(Box<Dispatch>),
     NucleoTickDebounced,
     FileWatcherEvent(FileWatcherEvent),
+    GlobalSearchFinished,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

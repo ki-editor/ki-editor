@@ -459,12 +459,6 @@ impl Editor {
     pub fn keymap_universal(&self) -> Vec<Keybinding> {
         [
             Keybinding::new_extended(
-                "alt+v",
-                "Close".to_string(),
-                "Close current window".to_string(),
-                Dispatch::CloseCurrentWindow,
-            ),
-            Keybinding::new_extended(
                 "alt+;",
                 "⇋ Align View".to_string(),
                 "Switch view alignment".to_string(),
@@ -957,6 +951,12 @@ impl Editor {
                     "Copy Relative Path".to_string(),
                     Dispatch::ToEditor(DispatchEditor::CopyRelativePath),
                 ),
+                Keybinding::new(
+                    "t",
+                    "TS Node Sexp".to_string(),
+                    Dispatch::ToEditor(DispatchEditor::ShowCurrentTreeSitterNodeSexp),
+                ),
+                Keybinding::new("e", "Pipe".to_string(), Dispatch::OpenPipeToShellPrompt),
             ]),
         }
     }
@@ -974,18 +974,12 @@ impl Editor {
                     },
                 ),
                 Keybinding::new(
-                    "t",
-                    "TS Node Sexp".to_string(),
-                    Dispatch::ToEditor(DispatchEditor::ShowCurrentTreeSitterNodeSexp),
-                ),
-                Keybinding::new(
                     "enter",
                     "Force Save".to_string(),
                     Dispatch::ToEditor(DispatchEditor::ForceSave),
                 ),
                 Keybinding::new("c", "Save All".to_string(), Dispatch::SaveAll),
                 Keybinding::new("v", "Quit No Save".to_string(), Dispatch::QuitAll),
-                Keybinding::new("g", "Pipe".to_string(), Dispatch::OpenPipeToShellPrompt),
                 Keybinding::new(
                     "f",
                     "Change Work Dir".to_string(),
@@ -1607,6 +1601,18 @@ pub fn buffer_keymap() -> Keymap {
             "Mark File".to_string(),
             "Toggle File Mark".to_string(),
             Dispatch::ToggleFileMark,
+        )))
+        .chain(Some(Keybinding::new_extended(
+            "n",
+            "Close".to_string(),
+            "Close current window".to_string(),
+            Dispatch::CloseCurrentWindow,
+        )))
+        .chain(Some(Keybinding::new_extended(
+            "i",
+            "Unmark Others".to_string(),
+            "Unmark all other buffers".to_string(),
+            Dispatch::UnmarkAllOthers,
         )))
         .collect_vec(),
     )
