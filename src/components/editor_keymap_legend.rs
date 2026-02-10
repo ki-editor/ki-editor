@@ -1609,7 +1609,7 @@ pub fn buffer_keymap() -> Keymap {
             Dispatch::CloseCurrentWindow,
         )))
         .chain(Some(Keybinding::new_extended(
-            "m",
+            "i",
             "Unmark Others".to_string(),
             "Unmark all other buffers".to_string(),
             Dispatch::UnmarkAllOthers,
