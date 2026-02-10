@@ -951,6 +951,12 @@ impl Editor {
                     "Copy Relative Path".to_string(),
                     Dispatch::ToEditor(DispatchEditor::CopyRelativePath),
                 ),
+                Keybinding::new(
+                    "t",
+                    "TS Node Sexp".to_string(),
+                    Dispatch::ToEditor(DispatchEditor::ShowCurrentTreeSitterNodeSexp),
+                ),
+                Keybinding::new("e", "Pipe".to_string(), Dispatch::OpenPipeToShellPrompt),
             ]),
         }
     }
@@ -968,18 +974,12 @@ impl Editor {
                     },
                 ),
                 Keybinding::new(
-                    "t",
-                    "TS Node Sexp".to_string(),
-                    Dispatch::ToEditor(DispatchEditor::ShowCurrentTreeSitterNodeSexp),
-                ),
-                Keybinding::new(
                     "enter",
                     "Force Save".to_string(),
                     Dispatch::ToEditor(DispatchEditor::ForceSave),
                 ),
                 Keybinding::new("c", "Save All".to_string(), Dispatch::SaveAll),
                 Keybinding::new("v", "Quit No Save".to_string(), Dispatch::QuitAll),
-                Keybinding::new("g", "Pipe".to_string(), Dispatch::OpenPipeToShellPrompt),
                 Keybinding::new(
                     "f",
                     "Change Work Dir".to_string(),
