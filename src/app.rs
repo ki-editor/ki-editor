@@ -1188,7 +1188,7 @@ impl<T: Frontend> App<T> {
 
     fn unmark_all_others(&mut self) -> anyhow::Result<()> {
         if let Some(current_file_path) = self.get_current_file_path() {
-            let paths_to_unmark: Vec<CanonicalizedPath> = self
+            let paths_to_unmark: Vec<AbsolutePath> = self
                 .context
                 .get_marked_files()
                 .into_iter()
