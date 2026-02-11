@@ -587,10 +587,8 @@ impl Editor {
                         keymap: paste_keymap(),
                     },
                     on_tap: Some(OnTap::new(
-                        "Replace",
-                        Dispatches::one(Dispatch::ToEditor(
-                            DispatchEditor::ReplaceWithCopiedText { cut: false },
-                        )),
+                        "Cut One",
+                        Dispatches::one(Dispatch::ToEditor(Insert("b".to_string()))),
                     )),
                     on_spacebar_tapped: None,
                 })])
