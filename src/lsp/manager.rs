@@ -4,14 +4,14 @@ use crate::app::AppMessage;
 
 use super::process::{FromEditor, LspServerProcessChannel};
 use shared::{
-    canonicalized_path::CanonicalizedPath,
+    absolute_path::AbsolutePath,
     language::{Language, LanguageId},
 };
 
 pub struct LspManager {
     lsp_server_process_channels: HashMap<LanguageId, LspServerProcessChannel>,
     sender: Sender<AppMessage>,
-    current_working_directory: CanonicalizedPath,
+    current_working_directory: AbsolutePath,
     #[cfg(test)]
     /// Used for testing the correctness of LSP requests
     /// We use HashMap instead of Vec because we only one to store the latest
@@ -20,7 +20,7 @@ pub struct LspManager {
 
     #[cfg(test)]
     /// Used for testing the correctness of initialization
-    lsp_server_initialized_args_history: Vec<(LanguageId, Vec<CanonicalizedPath>)>,
+    lsp_server_initialized_args_history: Vec<(LanguageId, Vec<AbsolutePath>)>,
 }
 
 impl Drop for LspManager {
@@ -30,10 +30,7 @@ impl Drop for LspManager {
 }
 
 impl LspManager {
-    pub fn new(
-        sender: Sender<AppMessage>,
-        current_working_directory: CanonicalizedPath,
-    ) -> LspManager {
+    pub fn new(sender: Sender<AppMessage>, current_working_directory: AbsolutePath) -> LspManager {
         LspManager {
             lsp_server_process_channels: HashMap::new(),
             sender,
@@ -47,7 +44,7 @@ impl LspManager {
 
     fn invoke_channels(
         &self,
-        path: &CanonicalizedPath,
+        path: &AbsolutePath,
         _error: &str,
         f: impl Fn(&LspServerProcessChannel) -> anyhow::Result<()>,
     ) -> anyhow::Result<()> {
@@ -59,7 +56,7 @@ impl LspManager {
 
     pub fn send_message(
         &mut self,
-        path: CanonicalizedPath,
+        path: AbsolutePath,
         from_editor: FromEditor,
     ) -> anyhow::Result<()> {
         #[cfg(test)]
@@ -77,7 +74,7 @@ impl LspManager {
     /// 1. Start a new LSP server process if it is not started yet.
     /// 2. Notify the LSP server process that a new file is opened.
     /// 3. Do nothing if the LSP server process is spawned but not yet initialized.
-    pub fn open_file(&mut self, path: CanonicalizedPath) -> Result<(), anyhow::Error> {
+    pub fn open_file(&mut self, path: AbsolutePath) -> Result<(), anyhow::Error> {
         let Some(language) = crate::config::from_path(&path) else {
             return Ok(());
         };
@@ -108,7 +105,7 @@ impl LspManager {
         }
     }
 
-    pub fn initialized(&mut self, language: Language, opened_documents: Vec<CanonicalizedPath>) {
+    pub fn initialized(&mut self, language: Language, opened_documents: Vec<AbsolutePath>) {
         let Some(language_id) = language.id() else {
             return;
         };
@@ -139,7 +136,7 @@ impl LspManager {
     }
 
     #[cfg(test)]
-    pub fn lsp_server_initialized_args(&self) -> Option<(LanguageId, Vec<CanonicalizedPath>)> {
+    pub fn lsp_server_initialized_args(&self) -> Option<(LanguageId, Vec<AbsolutePath>)> {
         self.lsp_server_initialized_args_history.last().cloned()
     }
 }

@@ -11,7 +11,7 @@ impl GitHunk {
     pub fn new(
         diff_mode: &crate::git::DiffMode,
         buffer: &Buffer,
-        working_directory: &shared::canonicalized_path::CanonicalizedPath,
+        working_directory: &shared::absolute_path::AbsolutePath,
     ) -> anyhow::Result<GitHunk> {
         let Some(path) = buffer.path() else {
             return Ok(GitHunk { ranges: Vec::new() });

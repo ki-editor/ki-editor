@@ -325,7 +325,7 @@ mod test_suggestive_editor {
     use lsp_types::{CompletionItemKind, CompletionTextEdit, TextEdit};
     use my_proc_macros::{key, keys};
     use serial_test::serial;
-    use shared::canonicalized_path::CanonicalizedPath;
+    use shared::absolute_path::AbsolutePath;
     use std::{cell::RefCell, rc::Rc};
     use Dispatch::*;
 
@@ -355,7 +355,7 @@ mod test_suggestive_editor {
 
         let file = tempfile::NamedTempFile::new().unwrap();
 
-        let path: CanonicalizedPath = file.path().to_path_buf().try_into().unwrap();
+        let path: AbsolutePath = file.path().to_path_buf().try_into().unwrap();
 
         editor.editor_mut().buffer_mut().set_path(path);
         // Enter insert mode
@@ -380,7 +380,7 @@ mod test_suggestive_editor {
 
         let file = tempfile::NamedTempFile::new().unwrap();
 
-        let path: CanonicalizedPath = file.path().to_path_buf().try_into().unwrap();
+        let path: AbsolutePath = file.path().to_path_buf().try_into().unwrap();
 
         editor.editor_mut().buffer_mut().set_path(path);
 

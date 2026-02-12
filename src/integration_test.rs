@@ -1,13 +1,13 @@
 use std::sync::mpsc::{channel, Receiver};
 
 use crate::app::AppMessage;
-use shared::canonicalized_path::CanonicalizedPath;
+use shared::absolute_path::AbsolutePath;
 
 #[cfg(test)]
 use crate::layout::BufferContentsMap;
 
 pub struct TestRunner {
-    temp_dir: CanonicalizedPath,
+    temp_dir: AbsolutePath,
 }
 
 impl Drop for TestRunner {
@@ -24,7 +24,7 @@ pub struct TestOutput {
 
 impl TestRunner {
     pub fn run(
-        callback: impl Fn(CanonicalizedPath) -> anyhow::Result<TestOutput>,
+        callback: impl Fn(AbsolutePath) -> anyhow::Result<TestOutput>,
     ) -> anyhow::Result<TestOutput> {
         let (runner, _) = Self::new()?;
         let output = callback(runner.temp_dir.clone())?;
@@ -39,14 +39,17 @@ impl TestRunner {
         let options = fs_extra::dir::CopyOptions::new();
         fs_extra::dir::copy(MOCK_REPO_PATH, path.clone(), &options)?;
 
-        let temp_dir = CanonicalizedPath::try_from(path)?.join("rust1")?;
+        let temp_dir = AbsolutePath::try_from(path)?
+            // Need to canonicalize because MacOS uses symlinks for tempdirs
+            .canonicalize()?
+            .join("rust1")?;
 
         // Initialize the repo as a Git repo, so that we can test Git related features
         Self::git_init(temp_dir.clone())?;
         let (_, receiver) = channel();
         Ok((Self { temp_dir }, receiver))
     }
-    fn git_init(path: CanonicalizedPath) -> anyhow::Result<()> {
+    fn git_init(path: AbsolutePath) -> anyhow::Result<()> {
         use git2::{Repository, RepositoryInitOptions};
         let repo = Repository::init_opts(path, RepositoryInitOptions::new().mkdir(false))?;
         let mut index = repo.index()?;

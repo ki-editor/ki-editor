@@ -5,7 +5,7 @@ use crate::{
     quickfix_list::Location,
 };
 use lsp_types::{DocumentSymbolResponse, SymbolKind};
-use shared::{canonicalized_path::CanonicalizedPath, icons::get_icon_config};
+use shared::{absolute_path::AbsolutePath, icons::get_icon_config};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Symbols {
@@ -20,7 +20,7 @@ impl Symbols {
     fn collect_document_symbols(
         document_symbol: &lsp_types::DocumentSymbol,
         parent_name: Option<String>,
-        path: &CanonicalizedPath,
+        path: &AbsolutePath,
     ) -> Result<Vec<Symbol>, anyhow::Error> {
         let root_symbol = Symbol::try_from_document_symbol(
             document_symbol.clone(),
@@ -51,7 +51,7 @@ impl Symbols {
 
     pub fn try_from_document_symbol_response(
         value: DocumentSymbolResponse,
-        path: CanonicalizedPath,
+        path: AbsolutePath,
     ) -> anyhow::Result<Self> {
         let symbols = match value {
             DocumentSymbolResponse::Flat(flat_symbols) => flat_symbols
@@ -72,7 +72,7 @@ impl Symbols {
 
     pub fn try_from_workspace_symbol_response(
         workspace_symbol_response: lsp_types::WorkspaceSymbolResponse,
-        working_directory: &CanonicalizedPath,
+        working_directory: &AbsolutePath,
     ) -> anyhow::Result<Self> {
         match workspace_symbol_response {
             lsp_types::WorkspaceSymbolResponse::Flat(symbol_informations) => Ok(Self {
@@ -147,7 +147,7 @@ impl Symbol {
     fn try_from_document_symbol(
         value: lsp_types::DocumentSymbol,
         container_name: Option<String>,
-        path: CanonicalizedPath,
+        path: AbsolutePath,
     ) -> anyhow::Result<Self> {
         let buffer = Buffer::from_path(&path, false)?;
 

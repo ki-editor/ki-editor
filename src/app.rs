@@ -60,7 +60,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 #[cfg(test)]
 use shared::language::LanguageId;
-use shared::{canonicalized_path::CanonicalizedPath, language::Language};
+use shared::{absolute_path::AbsolutePath, language::Language};
 use std::{
     any::TypeId,
     cell::RefCell,
@@ -164,7 +164,7 @@ impl<T: Frontend> App<T> {
     #[cfg(test)]
     pub fn new(
         frontend: Rc<Mutex<T>>,
-        working_directory: CanonicalizedPath,
+        working_directory: AbsolutePath,
         status_lines: Vec<StatusLine>,
         options: RunTestOptions,
     ) -> anyhow::Result<App<T>> {
@@ -194,7 +194,7 @@ impl<T: Frontend> App<T> {
     #[allow(clippy::too_many_arguments)]
     pub fn from_channel(
         frontend: Rc<Mutex<T>>,
-        working_directory: CanonicalizedPath,
+        working_directory: AbsolutePath,
         sender: Sender<AppMessage>,
         receiver: Receiver<AppMessage>,
         syntax_highlight_request_sender: Option<Sender<SyntaxHighlightRequest>>,
@@ -288,7 +288,7 @@ impl<T: Frontend> App<T> {
     }
 
     /// This is the main event loop.
-    pub fn run(mut self, entry_path: Option<CanonicalizedPath>) -> Result<(), anyhow::Error> {
+    pub fn run(mut self, entry_path: Option<AbsolutePath>) -> Result<(), anyhow::Error> {
         self.set_terminal_options()?;
 
         if let Some(entry_path) = entry_path {
@@ -1165,7 +1165,7 @@ impl<T: Frontend> App<T> {
 
     pub fn get_editor_by_file_path(
         &self,
-        path: &CanonicalizedPath,
+        path: &AbsolutePath,
     ) -> Option<Rc<RefCell<SuggestiveEditor>>> {
         self.layout.get_existing_editor(path)
     }
@@ -1188,7 +1188,7 @@ impl<T: Frontend> App<T> {
 
     fn unmark_all_others(&mut self) -> anyhow::Result<()> {
         if let Some(current_file_path) = self.get_current_file_path() {
-            let paths_to_unmark: Vec<CanonicalizedPath> = self
+            let paths_to_unmark: Vec<AbsolutePath> = self
                 .context
                 .get_marked_files()
                 .into_iter()
@@ -1331,7 +1331,7 @@ impl<T: Frontend> App<T> {
         })
     }
 
-    fn get_file_explorer_current_path(&mut self) -> anyhow::Result<Option<CanonicalizedPath>> {
+    fn get_file_explorer_current_path(&mut self) -> anyhow::Result<Option<AbsolutePath>> {
         self.current_component()
             .borrow_mut()
             .as_any_mut()
@@ -1340,7 +1340,7 @@ impl<T: Frontend> App<T> {
             .transpose()
     }
 
-    fn get_file_explorer_selected_paths(&mut self) -> anyhow::Result<Vec<CanonicalizedPath>> {
+    fn get_file_explorer_selected_paths(&mut self) -> anyhow::Result<Vec<AbsolutePath>> {
         self.current_component()
             .borrow_mut()
             .as_any_mut()
@@ -1487,7 +1487,7 @@ impl<T: Frontend> App<T> {
 
     fn open_file(
         &mut self,
-        path: &CanonicalizedPath,
+        path: &AbsolutePath,
         owner: BufferOwner,
         store_history: bool,
         focus: bool,
@@ -1670,7 +1670,7 @@ impl<T: Frontend> App<T> {
 
     pub fn update_diagnostics(
         &mut self,
-        path: CanonicalizedPath,
+        path: AbsolutePath,
         diagnostics: Vec<lsp_types::Diagnostic>,
     ) -> anyhow::Result<()> {
         let component = self.open_file(&path, BufferOwner::System, false, false)?;
@@ -1940,7 +1940,7 @@ impl<T: Frontend> App<T> {
         }))
     }
 
-    fn delete_paths(&mut self, paths: NonEmpty<CanonicalizedPath>) -> anyhow::Result<()> {
+    fn delete_paths(&mut self, paths: NonEmpty<AbsolutePath>) -> anyhow::Result<()> {
         for path in paths {
             if path.is_dir() {
                 std::fs::remove_dir_all(&path)?;
@@ -1955,7 +1955,7 @@ impl<T: Frontend> App<T> {
 
     fn move_paths(
         &mut self,
-        sources: NonEmpty<CanonicalizedPath>,
+        sources: NonEmpty<AbsolutePath>,
         destinations: NonEmpty<PathBuf>,
     ) -> anyhow::Result<()> {
         if sources.len() != destinations.len() {
@@ -1972,7 +1972,7 @@ impl<T: Frontend> App<T> {
         }
     }
 
-    fn move_path(&mut self, from: CanonicalizedPath, to: PathBuf) -> anyhow::Result<()> {
+    fn move_path(&mut self, from: AbsolutePath, to: PathBuf) -> anyhow::Result<()> {
         use std::fs;
         self.add_path_parent(&to)?;
         fs::rename(from.clone(), to.clone())?;
@@ -1994,7 +1994,7 @@ impl<T: Frontend> App<T> {
         Ok(())
     }
 
-    fn copy_file(&mut self, from: CanonicalizedPath, to: PathBuf) -> anyhow::Result<()> {
+    fn copy_file(&mut self, from: AbsolutePath, to: PathBuf) -> anyhow::Result<()> {
         use std::fs;
         self.add_path_parent(&to)?;
         fs::copy(from.clone(), to.clone())?;
@@ -2028,7 +2028,7 @@ impl<T: Frontend> App<T> {
             std::fs::File::create(&path)?;
         }
         self.layout.refresh_file_explorer(&self.context)?;
-        let path: CanonicalizedPath = path.try_into()?;
+        let path: AbsolutePath = path.try_into()?;
         self.reveal_path_in_explorer(&path)?;
         self.lsp_manager().send_message(
             path.clone(),
@@ -2073,7 +2073,7 @@ impl<T: Frontend> App<T> {
     }
 
     #[cfg(test)]
-    pub fn get_file_content(&self, path: &CanonicalizedPath) -> String {
+    pub fn get_file_content(&self, path: &AbsolutePath) -> String {
         self.layout
             .get_existing_editor(path)
             .unwrap()
@@ -2165,7 +2165,7 @@ impl<T: Frontend> App<T> {
         self.global_title = Some(title)
     }
 
-    pub fn get_current_file_path(&self) -> Option<CanonicalizedPath> {
+    pub fn get_current_file_path(&self) -> Option<AbsolutePath> {
         self.current_component().borrow().path()
     }
 
@@ -2229,7 +2229,7 @@ impl<T: Frontend> App<T> {
 
     fn cycle_marked_file(&mut self, movement: Movement) -> anyhow::Result<()> {
         if let Some(next_file_path) = {
-            let merged_file_paths_map: IndexMap<CanonicalizedPath, bool> = {
+            let merged_file_paths_map: IndexMap<AbsolutePath, bool> = {
                 let marked_file_paths = self.context.get_marked_files();
                 let buffer_file_paths = self.layout.get_opened_files();
 
@@ -2298,7 +2298,7 @@ impl<T: Frontend> App<T> {
 
     fn calculate_next_index(
         &self,
-        merged_file_paths_map: &IndexMap<CanonicalizedPath, bool>,
+        merged_file_paths_map: &IndexMap<AbsolutePath, bool>,
         current_index: usize,
         movement: Movement,
     ) -> usize {
@@ -2548,7 +2548,7 @@ impl<T: Frontend> App<T> {
         self.layout.global_info_contents()
     }
 
-    fn reveal_path_in_explorer(&mut self, path: &CanonicalizedPath) -> anyhow::Result<()> {
+    fn reveal_path_in_explorer(&mut self, path: &AbsolutePath) -> anyhow::Result<()> {
         let dispatches = self.layout.reveal_path_in_explorer(path, &self.context)?;
         self.send_file_watcher_input(FileWatcherInput::SyncFileExplorerExpandedFolders(
             self.layout
@@ -2914,7 +2914,7 @@ impl<T: Frontend> App<T> {
     fn handle_targeted_event(
         &mut self,
         event: Event,
-        path: Option<CanonicalizedPath>,
+        path: Option<AbsolutePath>,
         content_hash: u32,
     ) -> anyhow::Result<()> {
         // If the current component kind is a not a SuggestiveEditor, we handle the event directly
@@ -3004,7 +3004,7 @@ impl<T: Frontend> App<T> {
     }
 
     #[cfg(test)]
-    pub fn lsp_server_initialized_args(&mut self) -> Option<(LanguageId, Vec<CanonicalizedPath>)> {
+    pub fn lsp_server_initialized_args(&mut self) -> Option<(LanguageId, Vec<AbsolutePath>)> {
         self.lsp_manager().lsp_server_initialized_args()
     }
 
@@ -3068,7 +3068,7 @@ impl<T: Frontend> App<T> {
         Ok(())
     }
 
-    fn handle_applied_edits(&mut self, path: CanonicalizedPath, edits: Vec<Edit>) {
+    fn handle_applied_edits(&mut self, path: AbsolutePath, edits: Vec<Edit>) {
         self.context.handle_applied_edits(path, edits)
     }
 
@@ -3137,7 +3137,7 @@ impl<T: Frontend> App<T> {
 
     fn show_buffer_save_conflict_prompt(
         &mut self,
-        path: &CanonicalizedPath,
+        path: &AbsolutePath,
         content_editor: String,
         content_filesystem: String,
     ) -> anyhow::Result<()> {
@@ -3370,7 +3370,7 @@ Conflict markers will be injected in areas that cannot be merged gracefully."
         Ok(())
     }
 
-    fn open_and_mark_files(&mut self, paths: NonEmpty<CanonicalizedPath>) -> anyhow::Result<()> {
+    fn open_and_mark_files(&mut self, paths: NonEmpty<AbsolutePath>) -> anyhow::Result<()> {
         self.open_file(paths.first(), BufferOwner::User, true, true)?;
         self.context.mark_files(paths);
         Ok(())
@@ -3390,7 +3390,7 @@ Conflict markers will be injected in areas that cannot be merged gracefully."
         self.handle_dispatches(dispatches)
     }
 
-    fn change_working_directory(&mut self, path: CanonicalizedPath) -> anyhow::Result<()> {
+    fn change_working_directory(&mut self, path: AbsolutePath) -> anyhow::Result<()> {
         self.context.change_working_directory(path)?;
         self.layout.refresh_file_explorer(&self.context)?;
 
@@ -3404,11 +3404,7 @@ Conflict markers will be injected in areas that cannot be merged gracefully."
                 PromptOnEnter::ParseCurrentLine {
                     parser: DispatchParser::ChangeWorkingDirectory,
                     history_key: PromptHistoryKey::ChangeWorkingDirectory,
-                    current_line: Some(format!(
-                        "{}{}",
-                        self.context.current_working_directory().display_absolute(),
-                        std::path::MAIN_SEPARATOR
-                    )),
+                    current_line: Some(self.context.current_working_directory().display_absolute()),
                     suggested_items: Vec::new(),
                 },
             )
@@ -3418,7 +3414,7 @@ Conflict markers will be injected in areas that cannot be merged gracefully."
         )
     }
 
-    fn working_directory(&self) -> &CanonicalizedPath {
+    fn working_directory(&self) -> &AbsolutePath {
         self.context.current_working_directory()
     }
 
@@ -3523,7 +3519,7 @@ pub enum Dispatch {
         prior_change: Option<PriorChange>,
     },
     OpenFile {
-        path: CanonicalizedPath,
+        path: AbsolutePath,
         owner: BufferOwner,
         focus: bool,
     },
@@ -3553,12 +3549,12 @@ pub enum Dispatch {
     DocumentDidChange {
         component_id: ComponentId,
         batch_id: SyntaxHighlightRequestBatchId,
-        path: Option<CanonicalizedPath>,
+        path: Option<AbsolutePath>,
         content: String,
         language: Option<Language>,
     },
     DocumentDidSave {
-        path: CanonicalizedPath,
+        path: AbsolutePath,
     },
     SetQuickfixList(QuickfixListType),
     GotoQuickfixListItem(Movement),
@@ -3576,18 +3572,18 @@ pub enum Dispatch {
     GotoLocation(Location),
     OpenMoveToIndexPrompt(Option<PriorChange>),
     QuitAll,
-    RevealInExplorer(CanonicalizedPath),
+    RevealInExplorer(AbsolutePath),
     OpenMovePathsPrompt,
     OpenDuplicateFilePrompt,
     OpenAddPathPrompt,
-    DeletePaths(NonEmpty<CanonicalizedPath>),
+    DeletePaths(NonEmpty<AbsolutePath>),
     Null,
     MovePaths {
-        sources: NonEmpty<CanonicalizedPath>,
+        sources: NonEmpty<AbsolutePath>,
         destinations: NonEmpty<PathBuf>,
     },
     CopyFile {
-        from: CanonicalizedPath,
+        from: AbsolutePath,
         to: PathBuf,
     },
     AddPath(String),
@@ -3686,17 +3682,17 @@ pub enum Dispatch {
     AddQuickfixListEntries(Vec<Match>),
     AppliedEdits {
         edits: Vec<Edit>,
-        path: CanonicalizedPath,
+        path: AbsolutePath,
     },
     ExecuteLeaderKey(String),
     ShowBufferSaveConflictPrompt {
-        path: CanonicalizedPath,
+        path: AbsolutePath,
         content_filesystem: String,
         content_editor: String,
     },
     RequestWorkspaceSymbols {
         query: String,
-        path: CanonicalizedPath,
+        path: AbsolutePath,
     },
     OpenWorkspaceSymbolsPrompt,
     GetAndHandlePromptOnChangeDispatches,
@@ -3706,14 +3702,14 @@ pub enum Dispatch {
     },
     UpdateCurrentComponentTitle(String),
     SaveMarks {
-        path: CanonicalizedPath,
+        path: AbsolutePath,
         marks: Vec<CharIndexRange>,
     },
     ToSuggestiveEditor(DispatchSuggestiveEditor),
     RequestCompletionDebounced,
-    OpenAndMarkFiles(NonEmpty<CanonicalizedPath>),
+    OpenAndMarkFiles(NonEmpty<AbsolutePath>),
     ToggleOrOpenPaths,
-    ChangeWorkingDirectory(CanonicalizedPath),
+    ChangeWorkingDirectory(AbsolutePath),
     AddClipboardHistory(CopiedTexts),
     OpenChangeWorkingDirectoryPrompt,
 }
@@ -3722,7 +3718,7 @@ pub enum Dispatch {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ToHostApp {
     BufferEditTransaction {
-        path: CanonicalizedPath,
+        path: AbsolutePath,
         edits: Vec<ki_protocol_types::DiffEdit>,
     },
     ModeChanged,
@@ -3743,7 +3739,7 @@ pub enum ToHostApp {
 pub enum FromHostApp {
     TargetedEvent {
         event: Event,
-        path: Option<CanonicalizedPath>,
+        path: Option<AbsolutePath>,
         content_hash: u32,
     },
 }
@@ -3788,7 +3784,7 @@ impl FilePickerKind {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RequestParams {
-    pub path: CanonicalizedPath,
+    pub path: AbsolutePath,
     pub position: Position,
     pub context: ResponseContext,
 }
@@ -3849,10 +3845,10 @@ pub enum DispatchParser {
     },
     AddPath,
     MovePaths {
-        sources: NonEmpty<CanonicalizedPath>,
+        sources: NonEmpty<AbsolutePath>,
     },
     CopyFile {
-        from: CanonicalizedPath,
+        from: AbsolutePath,
     },
     #[cfg(test)]
     SetContent,

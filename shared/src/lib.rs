@@ -1,4 +1,4 @@
-pub mod canonicalized_path;
+pub mod absolute_path;
 pub(crate) mod formatter;
 pub mod get_minimal_unique_paths;
 pub mod icons;

@@ -3,7 +3,7 @@ use std::any::Any;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use event::event::Event;
-use shared::canonicalized_path::CanonicalizedPath;
+use shared::absolute_path::AbsolutePath;
 
 use crate::{context::Context, grid::Grid, position::Position, rectangle::Rectangle};
 
@@ -96,7 +96,7 @@ pub trait Component: Any + AnyComponent {
         self.editor_mut().get_grid(context, focused)
     }
 
-    fn path(&self) -> Option<CanonicalizedPath> {
+    fn path(&self) -> Option<AbsolutePath> {
         self.editor().buffer().path()
     }
 

@@ -22,7 +22,7 @@ use anyhow::Context as _;
 use itertools::Itertools;
 use regex::Regex;
 use ropey::Rope;
-use shared::{canonicalized_path::CanonicalizedPath, language::Language};
+use shared::{absolute_path::AbsolutePath, language::Language};
 use std::ops::Range;
 use std::time::SystemTime;
 use tree_sitter::{Node, Parser, Tree};
@@ -44,7 +44,7 @@ pub struct Buffer {
     tree: Option<Tree>,
     treesitter_language: Option<tree_sitter::Language>,
     language: Option<Language>,
-    path: Option<CanonicalizedPath>,
+    path: Option<AbsolutePath>,
     highlighted_spans: HighlightedSpans,
     diagnostics: Vec<Diagnostic>,
     decorations: Vec<Decoration>,
@@ -159,12 +159,12 @@ impl Buffer {
         decorations.clone_into(&mut self.decorations)
     }
 
-    pub fn path(&self) -> Option<CanonicalizedPath> {
+    pub fn path(&self) -> Option<AbsolutePath> {
         self.path.clone()
     }
 
     #[cfg(test)]
-    pub fn set_path(&mut self, path: CanonicalizedPath) {
+    pub fn set_path(&mut self, path: AbsolutePath) {
         self.path = Some(path);
     }
 
@@ -340,7 +340,7 @@ impl Buffer {
         self.flag_as_modified()
     }
 
-    pub fn update_path(&mut self, path: CanonicalizedPath) {
+    pub fn update_path(&mut self, path: AbsolutePath) {
         self.path = Some(path)
     }
 
@@ -674,7 +674,7 @@ impl Buffer {
         }
     }
 
-    pub fn from_path(path: &CanonicalizedPath, enable_tree_sitter: bool) -> anyhow::Result<Buffer> {
+    pub fn from_path(path: &AbsolutePath, enable_tree_sitter: bool) -> anyhow::Result<Buffer> {
         let content = path.read()?;
         let language = if enable_tree_sitter {
             crate::config::from_path(path)
@@ -729,7 +729,7 @@ impl Buffer {
     pub fn save_without_formatting(
         &mut self,
         force: bool,
-    ) -> anyhow::Result<(Dispatches, Option<CanonicalizedPath>)> {
+    ) -> anyhow::Result<(Dispatches, Option<AbsolutePath>)> {
         if !force && !self.dirty {
             return Ok((Dispatches::default(), None));
         }
@@ -756,7 +756,7 @@ impl Buffer {
     fn check_conflict(
         &self,
         force: bool,
-        path: &CanonicalizedPath,
+        path: &AbsolutePath,
     ) -> anyhow::Result<Option<Dispatches>> {
         if force || !self.dirty {
             return Ok(None);
@@ -782,7 +782,7 @@ impl Buffer {
         current_selection_set: SelectionSet,
         force: bool,
         last_visible_line: usize,
-    ) -> anyhow::Result<(Dispatches, Option<CanonicalizedPath>)> {
+    ) -> anyhow::Result<(Dispatches, Option<AbsolutePath>)> {
         if force || self.dirty {
             if let Some(formatted_content) = self.get_formatted_content() {
                 let dispatches = self.update_content(
@@ -1206,7 +1206,7 @@ mod test_buffer {
     use std::fs::File;
 
     use itertools::Itertools;
-    use shared::canonicalized_path::CanonicalizedPath;
+    use shared::absolute_path::AbsolutePath;
     use tempfile::tempdir;
 
     use crate::{
@@ -1350,12 +1350,12 @@ fn f(
 
     /// The TempDir is returned so that the directory is not deleted
     /// when the TempDir object is dropped
-    fn run_test(f: impl Fn(CanonicalizedPath, Buffer)) {
+    fn run_test(f: impl Fn(AbsolutePath, Buffer)) {
         let dir = tempdir().unwrap();
 
         let file_path = dir.path().join("main.rs");
         File::create(&file_path).unwrap();
-        let path = CanonicalizedPath::try_from(file_path).unwrap();
+        let path = AbsolutePath::try_from(file_path).unwrap();
         path.write("").unwrap();
 
         let buffer = Buffer::from_path(&path, true).unwrap();

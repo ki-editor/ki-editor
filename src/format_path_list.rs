@@ -1,13 +1,13 @@
 use itertools::Itertools;
-use shared::{canonicalized_path::CanonicalizedPath, get_minimal_unique_paths};
+use shared::{absolute_path::AbsolutePath, get_minimal_unique_paths};
 
 use crate::components::render_editor::markup_focused_tab;
 
 #[cfg(test)]
 fn format_path_list(
-    paths: &[&CanonicalizedPath],
-    current_path: &CanonicalizedPath,
-    current_working_directory: &CanonicalizedPath,
+    paths: &[&AbsolutePath],
+    current_path: &AbsolutePath,
+    current_working_directory: &AbsolutePath,
     dirty: bool,
 ) -> String {
     let formatted_paths =
@@ -18,9 +18,9 @@ fn format_path_list(
 }
 
 pub fn get_formatted_paths(
-    paths: &[&CanonicalizedPath],
-    current_path: &CanonicalizedPath,
-    current_working_directory: &CanonicalizedPath,
+    paths: &[&AbsolutePath],
+    current_path: &AbsolutePath,
+    current_working_directory: &AbsolutePath,
     dirty: bool,
 ) -> Vec<String> {
     debug_assert_eq!(paths.iter().unique().count(), paths.len());
@@ -49,7 +49,7 @@ pub fn get_formatted_paths(
 
     // Helper function to format non-current paths
 
-    let format_path_string = |path: &CanonicalizedPath| -> String {
+    let format_path_string = |path: &AbsolutePath| -> String {
         // For non-current paths, first try to get the relative display
         // and fall back to minimal unique if needed for disambiguation
         let relative_display = path
@@ -141,12 +141,12 @@ mod test_format_path_list {
                 }
 
                 fs::write(&file_path, "content")?;
-                CanonicalizedPath::try_from(file_path)
+                AbsolutePath::try_from(file_path)
             })
             .collect::<Result<Vec<_>>>()?;
 
         // Create working directory path
-        let cwd = CanonicalizedPath::try_from(temp_dir.path())?;
+        let cwd = AbsolutePath::try_from(temp_dir.path())?;
 
         // Create marked paths from indices
         let marked_files = marked_indices.iter().map(|&i| &paths[i]).collect_vec();

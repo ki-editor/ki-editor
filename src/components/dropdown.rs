@@ -8,7 +8,7 @@ use crate::{
 use itertools::Itertools;
 
 use nucleo_matcher::Utf32Str;
-use shared::{canonicalized_path::CanonicalizedPath, icons::get_icon_config};
+use shared::{absolute_path::AbsolutePath, icons::get_icon_config};
 
 use super::suggestive_editor::{Decoration, Info};
 
@@ -91,7 +91,7 @@ impl DropdownItem {
     }
 
     pub fn from_path_buf(
-        working_directory: &CanonicalizedPath,
+        working_directory: &AbsolutePath,
         path: std::path::PathBuf,
     ) -> DropdownItem {
         DropdownItem::new({
@@ -99,7 +99,7 @@ impl DropdownItem {
                 .strip_prefix(working_directory)
                 .map(|path| path.display().to_string())
                 .unwrap_or_else(|_| path.display().to_string());
-            let icon = shared::canonicalized_path::get_path_icon(&path);
+            let icon = shared::absolute_path::get_path_icon(&path);
             format!("{icon} {name}")
         })
         .set_dispatches(Dispatches::one(crate::app::Dispatch::OpenFileFromPathBuf {
@@ -121,8 +121,8 @@ impl DropdownItem {
     }
 }
 
-impl From<CanonicalizedPath> for DropdownItem {
-    fn from(value: CanonicalizedPath) -> Self {
+impl From<AbsolutePath> for DropdownItem {
+    fn from(value: AbsolutePath) -> Self {
         DropdownItem::new({
             let name = value
                 .to_path_buf()

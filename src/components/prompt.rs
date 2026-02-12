@@ -8,7 +8,7 @@ use std::{
 
 use itertools::Itertools;
 use my_proc_macros::key;
-use shared::canonicalized_path::CanonicalizedPath;
+use shared::absolute_path::AbsolutePath;
 
 use crate::{
     app::{Dispatch, DispatchParser, Dispatches},
@@ -56,7 +56,7 @@ pub struct Prompt {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum PromptOnChangeDispatch {
-    RequestWorkspaceSymbol(CanonicalizedPath),
+    RequestWorkspaceSymbol(AbsolutePath),
     SetIncrementalSearchConfig { component_id: ComponentId },
     UpdateSuggestedItemsWithChildPaths,
 }
@@ -96,13 +96,7 @@ impl PromptOnChangeDispatch {
                             DispatchSuggestiveEditor::Completion(Completion {
                                 items: paths
                                     .into_iter()
-                                    .map(|path| {
-                                        DropdownItem::new(format!(
-                                            "{}{}",
-                                            path.display_absolute(),
-                                            std::path::MAIN_SEPARATOR
-                                        ))
-                                    })
+                                    .map(|path| DropdownItem::new(path.display_absolute()))
                                     .collect_vec(),
                                 trigger_characters: Vec::new(),
                             }),
@@ -118,12 +112,12 @@ impl PromptOnChangeDispatch {
     }
 }
 
-fn get_child_directories(path: &Path) -> anyhow::Result<Vec<CanonicalizedPath>> {
+fn get_child_directories(path: &Path) -> anyhow::Result<Vec<AbsolutePath>> {
     Ok(std::fs::read_dir(path)?
         .filter_map(|entry| entry.ok())
         .map(|entry| entry.path())
         .filter(|path| path.is_dir())
-        .filter_map(|path| path.try_into().ok())
+        .filter_map(|path| AbsolutePath::try_from(path.canonicalize().ok()?).ok())
         .sorted()
         .collect())
 }
@@ -240,9 +234,7 @@ pub enum PromptItems {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum PromptItemsBackgroundTask {
-    NonGitIgnoredFiles {
-        working_directory: CanonicalizedPath,
-    },
+    NonGitIgnoredFiles { working_directory: AbsolutePath },
     HandledByMainEventLoop,
 }
 impl PromptItemsBackgroundTask {

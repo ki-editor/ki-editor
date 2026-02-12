@@ -3,7 +3,7 @@ use std::ops::{Not, Range};
 use itertools::Itertools;
 use lazy_regex::Lazy;
 use lsp_types::DiagnosticSeverity;
-use shared::canonicalized_path::CanonicalizedPath;
+use shared::absolute_path::AbsolutePath;
 
 use crate::{
     app::Dimension,
@@ -281,7 +281,7 @@ impl Editor {
     fn get_grid_with_dimension(
         &self,
         theme: &Theme,
-        working_directory: &CanonicalizedPath,
+        working_directory: &AbsolutePath,
         quickfix_list_items: &[QuickfixListItem],
         dimension: Dimension,
         scroll_offset: usize,
@@ -531,7 +531,7 @@ impl Editor {
     fn get_highlight_spans(
         &self,
         theme: &Theme,
-        working_directory: &CanonicalizedPath,
+        working_directory: &AbsolutePath,
         visible_line_range: &Range<usize>,
         hidden_parent_line_ranges: &[Range<usize>],
         visible_parent_lines: &[Line],
@@ -914,7 +914,7 @@ impl Editor {
     pub fn possible_selections_in_line_number_range(
         &self,
         selection: &Selection,
-        working_directory: &CanonicalizedPath,
+        working_directory: &AbsolutePath,
         line_number_range: &Range<usize>,
         quickfix_list_items: &[QuickfixListItem],
         marks: &[CharIndexRange],
@@ -943,7 +943,7 @@ impl Editor {
     pub fn revealed_selections(
         &self,
         selection: &Selection,
-        working_directory: &CanonicalizedPath,
+        working_directory: &AbsolutePath,
         quickfix_list_items: &[QuickfixListItem],
         marks: &[CharIndexRange],
     ) -> anyhow::Result<Vec<ByteRange>> {

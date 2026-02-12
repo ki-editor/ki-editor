@@ -5,7 +5,7 @@ use crate::position::Position;
 use crate::{app::Dispatch, components::editor_keymap::QWERTY};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use shared::canonicalized_path::CanonicalizedPath;
+use shared::absolute_path::AbsolutePath;
 use std::{io::Write, ops::Range, process::Stdio};
 
 pub fn custom_keymap() -> Vec<CustomActionKeymap> {
@@ -68,7 +68,7 @@ struct ScriptName(String);
 #[derive(Clone, Deserialize, Serialize, JsonSchema, Debug)]
 #[serde(try_from = "ScriptName", into = "ScriptName")]
 pub struct Script {
-    pub path: CanonicalizedPath,
+    pub path: AbsolutePath,
     pub name: String,
 }
 

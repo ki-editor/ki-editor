@@ -14,14 +14,14 @@ use crate::{
     },
     position::Position,
 };
-use shared::canonicalized_path::CanonicalizedPath;
+use shared::absolute_path::AbsolutePath;
 
 impl QuickfixListItem {
     fn into_dropdown_item(
         self: &QuickfixListItem,
-        buffers: &HashMap<CanonicalizedPath, Rc<RefCell<Buffer>>>,
+        buffers: &HashMap<AbsolutePath, Rc<RefCell<Buffer>>>,
         position_range: &Range<Position>,
-        current_working_directory: &CanonicalizedPath,
+        current_working_directory: &AbsolutePath,
         show_line_number: bool,
         max_line_number_digits_count: usize,
         max_column_number_digits_count: usize,
@@ -91,7 +91,7 @@ pub struct QuickfixList {
     dropdown: Dropdown,
     items: Vec<QuickfixListItem>,
     title: String,
-    buffers: HashMap<CanonicalizedPath, Rc<RefCell<Buffer>>>,
+    buffers: HashMap<AbsolutePath, Rc<RefCell<Buffer>>>,
 }
 
 impl QuickfixList {
@@ -134,7 +134,7 @@ impl QuickfixList {
     pub(crate) fn extend_items(
         &mut self,
         items: Vec<QuickfixListItem>,
-        current_working_directory: &CanonicalizedPath,
+        current_working_directory: &AbsolutePath,
     ) {
         self.extend_buffers(&items, current_working_directory);
 
@@ -150,7 +150,7 @@ impl QuickfixList {
     pub(crate) fn set_items(
         &mut self,
         items: Vec<QuickfixListItem>,
-        current_working_directory: &CanonicalizedPath,
+        current_working_directory: &AbsolutePath,
     ) {
         // Clear buffers cache
         self.buffers.clear();
@@ -164,7 +164,7 @@ impl QuickfixList {
     fn convert_items(
         &mut self,
         items: Vec<QuickfixListItem>,
-        current_working_directory: &CanonicalizedPath,
+        current_working_directory: &AbsolutePath,
     ) -> (Vec<QuickfixListItem>, Vec<DropdownItem>) {
         let items = items
             .into_iter()
@@ -240,9 +240,9 @@ impl QuickfixList {
 
     pub(crate) fn handle_applied_edits(
         &mut self,
-        path: &CanonicalizedPath,
+        path: &AbsolutePath,
         edits: &[crate::edit::Edit],
-        current_working_directory: &CanonicalizedPath,
+        current_working_directory: &AbsolutePath,
     ) {
         let items = self
             .items
@@ -271,7 +271,7 @@ impl QuickfixList {
     fn extend_buffers(
         &mut self,
         items: &[QuickfixListItem],
-        current_working_directory: &CanonicalizedPath,
+        current_working_directory: &AbsolutePath,
     ) {
         // Extend the buffers cache with new paths
         for path in items
@@ -350,14 +350,14 @@ impl QuickfixListItem {
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Location {
-    pub path: CanonicalizedPath,
+    pub path: AbsolutePath,
     pub range: CharIndexRange,
 }
 
 impl Location {
     fn read_from_buffers(
         &self,
-        buffers: &HashMap<CanonicalizedPath, Rc<RefCell<Buffer>>>,
+        buffers: &HashMap<AbsolutePath, Rc<RefCell<Buffer>>>,
     ) -> Option<String> {
         buffers.get(&self.path).and_then(|buffer| {
             Some(
@@ -470,12 +470,12 @@ mod test_quickfix_list {
 
     use super::{Location, QuickfixList, QuickfixListItem};
     use pretty_assertions::assert_eq;
-    use shared::canonicalized_path::CanonicalizedPath;
+    use shared::absolute_path::AbsolutePath;
 
     #[test]
     fn should_sort_items() {
-        let git_ignore_path: CanonicalizedPath = ".gitignore".try_into().unwrap();
-        let readme_path: CanonicalizedPath = "README.md".try_into().unwrap();
+        let git_ignore_path: AbsolutePath = ".gitignore".try_into().unwrap();
+        let readme_path: AbsolutePath = "README.md".try_into().unwrap();
         let foo = QuickfixListItem {
             location: Location {
                 path: git_ignore_path.clone(),
@@ -510,7 +510,7 @@ mod test_quickfix_list {
 
     #[test]
     fn should_merge_items_of_same_location() {
-        let readme_path: CanonicalizedPath = "README.md".try_into().unwrap();
+        let readme_path: AbsolutePath = "README.md".try_into().unwrap();
         let items = [
             QuickfixListItem {
                 location: Location {

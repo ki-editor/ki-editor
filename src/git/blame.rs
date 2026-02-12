@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use git2::{BlameOptions, Repository};
-use shared::canonicalized_path::CanonicalizedPath;
+use shared::absolute_path::AbsolutePath;
 
 pub struct GitBlameInfo {
     commit: String,
@@ -34,8 +34,8 @@ URL: {}
 
 /// `line_index` is 0-based.
 pub fn blame_line(
-    repo_path: &CanonicalizedPath,
-    file_path: &CanonicalizedPath,
+    repo_path: &AbsolutePath,
+    file_path: &AbsolutePath,
     line_index: usize,
 ) -> anyhow::Result<GitBlameInfo> {
     let repo = Repository::open(repo_path.to_path_buf())?;

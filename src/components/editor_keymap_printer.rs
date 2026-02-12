@@ -25,7 +25,7 @@ use comfy_table::{
     Width::{self, Fixed},
 };
 use itertools::Itertools;
-use shared::canonicalized_path::CanonicalizedPath;
+use shared::absolute_path::AbsolutePath;
 
 #[derive(Debug, Clone)]
 pub struct KeymapPrintSection {
@@ -246,7 +246,7 @@ pub struct KeymapPrintSections {
 
 impl KeymapPrintSections {
     pub fn new() -> Self {
-        let context = Context::new(CanonicalizedPath::try_from(".").unwrap(), false, None);
+        let context = Context::new(AbsolutePath::try_from(".").unwrap(), false, None);
         let editor = Editor::from_text(Option::None, "");
         let sections: Vec<KeymapPrintSection> = [
             KeymapPrintSection::from_keymap(

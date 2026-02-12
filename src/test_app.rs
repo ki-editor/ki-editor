@@ -35,7 +35,7 @@ use crate::{
     selection_mode::GetGapMovement,
 };
 
-use shared::{canonicalized_path::CanonicalizedPath, language::LanguageId};
+use shared::{absolute_path::AbsolutePath, language::LanguageId};
 
 #[cfg(test)]
 use crate::layout::BufferContentsMap;
@@ -147,8 +147,8 @@ pub enum ExpectKind {
     EditorGridCursorPosition(Position),
     EditorIsDirty(),
     CurrentMode(Mode),
-    FileContent(CanonicalizedPath, String),
-    FileContentEqual(CanonicalizedPath, CanonicalizedPath),
+    FileContent(AbsolutePath, String),
+    FileContentEqual(AbsolutePath, AbsolutePath),
     /// This is for any component
     CurrentSelectedTexts(&'static [&'static str]),
     /// This is only for the main editor (e.g. not prompt, not completion, etc)
@@ -160,7 +160,7 @@ pub enum ExpectKind {
     AppGrid(String),
     AppGridContains(&'static str),
     EditorGrid(&'static str),
-    CurrentPath(CanonicalizedPath),
+    CurrentPath(AbsolutePath),
     GridCellBackground(
         /*Row*/ usize,
         /*Column*/ usize,
@@ -177,7 +177,7 @@ pub enum ExpectKind {
     DiagnosticsRanges(Vec<CharIndexRange>),
     BufferQuickfixListItems(Vec<CharIndexRange>),
     ComponentCount(usize),
-    CurrentComponentPath(Option<CanonicalizedPath>),
+    CurrentComponentPath(Option<AbsolutePath>),
     OpenedFilesCount(usize),
     GlobalInfo(String),
     ComponentsOrder(Vec<ComponentKind>),
@@ -185,13 +185,13 @@ pub enum ExpectKind {
     CurrentSelectionMode(SelectionMode),
     CurrentGlobalMode(Option<GlobalMode>),
     LspRequestSent(FromEditor),
-    LspServerInitializedArgs(Option<(LanguageId, Vec<CanonicalizedPath>)>),
+    LspServerInitializedArgs(Option<(LanguageId, Vec<AbsolutePath>)>),
     CurrentCopiedTextHistoryOffset(isize),
     CurrentReveal(Option<Reveal>),
     CountHighlightedCells(StyleKey, usize),
     SelectionExtensionEnabled(bool),
     PromptHistory(PromptHistoryKey, Vec<String>),
-    MarkedFiles(Vec<CanonicalizedPath>),
+    MarkedFiles(Vec<AbsolutePath>),
     /// Similar to `Step::WaitForAppMessage`, but expect the opposites, with a timeout
     AppMessageNotReceived {
         matches: &'static lazy_regex::Lazy<regex::Regex>,
@@ -203,7 +203,7 @@ pub enum ExpectKind {
     },
     CurrentEditorIncrementalSearchMatches(Vec<std::ops::Range<usize>>),
     CurrentRangeAndInitialRange(CharIndexRange, Option<CharIndexRange>),
-    CurrentWorkingDirectory(CanonicalizedPath),
+    CurrentWorkingDirectory(AbsolutePath),
 }
 fn log<T: std::fmt::Debug>(s: T) {
     if !is_ci::cached() {
@@ -638,9 +638,13 @@ impl ExpectKind {
                     (&selection.range, &selection.initial_range),
                 )
             }
-            CurrentWorkingDirectory(expected) => {
-                contextualize(expected, app.context().current_working_directory())
-            }
+            CurrentWorkingDirectory(expected) => contextualize(
+                expected.canonicalize().unwrap(),
+                app.context()
+                    .current_working_directory()
+                    .canonicalize()
+                    .unwrap(),
+            ),
         })
     }
 }
@@ -688,22 +692,22 @@ pub use ExpectKind::*;
 pub use Step::*;
 #[derive(Clone)]
 pub struct State {
-    temp_dir: CanonicalizedPath,
-    main_rs: CanonicalizedPath,
-    foo_rs: CanonicalizedPath,
-    hello_ts: CanonicalizedPath,
-    git_ignore: CanonicalizedPath,
+    temp_dir: AbsolutePath,
+    main_rs: AbsolutePath,
+    foo_rs: AbsolutePath,
+    hello_ts: AbsolutePath,
+    git_ignore: AbsolutePath,
 }
 impl State {
-    pub fn main_rs(&self) -> CanonicalizedPath {
+    pub fn main_rs(&self) -> AbsolutePath {
         self.main_rs.clone()
     }
 
-    pub fn foo_rs(&self) -> CanonicalizedPath {
+    pub fn foo_rs(&self) -> AbsolutePath {
         self.foo_rs.clone()
     }
 
-    pub fn hello_ts(&self) -> CanonicalizedPath {
+    pub fn hello_ts(&self) -> AbsolutePath {
         self.hello_ts.clone()
     }
 
@@ -711,11 +715,11 @@ impl State {
         self.temp_dir.to_path_buf().join(path)
     }
 
-    pub fn gitignore(&self) -> CanonicalizedPath {
+    pub fn gitignore(&self) -> AbsolutePath {
         self.git_ignore.clone()
     }
 
-    pub fn temp_dir(&self) -> CanonicalizedPath {
+    pub fn temp_dir(&self) -> AbsolutePath {
         self.temp_dir.clone()
     }
 }
@@ -792,7 +796,7 @@ fn execute_test_helper(
     assert_last_step_is_expect: bool,
     options: RunTestOptions,
 ) -> anyhow::Result<TestOutput> {
-    let callback = |mut app: App<MockFrontend>, temp_dir: CanonicalizedPath| {
+    let callback = |mut app: App<MockFrontend>, temp_dir: AbsolutePath| {
         let steps = {
             callback(State {
                 main_rs: temp_dir.join("src/main.rs").unwrap(),
@@ -884,7 +888,7 @@ fn run_test(
     options: RunTestOptions,
     writer: fn() -> Box<dyn MyWriter>,
     status_lines: Vec<StatusLine>,
-    callback: impl Fn(App<MockFrontend>, CanonicalizedPath) -> anyhow::Result<BufferContentsMap>,
+    callback: impl Fn(App<MockFrontend>, AbsolutePath) -> anyhow::Result<BufferContentsMap>,
 ) -> anyhow::Result<TestOutput> {
     TestRunner::run(move |temp_dir| {
         let frontend = Rc::new(Mutex::new(MockFrontend::new(writer())));
@@ -1278,7 +1282,10 @@ pub fn repo_git_hunks() -> Result<(), anyhow::Error> {
                 Quickfixes(Box::new([
                     QuickfixListItem::new(
                         Location {
-                            path: path_new_file.clone().try_into().unwrap(),
+                            path: AbsolutePath::try_from(path_new_file.clone())
+                                .unwrap()
+                                .canonicalize()
+                                .unwrap(),
                             range: (CharIndex(0)..CharIndex(0)).into(),
                         },
                         strs_to_strings(&["[This file is untracked or renamed]"]),
@@ -1286,7 +1293,7 @@ pub fn repo_git_hunks() -> Result<(), anyhow::Error> {
                     ),
                     QuickfixListItem::new(
                         Location {
-                            path: s.foo_rs(),
+                            path: s.foo_rs().canonicalize().unwrap(),
                             range: (CharIndex(0)..CharIndex(32)).into(),
                         },
                         strs_to_strings(&[
@@ -1297,7 +1304,7 @@ pub fn repo_git_hunks() -> Result<(), anyhow::Error> {
                     ),
                     QuickfixListItem::new(
                         Location {
-                            path: s.main_rs(),
+                            path: s.main_rs().canonicalize().unwrap(),
                             range: (CharIndex(0)..CharIndex(0)).into(),
                         },
                         strs_to_strings(&["mod foo;"]),
@@ -1427,7 +1434,7 @@ pub fn non_git_ignored_files() -> Result<(), anyhow::Error> {
                 let paths = paths
                     .into_iter()
                     .flat_map(|path| {
-                        CanonicalizedPath::try_from(path)
+                        AbsolutePath::try_from(path)
                             .unwrap()
                             .display_relative_to(&s.temp_dir())
                     })
@@ -1766,7 +1773,7 @@ fn local_lsp_references() -> anyhow::Result<()> {
 #[test]
 fn global_diagnostics() -> Result<(), anyhow::Error> {
     execute_test(|s| {
-        let publish_diagnostics = |path: CanonicalizedPath| {
+        let publish_diagnostics = |path: AbsolutePath| {
             LspNotification::PublishDiagnostics(lsp_types::PublishDiagnosticsParams {
                 uri: path.to_url().unwrap(),
                 diagnostics: [lsp_types::Diagnostic {
@@ -3750,7 +3757,7 @@ fn renaming_marked_files_should_update_file_marks() -> anyhow::Result<()> {
 #[test]
 fn escape_global_diagnostics_should_not_change_selection() -> Result<(), anyhow::Error> {
     execute_test(|s| {
-        let diagnostic = |path: CanonicalizedPath| {
+        let diagnostic = |path: AbsolutePath| {
             Dispatch::HandleLspNotification(LspNotification::PublishDiagnostics(
                 lsp_types::PublishDiagnosticsParams {
                     uri: Url::from_file_path(path).unwrap(),
@@ -3874,11 +3881,12 @@ fn closing_all_buffers_should_land_on_scratch_buffer() -> Result<(), anyhow::Err
 fn change_working_directory_prompt() -> Result<(), anyhow::Error> {
     execute_test(|s| {
         let get_path = |child: &str| {
-            format!(
-                "{}{}",
-                s.temp_dir().join(child).unwrap().display_absolute(),
-                std::path::MAIN_SEPARATOR
-            )
+            s.temp_dir()
+                .join(child)
+                .unwrap()
+                .canonicalize()
+                .unwrap()
+                .display_absolute()
         };
         Box::new([
             App(OpenFile {

@@ -41,7 +41,7 @@ use itertools::{Either, Itertools};
 use my_proc_macros::key;
 use nonempty::NonEmpty;
 use ropey::Rope;
-use shared::canonicalized_path::CanonicalizedPath;
+use shared::absolute_path::AbsolutePath;
 use std::{
     cell::{Ref, RefCell, RefMut},
     ops::{Not, Range},
@@ -1027,7 +1027,7 @@ impl Editor {
         &self,
         selection: &Selection,
         use_current_selection_mode: bool,
-        working_directory: &shared::canonicalized_path::CanonicalizedPath,
+        working_directory: &shared::absolute_path::AbsolutePath,
         quickfix_list_items: &[QuickfixListItem],
         marks: &[CharIndexRange],
     ) -> anyhow::Result<Box<dyn selection_mode::SelectionModeTrait>> {
@@ -2020,7 +2020,7 @@ impl Editor {
             .unwrap_or_default()
     }
 
-    pub fn path(&self) -> Option<CanonicalizedPath> {
+    pub fn path(&self) -> Option<AbsolutePath> {
         self.editor().buffer().path()
     }
 
@@ -4291,7 +4291,7 @@ impl Editor {
     fn merge_content(
         &mut self,
         context: &Context,
-        file_path: CanonicalizedPath,
+        file_path: AbsolutePath,
         content_editor: String,
         content_filesystem: String,
     ) -> anyhow::Result<Dispatches> {
@@ -4373,7 +4373,7 @@ impl Editor {
         }
     }
 
-    fn handle_path_renamed(&mut self, source: PathBuf, destination: CanonicalizedPath) {
+    fn handle_path_renamed(&mut self, source: PathBuf, destination: AbsolutePath) {
         let Some(path) = self.path() else { return };
         if path.to_path_buf() == &source {
             self.buffer_mut().update_path(destination)
@@ -4722,7 +4722,7 @@ pub enum DispatchEditor {
     MergeContent {
         content_filesystem: String,
         content_editor: String,
-        path: CanonicalizedPath,
+        path: AbsolutePath,
     },
     ClearIncrementalSearchMatches,
     GoToFile,
@@ -4730,7 +4730,7 @@ pub enum DispatchEditor {
     PressSpace,
     PathRenamed {
         source: PathBuf,
-        destination: CanonicalizedPath,
+        destination: AbsolutePath,
     },
     CopyAbsolutePath,
     CopyRelativePath,

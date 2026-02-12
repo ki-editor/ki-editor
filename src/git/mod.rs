@@ -7,7 +7,7 @@ use rayon::prelude::*;
 use git2::Repository;
 
 use itertools::Itertools;
-use shared::canonicalized_path::CanonicalizedPath;
+use shared::absolute_path::AbsolutePath;
 
 use crate::git::hunk::SimpleHunk;
 
@@ -15,13 +15,13 @@ use self::hunk::Hunk;
 
 pub struct GitRepo {
     repo: Repository,
-    path: CanonicalizedPath,
+    path: AbsolutePath,
 }
 
-impl TryFrom<&CanonicalizedPath> for GitRepo {
+impl TryFrom<&AbsolutePath> for GitRepo {
     type Error = anyhow::Error;
 
-    fn try_from(value: &CanonicalizedPath) -> Result<Self, Self::Error> {
+    fn try_from(value: &AbsolutePath) -> Result<Self, Self::Error> {
         let repo = Repository::discover(value)?;
         let path = match repo.path().parent() {
             Some(parent_path) => parent_path.try_into()?,
@@ -42,7 +42,7 @@ impl GitRepo {
             .collect())
     }
 
-    fn path(&self) -> &CanonicalizedPath {
+    fn path(&self) -> &AbsolutePath {
         &self.path
     }
 
@@ -133,7 +133,7 @@ impl GitRepo {
 }
 
 pub struct FileDiff {
-    path: CanonicalizedPath,
+    path: AbsolutePath,
     hunks: Vec<Hunk>,
 }
 impl FileDiff {
@@ -141,7 +141,7 @@ impl FileDiff {
         &self.hunks
     }
 
-    pub fn path(&self) -> &CanonicalizedPath {
+    pub fn path(&self) -> &AbsolutePath {
         &self.path
     }
 }
@@ -151,13 +151,13 @@ pub trait GitOperation {
         &self,
         current_content: &str,
         diff_mode: &DiffMode,
-        repo: &CanonicalizedPath,
+        repo: &AbsolutePath,
     ) -> anyhow::Result<FileDiff>;
     fn simple_hunks(
         &self,
         current_content: &str,
         diff_mode: &DiffMode,
-        repo: &CanonicalizedPath,
+        repo: &AbsolutePath,
     ) -> anyhow::Result<Vec<SimpleHunk>>;
     fn content_at_last_commit(
         &self,
@@ -166,12 +166,12 @@ pub trait GitOperation {
     ) -> anyhow::Result<String>;
 }
 
-impl GitOperation for CanonicalizedPath {
+impl GitOperation for AbsolutePath {
     fn file_diff(
         &self,
         current_content: &str,
         diff_mode: &DiffMode,
-        repo_path: &CanonicalizedPath,
+        repo_path: &AbsolutePath,
     ) -> anyhow::Result<FileDiff> {
         if let Ok(latest_committed_content) =
             self.content_at_last_commit(diff_mode, &repo_path.try_into()?)
@@ -194,7 +194,7 @@ impl GitOperation for CanonicalizedPath {
         &self,
         current_content: &str,
         diff_mode: &DiffMode,
-        repo_path: &CanonicalizedPath,
+        repo_path: &AbsolutePath,
     ) -> anyhow::Result<Vec<SimpleHunk>> {
         if let Ok(latest_committed_content) =
             self.content_at_last_commit(diff_mode, &repo_path.try_into()?)
@@ -227,7 +227,7 @@ use std::str;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DiffEntry {
-    new_path: CanonicalizedPath,
+    new_path: AbsolutePath,
     old_content: Option<String>,
     new_content: String,
 }
@@ -248,7 +248,7 @@ impl DiffEntry {
         }
     }
 
-    pub fn new_path(&self) -> CanonicalizedPath {
+    pub fn new_path(&self) -> AbsolutePath {
         self.new_path.clone()
     }
 }
@@ -270,6 +270,7 @@ impl DiffMode {
 
 #[cfg(test)]
 mod test_git {
+    use shared::absolute_path::AbsolutePath;
     use std::process::Command;
     use tempfile::tempdir;
 
@@ -286,11 +287,13 @@ mod test_git {
         let test = |mode: super::DiffMode, expected_old_content: &str| -> anyhow::Result<()> {
             // Create a temporary directory
             let dir = tempdir().unwrap();
+            // Need to canonicalize because mac tempdir is a symlink
+            let path = std::fs::canonicalize(dir.path())?;
             // Create files
-            let file0 = dir.path().join("file0.txt");
-            let file1 = dir.path().join("file1.txt");
-            let file2 = dir.path().join("file2.txt");
-            let file3 = dir.path().join("file3.txt");
+            let file0 = path.join("file0.txt");
+            let file1 = path.join("file1.txt");
+            let file2 = path.join("file2.txt");
+            let file3 = path.join("file3.txt");
 
             // Initialize a new repository
             run_command(&dir, "git", &["init"]);
@@ -326,14 +329,14 @@ mod test_git {
             run_command(&dir, "git", &["add", file3.to_string_lossy().as_ref()]);
 
             // Create a new file at a new directory
-            std::fs::create_dir_all(dir.path().join("organic"))?;
-            let untracked_file_in_untracked_dir = dir.path().join("organic").join("nuts.txt");
+            std::fs::create_dir_all(path.join("organic"))?;
+            let untracked_file_in_untracked_dir = path.join("organic").join("nuts.txt");
             std::fs::write(untracked_file_in_untracked_dir.clone(), "This is nuts")?;
             // Deletes file0
             std::fs::remove_file(file0)?;
 
             // Check the diff
-            let repo = super::GitRepo::try_from(&dir.path().try_into()?)?;
+            let repo = super::GitRepo::try_from(&path.try_into()?)?;
             let entries = repo.diff_entries(mode)?;
             let expected = [
                 super::DiffEntry {
@@ -341,25 +344,25 @@ mod test_git {
                     // Expect the new content is the latest content of the file
                     // regardless of whether it is commited/staged or not
                     new_content: "hello\nworld\nlook\nnow".to_string(),
-                    new_path: file1.clone().try_into()?,
+                    new_path: AbsolutePath::try_from(file1.clone())?,
                 },
                 // Expect unstaged files (file 2) are included
                 super::DiffEntry {
                     old_content: None,
                     new_content: "This is file 2".to_string(),
-                    new_path: file2.clone().try_into()?,
+                    new_path: AbsolutePath::try_from(file2.clone())?,
                 },
                 // Expect staged files (file 3) are included
                 super::DiffEntry {
                     old_content: None,
                     new_content: "This is file 3".to_string(),
-                    new_path: file3.clone().try_into()?,
+                    new_path: AbsolutePath::try_from(file3.clone())?,
                 },
                 // Expect untracked files under an untracked directory are also included
                 super::DiffEntry {
                     old_content: None,
                     new_content: "This is nuts".to_string(),
-                    new_path: untracked_file_in_untracked_dir.clone().try_into()?,
+                    new_path: AbsolutePath::try_from(untracked_file_in_untracked_dir.clone())?,
                 },
             ]
             .to_vec();
