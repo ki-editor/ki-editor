@@ -214,7 +214,7 @@ impl GitOperation for AbsolutePath {
     ) -> anyhow::Result<String> {
         let tree = repo.get_tree(diff_mode)?;
         let entry = tree.get_path(std::path::Path::new(
-            &self.canonicalize()?.display_relative_to(repo.path())?,
+            &self.display_relative_to(repo.path())?,
         ))?;
         let blob = entry.to_object(&repo.repo)?.peel_to_blob()?;
         let content = blob.content().to_vec();
@@ -287,11 +287,13 @@ mod test_git {
         let test = |mode: super::DiffMode, expected_old_content: &str| -> anyhow::Result<()> {
             // Create a temporary directory
             let dir = tempdir().unwrap();
+            // Need to canonicalize because mac tempdir is a symlink
+            let path = std::fs::canonicalize(dir.path())?;
             // Create files
-            let file0 = dir.path().join("file0.txt");
-            let file1 = dir.path().join("file1.txt");
-            let file2 = dir.path().join("file2.txt");
-            let file3 = dir.path().join("file3.txt");
+            let file0 = path.join("file0.txt");
+            let file1 = path.join("file1.txt");
+            let file2 = path.join("file2.txt");
+            let file3 = path.join("file3.txt");
 
             // Initialize a new repository
             run_command(&dir, "git", &["init"]);
@@ -327,14 +329,14 @@ mod test_git {
             run_command(&dir, "git", &["add", file3.to_string_lossy().as_ref()]);
 
             // Create a new file at a new directory
-            std::fs::create_dir_all(dir.path().join("organic"))?;
-            let untracked_file_in_untracked_dir = dir.path().join("organic").join("nuts.txt");
+            std::fs::create_dir_all(path.join("organic"))?;
+            let untracked_file_in_untracked_dir = path.join("organic").join("nuts.txt");
             std::fs::write(untracked_file_in_untracked_dir.clone(), "This is nuts")?;
             // Deletes file0
             std::fs::remove_file(file0)?;
 
             // Check the diff
-            let repo = super::GitRepo::try_from(&dir.path().try_into()?)?;
+            let repo = super::GitRepo::try_from(&path.try_into()?)?;
             let entries = repo.diff_entries(mode)?;
             let expected = [
                 super::DiffEntry {
@@ -342,26 +344,25 @@ mod test_git {
                     // Expect the new content is the latest content of the file
                     // regardless of whether it is commited/staged or not
                     new_content: "hello\nworld\nlook\nnow".to_string(),
-                    new_path: AbsolutePath::try_from(file1.clone())?.canonicalize()?,
+                    new_path: AbsolutePath::try_from(file1.clone())?,
                 },
                 // Expect unstaged files (file 2) are included
                 super::DiffEntry {
                     old_content: None,
                     new_content: "This is file 2".to_string(),
-                    new_path: AbsolutePath::try_from(file2.clone())?.canonicalize()?,
+                    new_path: AbsolutePath::try_from(file2.clone())?,
                 },
                 // Expect staged files (file 3) are included
                 super::DiffEntry {
                     old_content: None,
                     new_content: "This is file 3".to_string(),
-                    new_path: AbsolutePath::try_from(file3.clone())?.canonicalize()?,
+                    new_path: AbsolutePath::try_from(file3.clone())?,
                 },
                 // Expect untracked files under an untracked directory are also included
                 super::DiffEntry {
                     old_content: None,
                     new_content: "This is nuts".to_string(),
-                    new_path: AbsolutePath::try_from(untracked_file_in_untracked_dir.clone())?
-                        .canonicalize()?,
+                    new_path: AbsolutePath::try_from(untracked_file_in_untracked_dir.clone())?,
                 },
             ]
             .to_vec();
