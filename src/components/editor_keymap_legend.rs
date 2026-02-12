@@ -580,15 +580,17 @@ impl Editor {
                     Default::default()
                 })
                 .chain([Keybinding::momentary_layer(MomentaryLayer {
-                    key: "b",
+                    key: "alt+b",
                     description: "Paste".to_string(),
                     config: KeymapLegendConfig {
                         title: "Paste".to_string(),
                         keymap: paste_keymap(),
                     },
                     on_tap: Some(OnTap::new(
-                        "Cut One",
-                        Dispatches::one(Dispatch::ToEditor(Insert("b".to_string()))),
+                        "Replace",
+                        Dispatches::one(Dispatch::ToEditor(
+                            DispatchEditor::ReplaceWithCopiedText { cut: false },
+                        )),
                     )),
                     on_spacebar_tapped: None,
                 })])
