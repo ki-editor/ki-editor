@@ -46,7 +46,7 @@ fn file_modified_externally() -> Result<(), anyhow::Error> {
                     "-c".to_string(),
                     format!(
                         "echo external changes >> {}",
-                        s.main_rs().display_absolute(),
+                        s.main_rs().canonicalize().unwrap().display_absolute(),
                     ),
                 ]
                 .to_vec(),

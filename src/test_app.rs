@@ -47,7 +47,7 @@ use crate::{
     },
     buffer::{Buffer, BufferOwner},
     char_index_range::CharIndexRange,
-    clipboard::CopiedTexts,
+    clipboard::Texts,
     components::{
         component::Component,
         editor::{
@@ -1129,7 +1129,7 @@ fn highlight_mode_replace() -> anyhow::Result<()> {
 
 #[serial]
 #[test]
-fn multi_paste() -> anyhow::Result<()> {
+fn multi_paste_1() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile {
@@ -1161,7 +1161,7 @@ fn multi_paste() -> anyhow::Result<()> {
             )),
             Editor(CursorKeepPrimaryOnly),
             App(SetClipboardContent {
-                copied_texts: CopiedTexts::one(".hello".to_owned()),
+                copied_texts: Texts::one(".hello".to_owned()),
             }),
             Editor(PasteWithMovement(GetGapMovement::Right)),
             Expect(CurrentComponentContent(

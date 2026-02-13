@@ -579,6 +579,19 @@ impl Editor {
                 } else {
                     Default::default()
                 })
+                .chain([Keybinding::momentary_layer(MomentaryLayer {
+                    key: "b",
+                    description: "Paste".to_string(),
+                    config: KeymapLegendConfig {
+                        title: "Paste".to_string(),
+                        keymap: paste_keymap(),
+                    },
+                    on_tap: Some(OnTap::new(
+                        "Cut One",
+                        Dispatches::one(Dispatch::ToEditor(Insert("b".to_string()))),
+                    )),
+                    on_spacebar_tapped: None,
+                })])
                 .collect_vec(),
             ),
         }
@@ -1471,13 +1484,13 @@ pub fn paste_keymap() -> Keymap {
             ),
             Keybinding::new(
                 "y",
-                Direction::Start.format_action("Replace w/ copied text"),
+                Direction::Start.format_action("Replace History"),
                 Dispatch::ToEditor(ReplaceWithPreviousCopiedText),
             ),
             Keybinding::new(
                 "p",
-                Direction::End.format_action("Replace w/ copied text"),
-                Dispatch::ToEditor(DispatchEditor::PasteVertically(Direction::End)),
+                Direction::End.format_action("Replace History"),
+                Dispatch::ToEditor(ReplaceWithNextCopiedText),
             ),
             Keybinding::new(
                 "i",

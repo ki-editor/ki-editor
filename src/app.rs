@@ -1,7 +1,7 @@
 use crate::{
     buffer::{Buffer, BufferOwner},
     char_index_range::CharIndexRange,
-    clipboard::CopiedTexts,
+    clipboard::Texts,
     components::{
         component::{Component, ComponentId, GetGridResult},
         dropdown::{DropdownItem, DropdownRender},
@@ -1002,6 +1002,7 @@ impl<T: Frontend> App<T> {
                         frontend.set_clipboard_with_osc52(&contents.to_text())
                     })?;
             }
+            Dispatch::AddKillRingEntry { texts } => self.context.add_kill_ring_entry(texts),
             Dispatch::SetGlobalMode(mode) => self.set_global_mode(mode)?,
             #[cfg(test)]
             Dispatch::HandleKeyEvent(key_event) => {
@@ -1153,9 +1154,6 @@ impl<T: Frontend> App<T> {
             Dispatch::OpenAndMarkFiles(paths) => self.open_and_mark_files(paths)?,
             Dispatch::ToggleOrOpenPaths => self.toggle_or_open_paths()?,
             Dispatch::ChangeWorkingDirectory(path) => self.change_working_directory(path)?,
-            Dispatch::AddClipboardHistory(copied_texts) => {
-                self.context.add_clipboard_history(copied_texts)
-            }
             Dispatch::OpenChangeWorkingDirectoryPrompt => {
                 self.open_change_working_directory_prompt()?
             }
@@ -3589,7 +3587,10 @@ pub enum Dispatch {
     AddPath(String),
     RefreshFileExplorer,
     SetClipboardContent {
-        copied_texts: CopiedTexts,
+        copied_texts: Texts,
+    },
+    AddKillRingEntry {
+        texts: Texts,
     },
     SetGlobalMode(Option<GlobalMode>),
     #[cfg(test)]
@@ -3710,7 +3711,6 @@ pub enum Dispatch {
     OpenAndMarkFiles(NonEmpty<AbsolutePath>),
     ToggleOrOpenPaths,
     ChangeWorkingDirectory(AbsolutePath),
-    AddClipboardHistory(CopiedTexts),
     OpenChangeWorkingDirectoryPrompt,
 }
 

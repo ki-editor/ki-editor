@@ -791,7 +791,7 @@ spam baz
                     expectations: Box::new([CurrentComponentContent("function foo(bar: Bar, bar: Bar, spam: Spam) {}")]),
                     terminal_height: None,
                     similar_vim_combos: &[],
-                    only: false,
+                    only: true,
                 }
             ].to_vec(),
         },
@@ -1795,6 +1795,21 @@ foo bar spam
                 events: keys!("s l k k i i"),
                 expectations: Box::new([CurrentSelectedTexts(&["spam"])]),
                 terminal_height: None,
+                similar_vim_combos: &[],
+                only: false,
+            }].to_vec(),
+        },
+        RecipeGroup {
+            filename: "replace-history",
+            recipes: [
+            Recipe {
+                description: "Example 1",
+                content: "foo bar spam baz x",
+                file_extension: "md",
+                prepare_events: &[],
+                events: keys!("s v l release-v v release-v l c release-c l f release-f esc l b y y y p p p release-b"),
+                expectations: Box::new([CurrentSelectedTexts(&["baz"]), CurrentComponentContent(" spam  baz")]),
+                terminal_height: Some(20),
                 similar_vim_combos: &[],
                 only: false,
             }].to_vec(),
