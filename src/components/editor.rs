@@ -1712,11 +1712,6 @@ impl Editor {
                     if let Some(keybinding) =
                         keymap_legend_config.keymap().get(&translated_key_event)
                     {
-                        dbg!(&(
-                            key_event,
-                            translated_key_event,
-                            &keybinding.short_description
-                        ));
                         return Ok(keybinding.get_dispatches());
                     }
                     log::info!("unhandled event: {translated_key_event:?}");
@@ -1792,7 +1787,6 @@ impl Editor {
     }
 
     pub fn delete_one(&mut self, context: &Context, cut: bool) -> anyhow::Result<Dispatches> {
-        // TODO: put deleted texts into kill ring
         let initial_dispatches: Dispatches = if cut { self.copy() } else { Default::default() }
             .append(Dispatch::AddKillRingEntry {
                 texts: self.get_current_texts(),

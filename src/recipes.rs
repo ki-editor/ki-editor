@@ -791,7 +791,7 @@ spam baz
                     expectations: Box::new([CurrentComponentContent("function foo(bar: Bar, bar: Bar, spam: Spam) {}")]),
                     terminal_height: None,
                     similar_vim_combos: &[],
-                    only: true,
+                    only: false,
                 }
             ].to_vec(),
         },
