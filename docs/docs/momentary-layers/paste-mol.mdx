@@ -64,10 +64,18 @@ If this layer is deactivated immediately without pressing any movement key, the 
 
 <TutorialFallback filename="replace"/>
 
-### Replace with copied text
+## Replace History
 
-Replace current selection with previous/next copied text in the clipboard history.
+Replace current selection with the previous/next text stored in the clipboard history.
+
+The historical entries is grown by the following actions:
+
+1. Copy
+2. Change
+3. Delete
 
 This is similar to [Yanking Earlier Kills](https://www.gnu.org/software/emacs/manual/html_node/emacs/Earlier-Kills.html) in Emacs.
 
-This is useful when you want to retrieve earlier copies.
+This is useful when you want to retrieve earlier copies or deleted texts.
+
+<TutorialFallback filename="replace-history"/>

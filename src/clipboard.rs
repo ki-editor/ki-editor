@@ -1,22 +1,23 @@
 use anyhow::Context;
+use indexmap::IndexSet;
 use itertools::Itertools;
 use nonempty::NonEmpty;
 use scraper::{Html, Selector};
 
 #[derive(Clone)]
 pub struct Clipboard {
-    history: RingHistory<CopiedTexts>,
+    history: RingHistory<Texts>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 /// Why is it a vector?  
 /// Because it needs to support multiple cursors.
 /// The first entry represent the copied text of the first cursor,
 /// and so forth.
-pub struct CopiedTexts {
+pub struct Texts {
     texts: NonEmpty<String>,
 }
-impl CopiedTexts {
+impl Texts {
     pub fn new(texts: NonEmpty<String>) -> Self {
         Self { texts }
     }
@@ -34,8 +35,8 @@ impl CopiedTexts {
     }
 
     #[cfg(test)]
-    pub fn one(string: String) -> CopiedTexts {
-        CopiedTexts::new(NonEmpty::singleton(string))
+    pub fn one(string: String) -> Texts {
+        Texts::new(NonEmpty::singleton(string))
     }
 
     pub fn to_text(&self) -> String {
@@ -115,7 +116,7 @@ fn escape_xml_attr(s: &str) -> String {
         .replace('"', "&quot;")
 }
 
-impl CopiedTexts {
+impl Texts {
     fn from_html(html: &str) -> anyhow::Result<Self> {
         let html_doc = Html::parse_document(html);
         let ki_selector = Selector::parse("div[source='ki-editor'] div")
@@ -133,7 +134,7 @@ impl CopiedTexts {
             })
             .collect();
 
-        Ok(CopiedTexts::new(NonEmpty::from_vec(texts).ok_or(
+        Ok(Texts::new(NonEmpty::from_vec(texts).ok_or(
             anyhow::anyhow!("CopiedTexts::from_html: texts is empty"),
         )?))
     }
@@ -146,43 +147,39 @@ impl Clipboard {
         }
     }
 
-    pub fn get(&self, history_offset: isize) -> Option<CopiedTexts> {
+    pub fn get(&self, history_offset: isize) -> Option<Texts> {
         self.history.get(history_offset)
     }
 
-    pub fn get_from_system_clipboard(&self) -> anyhow::Result<CopiedTexts> {
+    pub fn get_from_system_clipboard(&self) -> anyhow::Result<Texts> {
         // Try to parse the HTML as a Ki-injected HTML
         let mut clipboard = arboard::Clipboard::new()?;
         clipboard
             .get()
             .html()
             .map_err(|err| anyhow::anyhow!("{err}"))
-            .and_then(|html| CopiedTexts::from_html(html.as_str()))
+            .and_then(|html| Texts::from_html(html.as_str()))
             .or_else(|_| {
-                Ok(CopiedTexts::new(NonEmpty::new(
+                Ok(Texts::new(NonEmpty::new(
                     clipboard.get().text().context("arboard::Get::text")?,
                 )))
             })
     }
 
-    pub fn set(&mut self, copied_texts: CopiedTexts) -> anyhow::Result<()> {
+    pub fn set(&mut self, copied_texts: Texts) -> anyhow::Result<()> {
         self.history.add(copied_texts.clone());
         arboard::Clipboard::new().and_then(|mut clipboard| {
             clipboard.set_html(copied_texts.to_html(), Some(copied_texts.to_text()))
         })?;
         Ok(())
     }
-
-    pub fn add_clipboard_history(&mut self, copied_texts: CopiedTexts) {
-        self.history.add(copied_texts.clone());
-    }
 }
 
-#[derive(PartialEq, Clone, Debug, Eq, Hash, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct RingHistory<T: Clone> {
-    items: Vec<T>,
+    items: IndexSet<T>,
 }
-impl<T: Clone> RingHistory<T> {
+impl<T: Clone + PartialEq + Eq + std::hash::Hash> RingHistory<T> {
     /// 0 means latest.  
     /// -1 means previous.  
     /// +1 means next.  
@@ -208,10 +205,11 @@ impl<T: Clone> RingHistory<T> {
     }
 
     pub fn add(&mut self, item: T) {
-        self.items.push(item)
+        self.items.shift_remove(&item);
+        self.items.insert(item);
     }
 
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             items: Default::default(),
         }
@@ -241,5 +239,27 @@ mod test_ring_history {
         for (offset, expected) in expected {
             assert_eq!(history.get(offset), Some(expected.to_string()))
         }
+    }
+
+    #[test]
+    fn add_should_not_add_duplicated_entries() {
+        let mut history = RingHistory::default();
+        assert_eq!(history.get(0), None);
+        history.add("a".to_string());
+        history.add("b".to_string());
+        history.add("b".to_string());
+
+        assert_eq!(history.items.len(), 2)
+    }
+
+    #[test]
+    fn duplicated_entries_should_reorder_entry() {
+        let mut history = RingHistory::default();
+        assert_eq!(history.get(0), None);
+        history.add("b".to_string());
+        history.add("a".to_string());
+        history.add("b".to_string());
+
+        assert_eq!(history.items.into_iter().collect_vec(), vec!["a", "b"])
     }
 }

@@ -1471,13 +1471,13 @@ pub fn paste_keymap() -> Keymap {
             ),
             Keybinding::new(
                 "y",
-                Direction::Start.format_action("Replace w/ copied text"),
+                Direction::Start.format_action("Replace History"),
                 Dispatch::ToEditor(ReplaceWithPreviousCopiedText),
             ),
             Keybinding::new(
                 "p",
-                Direction::End.format_action("Replace w/ copied text"),
-                Dispatch::ToEditor(DispatchEditor::PasteVertically(Direction::End)),
+                Direction::End.format_action("Replace History"),
+                Dispatch::ToEditor(ReplaceWithNextCopiedText),
             ),
             Keybinding::new(
                 "i",

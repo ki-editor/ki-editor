@@ -2,9 +2,7 @@ use convert_case::Casing;
 use itertools::Itertools;
 use shared::process_command::ProcessCommand;
 
-use crate::{
-    clipboard::CopiedTexts, selection_mode::NamingConventionAgnostic, soft_wrap::soft_wrap,
-};
+use crate::{clipboard::Texts, selection_mode::NamingConventionAgnostic, soft_wrap::soft_wrap};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Transformation {
@@ -12,7 +10,7 @@ pub enum Transformation {
     Unwrap,
     Wrap,
     PipeToShell { command: String },
-    ReplaceWithCopiedText { copied_texts: CopiedTexts },
+    ReplaceWithCopiedText { copied_texts: Texts },
     RegexReplace { regex: MyRegex, replacement: String },
     NamingConventionAgnosticReplace { search: String, replacement: String },
     ToggleLineComment { prefix: String },

@@ -27,7 +27,7 @@ use crate::{
     app::{Dispatches, RequestParams, Scope},
     buffer::Line,
     char_index_range::CharIndexRange,
-    clipboard::CopiedTexts,
+    clipboard::Texts,
     context::{Context, GlobalMode, LocalSearchConfigMode, Search},
     lsp::{completion::CompletionItemEdit, process::ResponseContext},
     selection_mode::{self, regex::get_regex},
@@ -181,7 +181,7 @@ impl Component for Editor {
             event::event::Event::Key(event) => self.handle_key_event(context, event),
             event::event::Event::Paste(content) => self.paste_text(
                 GetGapMovement::AfterWithoutGap,
-                CopiedTexts::new(NonEmpty::singleton(content)),
+                Texts::new(NonEmpty::singleton(content)),
                 context,
             ),
             event::event::Event::Mouse(event) => self.handle_mouse_event(event),
@@ -227,7 +227,9 @@ impl Component for Editor {
                 return self.handle_movement_with_prior_change(context, movement, prior_change)
             }
             Copy => return Ok(self.copy()),
-            ReplaceWithCopiedText { cut } => return self.replace_with_copied_text(context, cut, 0),
+            ReplaceWithCopiedText { cut } => {
+                return self.replace_with_historical_text(context, cut, 0, false)
+            }
             SelectAll => return self.select_all(context),
             SetContent(content) => self.set_content(&content, context)?,
             EnableSelectionExtension => self.enable_selection_extension(),
@@ -329,11 +331,11 @@ impl Component for Editor {
             }
             ReplaceWithPreviousCopiedText => {
                 let history_offset = self.copied_text_history_offset.decrement();
-                return self.replace_with_copied_text(context, false, history_offset);
+                return self.replace_with_historical_text(context, false, history_offset, true);
             }
             ReplaceWithNextCopiedText => {
                 let history_offset = self.copied_text_history_offset.increment();
-                return self.replace_with_copied_text(context, false, history_offset);
+                return self.replace_with_historical_text(context, false, history_offset, true);
             }
             MoveToLastChar => return Ok(self.move_to_last_char(context)),
             PipeToShell { command } => return self.pipe_to_shell(command, context),
@@ -1105,7 +1107,10 @@ impl Editor {
         movement: Movement,
         cut: bool,
     ) -> anyhow::Result<Dispatches> {
-        let copy_dispatches: Dispatches = if cut { self.copy() } else { Default::default() };
+        let initial_dispatches: Dispatches = if cut { self.copy() } else { Default::default() }
+            .append(Dispatch::AddKillRingEntry {
+                texts: self.get_current_texts(),
+            });
         let edit_transaction = EditTransaction::from_action_groups({
             let buffer = self.buffer();
             self.selection_set
@@ -1226,7 +1231,7 @@ impl Editor {
                 .collect()
         });
         let dispatches = self.apply_edit_transaction(edit_transaction, context)?;
-        Ok(copy_dispatches.chain(dispatches))
+        Ok(initial_dispatches.chain(dispatches))
     }
 
     fn enter_newline(&mut self, context: &Context) -> anyhow::Result<Dispatches> {
@@ -1277,14 +1282,18 @@ impl Editor {
 
     pub fn copy(&mut self) -> Dispatches {
         Dispatches::one(Dispatch::SetClipboardContent {
-            copied_texts: CopiedTexts::new(self.selection_set.map(|selection| {
-                self.buffer()
-                    .slice(&selection.extended_range())
-                    .ok()
-                    .map(|s| s.to_string())
-                    .unwrap_or_default()
-            })),
+            copied_texts: self.get_current_texts(),
         })
+    }
+
+    fn get_current_texts(&self) -> Texts {
+        Texts::new(self.selection_set.map(|selection| {
+            self.buffer()
+                .slice(&selection.extended_range())
+                .ok()
+                .map(|s| s.to_string())
+                .unwrap_or_default()
+        }))
     }
 
     fn replace_current_selection_with<F>(
@@ -1369,7 +1378,7 @@ impl Editor {
     fn paste_text(
         &mut self,
         get_gap_movement: GetGapMovement,
-        copied_texts: CopiedTexts,
+        copied_texts: Texts,
         context: &Context,
     ) -> anyhow::Result<Dispatches> {
         let edit_transaction = EditTransaction::from_action_groups({
@@ -1518,17 +1527,17 @@ impl Editor {
         )
     }
 
-    fn pre_paste(context: &Context) -> Option<(CopiedTexts, Dispatches)> {
+    fn pre_paste(context: &Context) -> Option<(Texts, Dispatches)> {
         let clipboards_differ: bool = !context.clipboards_synced();
-        let copied_texts = context.get_clipboard_content(0)?;
+        let texts = context.get_clipboard_content(0)?;
         // out-of-sync paste should also add the content to clipboard history
         Some(if clipboards_differ {
             (
-                copied_texts.clone(),
-                Dispatches::one(Dispatch::AddClipboardHistory(copied_texts)),
+                texts.clone(),
+                Dispatches::one(Dispatch::AddKillRingEntry { texts }),
             )
         } else {
-            (copied_texts, Default::default())
+            (texts, Default::default())
         })
     }
 
@@ -1537,21 +1546,30 @@ impl Editor {
     /// If `history_offset` is 0, it means select the latest copied text;
     ///   +n means select the nth next copied text (cycle to the first copied text if current copied text is the latest)
     ///   -n means select the nth previous copied text (cycle to the last copied text if current copied text is the first)
-    pub fn replace_with_copied_text(
+    pub fn replace_with_historical_text(
         &mut self,
         context: &Context,
         cut: bool,
         history_offset: isize,
+        use_kill_ring: bool,
     ) -> anyhow::Result<Dispatches> {
         let dispatches = if cut { self.copy() } else { Default::default() };
 
-        let Some(copied_texts) = context.get_clipboard_content(history_offset) else {
+        let texts = if use_kill_ring {
+            context.get_kill_ring_content(history_offset)
+        } else {
+            context.get_clipboard_content(history_offset)
+        };
+
+        let Some(texts) = texts else {
             return Ok(Default::default());
         };
 
         Ok(self
             .transform_selection(
-                Transformation::ReplaceWithCopiedText { copied_texts },
+                Transformation::ReplaceWithCopiedText {
+                    copied_texts: texts,
+                },
                 context,
             )?
             .chain(dispatches))
@@ -1686,15 +1704,17 @@ impl Editor {
                         context,
                     )
                 } else {
-                    let key_event = context
+                    let translated_key_event = context
                         .keyboard_layout_kind()
-                        .translate_key_event_to_qwerty(key_event);
+                        .translate_key_event_to_qwerty(key_event.clone());
                     let keymap_legend_config = self.get_current_keymap_legend_config();
 
-                    if let Some(keymap) = keymap_legend_config.keymap().get(&key_event) {
-                        return Ok(keymap.get_dispatches());
+                    if let Some(keybinding) =
+                        keymap_legend_config.keymap().get(&translated_key_event)
+                    {
+                        return Ok(keybinding.get_dispatches());
                     }
-                    log::info!("unhandled event: {key_event:?}");
+                    log::info!("unhandled event: {translated_key_event:?}");
                     Ok(vec![].into())
                 }
             }
@@ -1766,9 +1786,12 @@ impl Editor {
         .map(|dispatches| dispatches.append(self.dispatch_jumps_changed()))
     }
 
-    // This is similar to Ki's Change, except it enters normal mode
     pub fn delete_one(&mut self, context: &Context, cut: bool) -> anyhow::Result<Dispatches> {
-        let copy_dispatches: Dispatches = if cut { self.copy() } else { Default::default() };
+        let initial_dispatches: Dispatches = if cut { self.copy() } else { Default::default() }
+            .append(Dispatch::AddKillRingEntry {
+                texts: self.get_current_texts(),
+            });
+
         let edit_transaction = EditTransaction::from_action_groups(
             self.selection_set
                 .map(|selection| -> anyhow::Result<_> {
@@ -1808,7 +1831,7 @@ impl Editor {
 
         let _ = self.enter_normal_mode(context);
 
-        Ok(copy_dispatches.chain(self.apply_edit_transaction(edit_transaction, context)?))
+        Ok(initial_dispatches.chain(self.apply_edit_transaction(edit_transaction, context)?))
     }
 
     /// Similar to Change in Vim, but does not copy the current selection
@@ -1835,9 +1858,13 @@ impl Editor {
                 .collect(),
         );
 
-        Ok(self
-            .apply_edit_transaction(edit_transaction, context)?
-            .chain(self.enter_insert_mode(Direction::Start, context)?))
+        Ok(Dispatches::one(Dispatch::AddKillRingEntry {
+            texts: self.get_current_texts(),
+        })
+        .chain(
+            self.apply_edit_transaction(edit_transaction, context)?
+                .chain(self.enter_insert_mode(Direction::Start, context)?),
+        ))
     }
 
     pub fn change_cut(&mut self, context: &Context) -> anyhow::Result<Dispatches> {
@@ -4383,7 +4410,7 @@ impl Editor {
     fn copy_current_file_absolute_path(&self) -> Result<Dispatches, anyhow::Error> {
         if let Some(path) = self.path() {
             Ok(Dispatches::one(Dispatch::SetClipboardContent {
-                copied_texts: CopiedTexts::new(NonEmpty::new(path.display_absolute())),
+                copied_texts: Texts::new(NonEmpty::new(path.display_absolute())),
             }))
         } else {
             Err(anyhow::anyhow!(
@@ -4398,7 +4425,7 @@ impl Editor {
     ) -> Result<Dispatches, anyhow::Error> {
         if let Some(path) = self.path() {
             Ok(Dispatches::one(Dispatch::SetClipboardContent {
-                copied_texts: CopiedTexts::new(NonEmpty::new(
+                copied_texts: Texts::new(NonEmpty::new(
                     path.display_relative_to(context.current_working_directory())?,
                 )),
             }))
@@ -4518,7 +4545,7 @@ impl Editor {
         }
         self.transform_selection(
             Transformation::ReplaceWithCopiedText {
-                copied_texts: CopiedTexts::new(replacements),
+                copied_texts: Texts::new(replacements),
             },
             context,
         )
@@ -4555,7 +4582,7 @@ impl Editor {
         context: &mut Context,
         get_gap_movement: GetGapMovement,
     ) -> Result<Dispatches, anyhow::Error> {
-        let copied_texts = CopiedTexts::new(self.selection_set.map(|selection| {
+        let copied_texts = Texts::new(self.selection_set.map(|selection| {
             self.buffer()
                 .slice(&selection.extended_range())
                 .unwrap_or_default()
@@ -4569,7 +4596,7 @@ impl Editor {
         context: &mut Context,
         direction: Direction,
     ) -> Result<Dispatches, anyhow::Error> {
-        let copied_texts = CopiedTexts::new(self.selection_set.map(|selection| {
+        let copied_texts = Texts::new(self.selection_set.map(|selection| {
             self.buffer()
                 .slice(&selection.extended_range())
                 .unwrap_or_default()

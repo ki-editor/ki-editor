@@ -1,7 +1,7 @@
 use crate::app::{Dimension, LocalSearchConfigUpdate, Scope};
 use crate::buffer::BufferOwner;
 use crate::char_index_range::CharIndexRange;
-use crate::clipboard::CopiedTexts;
+use crate::clipboard::Texts;
 use crate::components::editor::{
     DispatchEditor::{self, *},
     Movement::*,
@@ -994,7 +994,7 @@ fn paste_in_insert_mode_1() -> anyhow::Result<()> {
             }),
             Editor(SetContent("foo bar spam".to_string())),
             App(SetClipboardContent {
-                copied_texts: CopiedTexts::one("haha".to_string()),
+                copied_texts: Texts::one("haha".to_string()),
             }),
             Editor(MatchLiteral("bar".to_string())),
             Editor(EnterInsertMode(Direction::End)),
@@ -1041,7 +1041,7 @@ fn paste_after() -> anyhow::Result<()> {
             }),
             Editor(SetContent("foo bar spam".to_string())),
             App(SetClipboardContent {
-                copied_texts: CopiedTexts::one("haha".to_string()),
+                copied_texts: Texts::one("haha".to_string()),
             }),
             Editor(MatchLiteral("bar".to_string())),
             Editor(PasteWithMovement(GetGapMovement::Right)),
@@ -1097,7 +1097,7 @@ fn smart_paste_forward() -> anyhow::Result<()> {
             }),
             Editor(SetContent("fn main(a:A, b:B) {}".to_string())),
             App(SetClipboardContent {
-                copied_texts: CopiedTexts::one("c:C".to_string()),
+                copied_texts: Texts::one("c:C".to_string()),
             }),
             Editor(MatchLiteral("a:A".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
@@ -1140,7 +1140,7 @@ fn smart_paste_backward() -> anyhow::Result<()> {
             }),
             Editor(SetContent("fn main(a:A, b:B) {}".to_string())),
             App(SetClipboardContent {
-                copied_texts: CopiedTexts::one("c:C".to_string()),
+                copied_texts: Texts::one("c:C".to_string()),
             }),
             Editor(MatchLiteral("a:A".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
@@ -1164,7 +1164,7 @@ fn paste_before() -> anyhow::Result<()> {
             }),
             Editor(SetContent("foo bar spam".to_string())),
             App(SetClipboardContent {
-                copied_texts: CopiedTexts::one("haha".to_string()),
+                copied_texts: Texts::one("haha".to_string()),
             }),
             Editor(MatchLiteral("bar".to_string())),
             Editor(PasteWithMovement(GetGapMovement::Left)),
@@ -1188,7 +1188,7 @@ fn replace_from_clipboard() -> anyhow::Result<()> {
                 "fn f(){ let x = S(a); let y = S(b); }".to_string(),
             )),
             App(SetClipboardContent {
-                copied_texts: CopiedTexts::one("let z = S(c);".to_string()),
+                copied_texts: Texts::one("let z = S(c);".to_string()),
             }),
             Editor(SetSelectionMode(
                 IfCurrentNotFound::LookForward,
@@ -2495,7 +2495,7 @@ fn undo_till_empty_should_not_crash_in_insert_mode() -> anyhow::Result<()> {
             }),
             Editor(SetContent("".to_string())),
             App(SetClipboardContent {
-                copied_texts: CopiedTexts::one("foo".to_string()),
+                copied_texts: Texts::one("foo".to_string()),
             }),
             Editor(EnterInsertMode(Direction::Start)),
             Editor(PasteWithMovement(GetGapMovement::Right)),
@@ -2747,7 +2747,7 @@ fn replace_extended_selection_should_not_derail_selection_range() -> Result<(), 
                 }),
                 Editor(SetContent("foo bar spam".to_string())),
                 App(SetClipboardContent {
-                    copied_texts: CopiedTexts::one("x".to_string()),
+                    copied_texts: Texts::one("x".to_string()),
                 }),
                 Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
                 Editor(EnableSelectionExtension),
@@ -6087,4 +6087,51 @@ fn x() {
 }
 ",
     )
+}
+
+#[test]
+fn specific_actions_should_populate_kill_ring() -> anyhow::Result<()> {
+    fn test(action: DispatchEditor) -> Result<(), anyhow::Error> {
+        execute_test(move |s| {
+            Box::new([
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                Editor(SetContent("foo bar spam".to_string())),
+                Editor(MatchLiteral("foo".to_owned())),
+                Editor(action.clone()),
+                Editor(EnterNormalMode),
+                Editor(ReplaceWithPreviousCopiedText),
+                Expect(CurrentSelectedTexts(&["foo"])),
+            ])
+        })
+    }
+    test(DispatchEditor::DeleteOne)?;
+    test(DispatchEditor::Change)?;
+    test(DispatchEditor::DeleteWithMovement(Right))?;
+    Ok(())
+}
+
+#[test]
+fn copy_should_populate_kill_ring() -> anyhow::Result<()> {
+    execute_test(move |s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("foo bar spam".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Expect(CurrentSelectedTexts(&["foo"])),
+            Editor(Copy),
+            Editor(MoveSelection(Right)),
+            Expect(CurrentSelectedTexts(&["bar"])),
+            Editor(ReplaceWithPreviousCopiedText),
+            Expect(CurrentComponentContent("foo foo spam")),
+            Expect(CurrentSelectedTexts(&["foo"])),
+        ])
+    })
 }

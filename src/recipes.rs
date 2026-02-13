@@ -1800,6 +1800,21 @@ foo bar spam
             }].to_vec(),
         },
         RecipeGroup {
+            filename: "replace-history",
+            recipes: [
+            Recipe {
+                description: "Example 1",
+                content: "foo bar spam baz x",
+                file_extension: "md",
+                prepare_events: &[],
+                events: keys!("s v l release-v v release-v l c release-c l f release-f esc l b y y y p p p release-b"),
+                expectations: Box::new([CurrentSelectedTexts(&["baz"]), CurrentComponentContent(" spam  baz")]),
+                terminal_height: Some(20),
+                similar_vim_combos: &[],
+                only: false,
+            }].to_vec(),
+        },
+        RecipeGroup {
             filename: "showcase_simple",
             recipes: showcase_simple(),
         },

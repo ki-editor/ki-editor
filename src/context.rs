@@ -9,7 +9,7 @@ use shared::absolute_path::AbsolutePath;
 use crate::{
     app::{GlobalSearchConfigUpdate, LocalSearchConfigUpdate, Scope},
     char_index_range::CharIndexRange,
-    clipboard::{Clipboard, CopiedTexts},
+    clipboard::{Clipboard, RingHistory, Texts},
     components::{editor_keymap::KeyboardLayoutKind, prompt::PromptHistoryKey},
     list::grep::RegexConfig,
     persistence::{Persistence, WorkspaceSession},
@@ -48,6 +48,7 @@ pub struct Context {
     persistence: Option<Persistence>,
 
     lsp_progress: String,
+    kill_ring: RingHistory<Texts>,
 }
 
 #[derive(Debug)]
@@ -285,6 +286,7 @@ impl Context {
             marks,
             lsp_progress: "".to_string(),
             quickfix_list: QuickfixList::default(),
+            kill_ring: RingHistory::new(),
         }
     }
 
@@ -302,15 +304,19 @@ impl Context {
         app_clipboard_content == system_clipboard_content
     }
 
-    pub fn add_clipboard_history(&mut self, item: CopiedTexts) {
-        self.clipboard.add_clipboard_history(item)
+    pub(crate) fn add_kill_ring_entry(&mut self, texts: Texts) {
+        self.kill_ring.add(texts)
+    }
+
+    pub fn get_kill_ring_content(&self, history_offset: isize) -> Option<Texts> {
+        self.kill_ring.get(history_offset)
     }
 
     /// Note: `history_offset` is ignored when `use_system_clipboard` is true.
     ///
     /// This method should never fail, if `use_system_clipboard` is true but
     /// the system clipboard is inaccessible, the app clipboard will be used.
-    pub fn get_clipboard_content(&self, history_offset: isize) -> Option<CopiedTexts> {
+    pub fn get_clipboard_content(&self, history_offset: isize) -> Option<Texts> {
         // Always use the system clipboard if the content of the system clipboard is no longer the same
         // with the content of the app clipboard
         let use_system_clipboard = !self.clipboards_synced();
@@ -327,9 +333,11 @@ impl Context {
         self.clipboard.get(history_offset)
     }
 
-    pub fn set_clipboard_content(&mut self, contents: CopiedTexts) -> anyhow::Result<()> {
+    pub fn set_clipboard_content(&mut self, contents: Texts) -> anyhow::Result<()> {
+        self.kill_ring.add(contents.clone());
         self.clipboard.set(contents)
     }
+
     pub fn mode(&self) -> Option<GlobalMode> {
         self.mode.clone()
     }
