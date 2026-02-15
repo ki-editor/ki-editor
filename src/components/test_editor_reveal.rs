@@ -273,6 +273,7 @@ fn two() {
             })),
             Editor(MatchLiteral("bar".to_string())),
             Editor(CursorAddToAllSelections),
+            Editor(ToggleReveal(Reveal::Cursor)),
             Expect(CurrentReveal(Some(Reveal::Cursor))),
             Expect(EditorGrid(
                 "
@@ -467,6 +468,7 @@ fn total_count_of_rendered_secondary_selections_should_equal_total_count_of_actu
             })),
             Editor(MatchLiteral("foo".to_string())),
             Editor(CursorAddToAllSelections),
+            Editor(ToggleReveal(Reveal::Cursor)),
             Expect(EditorGrid(
                 "
 🦀  main.rs [*]
@@ -508,6 +510,7 @@ fn total_count_of_rendered_marks_should_equal_total_count_of_actual_marks() -> a
             })),
             Editor(MatchLiteral("foo".to_string())),
             Editor(CursorAddToAllSelections),
+            Editor(ToggleReveal(Reveal::Cursor)),
             App(MarkFileAndToggleMark),
             Editor(CursorKeepPrimaryOnly),
             Editor(ToggleReveal(Reveal::Mark)),
@@ -552,6 +555,7 @@ fn section_divider_style() -> anyhow::Result<()> {
             })),
             Editor(MatchLiteral("bar".to_string())),
             Editor(CursorAddToAllSelections),
+            Editor(ToggleReveal(Reveal::Cursor)),
             Editor(SwitchViewAlignment),
             Editor(SwitchViewAlignment),
             Editor(SwitchViewAlignment),
@@ -608,6 +612,7 @@ fn reveal_cursor_selection_extension() -> anyhow::Result<()> {
             })),
             Editor(MatchLiteral("bar".to_string())),
             Editor(CursorAddToAllSelections),
+            Editor(ToggleReveal(Reveal::Cursor)),
             Expect(EditorGrid(
                 "
 🦀  main.rs [*]
@@ -706,6 +711,7 @@ d();
             })),
             Editor(MatchLiteral("spam".to_string())),
             Editor(CursorAddToAllSelections),
+            Editor(ToggleReveal(Reveal::Cursor)),
             Expect(CurrentReveal(Some(Reveal::Cursor))),
             Editor(SwitchViewAlignment),
             Expect(CurrentViewAlignment(Some(ViewAlignment::Top))),
