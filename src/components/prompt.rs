@@ -292,7 +292,7 @@ pub enum PromptHistoryKey {
 
 impl Prompt {
     pub fn new(config: PromptConfig, context: &Context) -> (Self, Dispatches) {
-        let (text, leaves_current_line_empty) = match &config.on_enter {
+        let (text, leaves_current_line_empty, has_multiple_lines) = match &config.on_enter {
             PromptOnEnter::ParseCurrentLine {
                 history_key,
                 current_line,
@@ -313,12 +313,12 @@ impl Prompt {
                 } else {
                     history
                 };
-                (text, current_line.is_none())
+                (text, current_line.is_none(), false)
             }
             PromptOnEnter::ParseWholeBuffer { initial_lines, .. } => {
-                (initial_lines.join("\n"), true)
+                (initial_lines.join("\n"), false, true)
             }
-            PromptOnEnter::SelectsFirstMatchingItem { .. } => ("".to_string(), true),
+            PromptOnEnter::SelectsFirstMatchingItem { .. } => ("".to_string(), true, false),
         };
         let mut editor = SuggestiveEditor::from_buffer(
             Rc::new(RefCell::new(Buffer::new(None, &text))),
@@ -336,10 +336,15 @@ impl Prompt {
                     Dispatch::ToEditor(DispatchEditor::MoveSelection(
                         super::editor::Movement::Last,
                     )),
-                    Dispatch::ToEditor(DispatchEditor::MoveToLineEnd),
                 ]
                 .to_vec(),
             )
+            .append_some(if has_multiple_lines {
+                Some(Dispatch::ToEditor(DispatchEditor::CursorAddToAllSelections))
+            } else {
+                None
+            })
+            .append(Dispatch::ToEditor(DispatchEditor::MoveToLineEnd))
         };
         // TODO: set cursor to last line
         editor.set_title(config.title.clone());
@@ -908,6 +913,49 @@ mod test_prompt {
                 Editor(MoveSelection(Left)),
                 App(HandleKeyEvent(key!("enter"))),
                 Expect(CurrentSearch(Scope::Local, "foo.")),
+            ])
+        })
+    }
+
+    #[test]
+    fn parse_whole_buffer_auto_add_cursor_to_all_line() -> Result<(), anyhow::Error> {
+        execute_test(|s| {
+            Box::new([
+                App(RevealInExplorer(s.main_rs())),
+                Expect(FileExplorerContent(
+                    "
+ - 📁  .git/ :
+ - 🙈  .gitignore
+ - 🔒  Cargo.lock
+ - 📄  Cargo.toml
+ - 📂  src/ :
+   - 🦀  foo.rs
+   - 📘  hello.ts
+   - 🦀  main.rs
+"
+                    .trim_matches('\n')
+                    .to_string(),
+                )),
+                Editor(MatchLiteral("Cargo.lock".to_owned())),
+                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+                Editor(EnableSelectionExtension),
+                Editor(MoveSelection(Right)),
+                Expect(CurrentSelectedTexts(&[
+                    "- 🔒  Cargo.lock\n - 📄  Cargo.toml",
+                ])),
+                App(OpenMovePathsPrompt),
+                Expect(CurrentMode(Mode::Insert)),
+                Expect(CurrentSelectedTexts(&["", ""])),
+                Editor(EnterNormalMode),
+                Editor(SetSelectionMode(
+                    IfCurrentNotFound::LookForward,
+                    SelectionMode::Line,
+                )),
+                Editor(SwapCursor),
+                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+                Editor(EnableSelectionExtension),
+                Editor(MoveSelection(Left)),
+                Expect(CurrentSelectedTexts(&["Cargo.lock", "Cargo.toml"])),
             ])
         })
     }
