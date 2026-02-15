@@ -216,10 +216,7 @@ impl Buffer {
 
     pub fn get_parent_lines(&self, line_index: usize) -> anyhow::Result<Vec<Line>> {
         let char_index = self.line_to_char(line_index)?;
-        let node = self.get_current_node(
-            &Selection::default().set_range((char_index..char_index + 1).into()),
-            false,
-        )?;
+        let node = self.get_nearest_node_after_char(char_index);
         fn get_parent_lines(
             buffer: &Buffer,
             node: Option<tree_sitter::Node>,
