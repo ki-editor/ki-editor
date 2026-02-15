@@ -599,7 +599,7 @@ fn reveal_cursor_selection_extension() -> anyhow::Result<()> {
                 focus: true,
             }),
             Editor(SetContent(
-                "foo\nbar spam\nfoo\nbar spam".trim().to_string(),
+                "foo\nbar spam\n\n\n\n\n\nfoo\nbar spam".trim().to_string(),
             )),
             Editor(SetRectangle(Rectangle {
                 origin: Position::new(0, 0),
@@ -613,11 +613,10 @@ fn reveal_cursor_selection_extension() -> anyhow::Result<()> {
 🦀  main.rs [*]
 1│foo
 2│█ar spam
-3│foo
-3│foo
-4│bar spam
-"
-                .trim(),
+3│
+8│foo
+9│bar spam"
+                    .trim(),
             )),
             Editor(EnableSelectionExtension),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
@@ -627,11 +626,10 @@ fn reveal_cursor_selection_extension() -> anyhow::Result<()> {
 🦀  main.rs [*]
 1│foo
 2│bar █pam
-3│foo
-3│foo
-4│bar spam
-"
-                .trim(),
+3│
+8│foo
+9│bar spam"
+                    .trim(),
             )),
             Expect(GridCellStyleKey(
                 Position::new(2, 5),
