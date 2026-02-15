@@ -258,8 +258,6 @@ fn main() {
   foo();
   bar();
 }
-
-
 fn two() {
   foo();
   bar();
@@ -275,14 +273,15 @@ fn two() {
             })),
             Editor(MatchLiteral("bar".to_string())),
             Editor(CursorAddToAllSelections),
+            Editor(ToggleReveal(Reveal::Cursor)),
             Expect(CurrentReveal(Some(Reveal::Cursor))),
             Expect(EditorGrid(
                 "
 🦀  main.rs [*]
 1│fn main() {
 3│  █ar();
-7│fn two() {
-9│  bar();
+5│fn two() {
+7│  bar();
 "
                 .trim(),
             )),
@@ -469,6 +468,7 @@ fn total_count_of_rendered_secondary_selections_should_equal_total_count_of_actu
             })),
             Editor(MatchLiteral("foo".to_string())),
             Editor(CursorAddToAllSelections),
+            Editor(ToggleReveal(Reveal::Cursor)),
             Expect(EditorGrid(
                 "
 🦀  main.rs [*]
@@ -510,6 +510,7 @@ fn total_count_of_rendered_marks_should_equal_total_count_of_actual_marks() -> a
             })),
             Editor(MatchLiteral("foo".to_string())),
             Editor(CursorAddToAllSelections),
+            Editor(ToggleReveal(Reveal::Cursor)),
             App(MarkFileAndToggleMark),
             Editor(CursorKeepPrimaryOnly),
             Editor(ToggleReveal(Reveal::Mark)),
@@ -554,6 +555,7 @@ fn section_divider_style() -> anyhow::Result<()> {
             })),
             Editor(MatchLiteral("bar".to_string())),
             Editor(CursorAddToAllSelections),
+            Editor(ToggleReveal(Reveal::Cursor)),
             Editor(SwitchViewAlignment),
             Editor(SwitchViewAlignment),
             Editor(SwitchViewAlignment),
@@ -601,7 +603,7 @@ fn reveal_cursor_selection_extension() -> anyhow::Result<()> {
                 focus: true,
             }),
             Editor(SetContent(
-                "foo\nbar spam\n\n\n\n\n\nfoo\nbar spam".trim().to_string(),
+                "foo\nbar spam\nfoo\nbar spam".trim().to_string(),
             )),
             Editor(SetRectangle(Rectangle {
                 origin: Position::new(0, 0),
@@ -610,15 +612,17 @@ fn reveal_cursor_selection_extension() -> anyhow::Result<()> {
             })),
             Editor(MatchLiteral("bar".to_string())),
             Editor(CursorAddToAllSelections),
+            Editor(ToggleReveal(Reveal::Cursor)),
             Expect(EditorGrid(
                 "
 🦀  main.rs [*]
 1│foo
 2│█ar spam
-3│
-8│foo
-9│bar spam"
-                    .trim(),
+3│foo
+3│foo
+4│bar spam
+"
+                .trim(),
             )),
             Editor(EnableSelectionExtension),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
@@ -628,10 +632,11 @@ fn reveal_cursor_selection_extension() -> anyhow::Result<()> {
 🦀  main.rs [*]
 1│foo
 2│bar █pam
-3│
-8│foo
-9│bar spam"
-                    .trim(),
+3│foo
+3│foo
+4│bar spam
+"
+                .trim(),
             )),
             Expect(GridCellStyleKey(
                 Position::new(2, 5),
@@ -706,6 +711,7 @@ d();
             })),
             Editor(MatchLiteral("spam".to_string())),
             Editor(CursorAddToAllSelections),
+            Editor(ToggleReveal(Reveal::Cursor)),
             Expect(CurrentReveal(Some(Reveal::Cursor))),
             Editor(SwitchViewAlignment),
             Expect(CurrentViewAlignment(Some(ViewAlignment::Top))),
