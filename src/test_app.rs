@@ -3469,6 +3469,7 @@ spam
             })),
             Editor(MatchLiteral("XXX".to_string())),
             Editor(CursorAddToAllSelections),
+            Editor(ToggleReveal(Reveal::Cursor)),
             Expect(AppGrid(
                 " 🦀  main.rs [*]
 1│bar
@@ -3515,6 +3516,7 @@ spam
             })),
             Editor(MatchLiteral("XXX".to_string())),
             Editor(CursorAddToAllSelections),
+            Editor(ToggleReveal(Reveal::Cursor)),
             Expect(AppGrid(
                 " 🦀  main.rs [*]
 1│bar
