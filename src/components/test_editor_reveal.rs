@@ -258,6 +258,8 @@ fn main() {
   foo();
   bar();
 }
+
+
 fn two() {
   foo();
   bar();
@@ -279,8 +281,8 @@ fn two() {
 🦀  main.rs [*]
 1│fn main() {
 3│  █ar();
-5│fn two() {
-7│  bar();
+7│fn two() {
+9│  bar();
 "
                 .trim(),
             )),
