@@ -1477,10 +1477,7 @@ impl Editor {
                     let line = self
                         .buffer()
                         .get_line_by_line_index(line_index)
-                        .map(|line| line.to_string())
-                        .ok_or_else(|| {
-                            anyhow::anyhow!("Unable to obtain line at line index {line_index}")
-                        })?;
+                        .map(|line| line.to_string())?;
 
                     let line_char_index = self.buffer().line_to_char(line_index)?;
 
@@ -4095,10 +4092,7 @@ impl Editor {
             let line_char_index = self.buffer().line_to_char(current_line_index)?;
             let line_length = self
                 .buffer()
-                .get_line_by_line_index(current_line_index)
-                .ok_or_else(|| {
-                    anyhow::anyhow!("Unable to get line at line index {current_line_index:?}")
-                })?
+                .get_line_by_line_index(current_line_index)?
                 .len_chars();
 
             [ActionGroup::new(
