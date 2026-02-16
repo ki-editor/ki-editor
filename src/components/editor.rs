@@ -3016,10 +3016,19 @@ impl Editor {
     }
 
     pub fn add_cursor_to_all_selections(&mut self, context: &Context) -> Result<(), anyhow::Error> {
-        self.mode = Mode::Normal;
-        self.reveal = Some(Reveal::Cursor);
         self.selection_set
             .add_all(&self.buffer.borrow(), &self.cursor_direction, context)?;
+
+        // Enable reveal if the first and last cursor is too far away from each other
+        let get_line_index = |selection: &Selection| {
+            self.buffer()
+                .char_to_line(selection.extended_range().start())
+        };
+        let first = get_line_index(self.selection_set.selections().first())?;
+        let last = get_line_index(self.selection_set.selections().last())?;
+        if self.render_area(context).height < last.saturating_sub(first) {
+            self.reveal = Some(Reveal::Cursor);
+        }
         self.recalculate_scroll_offset(context);
         Ok(())
     }

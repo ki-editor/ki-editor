@@ -2,6 +2,7 @@ use crate::app::{Dimension, LocalSearchConfigUpdate, Scope};
 use crate::buffer::BufferOwner;
 use crate::char_index_range::CharIndexRange;
 use crate::clipboard::Texts;
+use crate::components::editor::Reveal;
 use crate::components::editor::{
     DispatchEditor::{self, *},
     Movement::*,
@@ -6134,4 +6135,34 @@ fn copy_should_populate_kill_ring() -> anyhow::Result<()> {
             Expect(CurrentSelectedTexts(&["foo"])),
         ])
     })
+}
+
+#[test]
+fn add_cursor_to_all_selections_should_not_toggle_reveal_if_all_cursors_are_within_view(
+) -> anyhow::Result<()> {
+    fn run_test(height: usize, expected_reveal: Option<Reveal>) -> anyhow::Result<()> {
+        execute_test(move |s| {
+            Box::new([
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                Editor(SetContent(
+                    ["foo", "bar spam", "", "", "chan", "bar zam"].join("\n"),
+                )),
+                Editor(SetRectangle(Rectangle {
+                    origin: Position::new(0, 0),
+                    width: 20,
+                    height,
+                })),
+                Editor(MatchLiteral("bar".to_string())),
+                Editor(CursorAddToAllSelections),
+                Expect(CurrentReveal(expected_reveal.clone())),
+            ])
+        })
+    }
+    run_test(5, None)?;
+    run_test(4, Some(Reveal::Cursor))?;
+    Ok(())
 }
