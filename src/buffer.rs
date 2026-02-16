@@ -216,9 +216,7 @@ impl Buffer {
     }
 
     pub fn get_parent_lines(&self, line_index: usize) -> anyhow::Result<Vec<Line>> {
-        let line = self
-            .get_line_by_line_index(line_index)
-            .ok_or_else(|| anyhow::anyhow!("Unable to obtain line at line index {line_index}"))?;
+        let line = self.get_line_by_line_index(line_index)?;
         let indentation = line.chars().take_while(|c| c.is_whitespace()).count();
         let char_index = self.line_to_char(line_index)? + indentation;
         let node = self.get_current_node(
@@ -233,7 +231,7 @@ impl Buffer {
             let Some(node) = node else { return Ok(lines) };
             let start_position = buffer.byte_to_position(node.start_byte())?;
 
-            let Some(line) = buffer.get_line_by_line_index(start_position.line) else {
+            let Ok(line) = buffer.get_line_by_line_index(start_position.line) else {
                 return Ok(lines);
             };
             let lines = lines
@@ -868,9 +866,13 @@ impl Buffer {
         Ok(self.rope.try_byte_to_line(byte)?)
     }
 
-    /// TODO: refactor this to return Result instead of Option
-    pub fn get_line_by_line_index(&self, line_index: usize) -> Option<ropey::RopeSlice<'_>> {
-        self.rope.get_line(line_index)
+    pub fn get_line_by_line_index(
+        &self,
+        line_index: usize,
+    ) -> anyhow::Result<ropey::RopeSlice<'_>> {
+        self.rope
+            .get_line(line_index)
+            .ok_or_else(|| anyhow::anyhow!("Unable to get line at line index {line_index}"))
     }
 
     pub fn byte_range_to_char_index_range(
@@ -1074,14 +1076,7 @@ impl Buffer {
     ) -> anyhow::Result<CharIndexRange> {
         let last_line_index = line_range.end.saturating_sub(1);
         let end_line_char_start = self.line_to_char(last_line_index)?;
-        let line = self
-            .get_line_by_line_index(last_line_index)
-            .ok_or_else(|| {
-                anyhow::anyhow!(
-                    "Buffer::line_range_to_char_index_range: Unable to get line at index {}",
-                    line_range.end
-                )
-            })?;
+        let line = self.get_line_by_line_index(last_line_index)?;
         Ok((self.line_to_char(line_range.start)?..end_line_char_start + line.len_chars()).into())
     }
 
