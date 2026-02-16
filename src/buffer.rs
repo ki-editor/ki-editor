@@ -26,6 +26,7 @@ use shared::{absolute_path::AbsolutePath, language::Language};
 use std::ops::Range;
 use std::time::SystemTime;
 use tree_sitter::{Node, Parser, Tree};
+#[cfg(test)]
 use tree_sitter_traversal2::{traverse, Order};
 
 /// Determines the buffer's owner. Ki distinguishes buffer ownership during switches.
@@ -215,8 +216,15 @@ impl Buffer {
     }
 
     pub fn get_parent_lines(&self, line_index: usize) -> anyhow::Result<Vec<Line>> {
-        let char_index = self.line_to_char(line_index)?;
-        let node = self.get_nearest_node_after_char(char_index);
+        let line = self
+            .get_line_by_line_index(line_index)
+            .ok_or_else(|| anyhow::anyhow!("Unable to obtain line at line index {line_index}"))?;
+        let indentation = line.chars().take_while(|c| c.is_whitespace()).count();
+        let char_index = self.line_to_char(line_index)? + indentation;
+        let node = self.get_current_node(
+            &Selection::default().set_range((char_index..char_index + 1).into()),
+            false,
+        )?;
         fn get_parent_lines(
             buffer: &Buffer,
             node: Option<tree_sitter::Node>,
@@ -239,6 +247,7 @@ impl Buffer {
             get_parent_lines(buffer, node.parent(), lines)
         }
         let parent_lines = get_parent_lines(self, node, Vec::new())?;
+
         Ok(parent_lines
             .into_iter()
             // Remove lines that contains no alphabet
@@ -468,15 +477,6 @@ impl Buffer {
                 range
             )),
         }
-    }
-
-    pub fn get_nearest_node_after_char(&self, char_index: CharIndex) -> Option<Node<'_>> {
-        let byte = self.char_to_byte(char_index).ok()?;
-        // Preorder is the main key here,
-        // because preorder traversal walks the parent first
-        self.tree.as_ref().and_then(|tree| {
-            traverse(tree.root_node().walk(), Order::Pre).find(|&node| node.start_byte() >= byte)
-        })
     }
 
     pub fn get_current_node<'a>(
@@ -868,6 +868,7 @@ impl Buffer {
         Ok(self.rope.try_byte_to_line(byte)?)
     }
 
+    /// TODO: refactor this to return Result instead of Option
     pub fn get_line_by_line_index(&self, line_index: usize) -> Option<ropey::RopeSlice<'_>> {
         self.rope.get_line(line_index)
     }
