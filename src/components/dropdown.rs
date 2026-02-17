@@ -39,12 +39,12 @@ impl DropdownItem {
 
     pub fn new(display: String) -> Self {
         Self {
-            dispatches: Default::default(),
+            dispatches: Dispatches::default(),
             display,
-            group: Default::default(),
-            info: Default::default(),
+            group: None,
+            info: None,
             rank: None,
-            on_focused: Default::default(),
+            on_focused: Dispatches::default(),
             resolved: false,
             highlight_column_range: None,
             is_significant: None,

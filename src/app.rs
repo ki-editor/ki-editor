@@ -955,7 +955,7 @@ impl<T: Frontend> App<T> {
                 )?;
             }
             Dispatch::SetQuickfixList(r#type) => {
-                self.set_quickfix_list_type(Default::default(), r#type)?;
+                self.set_quickfix_list_type(ResponseContext::default(), r#type)?;
             }
             Dispatch::GotoQuickfixListItem(movement) => self.goto_quickfix_list_item(movement)?,
             Dispatch::ApplyWorkspaceEdit(workspace_edit) => {
@@ -1250,7 +1250,7 @@ impl<T: Frontend> App<T> {
                 parser: DispatchParser::MoveSelectionByIndex,
                 history_key: PromptHistoryKey::MoveToIndex,
                 current_line: None,
-                suggested_items: Default::default(),
+                suggested_items: Vec::default(),
             },
         ))
     }
@@ -1262,7 +1262,7 @@ impl<T: Frontend> App<T> {
                 parser: DispatchParser::RenameSymbol,
                 history_key: PromptHistoryKey::Rename,
                 current_line: current_name,
-                suggested_items: Default::default(),
+                suggested_items: Vec::default(),
             },
         ))
     }
@@ -1274,7 +1274,7 @@ impl<T: Frontend> App<T> {
                 parser: DispatchParser::SurroundXmlTag,
                 history_key: PromptHistoryKey::SurroundXmlTag,
                 current_line: None,
-                suggested_items: Default::default(),
+                suggested_items: Vec::default(),
             },
         ))
     }
@@ -1382,7 +1382,7 @@ impl<T: Frontend> App<T> {
                     parser: DispatchParser::AddPath,
                     history_key: PromptHistoryKey::AddPath,
                     current_line: Some(path.display_absolute()),
-                    suggested_items: Default::default(),
+                    suggested_items: Vec::default(),
                 },
             ))
         } else {
@@ -1419,7 +1419,7 @@ impl<T: Frontend> App<T> {
                     parser: DispatchParser::CopyFile { from: path.clone() },
                     history_key: PromptHistoryKey::CopyFile,
                     current_line: Some(path.display_absolute()),
-                    suggested_items: Default::default(),
+                    suggested_items: Vec::default(),
                 },
             ))
         } else {
@@ -2432,7 +2432,7 @@ impl<T: Frontend> App<T> {
             PromptOnEnter::ParseCurrentLine {
                 history_key: key, ..
             } => self.context.get_prompt_history(*key),
-            _ => Default::default(),
+            _ => Vec::default(),
         };
 
         let items = prompt_config
@@ -2476,7 +2476,7 @@ impl<T: Frontend> App<T> {
                     key: prompt_history_key,
                     line: entry,
                 }),
-            _ => Default::default(),
+            _ => Dispatches::default(),
         };
         self.handle_dispatches(dispatches)
     }
@@ -2675,7 +2675,7 @@ impl<T: Frontend> App<T> {
                     parser: DispatchParser::SetKeyboardLayoutKind,
                     history_key: PromptHistoryKey::KeyboardLayout,
                     current_line: None,
-                    suggested_items: Default::default(),
+                    suggested_items: Vec::default(),
                 }
             } else {
                 PromptOnEnter::SelectsFirstMatchingItem {
@@ -2719,7 +2719,7 @@ impl<T: Frontend> App<T> {
                 parser: DispatchParser::PipeToShell,
                 history_key: PromptHistoryKey::PipeToShell,
                 current_line: None,
-                suggested_items: Default::default(),
+                suggested_items: Vec::default(),
             },
         ))
     }
@@ -2761,7 +2761,7 @@ impl<T: Frontend> App<T> {
                 parser: DispatchParser::FilterSelectionMatchingSearch { maintain },
                 history_key: PromptHistoryKey::FilterSelectionsMatchingSearch { maintain },
                 current_line: None,
-                suggested_items: Default::default(),
+                suggested_items: Vec::default(),
             },
         ))
     }
@@ -3494,7 +3494,7 @@ impl Dispatches {
     }
 
     pub fn empty() -> Dispatches {
-        Dispatches(Default::default())
+        Dispatches(Vec::default())
     }
 }
 
@@ -3953,7 +3953,7 @@ impl DispatchParser {
                 DispatchEditor::Surround(format!("<{text}>"), format!("</{text}>")),
             ))),
             #[cfg(test)]
-            DispatchParser::Null => Ok(Default::default()),
+            DispatchParser::Null => Ok(Dispatches::default()),
             DispatchParser::ChangeWorkingDirectory => Ok(Dispatches::one(
                 Dispatch::ChangeWorkingDirectory(text.try_into()?),
             )),

@@ -100,7 +100,7 @@ impl CompletionItem {
             sort_text: None,
             edit: None,
             insert_text: None,
-            completion_item: Default::default(),
+            completion_item: lsp_types::CompletionItem::default(),
         }
     }
 

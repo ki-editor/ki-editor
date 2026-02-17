@@ -577,7 +577,7 @@ impl Editor {
                 .chain(if include_universal_keymap {
                     self.keymap_universal()
                 } else {
-                    Default::default()
+                    Vec::default()
                 })
                 .collect_vec(),
             ),
@@ -608,7 +608,7 @@ impl Editor {
         {
             self.insert(&c.to_string(), context)
         } else {
-            Ok(Default::default())
+            Ok(Dispatches::default())
         }
     }
 

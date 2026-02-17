@@ -11,6 +11,7 @@ use crate::{
     context::LocalSearchConfig,
     list::{reorder_batches::reorder_batches, Match},
     quickfix_list::Location,
+    selection::SelectionSet,
     selection_mode::regex::get_regex,
     thread::SendResult,
 };
@@ -91,7 +92,7 @@ pub fn replace(
             let path = path.try_into()?;
             let mut buffer = Buffer::from_path(&path, local_search_config.require_tree_sitter())?;
             let (modified, _, _, _) =
-                buffer.replace(local_search_config.clone(), Default::default(), 0)?;
+                buffer.replace(local_search_config.clone(), SelectionSet::default(), 0)?;
             if modified {
                 let (dispatches, _) = buffer.save_without_formatting(false)?;
                 sender
