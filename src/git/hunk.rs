@@ -260,7 +260,7 @@ mod test_hunk {
     fn to_info_insertion() {
         let hunk = Hunk::get_hunks("a\nd", "a\nb\nc\nd")[0].clone();
         assert_eq!(hunk.content, "b\nc");
-        assert_eq!(hunk.to_info().unwrap().content(), "b\nc")
+        assert_eq!(hunk.to_info().unwrap().content(), "b\nc");
     }
 
     #[test]
@@ -313,7 +313,7 @@ mod test_hunk {
         "
             ),
             &[&[0, 0], &[0, 0]],
-        )
+        );
     }
 
     #[test]
@@ -346,6 +346,6 @@ mod test_hunk {
             .map(|hunk| hunk.new_line_range)
             .collect_vec();
 
-        assert_eq!(simple_hunks_ranges, detail_hunks_ranges)
+        assert_eq!(simple_hunks_ranges, detail_hunks_ranges);
     }
 }

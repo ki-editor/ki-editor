@@ -25,7 +25,7 @@ pub struct LspManager {
 
 impl Drop for LspManager {
     fn drop(&mut self) {
-        self.shutdown()
+        self.shutdown();
     }
 }
 

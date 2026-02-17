@@ -220,7 +220,7 @@ impl Component for Editor {
                 );
             }
             FindOneChar(if_current_not_found) => {
-                self.enter_single_character_mode(if_current_not_found)
+                self.enter_single_character_mode(if_current_not_found);
             }
             MoveSelection(movement) => return self.handle_movement(context, movement),
             MoveSelectionWithPriorChange(movement, prior_change) => {
@@ -305,7 +305,7 @@ impl Component for Editor {
             MoveCharacterForward => {
                 let len_chars = self.buffer().len_chars();
                 self.selection_set
-                    .move_right(&self.cursor_direction, len_chars)
+                    .move_right(&self.cursor_direction, len_chars);
             }
             Open(get_gap_movement) => return self.open(context, get_gap_movement),
             OpenVertically(direction) => return self.open_vertically(context, direction),
@@ -964,7 +964,7 @@ impl Editor {
             // We need to subtract line_range.end by one because it is exclusive
             |line_range| line_range.end.saturating_sub(1),
             |height| height,
-        )
+        );
     }
 
     /// If the primary selection has multiple lines
@@ -1651,7 +1651,7 @@ impl Editor {
             Direction::Start => Direction::End,
             Direction::End => Direction::Start,
         };
-        self.recalculate_scroll_offset(context)
+        self.recalculate_scroll_offset(context);
     }
 
     pub fn get_selection_set(
@@ -1962,7 +1962,7 @@ impl Editor {
             if self.reveal == Some(Reveal::CurrentSelectionMode)
                 && self.selection_set.mode() != &selection_mode
             {
-                self.reveal = None
+                self.reveal = None;
             }
 
             self.move_selection_with_selection_mode_without_global_mode(
@@ -2688,7 +2688,7 @@ impl Editor {
     }
 
     fn update_buffer(&mut self, s: &str) {
-        self.buffer.borrow_mut().update(s)
+        self.buffer.borrow_mut().update(s);
     }
 
     fn scroll(
@@ -3098,7 +3098,7 @@ impl Editor {
     }
 
     pub fn set_decorations(&mut self, decorations: &[super::suggestive_editor::Decoration]) {
-        self.buffer.borrow_mut().set_decorations(decorations)
+        self.buffer.borrow_mut().set_decorations(decorations);
     }
 
     fn half_page_height(&self) -> usize {
@@ -3221,7 +3221,7 @@ impl Editor {
                 self.align_selection_to_top();
                 ViewAlignment::Top
             }
-        })
+        });
     }
 
     fn undo_or_redo(&mut self, undo: bool, context: &Context) -> Result<Dispatches, anyhow::Error> {
@@ -3270,7 +3270,7 @@ impl Editor {
 
     #[cfg(test)]
     pub fn set_scroll_offset(&mut self, scroll_offset: usize) {
-        self.scroll_offset = scroll_offset
+        self.scroll_offset = scroll_offset;
     }
 
     #[cfg(test)]
@@ -3310,7 +3310,7 @@ impl Editor {
     }
 
     fn enter_swap_mode(&mut self) {
-        self.mode = Mode::Swap
+        self.mode = Mode::Swap;
     }
 
     fn kill_line(
@@ -3371,7 +3371,7 @@ impl Editor {
     }
 
     fn enter_replace_mode(&mut self) {
-        self.mode = Mode::Replace
+        self.mode = Mode::Replace;
     }
 
     pub fn scroll_offset(&self) -> usize {
@@ -3379,26 +3379,26 @@ impl Editor {
     }
 
     pub fn set_regex_highlight_rules(&mut self, regex_highlight_rules: Vec<RegexHighlightRule>) {
-        self.regex_highlight_rules = regex_highlight_rules
+        self.regex_highlight_rules = regex_highlight_rules;
     }
 
     fn go_back(&mut self, context: &Context) {
         let selection_set = self.buffer_mut().previous_selection_set();
         if let Some(selection_set) = selection_set {
-            self.set_selection_set(selection_set, context)
+            self.set_selection_set(selection_set, context);
         }
     }
 
     fn go_forward(&mut self, context: &Context) {
         let selection_set = self.buffer_mut().next_selection_set();
         if let Some(selection_set) = selection_set {
-            self.set_selection_set(selection_set, context)
+            self.set_selection_set(selection_set, context);
         }
     }
 
     pub fn set_selection_set(&mut self, selection_set: SelectionSet, context: &Context) {
         self.selection_set = selection_set;
-        self.recalculate_scroll_offset(context)
+        self.recalculate_scroll_offset(context);
     }
 
     pub fn set_char_index_range(
@@ -3792,7 +3792,7 @@ impl Editor {
     }
 
     fn cycle_primary_selection(&mut self, direction: Direction) {
-        self.selection_set.cycle_primary_selection(direction)
+        self.selection_set.cycle_primary_selection(direction);
     }
 
     fn handle_dispatch_editors(
@@ -3873,7 +3873,7 @@ impl Editor {
     }
 
     fn delete_current_cursor(&mut self, direction: Direction) {
-        self.selection_set.delete_current_selection(direction)
+        self.selection_set.delete_current_selection(direction);
     }
 
     fn break_selection(&mut self, context: &Context) -> anyhow::Result<Dispatches> {
@@ -3955,7 +3955,7 @@ impl Editor {
     }
 
     pub fn set_normal_mode_override(&mut self, normal_mode_override: NormalModeOverride) {
-        self.normal_mode_override = Some(normal_mode_override)
+        self.normal_mode_override = Some(normal_mode_override);
     }
 
     fn show_help(&self) -> Result<Dispatches, anyhow::Error> {
@@ -4123,7 +4123,7 @@ impl Editor {
                     range.start..(end + 1)
                 })
                 .collect(),
-        )
+        );
     }
 
     fn dispatch_jumps_changed(&self) -> Dispatch {
@@ -4345,7 +4345,7 @@ impl Editor {
     }
 
     fn clear_incremental_search_matches(&mut self) {
-        self.incremental_search_matches = None
+        self.incremental_search_matches = None;
     }
 
     pub fn set_incremental_search_config(&mut self, config: LocalSearchConfig) {
@@ -4378,11 +4378,11 @@ impl Editor {
                     .collect_vec()
             }
         };
-        self.incremental_search_matches = Some(matches)
+        self.incremental_search_matches = Some(matches);
     }
 
     pub fn initialize_incremental_search_matches(&mut self) {
-        self.incremental_search_matches = Some(Vec::new())
+        self.incremental_search_matches = Some(Vec::new());
     }
 
     fn go_to_file(&self) -> Result<Dispatches, anyhow::Error> {
@@ -4406,7 +4406,7 @@ impl Editor {
     fn handle_path_renamed(&mut self, source: PathBuf, destination: AbsolutePath) {
         let Some(path) = self.path() else { return };
         if path.to_path_buf() == &source {
-            self.buffer_mut().update_path(destination)
+            self.buffer_mut().update_path(destination);
         }
     }
 

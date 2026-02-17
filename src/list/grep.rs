@@ -142,7 +142,7 @@ pub fn run(
                         matches.extend(locations.into_iter().map(|location| Match {
                             location,
                             line: line.to_string(),
-                        }))
+                        }));
                     }
                     Ok(true)
                 }),

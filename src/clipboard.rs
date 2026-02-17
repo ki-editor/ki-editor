@@ -237,7 +237,7 @@ mod test_ring_history {
             (3, "c"),
         ];
         for (offset, expected) in expected {
-            assert_eq!(history.get(offset), Some(expected.to_string()))
+            assert_eq!(history.get(offset), Some(expected.to_string()));
         }
     }
 
@@ -249,7 +249,7 @@ mod test_ring_history {
         history.add("b".to_string());
         history.add("b".to_string());
 
-        assert_eq!(history.items.len(), 2)
+        assert_eq!(history.items.len(), 2);
     }
 
     #[test]
@@ -260,6 +260,6 @@ mod test_ring_history {
         history.add("a".to_string());
         history.add("b".to_string());
 
-        assert_eq!(history.items.into_iter().collect_vec(), vec!["a", "b"])
+        assert_eq!(history.items.into_iter().collect_vec(), vec!["a", "b"]);
     }
 }

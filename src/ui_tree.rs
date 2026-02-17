@@ -49,7 +49,7 @@ impl UiTree {
             if let Some(parent_id) = parent_id {
                 self.set_focus_component_id(parent_id);
             } else {
-                self.cycle_component()
+                self.cycle_component();
             }
             debug_assert!(self.get(self.focused_component_id).is_some());
         }
@@ -79,7 +79,7 @@ impl UiTree {
         {
             self.remove(node_id, false);
         }
-        debug_assert_eq!(current_component_id, self.focused_component_id())
+        debug_assert_eq!(current_component_id, self.focused_component_id());
     }
 
     /// Append `component` to the Node of given `node_id`
@@ -95,7 +95,7 @@ impl UiTree {
             self.root_mut().append(component).node_id()
         };
         if focus {
-            self.set_focus_component_id(id)
+            self.set_focus_component_id(id);
         }
         id
     }
@@ -228,7 +228,7 @@ impl UiTree {
             let parent_id = node.parent().map(|parent| parent.node_id());
             self.tree
                 .remove(node.node_id(), RemoveBehavior::DropChildren);
-            self.focused_component_id = parent_id.unwrap_or_else(|| self.root_id())
+            self.focused_component_id = parent_id.unwrap_or_else(|| self.root_id());
         }
     }
 

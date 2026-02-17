@@ -808,7 +808,7 @@ fn execute_test_helper(
         };
 
         if render {
-            app.render()?
+            app.render()?;
         }
         if assert_last_step_is_expect {
             debug_assert!(
@@ -830,46 +830,46 @@ fn execute_test_helper(
             match step.to_owned() {
                 Step::WaitForAppMessage(regex) => {
                     log(format!("Wait for app message: {}", ***regex));
-                    app.wait_for_app_message(regex, None)?
+                    app.wait_for_app_message(regex, None)?;
                 }
                 Step::App(dispatch) => {
                     log(dispatch);
-                    app.handle_dispatch(dispatch.to_owned())?
+                    app.handle_dispatch(dispatch.to_owned())?;
                 }
                 Step::AppLater(get_dispatch) => {
                     let dispatch = get_dispatch();
                     log(&dispatch);
-                    app.handle_dispatch(dispatch.to_owned())?
+                    app.handle_dispatch(dispatch.to_owned())?;
                 }
                 Step::Expect(expect_kind) => expect_kind.run(&mut app)?,
                 ExpectLater(f) => f().run(&mut app)?,
                 Editor(dispatch) => {
                     log(dispatch);
-                    app.handle_dispatch_editor(dispatch.to_owned())?
+                    app.handle_dispatch_editor(dispatch.to_owned())?;
                 }
                 ExpectCustom(f) => {
                     f();
                 }
                 ExpectMulti(expect_kinds) => {
                     for expect_kind in expect_kinds.iter() {
-                        expect_kind.run(&mut app)?
+                        expect_kind.run(&mut app)?;
                     }
                 }
                 SuggestiveEditor(dispatch) => {
                     log(dispatch);
-                    app.handle_dispatch_suggestive_editor(dispatch.to_owned())?
+                    app.handle_dispatch_suggestive_editor(dispatch.to_owned())?;
                 }
                 Shell(program, args) => {
                     log(format!("Shell: {program} {args:?}",));
                     let output = std::process::Command::new(program).args(args).output();
-                    log(output)
+                    log(output);
                 }
                 WaitForDuration(duration) => std::thread::sleep(*duration),
             };
         }
 
         if render {
-            app.render()?
+            app.render()?;
         }
         let buffer_contents = app.get_buffer_contents_map();
         Ok(buffer_contents)
@@ -2976,7 +2976,7 @@ fn doc_assets_export_keymaps_json() {
     sections.into_iter().for_each(|section| {
         let path = get_path(&section.name);
         let json = serde_json::to_string(&section).unwrap();
-        std::fs::write(path, json).unwrap()
+        std::fs::write(path, json).unwrap();
     });
 }
 

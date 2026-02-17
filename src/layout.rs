@@ -96,7 +96,7 @@ impl Layout {
                 .iter()
                 .find(|(_, editor)| editor.borrow().editor().buffer().owner() == BufferOwner::User)
             {
-                self.replace_and_focus_current_suggestive_editor(editor.clone())
+                self.replace_and_focus_current_suggestive_editor(editor.clone());
             } else {
                 self.tree.remove(node.node_id(), true);
             }
@@ -109,7 +109,7 @@ impl Layout {
     }
 
     pub fn cycle_window(&mut self) {
-        self.tree.cycle_component()
+        self.tree.cycle_component();
     }
 
     pub fn close_current_window(&mut self, context: &Context) -> Option<AbsolutePath> {
@@ -146,7 +146,7 @@ impl Layout {
                 component
                     .component()
                     .borrow_mut()
-                    .set_rectangle(rectangle.clone(), context)
+                    .set_rectangle(rectangle.clone(), context);
             });
     }
 
@@ -174,7 +174,7 @@ impl Layout {
 
     pub fn set_terminal_dimension(&mut self, dimension: Dimension, context: &Context) {
         self.terminal_dimension = dimension;
-        self.recalculate_layout(context)
+        self.recalculate_layout(context);
     }
 
     pub fn terminal_dimension(&self) -> Dimension {
@@ -236,11 +236,11 @@ impl Layout {
                 ))),
             ),
             true,
-        )
+        );
     }
 
     pub fn remain_only_current_component(&mut self) {
-        self.tree.remain_only_current_component()
+        self.tree.remain_only_current_component();
     }
 
     pub fn get_opened_files(&self) -> Vec<AbsolutePath> {
@@ -464,7 +464,7 @@ impl Layout {
         // This can happen when, say, the user executed a global search
         // when no files have been opened yet.
         if self.tree.components().len() == 1 {
-            self.tree.set_focus_component_id(node_id)
+            self.tree.set_focus_component_id(node_id);
         }
 
         let editor = (*editor).clone();
@@ -602,7 +602,7 @@ impl Layout {
     }
 
     pub fn close_current_window_and_focus_parent(&mut self) {
-        self.tree.close_current_and_focus_parent()
+        self.tree.close_current_and_focus_parent();
     }
 
     #[cfg(test)]

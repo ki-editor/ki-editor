@@ -147,7 +147,7 @@ pub struct SyntaxHighlightRequestBatchId(u8);
 
 impl SyntaxHighlightRequestBatchId {
     pub fn increment(&mut self) {
-        self.0 = self.0.wrapping_add(1)
+        self.0 = self.0.wrapping_add(1);
     }
 }
 
@@ -207,13 +207,13 @@ pub fn start_thread(callback: Sender<AppMessage>) -> Sender<SyntaxHighlightReque
                     });
                 }
                 Err(error) => {
-                    log::info!("syntax_highlight_error = {error:#?}")
+                    log::info!("syntax_highlight_error = {error:#?}");
                 }
             }
         });
 
         while let Ok(request) = receiver.recv() {
-            debounce.put(Event(request))
+            debounce.put(Event(request));
         }
     });
 

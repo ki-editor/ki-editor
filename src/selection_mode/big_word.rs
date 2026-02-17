@@ -135,10 +135,10 @@ fn get_current_word_by_cursor(
                 } else {
                     match if_current_not_found {
                         IfCurrentNotFound::LookForward if current < last_char_index => {
-                            current = current + 1
+                            current = current + 1;
                         }
                         IfCurrentNotFound::LookBackward if current > CharIndex(0) => {
-                            current = current - 1
+                            current = current - 1;
                         }
                         _ => break current,
                     }

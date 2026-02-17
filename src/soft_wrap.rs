@@ -307,7 +307,7 @@ mod test_soft_wrap {
         assert_eq!(
             chop_str("\t\t", 6),
             vec![(4, "\t".to_string()), (4, "\t".to_string())]
-        )
+        );
     }
 
     #[test]
@@ -315,7 +315,7 @@ mod test_soft_wrap {
         let content = "→ abc";
         let wrapped_lines = soft_wrap(content, content.chars().count() + 1);
         assert_eq!(UnicodeWidthStr::width("→"), 1);
-        assert_eq!(wrapped_lines.wrapped_lines_count(), 1)
+        assert_eq!(wrapped_lines.wrapped_lines_count(), 1);
     }
 
     #[test]
@@ -350,14 +350,14 @@ mod test_soft_wrap {
         let content = "spongebob";
         let wrapped_lines = soft_wrap(content, 6);
         assert_eq!(wrapped_lines.wrapped_lines_count(), 2);
-        assert_eq!(wrapped_lines.to_string(), "spong\nebob")
+        assert_eq!(wrapped_lines.to_string(), "spong\nebob");
     }
 
     #[test]
     fn consider_tab_width_1() {
         let content = "\tabc";
         let wrapped_lines = soft_wrap(content, 5);
-        assert_eq!(wrapped_lines.wrapped_lines_count(), 2)
+        assert_eq!(wrapped_lines.wrapped_lines_count(), 2);
     }
 
     #[test]

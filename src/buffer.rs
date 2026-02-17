@@ -157,7 +157,7 @@ impl Buffer {
     }
 
     pub fn set_decorations(&mut self, decorations: &[Decoration]) {
-        decorations.clone_into(&mut self.decorations)
+        decorations.clone_into(&mut self.decorations);
     }
 
     pub fn path(&self) -> Option<AbsolutePath> {
@@ -198,7 +198,7 @@ impl Buffer {
         self.diagnostics = diagnostics
             .into_iter()
             .filter_map(|diagnostic| Diagnostic::try_from(self, diagnostic).ok())
-            .collect()
+            .collect();
     }
 
     pub fn diagnostics(&self) -> Vec<Diagnostic> {
@@ -344,11 +344,11 @@ impl Buffer {
 
     pub fn update(&mut self, text: &str) {
         (self.rope, self.tree) = Self::get_rope_and_tree(self.treesitter_language.clone(), text);
-        self.flag_as_modified()
+        self.flag_as_modified();
     }
 
     pub fn update_path(&mut self, path: AbsolutePath) {
-        self.path = Some(path)
+        self.path = Some(path);
     }
 
     pub fn get_line_by_char_index(&self, char_index: CharIndex) -> anyhow::Result<Rope> {
@@ -1242,7 +1242,7 @@ mod test_buffer {
 "
         .trim()
         .to_string();
-        pretty_assertions::assert_eq!(actual, expected)
+        pretty_assertions::assert_eq!(actual, expected);
     }
 
     #[test]
@@ -1273,7 +1273,7 @@ fn f(
 ) -> Result<"
             .trim()
             .to_string();
-        pretty_assertions::assert_eq!(actual, expected)
+        pretty_assertions::assert_eq!(actual, expected);
     }
 
     mod replace {
@@ -1356,7 +1356,7 @@ fn f(
 
         let buffer = Buffer::from_path(&path, true).unwrap();
 
-        f(path, buffer)
+        f(path, buffer);
     }
 
     mod auto_format {
@@ -1389,7 +1389,7 @@ fn f(
                         .byte_range(),
                     0..2
                 );
-            })
+            });
         }
 
         #[test]
@@ -1412,7 +1412,7 @@ fn f(
 
                 // Expect the content is reverted to the original
                 assert_eq!(content, " fn main\n() {}");
-            })
+            });
         }
 
         #[test]
@@ -1427,7 +1427,7 @@ fn f(
                 // Expect the buffer remain unchanged,
                 // because the syntax node is invalid
                 assert_eq!(buffer.rope.to_string(), "fn main() {");
-            })
+            });
         }
 
         #[test]
@@ -1449,7 +1449,7 @@ fn f(
 
                 // Expect the buffer remain unchanged
                 assert_eq!(buffer.rope.to_string(), code);
-            })
+            });
         }
     }
 
@@ -1477,8 +1477,8 @@ fn f(
 
             // Expect the highlight spans remain the same, because the batch ID is changed
             assert_eq!(&initial_spans, buffer.highlighted_spans());
-            assert_ne!(&new_highlighted_spans.0, buffer.highlighted_spans())
-        })
+            assert_ne!(&new_highlighted_spans.0, buffer.highlighted_spans());
+        });
     }
 
     mod patch_edit {
