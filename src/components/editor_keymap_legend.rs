@@ -606,7 +606,20 @@ impl Editor {
         } else if let (KeyCode::Char(c), KeyEventKind::Press | KeyEventKind::Repeat) =
             (event.code, event.kind)
         {
-            self.insert(&c.to_string(), context)
+            let mut auto_pair = |enclosure: &str| -> anyhow::Result<Dispatches> {
+                Ok(self
+                    .insert(enclosure, context)?
+                    .append(Dispatch::ToEditor(DispatchEditor::MoveCharacterBack)))
+            };
+            match c {
+                '[' => auto_pair("[]"),
+                '{' => auto_pair("{}"),
+                '(' => auto_pair("()"),
+                '\'' => auto_pair("''"),
+                '"' => auto_pair("\"\""),
+                '`' => auto_pair("``"),
+                c => self.insert(&c.to_string(), context),
+            }
         } else {
             Ok(Default::default())
         }
