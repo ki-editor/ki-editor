@@ -428,7 +428,7 @@ mod test_normalize_actions {
             edit_transaction.apply_to(Rope::from_str("Who lives in a pineapple"));
 
         assert_eq!(result, Rope::from_str("Who lives in a pineapple"));
-        assert_eq!(selections, vec!["Who".to_string(), "pineapple".to_string()])
+        assert_eq!(selections, vec!["Who".to_string(), "pineapple".to_string()]);
     }
 
     #[test]

@@ -139,3 +139,4 @@ lto = true
 
 [lints.clippy]
 dbg_macro = "warn"
+semicolon_if_nothing_returned = "warn"

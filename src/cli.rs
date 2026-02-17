@@ -181,7 +181,7 @@ pub fn cli() -> anyhow::Result<()> {
                 match command {
                     KeymapFormat::Table => editor_keymap_printer::print_keymap_table()?,
                     KeymapFormat::KeymapDrawer => {
-                        editor_keymap_printer::print_keymap_drawer_yaml()?
+                        editor_keymap_printer::print_keymap_drawer_yaml()?;
                     }
                 }
 

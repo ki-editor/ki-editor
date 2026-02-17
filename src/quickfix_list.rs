@@ -257,7 +257,7 @@ impl QuickfixList {
                 }
             })
             .collect_vec();
-        self.set_items(items, current_working_directory)
+        self.set_items(items, current_working_directory);
     }
 
     pub(crate) fn title(&self) -> String {
@@ -265,7 +265,7 @@ impl QuickfixList {
     }
 
     pub(crate) fn set_title(&mut self, title: &str) {
-        self.title = title.to_string()
+        self.title = title.to_string();
     }
 
     fn extend_buffers(
@@ -505,7 +505,7 @@ mod test_quickfix_list {
             vec![foo.clone(), bar.clone(), spam.clone()],
             &std::env::current_dir().unwrap().try_into().unwrap(),
         );
-        assert_eq!(quickfix_list.items(), &vec![spam, foo, bar])
+        assert_eq!(quickfix_list.items(), &vec![spam, foo, bar]);
     }
 
     #[test]
@@ -547,7 +547,7 @@ mod test_quickfix_list {
                 )),
                 line: None
             }]
-        )
+        );
     }
     #[test]
     fn should_hide_line_number_of_non_first_same_line_entries() -> anyhow::Result<()> {

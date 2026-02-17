@@ -252,7 +252,7 @@ impl PromptItemsBackgroundTask {
                                 columns[0] = format!("{group} {display}").into();
                             });
                         }),
-                    )
+                    );
                 });
             }
             PromptItemsBackgroundTask::HandledByMainEventLoop => {

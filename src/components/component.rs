@@ -158,7 +158,7 @@ pub trait Component: Any + AnyComponent {
     }
 
     fn set_rectangle(&mut self, rectangle: Rectangle, context: &Context) {
-        self.editor_mut().set_rectangle(rectangle, context)
+        self.editor_mut().set_rectangle(rectangle, context);
     }
 
     fn rectangle(&self) -> &Rectangle {

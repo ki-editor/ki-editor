@@ -287,7 +287,7 @@ impl SuggestiveEditor {
     }
 
     pub fn update_items(&mut self, items: Vec<DropdownItem>) {
-        self.completion_dropdown.set_items(items)
+        self.completion_dropdown.set_items(items);
     }
 }
 

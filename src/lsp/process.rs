@@ -227,7 +227,7 @@ impl LspServerProcessChannel {
     }
 
     pub fn initialized(&mut self) {
-        self.is_initialized = true
+        self.is_initialized = true;
     }
 
     pub fn send_from_editor(&self, from_editor: FromEditor) -> Result<(), anyhow::Error> {
@@ -543,7 +543,7 @@ impl LspServerProcess {
                 .send(LspServerProcessMessage::Throttled(from_editor.clone()))
                 .unwrap_or_else(|error| {
                     log::info!("LspServerProcess::listen::debounce | Error sending throttled message from_editor={from_editor:?}, error={error:?}");
-                })
+                });
             })
         };
 
@@ -569,13 +569,13 @@ impl LspServerProcess {
                     _ => self.handle_from_editor(from_editor),
                 },
                 LspServerProcessMessage::Throttled(from_editor) => {
-                    self.handle_from_editor(from_editor)
+                    self.handle_from_editor(from_editor);
                 }
                 LspServerProcessMessage::Shutdown => {
                     if let Err(err) = self.shutdown() {
                         log::error!(
                             "LspServerProcess::process_messages: failed to shutdown due to {err:?}"
-                        )
+                        );
                     }
                     break;
                 }
@@ -994,7 +994,7 @@ impl LspServerProcess {
                         log::info!(
                             "LSP(window/logMessage)({command})[{typ}]: '{}'",
                             params.message
-                        )
+                        );
                     }
                     "$/progress" => {
                         let params: <lsp_notification!("$/progress") as Notification>::Params =
@@ -1704,7 +1704,7 @@ impl ErrorTracker {
     }
 
     fn handle_success(&mut self) {
-        self.consecutive_errors.clear()
+        self.consecutive_errors.clear();
     }
 }
 

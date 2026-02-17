@@ -1119,7 +1119,7 @@ pub trait PositionBasedSelectionMode {
             if next_cursor_char_index == new_cursor_char_index {
                 break;
             } else {
-                new_cursor_char_index = next_cursor_char_index
+                new_cursor_char_index = next_cursor_char_index;
             }
         }
 
@@ -1178,7 +1178,7 @@ pub trait PositionBasedSelectionMode {
                     cursor_char_index = self.next_char_index(
                         params,
                         buffer.byte_range_to_char_index_range(range.range())?,
-                    )?
+                    )?;
                 }
             } else {
                 return Ok(None);
@@ -1940,7 +1940,7 @@ mod test_selection_mode {
     fn to_index() {
         let current = 0..0;
         test(MovementApplicandum::Index(0), current.clone(), 0..6);
-        test(MovementApplicandum::Index(1), current, 1..6)
+        test(MovementApplicandum::Index(1), current, 1..6);
     }
 
     #[test]

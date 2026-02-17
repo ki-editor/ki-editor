@@ -104,7 +104,7 @@ impl WalkBuilderConfig {
                         {
                             let path = path.path().into();
                             if let Err(error) = f(path, sender.clone()) {
-                                log::error!("sender.send {error:?}")
+                                log::error!("sender.send {error:?}");
                             }
                         } else if path.path().ends_with(".git") {
                             return WalkState::Skip;
@@ -200,7 +200,7 @@ impl WalkBuilderConfig {
                             .is_some_and(|file_type| file_type.is_file())
                         {
                             let path: PathBuf = path.path().into();
-                            on_entry(path)
+                            on_entry(path);
                         } else if path.path().ends_with(".git") {
                             return WalkState::Skip;
                         }

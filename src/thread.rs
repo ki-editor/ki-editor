@@ -17,7 +17,7 @@ impl<T> Callback<T> {
     }
 
     pub fn call(&self, event: T) {
-        self.0(event)
+        self.0(event);
     }
 }
 
@@ -32,7 +32,7 @@ pub fn debounce<T: PartialEq + Eq + Send + Sync + 'static>(
         let debounce = EventDebouncer::new(duration, move |x| callback.call(x));
 
         while let Ok(event) = receiver.recv() {
-            debounce.put(event)
+            debounce.put(event);
         }
     });
 
@@ -83,7 +83,7 @@ pub fn batch<T: std::fmt::Debug + Send + Sync + 'static>(
             if count == 0 {
                 callback(BatchResult::Items(std::iter::once(item).collect()));
             } else {
-                batch.push(item)
+                batch.push(item);
             };
             count += 1;
             if Instant::now() - last_sent > interval {
@@ -99,7 +99,7 @@ pub fn batch<T: std::fmt::Debug + Send + Sync + 'static>(
         // Sending the remaining items
         callback(BatchResult::Items(std::mem::take(&mut batch)));
 
-        on_finish.call(())
+        on_finish.call(());
     });
 
     Arc::new(move |item| SendResult::from(sender.send(item)))
@@ -112,15 +112,15 @@ pub struct Interval {
 
 impl Interval {
     pub fn cancel(&self) {
-        self.callback.call(IntervalEvent::Cancel)
+        self.callback.call(IntervalEvent::Cancel);
     }
 
     pub(crate) fn resume(&self) {
-        self.callback.call(IntervalEvent::Resume)
+        self.callback.call(IntervalEvent::Resume);
     }
 
     pub(crate) fn pause(&self) {
-        self.callback.call(IntervalEvent::Pause)
+        self.callback.call(IntervalEvent::Pause);
     }
 }
 

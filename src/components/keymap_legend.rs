@@ -608,7 +608,7 @@ mod test_keymap_legend {
                     short_description: None
                 }
             ])
-        )
+        );
     }
 
     #[test]
@@ -652,7 +652,7 @@ mod test_keymap_legend {
 Release hold: Conichihuahua
 "
             .trim()
-        )
+        );
     }
 
     #[test]
