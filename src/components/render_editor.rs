@@ -395,7 +395,7 @@ impl Editor {
                             RenderContentLineNumber::NoLineNumber
                         },
                         updates,
-                        Default::default(),
+                        Vec::default(),
                         theme,
                         None,
                         hunks,
@@ -451,7 +451,7 @@ impl Editor {
                         })
                     })
                     .collect_vec(),
-                Default::default(),
+                Vec::default(),
                 theme,
                 if focused
                     && protected_range
@@ -516,7 +516,7 @@ impl Editor {
                             .collect()
                     }
                 } else {
-                    Default::default()
+                    Vec::default()
                 };
 
             result.apply_cell_updates(section_divider_cell_updates)
@@ -547,7 +547,7 @@ impl Editor {
         } else {
             Box::new(
                 if self.selection_set.mode().is_contiguous() && self.reveal.is_none() {
-                    Default::default()
+                    Vec::default()
                 } else if self.reveal == Some(Reveal::CurrentSelectionMode) {
                     protected_range
                         .and_then(|protected_range| {
@@ -1230,6 +1230,7 @@ mod test_render_editor {
     use crate::{
         components::{component::Component, editor::Editor},
         context::Context,
+        position::Position,
         rectangle::Rectangle,
     };
 
@@ -1239,7 +1240,7 @@ mod test_render_editor {
             const LINE_NUMBER_UI_WIDTH: u8 = 2;
             const PADDING_FOR_CURSOR_AT_LAST_COLUMN: u8 = 1;
             Self {
-                origin: Default::default(),
+                origin: Position::default(),
                 width: (u8::arbitrary(g) / 10).max(
                     MAX_CHARACTER_WIDTH + LINE_NUMBER_UI_WIDTH + PADDING_FOR_CURSOR_AT_LAST_COLUMN,
                 ) as usize,

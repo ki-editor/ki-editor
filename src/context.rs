@@ -103,7 +103,7 @@ impl Context {
             );
 
             if let Err(error) = persistence.write() {
-                log::error!("Failed to write persistence due to {error:?}")
+                log::error!("Failed to write persistence due to {error:?}");
             }
         }
     }
@@ -193,7 +193,7 @@ impl Context {
     }
 
     pub(crate) fn update_lsp_progress(&mut self, lsp_progress: String) {
-        self.lsp_progress = lsp_progress
+        self.lsp_progress = lsp_progress;
     }
 
     pub(crate) fn lsp_progress(&self) -> String {
@@ -214,7 +214,7 @@ impl Context {
     pub(crate) fn set_quickfix_list_items(&mut self, title: &str, items: Vec<QuickfixListItem>) {
         self.quickfix_list.set_title(title);
         self.quickfix_list
-            .set_items(items, &self.current_working_directory)
+            .set_items(items, &self.current_working_directory);
     }
 
     pub(crate) fn quickfix_list_items_count(&self) -> usize {
@@ -305,7 +305,7 @@ impl Context {
     }
 
     pub(crate) fn add_kill_ring_entry(&mut self, texts: Texts) {
-        self.kill_ring.add(texts)
+        self.kill_ring.add(texts);
     }
 
     pub fn get_kill_ring_content(&self, history_offset: isize) -> Option<Texts> {
@@ -325,7 +325,7 @@ impl Context {
             match self.clipboard.get_from_system_clipboard() {
                 Ok(copied_texts) => return Some(copied_texts),
                 Err(err) => {
-                    log::error!("Context::get_clipboard_content: cannot access system clipboard due to {err:?}")
+                    log::error!("Context::get_clipboard_content: cannot access system clipboard due to {err:?}");
                 }
             }
         }
@@ -344,7 +344,7 @@ impl Context {
     pub fn set_mode(&mut self, mode: Option<GlobalMode>) {
         self.mode = mode.clone();
         if let Some(mode) = mode {
-            self.last_non_contiguous_selection_mode = Some(Either::Right(mode))
+            self.last_non_contiguous_selection_mode = Some(Either::Right(mode));
         }
     }
 
@@ -353,7 +353,7 @@ impl Context {
     }
 
     pub fn set_theme(&mut self, theme: Theme) {
-        self.theme = theme
+        self.theme = theme;
     }
 
     #[cfg(test)]
@@ -381,7 +381,7 @@ impl Context {
             Scope::Local => &mut self.local_search_config,
             Scope::Global => &mut self.global_search_config.local_config,
         }
-        .update(update)
+        .update(update);
     }
 
     pub fn update_global_search_config(
@@ -433,7 +433,7 @@ impl Context {
         &mut self,
         selection_mode: Either<crate::selection::SelectionMode, GlobalMode>,
     ) {
-        self.last_non_contiguous_selection_mode = Some(selection_mode)
+        self.last_non_contiguous_selection_mode = Some(selection_mode);
     }
 
     pub fn last_non_contiguous_selection_mode(
@@ -447,7 +447,7 @@ impl Context {
     }
 
     pub fn set_keyboard_layout_kind(&mut self, keyboard_layout_kind: KeyboardLayoutKind) {
-        self.keyboard_layout_kind = keyboard_layout_kind
+        self.keyboard_layout_kind = keyboard_layout_kind;
     }
 
     pub fn push_location_history(&mut self, location: Location, backward: bool) {
@@ -557,7 +557,7 @@ impl LocalSearchConfigMode {
 
 impl Default for LocalSearchConfigMode {
     fn default() -> Self {
-        Self::Regex(Default::default())
+        Self::Regex(RegexConfig::default())
     }
 }
 
@@ -591,8 +591,8 @@ impl LocalSearchConfig {
     pub fn new(mode: LocalSearchConfigMode) -> Self {
         Self {
             mode,
-            search: Default::default(),
-            replacement: Default::default(),
+            search: None,
+            replacement: None,
         }
     }
 
@@ -679,7 +679,7 @@ mod test_context {
             context
                 .prompt_histories
                 .insert(PromptHistoryKey::Theme, index_set);
-            context.persist_data()
+            context.persist_data();
         }
 
         // Load data

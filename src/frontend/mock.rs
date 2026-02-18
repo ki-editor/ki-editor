@@ -20,7 +20,7 @@ const DIMENSION: crate::app::Dimension = crate::app::Dimension {
 impl MockFrontend {
     pub fn new(writer: Box<dyn MyWriter>) -> Self {
         Self {
-            previous_screen: Default::default(),
+            previous_screen: Screen::default(),
             writer,
         }
     }
@@ -72,7 +72,7 @@ impl super::Frontend for MockFrontend {
     }
 
     fn set_previous_screen(&mut self, previous_screen: Screen) {
-        self.previous_screen = previous_screen
+        self.previous_screen = previous_screen;
     }
 
     fn set_clipboard_with_osc52(&mut self, _content: &str) -> anyhow::Result<()> {

@@ -13,7 +13,7 @@ use crate::{
         editor_keymap::{shifted, QWERTY},
         editor_keymap_legend::{
             buffer_keymap, cut_keymap, delete_keymap, duplicate_keymap, insert_keymap,
-            paste_keymap, swap_keymap,
+            paste_keymap, swap_keymap, NormalModeOverride,
         },
     },
     context::Context,
@@ -255,7 +255,7 @@ impl KeymapPrintSections {
             ),
             KeymapPrintSection::from_keymap(
                 "Normal".to_string(),
-                &Keymap::new(&editor.normal_mode_keymap(Default::default(), None)),
+                &Keymap::new(&editor.normal_mode_keymap(None, None)),
             ),
             KeymapPrintSection::from_keymap(
                 "Movements".to_string(),
@@ -291,7 +291,7 @@ impl KeymapPrintSections {
             ),
             KeymapPrintSection::from_keymap(
                 "Actions".to_string(),
-                &Keymap::new(&editor.keymap_actions(&Default::default(), false, None)),
+                &Keymap::new(&editor.keymap_actions(&NormalModeOverride::default(), false, None)),
             ),
             KeymapPrintSection::from_keymap(
                 "Other Movements".to_string(),

@@ -484,7 +484,7 @@ mod test_rectangle {
     fn test_spread() {
         assert_eq!(spread(10, 3), [4, 3, 3].to_vec());
         assert_eq!(spread(10, 4), [3, 3, 2, 2].to_vec());
-        assert_eq!(spread(10, 5), [2, 2, 2, 2, 2].to_vec())
+        assert_eq!(spread(10, 5), [2, 2, 2, 2, 2].to_vec());
     }
 
     #[test]

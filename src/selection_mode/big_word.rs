@@ -86,7 +86,7 @@ impl PositionBasedSelectionMode for BigWord {
 
 pub fn process_paste_gap(prev_gap: Option<String>, next_gap: Option<String>) -> String {
     match (prev_gap, next_gap) {
-        (None, None) => Default::default(),
+        (None, None) => String::default(),
         (None, Some(gap)) | (Some(gap), None) => gap,
         (Some(prev_gap), Some(next_gap)) => {
             let trim = |s: String| {
@@ -135,10 +135,10 @@ fn get_current_word_by_cursor(
                 } else {
                     match if_current_not_found {
                         IfCurrentNotFound::LookForward if current < last_char_index => {
-                            current = current + 1
+                            current = current + 1;
                         }
                         IfCurrentNotFound::LookBackward if current > CharIndex(0) => {
-                            current = current - 1
+                            current = current - 1;
                         }
                         _ => break current,
                     }
