@@ -104,10 +104,10 @@ impl Buffer {
             selection_set_history: History::new(),
             dirty: false,
             owner: BufferOwner::System,
-            undo_stack: Default::default(),
-            redo_stack: Default::default(),
-            batch_id: Default::default(),
-            cached_hunks: Default::default(),
+            undo_stack: Vec::default(),
+            redo_stack: Vec::default(),
+            batch_id: SyntaxHighlightRequestBatchId::default(),
+            cached_hunks: None,
             last_synced_time: None,
         }
     }
@@ -135,7 +135,7 @@ impl Buffer {
             // read the file again, if the notification is generated
             // because of the save.
             if path.last_modified_time().ok() == self.last_synced_time {
-                return Ok(Default::default());
+                return Ok(Dispatches::default());
             }
 
             let updated_content = path.read()?;
@@ -144,7 +144,7 @@ impl Buffer {
             self.dirty = false;
             Ok(dispatches)
         } else {
-            Ok(Default::default())
+            Ok(Dispatches::default())
         }
     }
 
@@ -188,7 +188,7 @@ impl Buffer {
                     self.cached_hunks = Some(cached_hunks);
                     hunks
                 } else {
-                    Default::default()
+                    Vec::default()
                 }
             }
         })
@@ -1022,7 +1022,7 @@ impl Buffer {
                 let edits = if let Some(language) = self.treesitter_language() {
                     AstGrep::replace(language, &before, &config.search(), &config.replacement())?
                 } else {
-                    Default::default()
+                    Vec::default()
                 };
                 EditTransaction::from_action_groups(
                     edits
@@ -1199,7 +1199,7 @@ impl Buffer {
 
 #[cfg(test)]
 mod test_buffer {
-    use std::fs::File;
+    use std::{fs::File, ops::Range};
 
     use itertools::Itertools;
     use shared::absolute_path::AbsolutePath;
@@ -1462,13 +1462,13 @@ fn f(
 
             // Update the buffer, this should cause the batch ID to be changed
             let _ = buffer
-                .update_content("testing", Default::default(), 1)
+                .update_content("testing", SelectionSet::default(), 1)
                 .unwrap();
 
             // Update the buffer with new highlight spans using the initial batch ID
             let new_highlighted_spans = HighlightedSpans(
                 [HighlightedSpan {
-                    byte_range: Default::default(),
+                    byte_range: Range::default(),
                     style_key: StyleKey::Syntax(IndexedHighlightGroup::new(0)),
                 }]
                 .to_vec(),

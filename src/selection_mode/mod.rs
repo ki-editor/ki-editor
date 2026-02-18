@@ -659,7 +659,7 @@ pub trait SelectionModeTrait {
             }
             .ok()??;
             if other.range() == selection.range() {
-                Default::default()
+                None
             } else {
                 let current_range = selection.range();
                 let other_range = other.range();
@@ -1195,7 +1195,7 @@ pub trait PositionBasedSelectionMode {
         _: &Direction,
     ) -> String {
         match (prev_gap, next_gap) {
-            (None, None) => Default::default(),
+            (None, None) => String::default(),
             (None, Some(gap)) | (Some(gap), None) => gap,
             (Some(prev_gap), Some(next_gap)) => {
                 if prev_gap.chars().count() > next_gap.chars().count() {
@@ -1810,7 +1810,7 @@ pub trait IterBasedSelectionMode {
         _: &Direction,
     ) -> String {
         match (prev_gap, next_gap) {
-            (None, None) => Default::default(),
+            (None, None) => String::default(),
             (None, Some(gap)) | (Some(gap), None) => gap,
             (Some(prev_gap), Some(next_gap)) => {
                 if prev_gap.chars().count() > next_gap.chars().count() {

@@ -557,7 +557,7 @@ impl LocalSearchConfigMode {
 
 impl Default for LocalSearchConfigMode {
     fn default() -> Self {
-        Self::Regex(Default::default())
+        Self::Regex(RegexConfig::default())
     }
 }
 
@@ -591,8 +591,8 @@ impl LocalSearchConfig {
     pub fn new(mode: LocalSearchConfigMode) -> Self {
         Self {
             mode,
-            search: Default::default(),
-            replacement: Default::default(),
+            search: None,
+            replacement: None,
         }
     }
 

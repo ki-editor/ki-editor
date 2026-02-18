@@ -72,7 +72,7 @@ impl Persistence {
             })
             .unwrap_or_else(|_| Self {
                 path,
-                root: Default::default(),
+                root: Root::default(),
             })
     }
 

@@ -86,7 +86,7 @@ impl PositionBasedSelectionMode for BigWord {
 
 pub fn process_paste_gap(prev_gap: Option<String>, next_gap: Option<String>) -> String {
     match (prev_gap, next_gap) {
-        (None, None) => Default::default(),
+        (None, None) => String::default(),
         (None, Some(gap)) | (Some(gap), None) => gap,
         (Some(prev_gap), Some(next_gap)) => {
             let trim = |s: String| {

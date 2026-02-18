@@ -122,7 +122,7 @@ pub trait Component: Any + AnyComponent {
             Event::Key(event) => self.handle_key_event(context, event)?,
             Event::Paste(content) => self.handle_paste_event(content, context)?,
             Event::Mouse(event) => self.handle_mouse_event(event)?,
-            _ => Default::default(),
+            _ => Dispatches::default(),
         };
         self.post_handle_event(dispatches)
     }

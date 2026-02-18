@@ -1269,12 +1269,12 @@ impl LspServerProcess {
             context,
             Some(path.clone()),
             GotoDefinitionParams {
-                partial_result_params: Default::default(),
+                partial_result_params: PartialResultParams::default(),
                 text_document_position_params: TextDocumentPositionParams {
                     position: position.into(),
                     text_document: path_buf_to_text_document_identifier(path)?,
                 },
-                work_done_progress_params: Default::default(),
+                work_done_progress_params: WorkDoneProgressParams::default(),
             },
         )
     }
@@ -1298,12 +1298,12 @@ impl LspServerProcess {
                 context: ReferenceContext {
                     include_declaration,
                 },
-                partial_result_params: Default::default(),
+                partial_result_params: PartialResultParams::default(),
                 text_document_position: TextDocumentPositionParams {
                     position: position.into(),
                     text_document: path_buf_to_text_document_identifier(path)?,
                 },
-                work_done_progress_params: Default::default(),
+                work_done_progress_params: WorkDoneProgressParams::default(),
             },
         )
     }
@@ -1316,12 +1316,12 @@ impl LspServerProcess {
             params.context,
             Some(params.path.clone()),
             GotoDeclarationParams {
-                partial_result_params: Default::default(),
+                partial_result_params: PartialResultParams::default(),
                 text_document_position_params: TextDocumentPositionParams {
                     position: params.position.into(),
                     text_document: path_buf_to_text_document_identifier(params.path)?,
                 },
-                work_done_progress_params: Default::default(),
+                work_done_progress_params: WorkDoneProgressParams::default(),
             },
         )
     }
@@ -1334,12 +1334,12 @@ impl LspServerProcess {
             params.context,
             Some(params.path.clone()),
             GotoImplementationParams {
-                partial_result_params: Default::default(),
+                partial_result_params: PartialResultParams::default(),
                 text_document_position_params: TextDocumentPositionParams {
                     position: params.position.into(),
                     text_document: path_buf_to_text_document_identifier(params.path)?,
                 },
-                work_done_progress_params: Default::default(),
+                work_done_progress_params: WorkDoneProgressParams::default(),
             },
         )
     }
@@ -1355,12 +1355,12 @@ impl LspServerProcess {
             params.context,
             Some(params.path.clone()),
             GotoTypeDefinitionParams {
-                partial_result_params: Default::default(),
+                partial_result_params: PartialResultParams::default(),
                 text_document_position_params: TextDocumentPositionParams {
                     position: params.position.into(),
                     text_document: path_buf_to_text_document_identifier(params.path)?,
                 },
-                work_done_progress_params: Default::default(),
+                work_done_progress_params: WorkDoneProgressParams::default(),
             },
         )
     }
@@ -1418,13 +1418,13 @@ impl LspServerProcess {
                     trigger_kind: None,
                     only: None,
                 },
-                partial_result_params: Default::default(),
+                partial_result_params: PartialResultParams::default(),
                 range: Range {
                     start: params.position.into(),
                     end: params.position.into(),
                 },
                 text_document: path_buf_to_text_document_identifier(params.path)?,
-                work_done_progress_params: Default::default(),
+                work_done_progress_params: WorkDoneProgressParams::default(),
             },
         )
     }
@@ -1445,7 +1445,7 @@ impl LspServerProcess {
                     position: params.position.into(),
                     text_document: path_buf_to_text_document_identifier(params.path)?,
                 },
-                work_done_progress_params: Default::default(),
+                work_done_progress_params: WorkDoneProgressParams::default(),
             },
         )
     }
@@ -1461,9 +1461,9 @@ impl LspServerProcess {
             params.context,
             Some(params.path.clone()),
             DocumentSymbolParams {
-                partial_result_params: Default::default(),
+                partial_result_params: PartialResultParams::default(),
                 text_document: path_buf_to_text_document_identifier(params.path)?,
-                work_done_progress_params: Default::default(),
+                work_done_progress_params: WorkDoneProgressParams::default(),
             },
         )
     }
@@ -1480,8 +1480,8 @@ impl LspServerProcess {
             context,
             None,
             WorkspaceSymbolParams {
-                partial_result_params: Default::default(),
-                work_done_progress_params: Default::default(),
+                partial_result_params: PartialResultParams::default(),
+                work_done_progress_params: WorkDoneProgressParams::default(),
                 query,
             },
         )

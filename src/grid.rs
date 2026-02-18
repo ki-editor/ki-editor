@@ -1040,7 +1040,7 @@ mod test_grid {
                     RenderContentLineNumber::NoLineNumber,
                     Vec::new(),
                     Vec::new(),
-                    &Default::default(),
+                    &Theme::default(),
                     None,
                     &[],
                 )
@@ -1061,7 +1061,7 @@ mod test_grid {
                     RenderContentLineNumber::NoLineNumber,
                     Vec::new(),
                     Vec::new(),
-                    &Default::default(),
+                    &Theme::default(),
                     None,
                     &[],
                 )
@@ -1096,7 +1096,7 @@ x
                     }]
                     .to_vec(),
                     Vec::new(),
-                    &Default::default(),
+                    &Theme::default(),
                     None,
                     &[],
                 )
@@ -1129,7 +1129,7 @@ x
                         style: Style::default().foreground_color(color),
                     }]
                     .to_vec(),
-                    &Default::default(),
+                    &Theme::default(),
                     None,
                     &[],
                 )

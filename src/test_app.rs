@@ -31,6 +31,7 @@ pub use SelectionMode::*;
 
 use crate::{
     app::StatusLine,
+    lsp::process::ResponseContext,
     scripting::{ScriptInput, ScriptOutput},
     selection_mode::GetGapMovement,
 };
@@ -2258,7 +2259,7 @@ fn diagnostic_info() -> Result<(), anyhow::Error> {
                 LspNotification::PublishDiagnostics(lsp_types::PublishDiagnosticsParams {
                     uri: Url::from_file_path(s.foo_rs()).unwrap(),
                     // No diagnostic
-                    diagnostics: Default::default(),
+                    diagnostics: Vec::default(),
                     version: None,
                 }),
             )),
@@ -2469,7 +2470,7 @@ fn cycle_window() -> anyhow::Result<()> {
             kind: None,
             detail: None,
             insert_text: None,
-            completion_item: Default::default(),
+            completion_item: lsp_types::CompletionItem::default(),
         };
 
         execute_test(|s| {
@@ -2530,7 +2531,7 @@ fn esc_in_normal_mode_in_suggestive_editor_should_close_all_other_windows() -> a
             kind: None,
             detail: None,
             insert_text: None,
-            completion_item: Default::default(),
+            completion_item: lsp_types::CompletionItem::default(),
         };
         execute_test(|s| {
             Box::new([
@@ -2579,7 +2580,7 @@ fn saving_in_insert_mode_in_suggestive_editor_should_close_all_other_windows() -
             kind: None,
             detail: None,
             insert_text: None,
-            completion_item: Default::default(),
+            completion_item: lsp_types::CompletionItem::default(),
         };
         execute_test(|s| {
             Box::new([
@@ -2891,7 +2892,7 @@ fn request_signature_help() -> anyhow::Result<()> {
                 FromEditor::TextDocumentSignatureHelp(RequestParams {
                     path: s.main_rs(),
                     position: Position::new(0, 3),
-                    context: Default::default(),
+                    context: ResponseContext::default(),
                 }),
             )),
             App(HandleKeyEvent(key!("left"))),
@@ -2899,7 +2900,7 @@ fn request_signature_help() -> anyhow::Result<()> {
                 FromEditor::TextDocumentSignatureHelp(RequestParams {
                     path: s.main_rs(),
                     position: Position::new(0, 2),
-                    context: Default::default(),
+                    context: ResponseContext::default(),
                 }),
             )),
         ])
@@ -3145,15 +3146,15 @@ fn test_navigate_back_from_go_to_location() -> anyhow::Result<()> {
         Box::new([
             App(GotoLocation(Location {
                 path: s.main_rs(),
-                range: Default::default(),
+                range: CharIndexRange::default(),
             })),
             App(GotoLocation(Location {
                 path: s.foo_rs(),
-                range: Default::default(),
+                range: CharIndexRange::default(),
             })),
             App(GotoLocation(Location {
                 path: s.gitignore(),
-                range: Default::default(),
+                range: CharIndexRange::default(),
             })),
             Expect(CurrentComponentPath(Some(s.gitignore()))),
             App(NavigateBack),
@@ -3174,7 +3175,7 @@ fn test_navigate_back_from_quickfix_list() -> anyhow::Result<()> {
                 focus: true,
             }),
             App(HandleLspNotification(LspNotification::Definition(
-                Default::default(),
+                ResponseContext::default(),
                 GotoDefinitionResponse::Multiple(
                     [
                         Location {
@@ -3206,7 +3207,7 @@ fn toggling_global_quickfix_should_show_quickfix_list() -> anyhow::Result<()> {
                 focus: true,
             }),
             App(HandleLspNotification(LspNotification::Definition(
-                Default::default(),
+                ResponseContext::default(),
                 GotoDefinitionResponse::Multiple(
                     [
                         Location {

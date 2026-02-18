@@ -36,9 +36,9 @@ impl LspManager {
             sender,
             current_working_directory,
             #[cfg(test)]
-            history: Default::default(),
+            history: HashMap::default(),
             #[cfg(test)]
-            lsp_server_initialized_args_history: Default::default(),
+            lsp_server_initialized_args_history: Vec::default(),
         }
     }
 

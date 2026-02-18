@@ -123,11 +123,11 @@ impl QuickfixList {
     pub(crate) fn default() -> QuickfixList {
         QuickfixList {
             dropdown: Dropdown::new(DropdownConfig {
-                title: Default::default(),
+                title: String::default(),
             }),
-            items: Default::default(),
-            title: Default::default(),
-            buffers: Default::default(),
+            items: Vec::default(),
+            title: String::default(),
+            buffers: HashMap::default(),
         }
     }
 

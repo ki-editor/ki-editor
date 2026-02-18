@@ -20,7 +20,7 @@ const DIMENSION: crate::app::Dimension = crate::app::Dimension {
 impl MockFrontend {
     pub fn new(writer: Box<dyn MyWriter>) -> Self {
         Self {
-            previous_screen: Default::default(),
+            previous_screen: Screen::default(),
             writer,
         }
     }

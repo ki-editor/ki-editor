@@ -211,7 +211,7 @@ impl<T: Clone + PartialEq + Eq + std::hash::Hash> RingHistory<T> {
 
     pub fn new() -> Self {
         Self {
-            items: Default::default(),
+            items: IndexSet::default(),
         }
     }
 }

@@ -356,7 +356,7 @@ impl Component for KeymapLegend {
             match event {
                 key!("esc") => {
                     self.editor.enter_normal_mode(context)?;
-                    Ok(Default::default())
+                    Ok(Dispatches::default())
                 }
                 key_event => {
                     let key_event = context
@@ -402,7 +402,7 @@ impl Component for KeymapLegend {
                             let on_tap_dispatches =
                                 match (&release_key.on_tap, release_key.other_keys_pressed) {
                                     (Some(on_tap), false) => on_tap.dispatches.clone(),
-                                    _ => Default::default(),
+                                    _ => Dispatches::default(),
                                 };
                             Ok(Dispatches::one(close_current_window).chain(on_tap_dispatches))
                         } else {
@@ -425,7 +425,8 @@ impl Component for KeymapLegend {
 mod test_keymap_legend {
     use super::*;
     use crate::{
-        app::Dimension, buffer::BufferOwner, components::editor::DispatchEditor, test_app::*,
+        app::Dimension, buffer::BufferOwner, components::editor::DispatchEditor,
+        position::Position, test_app::*,
     };
     use crossterm::event::KeyEventKind;
     use my_proc_macros::keys;
@@ -631,7 +632,7 @@ mod test_keymap_legend {
             .handle_dispatch_editor(
                 &mut Context::default(),
                 DispatchEditor::SetRectangle(Rectangle {
-                    origin: Default::default(),
+                    origin: Position::default(),
                     width: 100,
                     height: 100,
                 }),

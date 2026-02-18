@@ -8,6 +8,7 @@ use std::{
 
 use itertools::Itertools;
 use my_proc_macros::key;
+use nucleo::pattern::{CaseMatching, Normalization};
 use shared::absolute_path::AbsolutePath;
 
 use crate::{
@@ -102,10 +103,10 @@ impl PromptOnChangeDispatch {
                             }),
                         ))
                     } else {
-                        Default::default()
+                        Dispatches::default()
                     }
                 } else {
-                    Default::default()
+                    Dispatches::default()
                 }
             }
         }
@@ -131,9 +132,13 @@ struct PromptMatcher {
 }
 impl PromptMatcher {
     fn reparse(&mut self, filter: &str) {
-        self.nucleo
-            .pattern
-            .reparse(0, filter, Default::default(), Default::default(), false);
+        self.nucleo.pattern.reparse(
+            0,
+            filter,
+            CaseMatching::default(),
+            Normalization::default(),
+            false,
+        );
     }
 
     fn handle_nucleo_updated(&mut self, viewport_height: usize) -> Vec<DropdownItem> {
@@ -182,8 +187,8 @@ impl PromptConfig {
         Self {
             title,
             on_enter,
-            on_cancelled: Default::default(),
-            on_change: Default::default(),
+            on_cancelled: None,
+            on_change: None,
         }
     }
     pub fn items(&self) -> Vec<DropdownItem> {
@@ -193,9 +198,9 @@ impl PromptConfig {
             } => suggested_items.clone(),
             PromptOnEnter::ParseWholeBuffer { .. } => Vec::new(),
             PromptOnEnter::SelectsFirstMatchingItem { items } => match &items {
-                PromptItems::None => Default::default(),
+                PromptItems::None => Vec::default(),
                 PromptItems::Precomputed(dropdown_items) => dropdown_items.clone(),
-                PromptItems::BackgroundTask { .. } => Default::default(),
+                PromptItems::BackgroundTask { .. } => Vec::default(),
             },
         }
     }
@@ -395,7 +400,7 @@ impl Prompt {
                 let dispatches = self.editor.update_current_line(context, &item.display())?;
                 Ok(dispatches.chain(self.editor_mut().move_to_line_end()?))
             } else {
-                Ok(Default::default())
+                Ok(Dispatches::default())
             }
         } else {
             self.editor_mut().handle_key_event(context, event)
@@ -408,7 +413,7 @@ impl Prompt {
 
     pub fn handle_nucleo_updated(&mut self, viewport_height: usize) -> Dispatches {
         let Some(matcher) = self.matcher.as_mut() else {
-            return Default::default();
+            return Dispatches::default();
         };
 
         let items = matcher.handle_nucleo_updated(viewport_height);
