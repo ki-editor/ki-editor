@@ -144,7 +144,7 @@ pineapple?
                 .to_string(),
             )
             .unwrap();
-        assert_eq!(result, "who lives in a pineapple?")
+        assert_eq!(result, "who lives in a pineapple?");
     }
 
     #[test]
@@ -154,7 +154,7 @@ pineapple?
 who lives in a pineapple under the sea? Spongebob Squarepants! absorbent and yellow and porous is he? Spongebob Squarepants
 "
             .trim().to_string()).unwrap();
-        assert_eq!(result, "who lives in a pineapple under the sea? Spongebob Squarepants! absorbent and\nyellow and porous is he? Spongebob Squarepants")
+        assert_eq!(result, "who lives in a pineapple under the sea? Spongebob Squarepants! absorbent and\nyellow and porous is he? Spongebob Squarepants");
     }
 
     #[test]

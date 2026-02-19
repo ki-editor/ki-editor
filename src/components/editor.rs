@@ -146,14 +146,14 @@ impl Component for Editor {
         match mouse_event.kind {
             MouseEventKind::ScrollUp => {
                 self.apply_scroll(Direction::Start, SCROLL_HEIGHT);
-                Ok(Default::default())
+                Ok(Dispatches::default())
             }
             MouseEventKind::ScrollDown => {
                 self.apply_scroll(Direction::End, SCROLL_HEIGHT);
-                Ok(Default::default())
+                Ok(Dispatches::default())
             }
-            MouseEventKind::Down(MouseButton::Left) => Ok(Default::default()),
-            _ => Ok(Default::default()),
+            MouseEventKind::Down(MouseButton::Left) => Ok(Dispatches::default()),
+            _ => Ok(Dispatches::default()),
         }
     }
 
@@ -185,7 +185,7 @@ impl Component for Editor {
                 context,
             ),
             event::event::Event::Mouse(event) => self.handle_mouse_event(event),
-            _ => Ok(Default::default()),
+            _ => Ok(Dispatches::default()),
         }
     }
 
@@ -220,7 +220,7 @@ impl Component for Editor {
                 );
             }
             FindOneChar(if_current_not_found) => {
-                self.enter_single_character_mode(if_current_not_found)
+                self.enter_single_character_mode(if_current_not_found);
             }
             MoveSelection(movement) => return self.handle_movement(context, movement),
             MoveSelectionWithPriorChange(movement, prior_change) => {
@@ -305,7 +305,7 @@ impl Component for Editor {
             MoveCharacterForward => {
                 let len_chars = self.buffer().len_chars();
                 self.selection_set
-                    .move_right(&self.cursor_direction, len_chars)
+                    .move_right(&self.cursor_direction, len_chars);
             }
             Open(get_gap_movement) => return self.open(context, get_gap_movement),
             OpenVertically(direction) => return self.open_vertically(context, direction),
@@ -419,7 +419,7 @@ impl Component for Editor {
             }
             DuplicateVertically(direction) => return self.duplicate_vertically(context, direction),
         }
-        Ok(Default::default())
+        Ok(Dispatches::default())
     }
 }
 
@@ -444,10 +444,10 @@ impl Clone for Editor {
             id: self.id,
             current_view_alignment: None,
             regex_highlight_rules: Vec::new(),
-            copied_text_history_offset: Default::default(),
+            copied_text_history_offset: Counter::default(),
             normal_mode_override: self.normal_mode_override.clone(),
             reveal: self.reveal.clone(),
-            visible_line_ranges: Default::default(),
+            visible_line_ranges: None,
             incremental_search_matches: self.incremental_search_matches.clone(),
         }
     }
@@ -745,12 +745,12 @@ impl Editor {
             id: ComponentId::new(),
             current_view_alignment: None,
             regex_highlight_rules: Vec::new(),
-            copied_text_history_offset: Default::default(),
+            copied_text_history_offset: Counter::default(),
 
             normal_mode_override: None,
             reveal: None,
-            visible_line_ranges: Default::default(),
-            incremental_search_matches: Default::default(),
+            visible_line_ranges: None,
+            incremental_search_matches: None,
         }
     }
 
@@ -792,11 +792,11 @@ impl Editor {
             id: ComponentId::new(),
             current_view_alignment: None,
             regex_highlight_rules: Vec::new(),
-            copied_text_history_offset: Default::default(),
+            copied_text_history_offset: Counter::default(),
             normal_mode_override: None,
             reveal: None,
-            visible_line_ranges: Default::default(),
-            incremental_search_matches: Default::default(),
+            visible_line_ranges: None,
+            incremental_search_matches: None,
         }
     }
 
@@ -964,7 +964,7 @@ impl Editor {
             // We need to subtract line_range.end by one because it is exclusive
             |line_range| line_range.end.saturating_sub(1),
             |height| height,
-        )
+        );
     }
 
     /// If the primary selection has multiple lines
@@ -1009,7 +1009,7 @@ impl Editor {
         if let Some(selection_set) = self.get_selection_set(&selection_mode, movement, context)? {
             Ok(self.update_selection_set(selection_set, true, context))
         } else {
-            Ok(Default::default())
+            Ok(Dispatches::default())
         }
     }
 
@@ -1107,10 +1107,14 @@ impl Editor {
         movement: Movement,
         cut: bool,
     ) -> anyhow::Result<Dispatches> {
-        let initial_dispatches: Dispatches = if cut { self.copy() } else { Default::default() }
-            .append(Dispatch::AddKillRingEntry {
-                texts: self.get_current_texts(),
-            });
+        let initial_dispatches: Dispatches = if cut {
+            self.copy()
+        } else {
+            Dispatches::default()
+        }
+        .append(Dispatch::AddKillRingEntry {
+            texts: self.get_current_texts(),
+        });
         let edit_transaction = EditTransaction::from_action_groups({
             let buffer = self.buffer();
             self.selection_set
@@ -1440,7 +1444,7 @@ impl Editor {
         movement: GetGapMovement,
     ) -> anyhow::Result<Dispatches> {
         let Some((copied_texts, extra_dispatches)) = Self::pre_paste(context) else {
-            return Ok(Default::default());
+            return Ok(Dispatches::default());
         };
         Ok(extra_dispatches.chain(self.paste_text(movement, copied_texts, context)?))
     }
@@ -1451,7 +1455,7 @@ impl Editor {
         direction: Direction,
     ) -> Result<Dispatches, anyhow::Error> {
         let Some((copied_texts, extra_dispatches)) = Self::pre_paste(context) else {
-            return Ok(Default::default());
+            return Ok(Dispatches::default());
         };
         let edit_transaction =
             self.get_paste_vertically_edit_transaction(direction, |index| copied_texts.get(index));
@@ -1534,7 +1538,7 @@ impl Editor {
                 Dispatches::one(Dispatch::AddKillRingEntry { texts }),
             )
         } else {
-            (texts, Default::default())
+            (texts, Dispatches::default())
         })
     }
 
@@ -1550,7 +1554,11 @@ impl Editor {
         history_offset: isize,
         use_kill_ring: bool,
     ) -> anyhow::Result<Dispatches> {
-        let dispatches = if cut { self.copy() } else { Default::default() };
+        let dispatches = if cut {
+            self.copy()
+        } else {
+            Dispatches::default()
+        };
 
         let texts = if use_kill_ring {
             context.get_kill_ring_content(history_offset)
@@ -1559,7 +1567,7 @@ impl Editor {
         };
 
         let Some(texts) = texts else {
-            return Ok(Default::default());
+            return Ok(Dispatches::default());
         };
 
         Ok(self
@@ -1651,7 +1659,7 @@ impl Editor {
             Direction::Start => Direction::End,
             Direction::End => Direction::Start,
         };
-        self.recalculate_scroll_offset(context)
+        self.recalculate_scroll_offset(context);
     }
 
     pub fn get_selection_set(
@@ -1740,18 +1748,18 @@ impl Editor {
         match key_event {
             key!("esc") => {
                 self.jumps = None;
-                Ok(Default::default())
+                Ok(Dispatches::default())
             }
             key => {
                 let KeyCode::Char(c) = key.code else {
-                    return Ok(Default::default());
+                    return Ok(Dispatches::default());
                 };
                 let matching_jumps = jumps
                     .iter()
                     .filter(|jump| c == jump.character)
                     .collect_vec();
                 match matching_jumps.split_first() {
-                    None => Ok(Default::default()),
+                    None => Ok(Dispatches::default()),
                     Some((jump, [])) => {
                         let dispatches =
                             self.handle_movement(context, Movement::Jump(jump.selection.range()))?;
@@ -1775,7 +1783,7 @@ impl Editor {
                                 })
                                 .collect_vec(),
                         );
-                        Ok(Default::default())
+                        Ok(Dispatches::default())
                     }
                 }
             }
@@ -1784,10 +1792,14 @@ impl Editor {
     }
 
     pub fn delete_one(&mut self, context: &Context, cut: bool) -> anyhow::Result<Dispatches> {
-        let initial_dispatches: Dispatches = if cut { self.copy() } else { Default::default() }
-            .append(Dispatch::AddKillRingEntry {
-                texts: self.get_current_texts(),
-            });
+        let initial_dispatches: Dispatches = if cut {
+            self.copy()
+        } else {
+            Dispatches::default()
+        }
+        .append(Dispatch::AddKillRingEntry {
+            texts: self.get_current_texts(),
+        });
 
         let edit_transaction = EditTransaction::from_action_groups(
             self.selection_set
@@ -1962,7 +1974,7 @@ impl Editor {
             if self.reveal == Some(Reveal::CurrentSelectionMode)
                 && self.selection_set.mode() != &selection_mode
             {
-                self.reveal = None
+                self.reveal = None;
             }
 
             self.move_selection_with_selection_mode_without_global_mode(
@@ -2024,8 +2036,8 @@ impl Editor {
                     &movement.into_movement_applicandum(self.selection_set.sticky_column_index()),
                     context,
                 )
-                .map(|_| Default::default()),
-            Mode::FindOneChar(_) | Mode::Insert => Ok(Default::default()),
+                .map(|_| Dispatches::default()),
+            Mode::FindOneChar(_) | Mode::Insert => Ok(Dispatches::default()),
         }
     }
 
@@ -2688,7 +2700,7 @@ impl Editor {
     }
 
     fn update_buffer(&mut self, s: &str) {
-        self.buffer.borrow_mut().update(s)
+        self.buffer.borrow_mut().update(s);
     }
 
     fn scroll(
@@ -2859,7 +2871,7 @@ impl Editor {
         };
 
         let Some(path) = path else {
-            return Ok(Default::default());
+            return Ok(Dispatches::default());
         };
 
         self.clamp(context)?;
@@ -3091,14 +3103,14 @@ impl Editor {
             }
             KeyCode::Esc => {
                 self.mode = Mode::Normal;
-                Ok(Default::default())
+                Ok(Dispatches::default())
             }
-            _ => Ok(Default::default()),
+            _ => Ok(Dispatches::default()),
         }
     }
 
     pub fn set_decorations(&mut self, decorations: &[super::suggestive_editor::Decoration]) {
-        self.buffer.borrow_mut().set_decorations(decorations)
+        self.buffer.borrow_mut().set_decorations(decorations);
     }
 
     fn half_page_height(&self) -> usize {
@@ -3221,7 +3233,7 @@ impl Editor {
                 self.align_selection_to_top();
                 ViewAlignment::Top
             }
-        })
+        });
     }
 
     fn undo_or_redo(&mut self, undo: bool, context: &Context) -> Result<Dispatches, anyhow::Error> {
@@ -3249,7 +3261,7 @@ impl Editor {
                     }))
                     .append(Dispatch::AppliedEdits { path, edits })
                 } else {
-                    Default::default()
+                    Dispatches::default()
                 };
 
                 dispatches.chain(dispatch)
@@ -3270,7 +3282,7 @@ impl Editor {
 
     #[cfg(test)]
     pub fn set_scroll_offset(&mut self, scroll_offset: usize) {
-        self.scroll_offset = scroll_offset
+        self.scroll_offset = scroll_offset;
     }
 
     #[cfg(test)]
@@ -3291,8 +3303,13 @@ impl Editor {
         let source_code = self.text();
         let mut buffer = self.buffer_mut();
         if let Some(language) = buffer.language() {
+            use crate::syntax_highlight::SyntaxHighlightRequestBatchId;
+
             let highlighted_spans = context.highlight(language, &source_code)?;
-            buffer.update_highlighted_spans(Default::default(), highlighted_spans);
+            buffer.update_highlighted_spans(
+                SyntaxHighlightRequestBatchId::default(),
+                highlighted_spans,
+            );
         }
         Ok(())
     }
@@ -3310,7 +3327,7 @@ impl Editor {
     }
 
     fn enter_swap_mode(&mut self) {
-        self.mode = Mode::Swap
+        self.mode = Mode::Swap;
     }
 
     fn kill_line(
@@ -3371,7 +3388,7 @@ impl Editor {
     }
 
     fn enter_replace_mode(&mut self) {
-        self.mode = Mode::Replace
+        self.mode = Mode::Replace;
     }
 
     pub fn scroll_offset(&self) -> usize {
@@ -3379,26 +3396,26 @@ impl Editor {
     }
 
     pub fn set_regex_highlight_rules(&mut self, regex_highlight_rules: Vec<RegexHighlightRule>) {
-        self.regex_highlight_rules = regex_highlight_rules
+        self.regex_highlight_rules = regex_highlight_rules;
     }
 
     fn go_back(&mut self, context: &Context) {
         let selection_set = self.buffer_mut().previous_selection_set();
         if let Some(selection_set) = selection_set {
-            self.set_selection_set(selection_set, context)
+            self.set_selection_set(selection_set, context);
         }
     }
 
     fn go_forward(&mut self, context: &Context) {
         let selection_set = self.buffer_mut().next_selection_set();
         if let Some(selection_set) = selection_set {
-            self.set_selection_set(selection_set, context)
+            self.set_selection_set(selection_set, context);
         }
     }
 
     pub fn set_selection_set(&mut self, selection_set: SelectionSet, context: &Context) {
         self.selection_set = selection_set;
-        self.recalculate_scroll_offset(context)
+        self.recalculate_scroll_offset(context);
     }
 
     pub fn set_char_index_range(
@@ -3439,7 +3456,7 @@ impl Editor {
                             [Action::Select(selection.clone().set_range(range))].to_vec(),
                         ))
                     } else {
-                        Ok(ActionGroup::new(Default::default()))
+                        Ok(ActionGroup::new(Vec::default()))
                     }
                 })
                 .into_iter()
@@ -3517,7 +3534,7 @@ impl Editor {
                         ]
                         .to_vec())
                     } else {
-                        Ok(Default::default())
+                        Ok(Vec::default())
                     }
                 })
                 .into_iter()
@@ -3546,7 +3563,7 @@ impl Editor {
                         &config.replacement(),
                     )?
                 } else {
-                    Default::default()
+                    Vec::default()
                 };
                 let edit_transaction = EditTransaction::from_action_groups(
                     self.selection_set
@@ -3576,7 +3593,7 @@ impl Editor {
                                     .to_vec(),
                                 ))
                             } else {
-                                Ok(ActionGroup::new(Default::default()))
+                                Ok(ActionGroup::new(Vec::default()))
                             }
                         })
                         .into_iter()
@@ -3792,7 +3809,7 @@ impl Editor {
     }
 
     fn cycle_primary_selection(&mut self, direction: Direction) {
-        self.selection_set.cycle_primary_selection(direction)
+        self.selection_set.cycle_primary_selection(direction);
     }
 
     fn handle_dispatch_editors(
@@ -3873,7 +3890,7 @@ impl Editor {
     }
 
     fn delete_current_cursor(&mut self, direction: Direction) {
-        self.selection_set.delete_current_selection(direction)
+        self.selection_set.delete_current_selection(direction);
     }
 
     fn break_selection(&mut self, context: &Context) -> anyhow::Result<Dispatches> {
@@ -3955,7 +3972,7 @@ impl Editor {
     }
 
     pub fn set_normal_mode_override(&mut self, normal_mode_override: NormalModeOverride) {
-        self.normal_mode_override = Some(normal_mode_override)
+        self.normal_mode_override = Some(normal_mode_override);
     }
 
     fn show_help(&self) -> Result<Dispatches, anyhow::Error> {
@@ -4123,7 +4140,7 @@ impl Editor {
                     range.start..(end + 1)
                 })
                 .collect(),
-        )
+        );
     }
 
     fn dispatch_jumps_changed(&self) -> Dispatch {
@@ -4165,7 +4182,7 @@ impl Editor {
             .language()
             .and_then(|langugae| langugae.line_comment_prefix())
         else {
-            return Ok(Default::default());
+            return Ok(Dispatches::default());
         };
         self.transform_selection(Transformation::ToggleLineComment { prefix }, context)
     }
@@ -4176,7 +4193,7 @@ impl Editor {
             .language()
             .and_then(|langugae| langugae.block_comment_affixes())
         else {
-            return Ok(Default::default());
+            return Ok(Dispatches::default());
         };
         self.transform_selection(Transformation::ToggleBlockComment { open, close }, context)
     }
@@ -4232,7 +4249,7 @@ impl Editor {
         diff_mode: DiffMode,
     ) -> anyhow::Result<Dispatches> {
         let Some(path) = self.buffer().path() else {
-            return Ok(Default::default());
+            return Ok(Dispatches::default());
         };
         let hunks = path.simple_hunks(
             &self.buffer().content(),
@@ -4288,7 +4305,7 @@ impl Editor {
 
     fn git_blame(&self, context: &mut Context) -> Result<Dispatches, anyhow::Error> {
         let Some(file_path) = self.buffer().path() else {
-            return Ok(Default::default());
+            return Ok(Dispatches::default());
         };
         let line_numbers: Vec<usize> = self
             .selection_set
@@ -4345,7 +4362,7 @@ impl Editor {
     }
 
     fn clear_incremental_search_matches(&mut self) {
-        self.incremental_search_matches = None
+        self.incremental_search_matches = None;
     }
 
     pub fn set_incremental_search_config(&mut self, config: LocalSearchConfig) {
@@ -4378,11 +4395,11 @@ impl Editor {
                     .collect_vec()
             }
         };
-        self.incremental_search_matches = Some(matches)
+        self.incremental_search_matches = Some(matches);
     }
 
     pub fn initialize_incremental_search_matches(&mut self) {
-        self.incremental_search_matches = Some(Vec::new())
+        self.incremental_search_matches = Some(Vec::new());
     }
 
     fn go_to_file(&self) -> Result<Dispatches, anyhow::Error> {
@@ -4406,7 +4423,7 @@ impl Editor {
     fn handle_path_renamed(&mut self, source: PathBuf, destination: AbsolutePath) {
         let Some(path) = self.path() else { return };
         if path.to_path_buf() == &source {
-            self.buffer_mut().update_path(destination)
+            self.buffer_mut().update_path(destination);
         }
     }
 

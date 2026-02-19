@@ -293,6 +293,6 @@ mod test_config {
     #[test]
     fn doc_assets_default_config_json() {
         let path = "docs/static/config_default.json";
-        std::fs::write(path, super::DEFAULT_CONFIG).unwrap()
+        std::fs::write(path, super::DEFAULT_CONFIG).unwrap();
     }
 }

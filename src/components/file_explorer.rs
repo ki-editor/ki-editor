@@ -175,7 +175,7 @@ impl FileExplorer {
                     ]
                     .to_vec(),
                 )),
-                None => Ok(Default::default()),
+                None => Ok(Dispatches::default()),
             }
         }
     }

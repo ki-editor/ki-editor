@@ -128,7 +128,7 @@ impl Component for SuggestiveEditor {
                 _ if self.editor.mode == Mode::Insert && event.kind != KeyEventKind::Release => {
                     vec![Dispatch::RequestCompletion, Dispatch::RequestSignatureHelp].into()
                 }
-                _ => Default::default(),
+                _ => Dispatches::default(),
             }))
     }
 }
@@ -153,7 +153,7 @@ impl SuggestiveEditor {
             #[cfg(test)]
             DispatchSuggestiveEditor::CompletionFilter(filter) => {
                 self.filter = filter;
-                Ok(Default::default())
+                Ok(Dispatches::default())
             }
             DispatchSuggestiveEditor::Completion(completion) => {
                 if self.editor.mode == Mode::Insert {
@@ -205,7 +205,7 @@ impl SuggestiveEditor {
                 .current_item()
                 .map(|item| {
                     if item.resolved() {
-                        Default::default()
+                        Dispatches::default()
                     } else {
                         item.on_focused()
                     }
@@ -274,7 +274,7 @@ impl SuggestiveEditor {
             self.completion_dropdown.set_items(Vec::new());
             Ok(Dispatches::one(Dispatch::CloseDropdown).chain(completion.dispatches))
         } else {
-            Ok(Default::default())
+            Ok(Dispatches::default())
         }
     }
 
@@ -287,7 +287,7 @@ impl SuggestiveEditor {
     }
 
     pub fn update_items(&mut self, items: Vec<DropdownItem>) {
-        self.completion_dropdown.set_items(items)
+        self.completion_dropdown.set_items(items);
     }
 }
 
@@ -661,7 +661,7 @@ mod test_suggestive_editor {
             insert_text: None,
             kind: None,
             detail: None,
-            completion_item: Default::default(),
+            completion_item: lsp_types::CompletionItem::default(),
         };
         execute_test(|s| {
             Box::new([
@@ -729,7 +729,7 @@ mod test_suggestive_editor {
                         kind: None,
                         detail: None,
                         insert_text: None,
-                        completion_item: Default::default(),
+                        completion_item: lsp_types::CompletionItem::default(),
                     }]
                     .into_iter()
                     .map(|item| item.into())
@@ -768,7 +768,7 @@ mod test_suggestive_editor {
                         kind: None,
                         detail: None,
                         insert_text: None,
-                        completion_item: Default::default(),
+                        completion_item: lsp_types::CompletionItem::default(),
                     }]
                     .into_iter()
                     .map(|item| item.into())
@@ -988,7 +988,7 @@ mod test_suggestive_editor {
                         insert_text: None,
                         kind: Some(CompletionItemKind::FUNCTION),
                         detail: None,
-                        completion_item: Default::default(),
+                        completion_item: lsp_types::CompletionItem::default(),
                     }]
                     .into_iter()
                     .map(|item| item.into())
@@ -1156,7 +1156,7 @@ impl Decoration {
         Decoration {
             selection_range,
             style_key,
-            adjustments: Default::default(),
+            adjustments: Vec::default(),
         }
     }
 
