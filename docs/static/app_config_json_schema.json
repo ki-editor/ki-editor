@@ -240,6 +240,7 @@
       "type": "string",
       "enum": [
         "Qwerty",
+        "Abnt2",
         "Dvorak",
         "DvorakIu",
         "Colemak",
