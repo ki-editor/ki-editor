@@ -237,7 +237,7 @@ impl<T: Frontend> App<T> {
                         ))) {
                             log::error!(
                                 "Failed to send RequestCompletionDebounced to App due to {err:?}"
-                            )
+                            );
                         }
                     })),
                     Duration::from_millis(300),
@@ -425,7 +425,7 @@ impl<T: Frontend> App<T> {
                 let dispatches = component.borrow_mut().handle_event(&self.context, event);
                 self.handle_dispatches_result(dispatches)
                     .unwrap_or_else(|e| {
-                        self.show_global_info(Info::new("ERROR".to_string(), e.to_string()))
+                        self.show_global_info(Info::new("ERROR".to_string(), e.to_string()));
                     });
             }
         }
@@ -708,7 +708,7 @@ impl<T: Frontend> App<T> {
     }
 
     fn send_integration_event(&self, event: crate::integration_event::IntegrationEvent) {
-        self.integration_event_sender.emit_event(event)
+        self.integration_event_sender.emit_event(event);
     }
 
     pub fn handle_dispatch(&mut self, dispatch: Dispatch) -> Result<(), anyhow::Error> {
@@ -767,7 +767,7 @@ impl<T: Frontend> App<T> {
                             completion_item: Box::new(completion_item),
                             params,
                         },
-                    )?
+                    )?;
                 }
             }
             Dispatch::RequestReferences {
@@ -955,17 +955,17 @@ impl<T: Frontend> App<T> {
                 )?;
             }
             Dispatch::SetQuickfixList(r#type) => {
-                self.set_quickfix_list_type(Default::default(), r#type)?;
+                self.set_quickfix_list_type(ResponseContext::default(), r#type)?;
             }
             Dispatch::GotoQuickfixListItem(movement) => self.goto_quickfix_list_item(movement)?,
             Dispatch::ApplyWorkspaceEdit(workspace_edit) => {
                 self.apply_workspace_edit(workspace_edit)?;
             }
             Dispatch::ShowKeymapLegend(keymap_legend_config) => {
-                self.show_keymap_legend(keymap_legend_config, None)
+                self.show_keymap_legend(keymap_legend_config, None);
             }
             Dispatch::ShowKeymapLegendWithReleaseKey(keymap_legend_config, release_key) => {
-                self.show_keymap_legend(keymap_legend_config, Some(release_key))
+                self.show_keymap_legend(keymap_legend_config, Some(release_key));
             }
             #[cfg(test)]
             Dispatch::Custom(_) => unreachable!(),
@@ -973,7 +973,7 @@ impl<T: Frontend> App<T> {
             Dispatch::ToEditor(dispatch_editor) => self.handle_dispatch_editor(dispatch_editor)?,
             Dispatch::GotoLocation(location) => self.go_to_location(&location, true)?,
             Dispatch::OpenMoveToIndexPrompt(prior_change) => {
-                self.open_move_to_index_prompt(prior_change)?
+                self.open_move_to_index_prompt(prior_change)?;
             }
             Dispatch::QuitAll => self.quit_all()?,
             Dispatch::RevealInExplorer(path) => self.reveal_path_in_explorer(&path)?,
@@ -1023,7 +1023,7 @@ impl<T: Frontend> App<T> {
                     self.lsp_manager().send_message(
                         params.path.clone(),
                         FromEditor::WorkspaceExecuteCommand { params, command },
-                    )?
+                    )?;
                 };
             }
             Dispatch::UpdateLocalSearchConfig {
@@ -1050,7 +1050,7 @@ impl<T: Frontend> App<T> {
             },
             #[cfg(test)]
             Dispatch::HandleLspNotification(notification) => {
-                self.handle_lsp_notification(notification)?
+                self.handle_lsp_notification(notification)?;
             }
             Dispatch::SetTheme(theme) => {
                 self.context.set_theme(theme.clone());
@@ -1082,17 +1082,17 @@ impl<T: Frontend> App<T> {
                 .context
                 .set_last_non_contiguous_selection_mode(selection_mode),
             Dispatch::UseLastNonContiguousSelectionMode(if_current_not_found) => {
-                self.use_last_non_contiguous_selection_mode(if_current_not_found)?
+                self.use_last_non_contiguous_selection_mode(if_current_not_found)?;
             }
             Dispatch::SetLastActionDescription {
                 long_description: description,
                 short_description,
             } => {
                 self.last_action_description = Some(description);
-                self.last_action_short_description = short_description
+                self.last_action_short_description = short_description;
             }
             Dispatch::OpenFilterSelectionsPrompt { maintain } => {
-                self.open_filter_selections_prompt(maintain)?
+                self.open_filter_selections_prompt(maintain)?;
             }
             Dispatch::MoveToCompletionItem(direction) => self.handle_dispatch_suggestive_editor(
                 DispatchSuggestiveEditor::MoveToCompletionItem(direction),
@@ -1119,10 +1119,10 @@ impl<T: Frontend> App<T> {
             Dispatch::ShowGlobalInfo(info) => self.show_global_info(info),
             #[cfg(test)]
             Dispatch::SetSystemClipboardHtml { html, alt_text } => {
-                self.set_system_clipboard_html(html, alt_text)?
+                self.set_system_clipboard_html(html, alt_text)?;
             }
             Dispatch::AddQuickfixListEntries(locations) => {
-                self.add_quickfix_list_entries(locations)?
+                self.add_quickfix_list_entries(locations)?;
             }
             Dispatch::AppliedEdits { path, edits } => self.handle_applied_edits(path, edits),
             Dispatch::ExecuteLeaderKey(key) => self.execute_leader_key(key)?,
@@ -1131,18 +1131,18 @@ impl<T: Frontend> App<T> {
                 content_editor,
                 content_filesystem,
             } => {
-                self.show_buffer_save_conflict_prompt(&path, content_editor, content_filesystem)?
+                self.show_buffer_save_conflict_prompt(&path, content_editor, content_filesystem)?;
             }
             Dispatch::OpenWorkspaceSymbolsPrompt => self.open_workspace_symbols_picker()?,
             Dispatch::GetAndHandlePromptOnChangeDispatches => {
-                self.get_and_handle_prompt_on_change_dispatches()?
+                self.get_and_handle_prompt_on_change_dispatches()?;
             }
             Dispatch::SetIncrementalSearchConfig {
                 config,
                 component_id,
             } => self.set_incremental_search_config(config, component_id),
             Dispatch::UpdateCurrentComponentTitle(title) => {
-                self.update_current_component_title(title)
+                self.update_current_component_title(title);
             }
             Dispatch::SaveMarks { path, marks } => self.context.save_marks(path, marks),
             Dispatch::ToSuggestiveEditor(dispatch) => {
@@ -1152,7 +1152,7 @@ impl<T: Frontend> App<T> {
             Dispatch::ToggleOrOpenPaths => self.toggle_or_open_paths()?,
             Dispatch::ChangeWorkingDirectory(path) => self.change_working_directory(path)?,
             Dispatch::OpenChangeWorkingDirectoryPrompt => {
-                self.open_change_working_directory_prompt()?
+                self.open_change_working_directory_prompt()?;
             }
         }
         Ok(())
@@ -1247,7 +1247,7 @@ impl<T: Frontend> App<T> {
                 parser: DispatchParser::MoveSelectionByIndex,
                 history_key: PromptHistoryKey::MoveToIndex,
                 current_line: None,
-                suggested_items: Default::default(),
+                suggested_items: Vec::default(),
             },
         ))
     }
@@ -1259,7 +1259,7 @@ impl<T: Frontend> App<T> {
                 parser: DispatchParser::RenameSymbol,
                 history_key: PromptHistoryKey::Rename,
                 current_line: current_name,
-                suggested_items: Default::default(),
+                suggested_items: Vec::default(),
             },
         ))
     }
@@ -1271,7 +1271,7 @@ impl<T: Frontend> App<T> {
                 parser: DispatchParser::SurroundXmlTag,
                 history_key: PromptHistoryKey::SurroundXmlTag,
                 current_line: None,
-                suggested_items: Default::default(),
+                suggested_items: Vec::default(),
             },
         ))
     }
@@ -1379,7 +1379,7 @@ impl<T: Frontend> App<T> {
                     parser: DispatchParser::AddPath,
                     history_key: PromptHistoryKey::AddPath,
                     current_line: Some(path.display_absolute()),
-                    suggested_items: Default::default(),
+                    suggested_items: Vec::default(),
                 },
             ))
         } else {
@@ -1416,7 +1416,7 @@ impl<T: Frontend> App<T> {
                     parser: DispatchParser::CopyFile { from: path.clone() },
                     history_key: PromptHistoryKey::CopyFile,
                     current_line: Some(path.display_absolute()),
-                    suggested_items: Default::default(),
+                    suggested_items: Vec::default(),
                 },
             ))
         } else {
@@ -1546,7 +1546,7 @@ impl<T: Frontend> App<T> {
             LspNotification::Definition(context, response) => {
                 match response {
                     GotoDefinitionResponse::Single(location) => {
-                        self.go_to_location(&location, true)?
+                        self.go_to_location(&location, true)?;
                     }
                     GotoDefinitionResponse::Multiple(locations) => {
                         if locations.is_empty() {
@@ -1685,7 +1685,7 @@ impl<T: Frontend> App<T> {
             self.handle_dispatches(dispatches)?;
             self.render_quickfix_list()?;
         } else {
-            log::info!("No current item found")
+            log::info!("No current item found");
         }
         Ok(())
     }
@@ -2155,7 +2155,7 @@ impl<T: Frontend> App<T> {
 
     #[cfg(test)]
     fn set_global_title(&mut self, title: String) {
-        self.global_title = Some(title)
+        self.global_title = Some(title);
     }
 
     pub fn get_current_file_path(&self) -> Option<AbsolutePath> {
@@ -2431,7 +2431,7 @@ impl<T: Frontend> App<T> {
             PromptOnEnter::ParseCurrentLine {
                 history_key: key, ..
             } => self.context.get_prompt_history(*key),
-            _ => Default::default(),
+            _ => Vec::default(),
         };
 
         let items = prompt_config
@@ -2475,7 +2475,7 @@ impl<T: Frontend> App<T> {
                     key: prompt_history_key,
                     line: entry,
                 }),
-            _ => Default::default(),
+            _ => Dispatches::default(),
         };
         self.handle_dispatches(dispatches)
     }
@@ -2604,7 +2604,7 @@ impl<T: Frontend> App<T> {
     }
 
     fn hide_editor_info(&mut self) {
-        self.layout.hide_editor_info()
+        self.layout.hide_editor_info();
     }
 
     #[cfg(test)]
@@ -2627,13 +2627,13 @@ impl<T: Frontend> App<T> {
                 self.show_editor_info(info)?;
             }
         } else {
-            self.hide_editor_info()
+            self.hide_editor_info();
         }
         Ok(())
     }
 
     fn push_history_prompt(&mut self, key: PromptHistoryKey, line: String) {
-        self.context.push_history_prompt(key, line)
+        self.context.push_history_prompt(key, line);
     }
 
     fn open_theme_picker(&mut self) -> anyhow::Result<()> {
@@ -2674,7 +2674,7 @@ impl<T: Frontend> App<T> {
                     parser: DispatchParser::SetKeyboardLayoutKind,
                     history_key: PromptHistoryKey::KeyboardLayout,
                     current_line: None,
-                    suggested_items: Default::default(),
+                    suggested_items: Vec::default(),
                 }
             } else {
                 PromptOnEnter::SelectsFirstMatchingItem {
@@ -2718,7 +2718,7 @@ impl<T: Frontend> App<T> {
                 parser: DispatchParser::PipeToShell,
                 history_key: PromptHistoryKey::PipeToShell,
                 current_line: None,
-                suggested_items: Default::default(),
+                suggested_items: Vec::default(),
             },
         ))
     }
@@ -2760,7 +2760,7 @@ impl<T: Frontend> App<T> {
                 parser: DispatchParser::FilterSelectionMatchingSearch { maintain },
                 history_key: PromptHistoryKey::FilterSelectionsMatchingSearch { maintain },
                 current_line: None,
-                suggested_items: Default::default(),
+                suggested_items: Vec::default(),
             },
         ))
     }
@@ -2780,7 +2780,7 @@ impl<T: Frontend> App<T> {
         while let Some(location) = self.context.location_next() {
             if location.path.exists() {
                 self.push_current_location_into_navigation_history(true);
-                self.go_to_location(&location, false)?
+                self.go_to_location(&location, false)?;
             }
         }
         Ok(())
@@ -2796,7 +2796,7 @@ impl<T: Frontend> App<T> {
                 .editor()
                 .current_selection_range();
             let location = Location { path, range };
-            self.context.push_location_history(location, backward)
+            self.context.push_location_history(location, backward);
         }
     }
 
@@ -2959,7 +2959,7 @@ impl<T: Frontend> App<T> {
             }
             ToHostApp::ModeChanged => self.mode_changed(),
             ToHostApp::SelectionModeChanged(selection_mode) => {
-                self.selection_mode_changed(selection_mode)
+                self.selection_mode_changed(selection_mode);
             }
             ToHostApp::SelectionChanged {
                 component_id,
@@ -3069,7 +3069,7 @@ impl<T: Frontend> App<T> {
     }
 
     fn handle_applied_edits(&mut self, path: AbsolutePath, edits: Vec<Edit>) {
-        self.context.handle_applied_edits(path, edits)
+        self.context.handle_applied_edits(path, edits);
     }
 
     #[cfg(test)]
@@ -3222,7 +3222,7 @@ Conflict markers will be injected in areas that cannot be merged gracefully."
                 self.handle_dispatch_editor(DispatchEditor::PathRenamed {
                     source,
                     destination,
-                })?
+                })?;
             }
         }
         Ok(())
@@ -3231,7 +3231,7 @@ Conflict markers will be injected in areas that cannot be merged gracefully."
     fn send_file_watcher_input(&self, input: FileWatcherInput) {
         if let Some(sender) = self.file_watcher_input_sender.as_ref() {
             if let Err(error) = sender.send(input) {
-                log::error!("[App::send_file_watcher_input] error = {error:?}")
+                log::error!("[App::send_file_watcher_input] error = {error:?}");
             }
         }
     }
@@ -3305,14 +3305,14 @@ Conflict markers will be injected in areas that cannot be merged gracefully."
             return;
         };
         let mut borrow = component.borrow_mut();
-        borrow.editor_mut().set_incremental_search_config(config)
+        borrow.editor_mut().set_incremental_search_config(config);
     }
 
     fn update_current_component_title(&self, title: String) {
         {
             let comp = self.current_component();
             let mut borrow = comp.borrow_mut();
-            borrow.set_title(title)
+            borrow.set_title(title);
         }
     }
 
@@ -3359,7 +3359,7 @@ Conflict markers will be injected in areas that cannot be merged gracefully."
                 // We need to drop `borrow` here, so that we can prevent double borrow
                 // when `DispatchEditor`s are being handled
             };
-            self.handle_script_dispatches(output.dispatches)?
+            self.handle_script_dispatches(output.dispatches)?;
         }
         Ok(())
     }
@@ -3497,7 +3497,7 @@ impl Dispatches {
     }
 
     pub fn empty() -> Dispatches {
-        Dispatches(Default::default())
+        Dispatches(Vec::default())
     }
 }
 
@@ -3961,7 +3961,7 @@ impl DispatchParser {
                 DispatchEditor::Surround(format!("<{text}>"), format!("</{text}>")),
             ))),
             #[cfg(test)]
-            DispatchParser::Null => Ok(Default::default()),
+            DispatchParser::Null => Ok(Dispatches::default()),
             DispatchParser::ChangeWorkingDirectory => Ok(Dispatches::one(
                 Dispatch::ChangeWorkingDirectory(text.try_into()?),
             )),

@@ -128,7 +128,7 @@ fn process_edit_args(args: EditArgs) -> anyhow::Result<RunConfig> {
             let path: Option<AbsolutePath> = Some(path.try_into()?);
             let working_directory = match path.clone() {
                 Some(value) if value.is_dir() => Some(value),
-                _ => Default::default(),
+                _ => None,
             };
 
             Ok(crate::RunConfig {
@@ -148,7 +148,7 @@ fn process_edit_args(args: EditArgs) -> anyhow::Result<RunConfig> {
                     working_directory: None,
                 })
             } else {
-                Ok(Default::default())
+                Ok(RunConfig::default())
             }
         }
     }
@@ -181,7 +181,7 @@ pub fn cli() -> anyhow::Result<()> {
                 match command {
                     KeymapFormat::Table => editor_keymap_printer::print_keymap_table()?,
                     KeymapFormat::KeymapDrawer => {
-                        editor_keymap_printer::print_keymap_drawer_yaml()?
+                        editor_keymap_printer::print_keymap_drawer_yaml()?;
                     }
                 }
 

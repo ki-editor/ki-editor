@@ -44,12 +44,12 @@ impl DropdownItem {
 
     pub fn new(display: String) -> Self {
         Self {
-            dispatches: Default::default(),
+            dispatches: Dispatches::default(),
             display,
-            group: Default::default(),
-            info: Default::default(),
+            group: None,
+            info: None,
             rank: None,
-            on_focused: Default::default(),
+            on_focused: Dispatches::default(),
             resolved: false,
             highlight_column_range: None,
             is_significant: None,
@@ -216,11 +216,11 @@ impl Dropdown {
     }
 
     pub fn next_item(&mut self) {
-        self.change_index(self.current_item_index + 1)
+        self.change_index(self.current_item_index + 1);
     }
 
     pub fn previous_item(&mut self) {
-        self.change_index(self.current_item_index.saturating_sub(1))
+        self.change_index(self.current_item_index.saturating_sub(1));
     }
 
     fn last_item(&mut self) {
@@ -230,12 +230,12 @@ impl Dropdown {
             .and_then(|item| item.items.last())
             .map(|item| item.item_index)
         {
-            self.change_index(index as usize)
+            self.change_index(index as usize);
         }
     }
 
     fn first_item(&mut self) {
-        self.change_index(0)
+        self.change_index(0);
     }
 
     fn groups(&self) -> Option<Vec<String>> {
@@ -287,11 +287,11 @@ impl Dropdown {
     }
 
     fn next_group(&mut self) {
-        self.change_group_index(true).unwrap_or_default()
+        self.change_group_index(true).unwrap_or_default();
     }
 
     fn previous_group(&mut self) {
-        self.change_group_index(false).unwrap_or_default()
+        self.change_group_index(false).unwrap_or_default();
     }
 
     pub fn current_item(&self) -> Option<DropdownItem> {
@@ -604,7 +604,7 @@ impl Dropdown {
     }
 
     pub fn set_current_item_index(&mut self, current_item_index: usize) {
-        self.current_item_index = current_item_index
+        self.current_item_index = current_item_index;
     }
 
     pub fn current_item_index(&self) -> usize {
@@ -682,7 +682,7 @@ impl Dropdown {
                 ..item
             }
         }
-        self.compute_filtered_items()
+        self.compute_filtered_items();
     }
 
     fn next_significantly_different_item(&mut self) {
@@ -866,7 +866,7 @@ mod test_dropdown {
                 )
             })
             .collect_vec(),
-        )
+        );
     }
 
     #[test]
@@ -895,7 +895,7 @@ mod test_dropdown {
                     )
                 })
                 .collect_vec(),
-        )
+        );
     }
 
     #[test]
@@ -932,7 +932,7 @@ mod test_dropdown {
                 )
             })
             .collect_vec(),
-        )
+        );
     }
 
     #[test]

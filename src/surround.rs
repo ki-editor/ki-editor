@@ -50,10 +50,10 @@ pub fn get_surrounding_indices(
         let mut count = 0;
         let open_index = chars[0..index].iter().enumerate().rev().find(|(_, char)| {
             if *char == &close && open != close {
-                count += 1
+                count += 1;
             } else if *char == &open {
                 if count > 0 {
-                    count -= 1
+                    count -= 1;
                 } else {
                     return true;
                 }
@@ -67,10 +67,10 @@ pub fn get_surrounding_indices(
         let mut count = 0;
         let close_index = chars[start_index..].iter().enumerate().find(|(_, char)| {
             if *char == &open && open != close {
-                count += 1
+                count += 1;
             } else if *char == &close {
                 if count > 0 {
-                    count -= 1
+                    count -= 1;
                 } else {
                     return true;
                 }
@@ -138,7 +138,7 @@ mod test_surround {
         assert_eq!(
             actual,
             expected.map(|(open, close)| (CharIndex(open), CharIndex(close)))
-        )
+        );
     }
 
     use EnclosureKind::*;

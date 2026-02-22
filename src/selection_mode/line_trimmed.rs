@@ -215,7 +215,7 @@ impl PositionBasedSelectionMode for LineTrimmed {
                         continue;
                     } else {
                         if !right_atleast_one_non_whitespace {
-                            right_first_non_whitespace = right_index
+                            right_first_non_whitespace = right_index;
                         }
                         right_atleast_one_non_whitespace = true;
                         right_last_non_whitespace = right_index;
@@ -421,7 +421,7 @@ impl PositionBasedSelectionMode for LineTrimmed {
                     if index > CharIndex(buffer.len_chars().saturating_sub(1)) {
                         return Ok(None);
                     } else if buffer.char(index)?.is_whitespace() {
-                        index = index + 1
+                        index = index + 1;
                     } else {
                         break index;
                     }
@@ -439,7 +439,7 @@ impl PositionBasedSelectionMode for LineTrimmed {
                         .to_index(params, line_index)?
                         .map(ApplyMovementResult::from_selection));
                 } else {
-                    line_index += 1
+                    line_index += 1;
                 }
             } else {
                 break;
@@ -472,7 +472,7 @@ impl PositionBasedSelectionMode for LineTrimmed {
                         if index == CharIndex(0) {
                             return Ok(None);
                         } else {
-                            index = index - 1
+                            index = index - 1;
                         }
                     } else {
                         break index;
@@ -503,7 +503,7 @@ impl PositionBasedSelectionMode for LineTrimmed {
             } else if line_index == 0 {
                 break;
             } else {
-                line_index -= 1
+                line_index -= 1;
             }
         }
         Ok(None)
@@ -534,7 +534,7 @@ fn get_line(
                     } else if index.0 == len_chars {
                         return Ok(None);
                     } else {
-                        index = index + 1
+                        index = index + 1;
                     }
                 }
             }
@@ -547,7 +547,7 @@ fn get_line(
                     } else if index.0 == 0 {
                         return Ok(None);
                     } else {
-                        index = index - 1
+                        index = index - 1;
                     }
                 }
             }

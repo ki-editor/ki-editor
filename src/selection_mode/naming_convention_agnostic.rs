@@ -107,6 +107,6 @@ mod test_naming_convention_agnostic {
             ],
         );
         let replaced = selection_mode.replace_all(&buffer.content(), "cha dako".to_string());
-        assert_eq!(replaced, "ChaDako chaDako cha-dako cha_dako Cha Dako CHA DAKO cha dako CHA-DAKO CHA_DAKO Cha-Dako")
+        assert_eq!(replaced, "ChaDako chaDako cha-dako cha_dako Cha Dako CHA DAKO cha dako CHA-DAKO CHA_DAKO Cha-Dako");
     }
 }
