@@ -13,6 +13,7 @@ use crate::{
         suggestive_editor::Info,
     },
     position::Position,
+    thread::Callback,
 };
 use shared::absolute_path::AbsolutePath;
 
@@ -124,6 +125,7 @@ impl QuickfixList {
         QuickfixList {
             dropdown: Dropdown::new(DropdownConfig {
                 title: String::default(),
+                notify_nucleo_tick: Callback::no_op(),
             }),
             items: Vec::default(),
             title: String::default(),

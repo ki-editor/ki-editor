@@ -52,7 +52,6 @@ pub struct Prompt {
     on_enter: PromptOnEnter,
     on_change: Option<PromptOnChangeDispatch>,
     on_cancelled: Option<Dispatches>,
-    matcher: Option<PromptMatcher>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -127,11 +126,12 @@ struct PromptContext {
     current_line: String,
 }
 
-struct PromptMatcher {
+pub struct PromptMatcher {
     nucleo: nucleo::Nucleo<DropdownItem>,
 }
+
 impl PromptMatcher {
-    fn reparse(&mut self, filter: &str) {
+    pub fn reparse(&mut self, filter: &str) {
         self.nucleo.pattern.reparse(
             0,
             filter,
@@ -141,7 +141,7 @@ impl PromptMatcher {
         );
     }
 
-    fn handle_nucleo_updated(&mut self, viewport_height: usize) -> Vec<DropdownItem> {
+    pub fn handle_nucleo_updated(&mut self, viewport_height: usize) -> Vec<DropdownItem> {
         let nucleo = &mut self.nucleo;
 
         nucleo.tick(10);
@@ -160,15 +160,28 @@ impl PromptMatcher {
             .collect_vec()
     }
 
-    fn new(task: PromptItemsBackgroundTask, notify: Callback<()>) -> Self {
+    pub fn new(notify: Callback<()>) -> Self {
+        let debounced_notify = crate::thread::debounce(
+            notify,
+            Duration::from_millis(1000 / 30), // 30 FPS
+        );
+
         let nucleo = nucleo::Nucleo::new(
             nucleo::Config::DEFAULT,
-            Arc::new(move || notify.call(())),
+            Arc::new(move || debounced_notify.call(())),
             None,
             1,
         );
-        task.execute(nucleo.injector());
+
         PromptMatcher { nucleo }
+    }
+
+    pub fn injector(&self) -> nucleo::Injector<DropdownItem> {
+        self.nucleo.injector()
+    }
+
+    pub fn clear(&mut self) {
+        self.nucleo.restart(false)
     }
 }
 
@@ -233,7 +246,6 @@ pub enum PromptItems {
     Precomputed(Vec<DropdownItem>),
     BackgroundTask {
         task: PromptItemsBackgroundTask,
-        on_nucleo_tick_debounced: Callback<()>,
     },
 }
 
@@ -243,7 +255,7 @@ pub enum PromptItemsBackgroundTask {
     HandledByMainEventLoop,
 }
 impl PromptItemsBackgroundTask {
-    fn execute(self, injector: nucleo::Injector<DropdownItem>) {
+    fn execute(self, injector: Callback<DropdownItem>) {
         match self {
             PromptItemsBackgroundTask::NonGitIgnoredFiles { working_directory } => {
                 std::thread::spawn(move || {
@@ -251,11 +263,7 @@ impl PromptItemsBackgroundTask {
                         working_directory.to_path_buf().clone(),
                         Arc::new(move |path_buf| {
                             let item = DropdownItem::from_path_buf(&working_directory, path_buf);
-                            injector.push(item, |item, columns| {
-                                let group = item.group().clone().unwrap_or_default();
-                                let display = item.display().clone();
-                                columns[0] = format!("{group} {display}").into();
-                            });
+                            injector.call(item);
                         }),
                     );
                 });
@@ -296,7 +304,11 @@ pub enum PromptHistoryKey {
 }
 
 impl Prompt {
-    pub fn new(config: PromptConfig, context: &Context) -> (Self, Dispatches) {
+    pub fn new(
+        config: PromptConfig,
+        context: &Context,
+        on_nucleo_tick_debounced: Callback<()>,
+    ) -> (Self, Dispatches) {
         let (text, leaves_current_line_empty, has_multiple_lines) = match &config.on_enter {
             PromptOnEnter::ParseCurrentLine {
                 history_key,
@@ -328,6 +340,7 @@ impl Prompt {
         let mut editor = SuggestiveEditor::from_buffer(
             Rc::new(RefCell::new(Buffer::new(None, &text))),
             SuggestiveEditorFilter::CurrentLine,
+            on_nucleo_tick_debounced,
         );
         let dispatches = if leaves_current_line_empty {
             Dispatches::one(Dispatch::ToEditor(DispatchEditor::MoveToLastChar))
@@ -359,24 +372,12 @@ impl Prompt {
         });
         let dispatches = dispatches.chain(editor.render_completion_dropdown(true));
 
-        let matcher = if let PromptOnEnter::SelectsFirstMatchingItem {
-            items:
-                PromptItems::BackgroundTask {
-                    task,
-                    on_nucleo_tick_debounced,
-                },
+        if let PromptOnEnter::SelectsFirstMatchingItem {
+            items: PromptItems::BackgroundTask { task },
         } = &config.on_enter
         {
-            let debounce = crate::thread::debounce(
-                on_nucleo_tick_debounced.clone(),
-                Duration::from_millis(1000 / 30), // 30 FPS
-            );
-
-            let matcher = PromptMatcher::new(task.clone(), debounce);
-            Some(matcher)
-        } else {
-            None
-        };
+            task.to_owned().execute(editor.injector());
+        }
 
         (
             Prompt {
@@ -384,7 +385,6 @@ impl Prompt {
                 on_enter: config.on_enter,
                 on_cancelled: config.on_cancelled,
                 on_change: config.on_change,
-                matcher,
             },
             dispatches,
         )
@@ -407,43 +407,15 @@ impl Prompt {
         }
     }
 
-    pub fn render_completion_dropdown(&self) -> Dispatches {
-        self.editor.render_completion_dropdown(true)
-    }
-
     pub fn handle_nucleo_updated(&mut self, viewport_height: usize) -> Dispatches {
-        let Some(matcher) = self.matcher.as_mut() else {
-            return Dispatches::default();
-        };
-
-        let items = matcher.handle_nucleo_updated(viewport_height);
-
-        self.editor.update_items(items);
-
-        self.render_completion_dropdown()
-    }
-
-    pub fn reparse_pattern(&mut self, filter: &str) {
-        if let Some(matcher) = self.matcher.as_mut() {
-            matcher.reparse(filter);
-        }
+        self.editor.handle_nucleo_updated(viewport_height)
     }
 
     pub fn clear_and_update_matcher_items(&mut self, items: Vec<DropdownItem>) {
-        let Some(matcher) = self.matcher.as_mut() else {
-            return Default::default();
-        };
-
-        matcher.nucleo.restart(true);
-
-        let injector = matcher.nucleo.injector();
-        for item in items {
-            injector.push(item, |item, columns| {
-                let group = item.group().clone().unwrap_or_default();
-                let display = item.display().clone();
-                columns[0] = format!("{group} {display}").into();
-            });
-        }
+        self.editor.set_completion(Completion {
+            items,
+            trigger_characters: vec![" ".to_string()],
+        });
     }
 
     pub fn get_on_change_dispatches(&self) -> Dispatches {
