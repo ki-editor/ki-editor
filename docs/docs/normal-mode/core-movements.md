@@ -97,7 +97,7 @@ It allows you to jump to your desired position (as long as it is within the scre
 It works like this:
 
 1. Choose your selection mode
-1. Press `;`
+1. Press `m`
 1. Press the first letter of the selection that you want to jump to.
 1. Press the letter that appears on top of the selection.
 1. Done.
