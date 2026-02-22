@@ -141,7 +141,7 @@ impl PromptMatcher {
         );
     }
 
-    pub fn handle_nucleo_updated(&mut self, viewport_height: usize) -> Vec<DropdownItem> {
+    pub fn handle_nucleo_notify(&mut self) -> Vec<DropdownItem> {
         let nucleo = &mut self.nucleo;
 
         nucleo.tick(10);
@@ -151,10 +151,12 @@ impl PromptMatcher {
         //   we'll leave it as 0 for now since it is already working well
         let scroll_offset = 0;
 
+        const MAX_ITEMS_SHOWN: usize = 50;
+
         snapshot
             .matched_items(
                 scroll_offset as u32
-                    ..viewport_height.min(snapshot.matched_item_count() as usize) as u32,
+                    ..MAX_ITEMS_SHOWN.min(snapshot.matched_item_count() as usize) as u32,
             )
             .map(|item| item.data.clone())
             .collect_vec()
@@ -407,8 +409,8 @@ impl Prompt {
         }
     }
 
-    pub fn handle_nucleo_updated(&mut self, viewport_height: usize) -> Dispatches {
-        self.editor.handle_nucleo_updated(viewport_height)
+    pub fn handle_nucleo_notify(&mut self) -> Dispatches {
+        self.editor.handle_nucleo_notify()
     }
 
     pub fn clear_and_update_matcher_items(&mut self, items: Vec<DropdownItem>) {

@@ -30,7 +30,7 @@ pub use Movement::*;
 pub use SelectionMode::*;
 
 use crate::{
-    app::StatusLine,
+    app::{NucleoSource, StatusLine},
     lsp::process::ResponseContext,
     scripting::{ScriptInput, ScriptOutput},
     selection_mode::GetGapMovement,
@@ -100,6 +100,7 @@ pub enum Step {
     /// necessary for testing async features like Global Search
     WaitForAppMessage(&'static lazy_regex::Lazy<regex::Regex>),
     WaitForDuration(Duration),
+    HandleNucleoNotify(NucleoSource),
 }
 
 impl Step {
@@ -116,6 +117,7 @@ impl Step {
             WaitForAppMessage(regex) => format!("WaitForAppMessage({regex:?})"),
             Shell(command, args) => format!("Shell: {command} {}", args.join(" ")),
             WaitForDuration(duration) => format!("Wait for duration {duration:?}"),
+            HandleNucleoNotify(source) => format!("HandleNucleoNotify({source:?})"),
         }
     }
 }
@@ -866,6 +868,8 @@ fn execute_test_helper(
                     log(output);
                 }
                 WaitForDuration(duration) => std::thread::sleep(*duration),
+
+                HandleNucleoNotify(source) => app.handle_nucleo_notify(*source)?,
             };
         }
 
@@ -3405,6 +3409,7 @@ fn using_suggested_search_term() -> anyhow::Result<()> {
                 scope: Scope::Local,
                 if_current_not_found: IfCurrentNotFound::LookForward,
             }),
+            HandleNucleoNotify(NucleoSource::Prompt),
             Expect(CompletionDropdownContent("bar\nfoo\nspam")),
             App(HandleKeyEvents(keys!("f o alt+x").to_vec())),
             Expect(CurrentComponentContent("foo")),

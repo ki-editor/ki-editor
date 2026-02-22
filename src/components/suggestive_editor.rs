@@ -138,13 +138,13 @@ impl SuggestiveEditor {
     pub fn from_buffer(
         buffer: Rc<RefCell<Buffer>>,
         filter: SuggestiveEditorFilter,
-        notify_nucleo_updated: Callback<()>,
+        on_nucleo_notify: Callback<()>,
     ) -> Self {
         Self {
             editor: Editor::from_buffer(buffer),
             completion_dropdown: Dropdown::new(DropdownConfig {
                 title: "Completion".to_string(),
-                notify_nucleo_tick: notify_nucleo_updated,
+                on_nucleo_notify,
             }),
             trigger_characters: vec![],
             filter,
@@ -251,6 +251,7 @@ impl SuggestiveEditor {
         };
 
         self.completion_dropdown.set_filter(&filter);
+        self.completion_dropdown.handle_nucleo_notify();
 
         Ok(self.render_completion_dropdown(false))
     }
@@ -291,11 +292,9 @@ impl SuggestiveEditor {
         self.editor_mut().update_current_line(context, display)
     }
 
-    pub fn handle_nucleo_updated(&mut self, viewport_height: usize) -> Dispatches {
+    pub fn handle_nucleo_notify(&mut self) -> Dispatches {
         Dispatches::one(Dispatch::RenderDropdown {
-            render: self
-                .completion_dropdown
-                .handle_nucleo_updated(viewport_height),
+            render: self.completion_dropdown.handle_nucleo_notify(),
         })
     }
 

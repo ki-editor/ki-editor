@@ -125,7 +125,7 @@ impl QuickfixList {
         QuickfixList {
             dropdown: Dropdown::new(DropdownConfig {
                 title: String::default(),
-                notify_nucleo_tick: Callback::no_op(),
+                on_nucleo_notify: Callback::no_op(),
             }),
             items: Vec::default(),
             title: String::default(),

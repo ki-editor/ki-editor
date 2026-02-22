@@ -339,8 +339,8 @@ impl<T: Frontend> App<T> {
                 self.handle_dispatch(*dispatch)?;
                 Ok(false)
             }
-            AppMessage::NucleoTickDebounced(source) => {
-                self.handle_nucleo_debounced(source)?;
+            AppMessage::HandleNucleoNotify(source) => {
+                self.handle_nucleo_notify(source)?;
                 Ok(false)
             }
             AppMessage::FileWatcherEvent(event) => {
@@ -1069,7 +1069,10 @@ impl<T: Frontend> App<T> {
                 }
             }
             #[cfg(test)]
-            Dispatch::OpenPrompt { config } => self.open_prompt(config)?,
+            Dispatch::OpenPrompt { config } => {
+                self.open_prompt(config)?;
+                self.handle_nucleo_notify(NucleoSource::Prompt)?
+            }
             Dispatch::ShowEditorInfo(info) => self.show_editor_info(info)?,
             Dispatch::ReceiveCodeActions(code_actions) => {
                 self.open_code_actions_picker(code_actions)?;
@@ -1513,7 +1516,7 @@ impl<T: Frontend> App<T> {
         let editor = SuggestiveEditor::from_buffer(
             buffer,
             SuggestiveEditorFilter::CurrentWord,
-            self.on_nucleo_tick_debounced(NucleoSource::SuggestiveEditor),
+            self.on_nucleo_notify(NucleoSource::SuggestiveEditor),
         );
         let component_id = editor.id();
         let component = Rc::new(RefCell::new(editor));
@@ -2386,6 +2389,7 @@ impl<T: Frontend> App<T> {
         self.layout.completion_dropdown_is_open()
     }
 
+    #[cfg(test)]
     pub fn current_completion_dropdown(&self) -> Option<Rc<RefCell<dyn Component>>> {
         self.layout.current_completion_dropdown()
     }
@@ -2415,7 +2419,7 @@ impl<T: Frontend> App<T> {
         let (prompt, dispatches) = Prompt::new(
             prompt_config,
             &self.context,
-            self.on_nucleo_tick_debounced(NucleoSource::Prompt),
+            self.on_nucleo_notify(NucleoSource::Prompt),
         );
 
         self.layout.add_and_focus_prompt(
@@ -3005,15 +3009,10 @@ impl<T: Frontend> App<T> {
         self.lsp_manager().lsp_server_initialized_args()
     }
 
-    fn handle_nucleo_debounced(&mut self, source: NucleoSource) -> Result<(), anyhow::Error> {
+    pub fn handle_nucleo_notify(&mut self, source: NucleoSource) -> Result<(), anyhow::Error> {
         let dispatches = {
             let component = self.layout.get_current_component();
             let mut component_mut = component.borrow_mut();
-
-            let viewport_height = self
-                .current_completion_dropdown()
-                .map(|component| component.borrow().rectangle().height)
-                .unwrap_or(10);
 
             match source {
                 NucleoSource::Prompt => {
@@ -3021,7 +3020,7 @@ impl<T: Frontend> App<T> {
                         return Ok(());
                     };
 
-                    prompt.handle_nucleo_updated(viewport_height)
+                    prompt.handle_nucleo_notify()
                 }
                 NucleoSource::SuggestiveEditor => {
                     let Some(suggestive_editor) = component_mut
@@ -3031,7 +3030,7 @@ impl<T: Frontend> App<T> {
                         return Ok(());
                     };
 
-                    suggestive_editor.handle_nucleo_updated(viewport_height)
+                    suggestive_editor.handle_nucleo_notify()
                 }
             }
         };
@@ -3424,10 +3423,10 @@ Conflict markers will be injected in areas that cannot be merged gracefully."
         self.context.quickfix_list()
     }
 
-    fn on_nucleo_tick_debounced(&self, source: NucleoSource) -> Callback<()> {
+    fn on_nucleo_notify(&self, source: NucleoSource) -> Callback<()> {
         let sender = self.sender.clone();
         Callback::new(Arc::new(move |_| {
-            let _ = sender.send(AppMessage::NucleoTickDebounced(source));
+            let _ = sender.send(AppMessage::HandleNucleoNotify(source));
         }))
     }
 }
@@ -3831,7 +3830,7 @@ pub enum AppMessage {
     // New variant for external dispatches
     NotifyError(std::io::Error),
     ExternalDispatch(Box<Dispatch>),
-    NucleoTickDebounced(NucleoSource),
+    HandleNucleoNotify(NucleoSource),
     FileWatcherEvent(FileWatcherEvent),
     GlobalSearchFinished,
 }
