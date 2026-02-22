@@ -1,17 +1,13 @@
-use std::{cmp::Reverse, ops::Range, sync::Arc};
+use std::{cmp::Reverse, ops::Range, sync::Arc, time::Duration};
 
 use crate::{
-    app::Dispatches,
-    buffer::BufferOwner,
-    components::{editor::Movement, prompt::PromptMatcher},
-    grid::StyleKey,
-    position::Position,
-    selection_range::SelectionRange,
-    thread::Callback,
+    app::Dispatches, buffer::BufferOwner, components::editor::Movement, grid::StyleKey,
+    position::Position, selection_range::SelectionRange, thread::Callback,
 };
 
 use itertools::Itertools;
 
+use nucleo::pattern::{CaseMatching, Normalization};
 use nucleo_matcher::Utf32Str;
 use shared::{absolute_path::AbsolutePath, icons::get_icon_config};
 
@@ -474,7 +470,6 @@ impl Dropdown {
         self.current_item_index = 0;
         self.compute_filtered_items();
         self.matcher.reparse(filter);
-        // self.handle_nucleo_updated();
     }
 
     pub fn render(&self) -> DropdownRender {
@@ -739,6 +734,67 @@ impl Dropdown {
                 columns[0] = format!("{group} {display}").into();
             });
         }))
+    }
+}
+
+struct PromptMatcher {
+    nucleo: nucleo::Nucleo<DropdownItem>,
+}
+
+impl PromptMatcher {
+    fn reparse(&mut self, filter: &str) {
+        self.nucleo.pattern.reparse(
+            0,
+            filter,
+            CaseMatching::default(),
+            Normalization::default(),
+            false,
+        );
+    }
+
+    fn handle_nucleo_notify(&mut self) -> Vec<DropdownItem> {
+        let nucleo = &mut self.nucleo;
+
+        nucleo.tick(10);
+        let snapshot = nucleo.snapshot();
+
+        // TODO: we should pass in the scroll_offset of the completion menu
+        //   we'll leave it as 0 for now since it is already working well
+        let scroll_offset = 0;
+
+        const MAX_ITEMS_SHOWN: usize = 50;
+
+        snapshot
+            .matched_items(
+                scroll_offset as u32
+                    ..MAX_ITEMS_SHOWN.min(snapshot.matched_item_count() as usize) as u32,
+            )
+            .map(|item| item.data.clone())
+            .collect_vec()
+    }
+
+    fn new(notify: Callback<()>) -> Self {
+        let debounced_notify = crate::thread::debounce(
+            notify,
+            Duration::from_millis(1000 / 30), // 30 FPS
+        );
+
+        let nucleo = nucleo::Nucleo::new(
+            nucleo::Config::DEFAULT,
+            Arc::new(move || debounced_notify.call(())),
+            None,
+            1,
+        );
+
+        PromptMatcher { nucleo }
+    }
+
+    fn injector(&self) -> nucleo::Injector<DropdownItem> {
+        self.nucleo.injector()
+    }
+
+    fn clear(&mut self) {
+        self.nucleo.restart(false);
     }
 }
 

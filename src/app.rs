@@ -1071,7 +1071,7 @@ impl<T: Frontend> App<T> {
             #[cfg(test)]
             Dispatch::OpenPrompt { config } => {
                 self.open_prompt(config)?;
-                self.handle_nucleo_notify(NucleoSource::Prompt)?
+                self.handle_nucleo_notify(NucleoSource::Prompt)?;
             }
             Dispatch::ShowEditorInfo(info) => self.show_editor_info(info)?,
             Dispatch::ReceiveCodeActions(code_actions) => {

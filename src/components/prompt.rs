@@ -3,12 +3,10 @@ use std::{
     path::{Path, PathBuf},
     rc::Rc,
     sync::Arc,
-    time::Duration,
 };
 
 use itertools::Itertools;
 use my_proc_macros::key;
-use nucleo::pattern::{CaseMatching, Normalization};
 use shared::absolute_path::AbsolutePath;
 
 use crate::{
@@ -124,67 +122,6 @@ fn get_child_directories(path: &Path) -> anyhow::Result<Vec<AbsolutePath>> {
 
 struct PromptContext {
     current_line: String,
-}
-
-pub struct PromptMatcher {
-    nucleo: nucleo::Nucleo<DropdownItem>,
-}
-
-impl PromptMatcher {
-    pub fn reparse(&mut self, filter: &str) {
-        self.nucleo.pattern.reparse(
-            0,
-            filter,
-            CaseMatching::default(),
-            Normalization::default(),
-            false,
-        );
-    }
-
-    pub fn handle_nucleo_notify(&mut self) -> Vec<DropdownItem> {
-        let nucleo = &mut self.nucleo;
-
-        nucleo.tick(10);
-        let snapshot = nucleo.snapshot();
-
-        // TODO: we should pass in the scroll_offset of the completion menu
-        //   we'll leave it as 0 for now since it is already working well
-        let scroll_offset = 0;
-
-        const MAX_ITEMS_SHOWN: usize = 50;
-
-        snapshot
-            .matched_items(
-                scroll_offset as u32
-                    ..MAX_ITEMS_SHOWN.min(snapshot.matched_item_count() as usize) as u32,
-            )
-            .map(|item| item.data.clone())
-            .collect_vec()
-    }
-
-    pub fn new(notify: Callback<()>) -> Self {
-        let debounced_notify = crate::thread::debounce(
-            notify,
-            Duration::from_millis(1000 / 30), // 30 FPS
-        );
-
-        let nucleo = nucleo::Nucleo::new(
-            nucleo::Config::DEFAULT,
-            Arc::new(move || debounced_notify.call(())),
-            None,
-            1,
-        );
-
-        PromptMatcher { nucleo }
-    }
-
-    pub fn injector(&self) -> nucleo::Injector<DropdownItem> {
-        self.nucleo.injector()
-    }
-
-    pub fn clear(&mut self) {
-        self.nucleo.restart(false)
-    }
 }
 
 #[derive(Clone, PartialEq)]
