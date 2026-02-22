@@ -2,6 +2,7 @@ use crate::app::{Dispatch, Dispatches};
 use crate::context::{Context, GlobalMode};
 use crate::grid::StyleKey;
 use crate::selection::SelectionMode;
+use crate::thread::Callback;
 use crossterm::event::KeyEventKind;
 use DispatchEditor::*;
 
@@ -134,11 +135,16 @@ impl Component for SuggestiveEditor {
 }
 
 impl SuggestiveEditor {
-    pub fn from_buffer(buffer: Rc<RefCell<Buffer>>, filter: SuggestiveEditorFilter) -> Self {
+    pub fn from_buffer(
+        buffer: Rc<RefCell<Buffer>>,
+        filter: SuggestiveEditorFilter,
+        notify_nucleo_updated: Callback<()>,
+    ) -> Self {
         Self {
             editor: Editor::from_buffer(buffer),
             completion_dropdown: Dropdown::new(DropdownConfig {
                 title: "Completion".to_string(),
+                notify_nucleo_tick: notify_nucleo_updated,
             }),
             trigger_characters: vec![],
             filter,
@@ -186,7 +192,7 @@ impl SuggestiveEditor {
     }
 
     pub fn set_completion(&mut self, completion: Completion) {
-        self.completion_dropdown.set_items(completion.items);
+        self.completion_dropdown.inject_items(completion.items);
         self.trigger_characters = completion.trigger_characters;
     }
 
@@ -246,8 +252,7 @@ impl SuggestiveEditor {
 
         self.completion_dropdown.set_filter(&filter);
 
-        let render_completion_dropdown = self.render_completion_dropdown(false);
-        Ok(render_completion_dropdown.append(Dispatch::DropdownFilterUpdated(filter)))
+        Ok(self.render_completion_dropdown(false))
     }
 
     fn update_current_completion_item(&mut self, completion_item: CompletionItem) -> Dispatches {
@@ -286,8 +291,16 @@ impl SuggestiveEditor {
         self.editor_mut().update_current_line(context, display)
     }
 
-    pub fn update_items(&mut self, items: Vec<DropdownItem>) {
-        self.completion_dropdown.set_items(items)
+    pub fn handle_nucleo_updated(&mut self, viewport_height: usize) -> Dispatches {
+        Dispatches::one(Dispatch::RenderDropdown {
+            render: self
+                .completion_dropdown
+                .handle_nucleo_updated(viewport_height),
+        })
+    }
+
+    pub fn injector(&self) -> Callback<DropdownItem> {
+        self.completion_dropdown.injector()
     }
 }
 
@@ -311,6 +324,7 @@ mod test_suggestive_editor {
     use crate::lsp::documentation::Documentation;
     use crate::position::Position;
     use crate::selection::SelectionMode;
+    use crate::thread::Callback;
     use crate::ui_tree::ComponentKind;
     use crate::{
         app::Dispatch,
@@ -346,7 +360,11 @@ mod test_suggestive_editor {
     }
 
     fn editor(filter: SuggestiveEditorFilter) -> SuggestiveEditor {
-        SuggestiveEditor::from_buffer(Rc::new(RefCell::new(Buffer::new(None, ""))), filter)
+        SuggestiveEditor::from_buffer(
+            Rc::new(RefCell::new(Buffer::new(None, ""))),
+            filter,
+            Callback::no_op(),
+        )
     }
 
     #[test]

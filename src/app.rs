@@ -339,8 +339,8 @@ impl<T: Frontend> App<T> {
                 self.handle_dispatch(*dispatch)?;
                 Ok(false)
             }
-            AppMessage::NucleoTickDebounced => {
-                self.handle_nucleo_debounced()?;
+            AppMessage::NucleoTickDebounced(source) => {
+                self.handle_nucleo_debounced(source)?;
                 Ok(false)
             }
             AppMessage::FileWatcherEvent(event) => {
@@ -1117,9 +1117,6 @@ impl<T: Frontend> App<T> {
                 prior_change,
             } => self.open_search_prompt_with_current_selection(scope, prior_change)?,
             Dispatch::ShowGlobalInfo(info) => self.show_global_info(info),
-            Dispatch::DropdownFilterUpdated(filter) => {
-                self.handle_dropdown_filter_updated(filter)?
-            }
             #[cfg(test)]
             Dispatch::SetSystemClipboardHtml { html, alt_text } => {
                 self.set_system_clipboard_html(html, alt_text)?
@@ -1448,12 +1445,6 @@ impl<T: Frontend> App<T> {
         let items = match kind {
             FilePickerKind::NonGitIgnored => PromptItems::BackgroundTask {
                 task: PromptItemsBackgroundTask::NonGitIgnoredFiles { working_directory },
-                on_nucleo_tick_debounced: {
-                    let sender = self.sender.clone();
-                    Callback::new(Arc::new(move |_| {
-                        let _ = sender.send(AppMessage::NucleoTickDebounced);
-                    }))
-                },
             },
             FilePickerKind::GitStatus(diff_mode) => PromptItems::Precomputed(
                 git::GitRepo::try_from(self.working_directory())?
@@ -1519,7 +1510,11 @@ impl<T: Frontend> App<T> {
         let content = buffer.content();
         let batch_id = buffer.batch_id().clone();
         let buffer = Rc::new(RefCell::new(buffer));
-        let editor = SuggestiveEditor::from_buffer(buffer, SuggestiveEditorFilter::CurrentWord);
+        let editor = SuggestiveEditor::from_buffer(
+            buffer,
+            SuggestiveEditorFilter::CurrentWord,
+            self.on_nucleo_tick_debounced(NucleoSource::SuggestiveEditor),
+        );
         let component_id = editor.id();
         let component = Rc::new(RefCell::new(editor));
 
@@ -2417,7 +2412,11 @@ impl<T: Frontend> App<T> {
             .editor_mut()
             .initialize_incremental_search_matches();
 
-        let (prompt, dispatches) = Prompt::new(prompt_config, &self.context);
+        let (prompt, dispatches) = Prompt::new(
+            prompt_config,
+            &self.context,
+            self.on_nucleo_tick_debounced(NucleoSource::Prompt),
+        );
 
         self.layout.add_and_focus_prompt(
             ComponentKind::Prompt,
@@ -3006,34 +3005,37 @@ impl<T: Frontend> App<T> {
         self.lsp_manager().lsp_server_initialized_args()
     }
 
-    fn handle_nucleo_debounced(&mut self) -> Result<(), anyhow::Error> {
+    fn handle_nucleo_debounced(&mut self, source: NucleoSource) -> Result<(), anyhow::Error> {
         let dispatches = {
             let component = self.layout.get_current_component();
             let mut component_mut = component.borrow_mut();
-            let Some(prompt) = component_mut.as_any_mut().downcast_mut::<Prompt>() else {
-                return Ok(());
-            };
 
             let viewport_height = self
                 .current_completion_dropdown()
                 .map(|component| component.borrow().rectangle().height)
                 .unwrap_or(10);
 
-            prompt.handle_nucleo_updated(viewport_height)
+            match source {
+                NucleoSource::Prompt => {
+                    let Some(prompt) = component_mut.as_any_mut().downcast_mut::<Prompt>() else {
+                        return Ok(());
+                    };
+
+                    prompt.handle_nucleo_updated(viewport_height)
+                }
+                NucleoSource::SuggestiveEditor => {
+                    let Some(suggestive_editor) = component_mut
+                        .as_any_mut()
+                        .downcast_mut::<SuggestiveEditor>()
+                    else {
+                        return Ok(());
+                    };
+
+                    suggestive_editor.handle_nucleo_updated(viewport_height)
+                }
+            }
         };
         self.handle_dispatches(dispatches)
-    }
-
-    fn handle_dropdown_filter_updated(&mut self, filter: String) -> anyhow::Result<()> {
-        {
-            let component = self.layout.get_current_component();
-            let mut component_mut = component.borrow_mut();
-            let Some(prompt) = component_mut.as_any_mut().downcast_mut::<Prompt>() else {
-                return Ok(());
-            };
-            prompt.reparse_pattern(&filter);
-        }
-        self.handle_nucleo_debounced()
     }
 
     #[cfg(test)]
@@ -3249,12 +3251,6 @@ Conflict markers will be injected in areas that cannot be merged gracefully."
                 PromptOnEnter::SelectsFirstMatchingItem {
                     items: PromptItems::BackgroundTask {
                         task: PromptItemsBackgroundTask::HandledByMainEventLoop,
-                        on_nucleo_tick_debounced: {
-                            let sender = self.sender.clone();
-                            Callback::new(Arc::new(move |_| {
-                                let _ = sender.send(AppMessage::NucleoTickDebounced);
-                            }))
-                        },
                     },
                 },
             )
@@ -3426,6 +3422,13 @@ Conflict markers will be injected in areas that cannot be merged gracefully."
     #[cfg(test)]
     pub(crate) fn quickfix_list(&self) -> &QuickfixList {
         self.context.quickfix_list()
+    }
+
+    fn on_nucleo_tick_debounced(&self, source: NucleoSource) -> Callback<()> {
+        let sender = self.sender.clone();
+        Callback::new(Arc::new(move |_| {
+            let _ = sender.send(AppMessage::NucleoTickDebounced(source));
+        }))
     }
 }
 
@@ -3674,7 +3677,6 @@ pub enum Dispatch {
         prior_change: Option<PriorChange>,
     },
     ShowGlobalInfo(Info),
-    DropdownFilterUpdated(String),
     #[cfg(test)]
     SetSystemClipboardHtml {
         html: &'static str,
@@ -3829,9 +3831,15 @@ pub enum AppMessage {
     // New variant for external dispatches
     NotifyError(std::io::Error),
     ExternalDispatch(Box<Dispatch>),
-    NucleoTickDebounced,
+    NucleoTickDebounced(NucleoSource),
     FileWatcherEvent(FileWatcherEvent),
     GlobalSearchFinished,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum NucleoSource {
+    Prompt,
+    SuggestiveEditor,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

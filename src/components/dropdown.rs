@@ -1,8 +1,13 @@
-use std::{cmp::Reverse, ops::Range};
+use std::{cmp::Reverse, ops::Range, sync::Arc};
 
 use crate::{
-    app::Dispatches, buffer::BufferOwner, components::editor::Movement, grid::StyleKey,
-    position::Position, selection_range::SelectionRange,
+    app::Dispatches,
+    buffer::BufferOwner,
+    components::{editor::Movement, prompt::PromptMatcher},
+    grid::StyleKey,
+    position::Position,
+    selection_range::SelectionRange,
+    thread::Callback,
 };
 
 use itertools::Itertools;
@@ -160,10 +165,12 @@ pub struct Dropdown {
     items: Vec<DropdownItem>,
     filtered_item_groups: Vec<FilteredDropdownItemGroup>,
     current_item_index: usize,
+    matcher: PromptMatcher,
 }
 
 pub struct DropdownConfig {
     pub title: String,
+    pub notify_nucleo_tick: Callback<()>,
 }
 
 impl Dropdown {
@@ -174,6 +181,7 @@ impl Dropdown {
             filtered_item_groups: vec![],
             current_item_index: 0,
             title: config.title,
+            matcher: PromptMatcher::new(config.notify_nucleo_tick),
         }
     }
 
@@ -461,9 +469,12 @@ impl Dropdown {
         if filter == self.filter {
             return;
         }
+
         self.filter = filter.to_string();
         self.current_item_index = 0;
         self.compute_filtered_items();
+        self.matcher.reparse(filter);
+        self.handle_nucleo_updated(50);
     }
 
     pub fn render(&self) -> DropdownRender {
@@ -699,6 +710,35 @@ impl Dropdown {
     pub(crate) fn items_count(&self) -> usize {
         self.items.len()
     }
+
+    pub fn handle_nucleo_updated(&mut self, viewport_height: usize) -> DropdownRender {
+        let items = self.matcher.handle_nucleo_updated(viewport_height);
+
+        self.set_items(items);
+
+        self.render()
+    }
+
+    pub fn inject_items(&mut self, items: Vec<DropdownItem>) {
+        let matcher = &mut self.matcher;
+        matcher.clear();
+
+        let injector = self.injector();
+        for item in items {
+            injector.call(item);
+        }
+    }
+
+    pub fn injector(&self) -> Callback<DropdownItem> {
+        let injector = self.matcher.injector();
+        Callback::new(Arc::new(move |item| {
+            injector.push(item, |item, columns| {
+                let group = item.group().clone().unwrap_or_default();
+                let display = item.display().clone();
+                columns[0] = format!("{group} {display}").into();
+            });
+        }))
+    }
 }
 
 #[cfg(test)]
@@ -713,6 +753,7 @@ mod test_dropdown {
         },
         position::Position,
         selection_range::SelectionRange,
+        thread::Callback,
     };
     #[derive(Debug, Clone, PartialEq, Eq)]
     struct Item {
@@ -757,6 +798,7 @@ mod test_dropdown {
             .collect_vec();
         let mut dropdown = Dropdown::new(DropdownConfig {
             title: "test".to_string(),
+            notify_nucleo_tick: Callback::no_op(),
         });
         dropdown.set_items(items.clone());
         dropdown.set_filter("off");
@@ -777,6 +819,7 @@ mod test_dropdown {
             .collect_vec();
         let mut dropdown = Dropdown::new(DropdownConfig {
             title: "test".to_string(),
+            notify_nucleo_tick: Callback::no_op(),
         });
         dropdown.set_items(items.clone());
         dropdown.set_filter("off");
@@ -792,6 +835,7 @@ mod test_dropdown {
     fn fuzzy_match_chars_decorations_more_than_one_items() {
         let mut dropdown = Dropdown::new(DropdownConfig {
             title: "test".to_string(),
+            notify_nucleo_tick: Callback::no_op(),
         });
         dropdown.set_items(
             ["bytes_offset".to_string(), "len_bytes".to_string()]
@@ -829,6 +873,7 @@ mod test_dropdown {
     fn fuzzy_match_chars_decorations_multiple_search_terms() {
         let mut dropdown = Dropdown::new(DropdownConfig {
             title: "test".to_string(),
+            notify_nucleo_tick: Callback::no_op(),
         });
         dropdown.set_items(
             ["bytes_offset".to_string()]
@@ -857,6 +902,7 @@ mod test_dropdown {
     fn fuzzy_match_chars_decorations_highlight_group() {
         let mut dropdown = Dropdown::new(DropdownConfig {
             title: "test".to_string(),
+            notify_nucleo_tick: Callback::no_op(),
         });
         dropdown.set_items(
             [Item::new("my_item", "", "group")]
@@ -893,6 +939,7 @@ mod test_dropdown {
     fn test_next_prev_group() {
         let mut dropdown = Dropdown::new(DropdownConfig {
             title: "test".to_string(),
+            notify_nucleo_tick: Callback::no_op(),
         });
         let item_a = Item::new("a", "", "1");
         dropdown.set_items(
@@ -941,6 +988,7 @@ mod test_dropdown {
     fn test_dropdown_without_group() -> anyhow::Result<()> {
         let mut dropdown = Dropdown::new(DropdownConfig {
             title: "test".to_string(),
+            notify_nucleo_tick: Callback::no_op(),
         });
         dropdown.set_items(
             vec!["a".to_string(), "b".to_string(), "c".to_string()]
@@ -999,6 +1047,7 @@ mod test_dropdown {
     fn filter_should_work_regardless_of_case() -> anyhow::Result<()> {
         let mut dropdown = Dropdown::new(DropdownConfig {
             title: "test".to_string(),
+            notify_nucleo_tick: Callback::no_op(),
         });
         dropdown.set_items(
             vec!["a".to_string(), "b".to_string(), "c".to_string()]
@@ -1015,6 +1064,7 @@ mod test_dropdown {
     fn setting_filter_should_show_info_of_the_new_first_item() -> anyhow::Result<()> {
         let mut dropdown = Dropdown::new(DropdownConfig {
             title: "test".to_string(),
+            notify_nucleo_tick: Callback::no_op(),
         });
         dropdown.set_items(
             vec![
@@ -1044,6 +1094,7 @@ mod test_dropdown {
     fn items_sorting() -> anyhow::Result<()> {
         let mut dropdown = Dropdown::new(DropdownConfig {
             title: "test".to_string(),
+            notify_nucleo_tick: Callback::no_op(),
         });
         let items = [
             Item::new("test_redditor", "", "z"),
@@ -1119,6 +1170,7 @@ mod test_dropdown {
     fn filtered_item_index_should_tally_with_their_order(items: DropdownItems) -> bool {
         let mut dropdown = Dropdown::new(DropdownConfig {
             title: "hello".to_string(),
+            notify_nucleo_tick: Callback::no_op(),
         });
         dropdown.set_items(items.0);
         let indices = dropdown
