@@ -753,23 +753,12 @@ impl BackgroundFuzzyMatcher {
         }
     }
 
-    fn nucleo(&mut self) -> &mut nucleo::Nucleo<DropdownItem> {
-        self.nucleo.get_or_insert_with(|| {
-            let debounced = crate::thread::debounce(
-                self.notify.clone(),
-                Duration::from_millis(1000 / 30), // 30 FPS
-            );
-            nucleo::Nucleo::new(
-                nucleo::Config::DEFAULT,
-                Arc::new(move || debounced.call(())),
-                None,
-                1,
-            )
-        })
-    }
-
     fn reparse(&mut self, filter: &str) {
-        self.nucleo().pattern.reparse(
+        let Some(nucleo) = self.nucleo.as_mut() else {
+            return;
+        };
+
+        nucleo.pattern.reparse(
             0,
             filter,
             CaseMatching::default(),
@@ -779,7 +768,9 @@ impl BackgroundFuzzyMatcher {
     }
 
     fn handle_nucleo_notify(&mut self) -> Vec<DropdownItem> {
-        let nucleo = self.nucleo();
+        let Some(nucleo) = self.nucleo.as_mut() else {
+            return Vec::default();
+        };
 
         nucleo.tick(10);
         let snapshot = nucleo.snapshot();
@@ -800,14 +791,31 @@ impl BackgroundFuzzyMatcher {
     }
 
     fn injector(&mut self) -> nucleo::Injector<DropdownItem> {
-        self.nucleo().injector()
+        // We only initialize nucleo when this method (`injector`) is called,
+        // so that we can avoid unnecessary thread allocations.
+        // Read more at the docs of `BackgroundFuzzyMather::nucleo`
+        let nucleo = self.nucleo.get_or_insert_with(|| {
+            let debounced = crate::thread::debounce(
+                self.notify.clone(),
+                Duration::from_millis(1000 / 30), // 30 Hz
+            );
+            nucleo::Nucleo::new(
+                nucleo::Config::DEFAULT,
+                Arc::new(move || debounced.call(())),
+                None,
+                1,
+            )
+        });
+
+        nucleo.injector()
     }
 
     fn clear(&mut self) {
-        // Only restart if nucleo has been initialized — no point initializing it just to clear it
-        if let Some(nucleo) = &mut self.nucleo {
-            nucleo.restart(false);
-        }
+        let Some(nucleo) = self.nucleo.as_mut() else {
+            return;
+        };
+
+        nucleo.restart(false);
     }
 }
 
