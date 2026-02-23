@@ -191,6 +191,7 @@ impl SuggestiveEditor {
 
     pub fn set_completion(&mut self, completion: Completion) {
         self.completion_dropdown.inject_items(completion.items);
+        self.completion_dropdown.handle_nucleo_notify();
         self.trigger_characters = completion.trigger_characters;
     }
 
@@ -273,7 +274,7 @@ impl SuggestiveEditor {
     fn select_completion_item(&mut self) -> Result<Dispatches, anyhow::Error> {
         let current_item = self.completion_dropdown.current_item();
         if let Some(completion) = current_item {
-            self.completion_dropdown.set_items(Vec::new());
+            self.completion_dropdown.clear();
             Ok(Dispatches::one(Dispatch::CloseDropdown).chain(completion.dispatches))
         } else {
             Ok(Dispatches::default())

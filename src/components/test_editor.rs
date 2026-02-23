@@ -1,4 +1,4 @@
-use crate::app::{Dimension, LocalSearchConfigUpdate, NucleoSource, Scope};
+use crate::app::{Dimension, LocalSearchConfigUpdate, Scope};
 use crate::buffer::BufferOwner;
 use crate::char_index_range::CharIndexRange;
 use crate::clipboard::Texts;
@@ -5579,7 +5579,6 @@ fn save_conflict_resolved_by_3_way_merge() -> anyhow::Result<()> {
             Expect(CurrentComponentTitle(
                 "Failed to save src/main.rs: The content of the file is newer.".to_string(),
             )),
-            HandleNucleoNotify(NucleoSource::Prompt),
             Expect(CompletionDropdownContent("Merge\nForce Save\nForce Reload")),
             App(HandleKeyEvents(keys!("m e r g e enter").to_vec())),
             Expect(CurrentComponentContentMatches(regex!("(?s)ours.*theirs"))),

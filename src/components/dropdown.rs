@@ -302,6 +302,13 @@ impl Dropdown {
             .map(|item| item.item.clone())
     }
 
+    /// Sets the items and immediately computes filtered results synchronously using
+    /// [`nucleo_matcher`].
+    ///
+    /// This is suitable for small-to-medium item sets where
+    /// background thread matching (via [`BackgroundFuzzyMatcher`]) is unnecessary.
+    /// For larger item sets that benefit from incremental background matching,
+    /// use [`Dropdown::inject_items`] instead.
     pub fn set_items(&mut self, items: Vec<DropdownItem>) {
         if items == self.items {
             return;
@@ -707,7 +714,9 @@ impl Dropdown {
     }
 
     pub fn handle_nucleo_notify(&mut self) -> DropdownRender {
-        let items = self.matcher.handle_nucleo_notify();
+        let Some(items) = self.matcher.handle_nucleo_notify() else {
+            return self.render();
+        };
 
         self.set_items(items);
 
@@ -715,10 +724,14 @@ impl Dropdown {
     }
 
     pub fn inject_items(&mut self, items: Vec<DropdownItem>) {
-        // This check is to prevent spawing Nucleo unnecessarily
-        if items.is_empty() {
+        if items.len() < BACKGROUND_MATCHING_THRESHOLD {
+            // For small item sets, skip nucleo entirely and filter synchronously.
+            // This avoids spawning background threads unnecessarily, which can
+            // exhaust OS thread limits when many dropdowns are created (e.g. during recipe generation).
+            self.set_items(items);
             return;
         }
+
         let matcher = &mut self.matcher;
         matcher.clear();
 
@@ -726,7 +739,6 @@ impl Dropdown {
         for item in items {
             injector.call(item);
         }
-        self.handle_nucleo_notify();
     }
 
     pub fn injector(&mut self) -> Callback<DropdownItem> {
@@ -739,6 +751,11 @@ impl Dropdown {
             });
         }))
     }
+
+    pub fn clear(&mut self) {
+        self.items.clear();
+        self.matcher.clear();
+    }
 }
 
 struct BackgroundFuzzyMatcher {
@@ -748,6 +765,8 @@ struct BackgroundFuzzyMatcher {
     nucleo: Option<nucleo::Nucleo<DropdownItem>>,
     notify: Callback<()>,
 }
+
+const BACKGROUND_MATCHING_THRESHOLD: usize = 50;
 
 impl BackgroundFuzzyMatcher {
     fn new(notify: Callback<()>) -> Self {
@@ -771,10 +790,9 @@ impl BackgroundFuzzyMatcher {
         );
     }
 
-    fn handle_nucleo_notify(&mut self) -> Vec<DropdownItem> {
-        let Some(nucleo) = self.nucleo.as_mut() else {
-            return Vec::default();
-        };
+    /// Returns `None` if Nucleo is not initialized
+    fn handle_nucleo_notify(&mut self) -> Option<Vec<DropdownItem>> {
+        let nucleo = self.nucleo.as_mut()?;
 
         nucleo.tick(10);
         let snapshot = nucleo.snapshot();
@@ -782,16 +800,16 @@ impl BackgroundFuzzyMatcher {
         // TODO: we should pass in the scroll_offset of the completion menu
         //   we'll leave it as 0 for now since it is already working well
         let scroll_offset = 0;
-
-        const MAX_ITEMS_SHOWN: usize = 50;
-
-        snapshot
+        let items = snapshot
             .matched_items(
                 scroll_offset as u32
-                    ..MAX_ITEMS_SHOWN.min(snapshot.matched_item_count() as usize) as u32,
+                    ..BACKGROUND_MATCHING_THRESHOLD.min(snapshot.matched_item_count() as usize)
+                        as u32,
             )
             .map(|item| item.data.clone())
-            .collect_vec()
+            .collect_vec();
+
+        Some(items)
     }
 
     fn injector(&mut self) -> nucleo::Injector<DropdownItem> {
@@ -830,7 +848,7 @@ mod test_dropdown {
 
     use crate::{
         components::{
-            dropdown::{Dropdown, DropdownConfig, DropdownItem},
+            dropdown::{Dropdown, DropdownConfig, DropdownItem, BACKGROUND_MATCHING_THRESHOLD},
             suggestive_editor::{Decoration, Info},
         },
         position::Position,
@@ -1269,6 +1287,78 @@ mod test_dropdown {
             .map(|(index, _)| index)
             .collect_vec();
         indices == order
+    }
+
+    #[test]
+    fn inject_items_uses_background_matching_when_items_exceed_threshold() {
+        let mut dropdown = Dropdown::new(DropdownConfig {
+            title: "test".to_string(),
+            on_nucleo_notify: Callback::no_op(),
+        });
+
+        // Nucleo should not be initialized before inject_items is called
+        assert!(dropdown.matcher.nucleo.is_none());
+
+        let items = (0..BACKGROUND_MATCHING_THRESHOLD)
+            .map(|i| DropdownItem::new(format!("item_{i}")))
+            .collect_vec();
+
+        dropdown.inject_items(items);
+
+        // Nucleo should now be initialized since items count == threshold
+        assert!(dropdown.matcher.nucleo.is_some());
+    }
+
+    #[test]
+    fn inject_items_uses_synchronous_matching_when_items_below_threshold() {
+        let mut dropdown = Dropdown::new(DropdownConfig {
+            title: "test".to_string(),
+            on_nucleo_notify: Callback::no_op(),
+        });
+
+        assert!(dropdown.matcher.nucleo.is_none());
+
+        let items = (0..BACKGROUND_MATCHING_THRESHOLD - 1)
+            .map(|i| DropdownItem::new(format!("item_{i}")))
+            .collect_vec();
+
+        dropdown.inject_items(items);
+
+        // Nucleo should remain uninitialized since items count < threshold
+        assert!(dropdown.matcher.nucleo.is_none());
+    }
+
+    #[test]
+    fn filter_works_when_background_matching_is_active() {
+        let mut dropdown = Dropdown::new(DropdownConfig {
+            title: "test".to_string(),
+            on_nucleo_notify: Callback::no_op(),
+        });
+
+        let items = (0..BACKGROUND_MATCHING_THRESHOLD)
+            .map(|i| DropdownItem::new(format!("item_{i}")))
+            .collect_vec();
+
+        dropdown.inject_items(items);
+
+        assert!(dropdown.matcher.nucleo.is_some());
+        // The dropdown items should be empty if Nucleo is used
+        assert!(dropdown.items.is_empty());
+
+        dropdown.set_filter("item_1");
+
+        // Simulate the background thread ticking by explicitly calling handle_nucleo_notify
+        dropdown.handle_nucleo_notify();
+
+        let first_item = dropdown
+            .filtered_item_groups
+            .iter()
+            .flat_map(|group| &group.items)
+            .next()
+            .map(|item| item.item.display())
+            .expect("Expected at least one item after filtering");
+
+        assert_eq!(first_item, "item_1");
     }
 }
 
