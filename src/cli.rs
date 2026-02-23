@@ -8,6 +8,19 @@ use std::fs::File;
 use std::io::{self, IsTerminal, Read};
 use std::path::PathBuf;
 
+const LOGO_ASCII_ART: &str = r#"
+      ██   ██   ██
+      ██   ██   ██
+      ██   ██   ██
+      ▀██▄████▄██▀
+           ██
+           ██
+      ▄██▀████▀██▄
+      ██   ██   ██
+      ██   ██   ██
+      ██   ██   ██
+"#;
+
 /// A combinatorial text editor.
 ///
 /// STDIN HANDLING:
@@ -15,7 +28,12 @@ use std::path::PathBuf;
 /// the content will be automatically saved to a timestamp-based file (YYYY-MM-DD-HH-MM-SS.txt)
 /// in the current working directory and opened in the editor.
 #[derive(Parser)]
-#[command(author, version, about, long_about = None)]
+#[command(
+    author,
+    version,
+    long_about = None,
+    before_help = LOGO_ASCII_ART
+)]
 struct Cli {
     #[command(subcommand)]
     command: Option<CommandPlaceholder>,
@@ -32,7 +50,7 @@ struct EmbedArgs {
 
 #[derive(Subcommand)]
 enum CommandPlaceholder {
-    #[clap(name = "@")]
+    #[clap(name = "@", before_help = LOGO_ASCII_ART)]
     /// Run commands
     At {
         #[command(subcommand)]
