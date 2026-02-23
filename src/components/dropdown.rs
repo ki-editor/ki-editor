@@ -715,6 +715,10 @@ impl Dropdown {
     }
 
     pub fn inject_items(&mut self, items: Vec<DropdownItem>) {
+        // This check is to prevent spawing Nucleo unnecessarily
+        if items.is_empty() {
+            return;
+        }
         let matcher = &mut self.matcher;
         matcher.clear();
 
