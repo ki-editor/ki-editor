@@ -144,10 +144,8 @@ impl UiTree {
                 .find(|node| node.node_id() != node_id && node.data().kind == kind)?
                 .node_id();
 
-            println!("SOME child removed");
             self.remove(node_id, false)
         } else {
-            println!("No child removed");
             None
         }
     }

@@ -60,19 +60,12 @@ impl Component for SuggestiveEditor {
         &mut self.editor
     }
 
-    fn handle_dispatch_editor(
+    fn handle_paste_event(
         &mut self,
-        context: &mut Context,
-        dispatch: DispatchEditor,
+        content: String,
+        context: &Context,
     ) -> anyhow::Result<Dispatches> {
-        let dispatches = self
-            .editor_mut()
-            .handle_dispatch_editor(context, dispatch)?;
-        let update_filter_result = self.update_filter();
-        Ok(dispatches.chain(update_filter_result?))
-    }
-
-    fn post_handle_event(&self, dispatches: Dispatches) -> anyhow::Result<Dispatches> {
+        let dispatches = self.editor_mut().handle_paste_event(content, context)?;
         Ok(dispatches.append(Dispatch::ToSuggestiveEditor(
             DispatchSuggestiveEditor::UpdateFilter,
         )))
@@ -127,7 +120,12 @@ impl Component for SuggestiveEditor {
                 .collect_vec()
                 .into(),
                 _ if self.editor.mode == Mode::Insert && event.kind != KeyEventKind::Release => {
-                    vec![Dispatch::RequestCompletion, Dispatch::RequestSignatureHelp].into()
+                    vec![
+                        Dispatch::RequestCompletion,
+                        Dispatch::RequestSignatureHelp,
+                        Dispatch::ToSuggestiveEditor(DispatchSuggestiveEditor::UpdateFilter),
+                    ]
+                    .into()
                 }
                 _ => Dispatches::default(),
             }))
@@ -269,8 +267,6 @@ impl SuggestiveEditor {
 
     fn next_completion_item(&mut self) -> Result<Dispatches, anyhow::Error> {
         self.completion_dropdown.next_item();
-        let dispatches = self.render_completion_dropdown(false);
-        log::info!("next_compl = {dispatches:?}");
         Ok(self.render_completion_dropdown(false))
     }
 
