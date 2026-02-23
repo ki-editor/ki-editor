@@ -161,7 +161,7 @@ pub struct Dropdown {
     items: Vec<DropdownItem>,
     filtered_item_groups: Vec<FilteredDropdownItemGroup>,
     current_item_index: usize,
-    matcher: PromptMatcher,
+    matcher: BackgroundFuzzyMatcher,
 }
 
 pub struct DropdownConfig {
@@ -177,7 +177,7 @@ impl Dropdown {
             filtered_item_groups: vec![],
             current_item_index: 0,
             title: config.title,
-            matcher: PromptMatcher::new(config.on_nucleo_notify),
+            matcher: BackgroundFuzzyMatcher::new(config.on_nucleo_notify),
         }
     }
 
@@ -725,7 +725,7 @@ impl Dropdown {
         self.handle_nucleo_notify();
     }
 
-    pub fn injector(&self) -> Callback<DropdownItem> {
+    pub fn injector(&mut self) -> Callback<DropdownItem> {
         let injector = self.matcher.injector();
         Callback::new(Arc::new(move |item| {
             injector.push(item, |item, columns| {
@@ -737,13 +737,39 @@ impl Dropdown {
     }
 }
 
-struct PromptMatcher {
-    nucleo: nucleo::Nucleo<DropdownItem>,
+struct BackgroundFuzzyMatcher {
+    /// `nucleo` is lazily initialized because each construction spawns background threads,
+    /// which can exhaust system thread limits and cause `generate_recipes.rs` to fail during `just doc-assets`.
+    /// It is only constructed when `injector()` is first called.
+    nucleo: Option<nucleo::Nucleo<DropdownItem>>,
+    notify: Callback<()>,
 }
 
-impl PromptMatcher {
+impl BackgroundFuzzyMatcher {
+    fn new(notify: Callback<()>) -> Self {
+        Self {
+            nucleo: None,
+            notify,
+        }
+    }
+
+    fn nucleo(&mut self) -> &mut nucleo::Nucleo<DropdownItem> {
+        self.nucleo.get_or_insert_with(|| {
+            let debounced = crate::thread::debounce(
+                self.notify.clone(),
+                Duration::from_millis(1000 / 30), // 30 FPS
+            );
+            nucleo::Nucleo::new(
+                nucleo::Config::DEFAULT,
+                Arc::new(move || debounced.call(())),
+                None,
+                1,
+            )
+        })
+    }
+
     fn reparse(&mut self, filter: &str) {
-        self.nucleo.pattern.reparse(
+        self.nucleo().pattern.reparse(
             0,
             filter,
             CaseMatching::default(),
@@ -753,7 +779,7 @@ impl PromptMatcher {
     }
 
     fn handle_nucleo_notify(&mut self) -> Vec<DropdownItem> {
-        let nucleo = &mut self.nucleo;
+        let nucleo = self.nucleo();
 
         nucleo.tick(10);
         let snapshot = nucleo.snapshot();
@@ -773,28 +799,15 @@ impl PromptMatcher {
             .collect_vec()
     }
 
-    fn new(notify: Callback<()>) -> Self {
-        let debounced_notify = crate::thread::debounce(
-            notify,
-            Duration::from_millis(1000 / 30), // 30 FPS
-        );
-
-        let nucleo = nucleo::Nucleo::new(
-            nucleo::Config::DEFAULT,
-            Arc::new(move || debounced_notify.call(())),
-            None,
-            1,
-        );
-
-        PromptMatcher { nucleo }
-    }
-
-    fn injector(&self) -> nucleo::Injector<DropdownItem> {
-        self.nucleo.injector()
+    fn injector(&mut self) -> nucleo::Injector<DropdownItem> {
+        self.nucleo().injector()
     }
 
     fn clear(&mut self) {
-        self.nucleo.restart(false);
+        // Only restart if nucleo has been initialized — no point initializing it just to clear it
+        if let Some(nucleo) = &mut self.nucleo {
+            nucleo.restart(false);
+        }
     }
 }
 

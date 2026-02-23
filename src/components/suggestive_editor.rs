@@ -294,7 +294,7 @@ impl SuggestiveEditor {
         })
     }
 
-    pub fn injector(&self) -> Callback<DropdownItem> {
+    pub fn injector(&mut self) -> Callback<DropdownItem> {
         self.completion_dropdown.injector()
     }
 }
