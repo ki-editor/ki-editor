@@ -2,6 +2,7 @@ use crate::app::{Dispatch, Dispatches};
 use crate::context::{Context, GlobalMode};
 use crate::grid::StyleKey;
 use crate::selection::SelectionMode;
+use crate::thread::Callback;
 use crossterm::event::KeyEventKind;
 use DispatchEditor::*;
 
@@ -59,19 +60,12 @@ impl Component for SuggestiveEditor {
         &mut self.editor
     }
 
-    fn handle_dispatch_editor(
+    fn handle_paste_event(
         &mut self,
-        context: &mut Context,
-        dispatch: DispatchEditor,
+        content: String,
+        context: &Context,
     ) -> anyhow::Result<Dispatches> {
-        let dispatches = self
-            .editor_mut()
-            .handle_dispatch_editor(context, dispatch)?;
-        let update_filter_result = self.update_filter();
-        Ok(dispatches.chain(update_filter_result?))
-    }
-
-    fn post_handle_event(&self, dispatches: Dispatches) -> anyhow::Result<Dispatches> {
+        let dispatches = self.editor_mut().handle_paste_event(content, context)?;
         Ok(dispatches.append(Dispatch::ToSuggestiveEditor(
             DispatchSuggestiveEditor::UpdateFilter,
         )))
@@ -126,7 +120,12 @@ impl Component for SuggestiveEditor {
                 .collect_vec()
                 .into(),
                 _ if self.editor.mode == Mode::Insert && event.kind != KeyEventKind::Release => {
-                    vec![Dispatch::RequestCompletion, Dispatch::RequestSignatureHelp].into()
+                    vec![
+                        Dispatch::RequestCompletion,
+                        Dispatch::RequestSignatureHelp,
+                        Dispatch::ToSuggestiveEditor(DispatchSuggestiveEditor::UpdateFilter),
+                    ]
+                    .into()
                 }
                 _ => Dispatches::default(),
             }))
@@ -134,11 +133,16 @@ impl Component for SuggestiveEditor {
 }
 
 impl SuggestiveEditor {
-    pub fn from_buffer(buffer: Rc<RefCell<Buffer>>, filter: SuggestiveEditorFilter) -> Self {
+    pub fn from_buffer(
+        buffer: Rc<RefCell<Buffer>>,
+        filter: SuggestiveEditorFilter,
+        on_nucleo_notify: Callback<()>,
+    ) -> Self {
         Self {
             editor: Editor::from_buffer(buffer),
             completion_dropdown: Dropdown::new(DropdownConfig {
                 title: "Completion".to_string(),
+                on_nucleo_notify,
             }),
             trigger_characters: vec![],
             filter,
@@ -186,7 +190,8 @@ impl SuggestiveEditor {
     }
 
     pub fn set_completion(&mut self, completion: Completion) {
-        self.completion_dropdown.set_items(completion.items);
+        self.completion_dropdown.inject_items(completion.items);
+        self.completion_dropdown.handle_nucleo_notify();
         self.trigger_characters = completion.trigger_characters;
     }
 
@@ -245,9 +250,9 @@ impl SuggestiveEditor {
         };
 
         self.completion_dropdown.set_filter(&filter);
+        self.completion_dropdown.handle_nucleo_notify();
 
-        let render_completion_dropdown = self.render_completion_dropdown(false);
-        Ok(render_completion_dropdown.append(Dispatch::DropdownFilterUpdated(filter)))
+        Ok(self.render_completion_dropdown(false))
     }
 
     fn update_current_completion_item(&mut self, completion_item: CompletionItem) -> Dispatches {
@@ -263,15 +268,13 @@ impl SuggestiveEditor {
 
     fn next_completion_item(&mut self) -> Result<Dispatches, anyhow::Error> {
         self.completion_dropdown.next_item();
-        let dispatches = self.render_completion_dropdown(false);
-        log::info!("next_compl = {dispatches:?}");
         Ok(self.render_completion_dropdown(false))
     }
 
     fn select_completion_item(&mut self) -> Result<Dispatches, anyhow::Error> {
         let current_item = self.completion_dropdown.current_item();
         if let Some(completion) = current_item {
-            self.completion_dropdown.set_items(Vec::new());
+            self.completion_dropdown.clear();
             Ok(Dispatches::one(Dispatch::CloseDropdown).chain(completion.dispatches))
         } else {
             Ok(Dispatches::default())
@@ -286,8 +289,14 @@ impl SuggestiveEditor {
         self.editor_mut().update_current_line(context, display)
     }
 
-    pub fn update_items(&mut self, items: Vec<DropdownItem>) {
-        self.completion_dropdown.set_items(items);
+    pub fn handle_nucleo_notify(&mut self) -> Dispatches {
+        Dispatches::one(Dispatch::RenderDropdown {
+            render: self.completion_dropdown.handle_nucleo_notify(),
+        })
+    }
+
+    pub fn injector(&mut self) -> Callback<DropdownItem> {
+        self.completion_dropdown.injector()
     }
 }
 
@@ -311,6 +320,7 @@ mod test_suggestive_editor {
     use crate::lsp::documentation::Documentation;
     use crate::position::Position;
     use crate::selection::SelectionMode;
+    use crate::thread::Callback;
     use crate::ui_tree::ComponentKind;
     use crate::{
         app::Dispatch,
@@ -346,7 +356,11 @@ mod test_suggestive_editor {
     }
 
     fn editor(filter: SuggestiveEditorFilter) -> SuggestiveEditor {
-        SuggestiveEditor::from_buffer(Rc::new(RefCell::new(Buffer::new(None, ""))), filter)
+        SuggestiveEditor::from_buffer(
+            Rc::new(RefCell::new(Buffer::new(None, ""))),
+            filter,
+            Callback::no_op(),
+        )
     }
 
     #[test]

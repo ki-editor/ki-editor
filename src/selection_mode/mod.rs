@@ -881,13 +881,18 @@ pub trait PositionBasedSelectionMode {
         &self,
         params: &SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        let range = params.current_selection.range();
+
+        let next_cursor_char_index = if range.is_empty() {
+            // if the range is empty, we cannot use just `range.end`,
+            // we need to increment it by one to advance the cursor_char_index forward
+            range.end + 1
+        } else {
+            range.end
+        };
         self.get_current_selection_by_cursor(
             params.buffer,
-            params
-                .current_selection
-                .range()
-                .end
-                .min(CharIndex(params.buffer.len_chars())),
+            next_cursor_char_index.min(CharIndex(params.buffer.len_chars())),
             IfCurrentNotFound::LookForward,
         )?
         .map(|range| {

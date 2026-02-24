@@ -143,6 +143,7 @@ impl UiTree {
                 .traverse_pre_order()
                 .find(|node| node.node_id() != node_id && node.data().kind == kind)?
                 .node_id();
+
             self.remove(node_id, false)
         } else {
             None

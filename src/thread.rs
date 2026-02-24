@@ -19,6 +19,10 @@ impl<T> Callback<T> {
     pub fn call(&self, event: T) {
         self.0(event);
     }
+
+    pub fn no_op() -> Callback<T> {
+        Callback::new(Arc::new(|_| {}))
+    }
 }
 
 pub fn debounce<T: PartialEq + Eq + Send + Sync + 'static>(

@@ -375,6 +375,7 @@ impl Layout {
         self.current_completion_dropdown().is_some()
     }
 
+    #[cfg(test)]
     pub fn current_completion_dropdown(&self) -> Option<Rc<RefCell<dyn Component>>> {
         self.get_current_node_child_id(ComponentKind::Dropdown)
             .and_then(|node_id| Some(self.tree.get(node_id)?.data().component().clone()))
