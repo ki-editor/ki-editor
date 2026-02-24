@@ -1,7 +1,7 @@
 use std::ops::Not;
 
 use crate::{
-    components::editor::IfCurrentNotFound, selection::CharIndex,
+    char_index_range::CharIndexRange, components::editor::IfCurrentNotFound, selection::CharIndex,
     selection_mode::ApplyMovementResult,
 };
 
@@ -17,378 +17,97 @@ impl PositionBasedSelectionMode for LineTrimmed {
         cursor_char_index: crate::selection::CharIndex,
         if_current_not_found: crate::components::editor::IfCurrentNotFound,
     ) -> anyhow::Result<Option<super::ByteRange>> {
-        let start_index;
-        let end_index;
-
-        if cursor_char_index == CharIndex(0) {
-            let mut right_index = cursor_char_index;
-            let mut right_atleast_one_non_whitespace = false;
-            let mut right_first_non_whitespace = CharIndex(0);
-            let mut right_last_non_whitespace = CharIndex(0);
-            loop {
-                if right_index == CharIndex(buffer.len_chars()) {
-                    break;
-                }
-                let Ok(ch) = buffer.char(right_index) else {
-                    break;
-                };
-                if ch == '\n' {
-                    break;
-                } else if !ch.is_whitespace() {
-                    if !right_atleast_one_non_whitespace {
-                        right_first_non_whitespace = right_index;
-                    }
-                    right_last_non_whitespace = right_index;
-                    right_atleast_one_non_whitespace = true;
-                }
-                right_index = right_index + 1;
-            }
-            if right_atleast_one_non_whitespace {
-                start_index = right_first_non_whitespace;
-                end_index = right_last_non_whitespace + 1;
-            } else {
-                start_index = right_index;
-                end_index = right_index;
-            }
-        } else if cursor_char_index == CharIndex(buffer.len_chars()) {
-            match if_current_not_found {
-                IfCurrentNotFound::LookForward => {
-                    start_index = CharIndex(buffer.len_chars());
-                    end_index = CharIndex(buffer.len_chars());
-                }
-                IfCurrentNotFound::LookBackward => {
-                    let mut left_index = cursor_char_index;
-                    let mut left_atleast_one_non_whitespace = false;
-                    let mut left_first_non_whitespace = CharIndex(0);
-                    let mut left_last_non_whitespace = CharIndex(0);
-                    loop {
-                        if left_index == CharIndex(0) {
-                            break;
-                        };
-                        left_index = left_index - 1;
-                        let Ok(ch) = buffer.char(left_index) else {
-                            break;
-                        };
-                        if ch == '\n' {
-                            break;
-                        } else if ch.is_whitespace() {
-                            continue;
-                        } else {
-                            if !left_atleast_one_non_whitespace {
-                                left_first_non_whitespace = left_index;
-                            }
-                            left_atleast_one_non_whitespace = true;
-                            left_last_non_whitespace = left_index;
-                        }
-                    }
-                    if left_atleast_one_non_whitespace {
-                        start_index = left_last_non_whitespace;
-                        end_index = left_first_non_whitespace + 1;
-                    } else {
-                        start_index = CharIndex(buffer.len_chars());
-                        end_index = CharIndex(buffer.len_chars());
-                    }
-                }
-            }
-        } else {
-            let Ok(ch) = buffer.char(cursor_char_index) else {
-                return Ok(None);
-            };
-
-            if ch == '\n' {
-                match if_current_not_found {
-                    IfCurrentNotFound::LookForward => {
-                        let mut right_atleast_one_non_whitespace = false;
-                        let mut right_first_non_whitespace = CharIndex(0);
-                        let mut right_last_non_whitespace = CharIndex(0);
-
-                        let mut right_index = cursor_char_index;
-                        loop {
-                            right_index = right_index + 1;
-
-                            let Ok(ch) = buffer.char(right_index) else {
-                                break;
-                            };
-
-                            if ch == '\n' {
-                                break;
-                            } else if ch.is_whitespace() {
-                                continue;
-                            } else {
-                                if !right_atleast_one_non_whitespace {
-                                    right_first_non_whitespace = right_index;
-                                }
-                                right_atleast_one_non_whitespace = true;
-                                right_last_non_whitespace = right_index;
-                            }
-                        }
-
-                        if right_atleast_one_non_whitespace {
-                            start_index = right_first_non_whitespace;
-                            end_index = right_last_non_whitespace + 1;
-                        } else {
-                            start_index = right_index;
-                            end_index = right_index;
-                        }
-                    }
-                    IfCurrentNotFound::LookBackward => {
-                        let mut left_outer_index = cursor_char_index;
-                        let mut left_atleast_one_non_whitespace = false;
-                        let mut left_first_non_whitespace = CharIndex(0);
-                        let mut left_last_non_whitespace = CharIndex(0);
-
-                        loop {
-                            if left_outer_index == CharIndex(0) {
-                                break;
-                            }
-
-                            left_outer_index = left_outer_index - 1;
-
-                            let Ok(ch) = buffer.char(left_outer_index) else {
-                                break;
-                            };
-
-                            if ch == '\n' {
-                                break;
-                            } else if ch.is_whitespace() {
-                                continue;
-                            } else {
-                                if !left_atleast_one_non_whitespace {
-                                    left_first_non_whitespace = left_outer_index;
-                                }
-                                left_atleast_one_non_whitespace = true;
-                                left_last_non_whitespace = left_outer_index;
-                            }
-                        }
-
-                        if left_atleast_one_non_whitespace {
-                            start_index = left_last_non_whitespace;
-                            end_index = left_first_non_whitespace + 1;
-                        } else {
-                            start_index = cursor_char_index;
-                            end_index = cursor_char_index;
-                        }
-                    }
-                }
-            } else if ch.is_whitespace() {
-                let mut left_index = cursor_char_index;
-                let mut right_index = cursor_char_index;
-
-                let mut left_atleast_one_non_whitespace = false;
-
-                loop {
-                    if left_index == CharIndex(0) {
-                        break;
-                    }
-                    left_index = left_index - 1;
-
-                    let Ok(ch) = buffer.char(left_index) else {
-                        break;
-                    };
-
-                    if ch == '\n' {
-                        break;
-                    } else if ch.is_whitespace() {
-                        continue;
-                    } else {
-                        left_atleast_one_non_whitespace = true;
-                    }
-                }
-
-                let mut right_atleast_one_non_whitespace = false;
-                let mut right_first_non_whitespace = CharIndex(0);
-                let mut right_last_non_whitespace = CharIndex(0);
-
-                loop {
-                    if right_index == CharIndex(buffer.len_chars()) {
-                        break;
-                    }
-                    right_index = right_index + 1;
-
-                    let Ok(ch) = buffer.char(right_index) else {
-                        break;
-                    };
-
-                    if ch == '\n' {
-                        break;
-                    } else if ch.is_whitespace() {
-                        continue;
-                    } else {
-                        if !right_atleast_one_non_whitespace {
-                            right_first_non_whitespace = right_index;
-                        }
-                        right_atleast_one_non_whitespace = true;
-                        right_last_non_whitespace = right_index;
-                    }
-                }
-
-                match if_current_not_found {
-                    IfCurrentNotFound::LookForward => {
-                        if left_atleast_one_non_whitespace {
-                            let mut right_inner_index = right_index;
-                            let mut right_atleast_one_non_whitespace = false;
-                            let mut right_first_non_whitespace = CharIndex(0);
-                            let mut right_last_non_whitespace = CharIndex(0);
-                            loop {
-                                if right_inner_index == CharIndex(buffer.len_chars()) {
-                                    break;
-                                }
-                                right_inner_index = right_inner_index + 1;
-                                let Ok(ch) = buffer.char(right_inner_index) else {
-                                    break;
-                                };
-                                if ch == '\n' {
-                                    break;
-                                } else if ch.is_whitespace() {
-                                    continue;
-                                } else {
-                                    if !right_atleast_one_non_whitespace {
-                                        right_first_non_whitespace = right_inner_index;
-                                    }
-                                    right_atleast_one_non_whitespace = true;
-                                    right_last_non_whitespace = right_inner_index;
-                                }
-                            }
-                            if right_atleast_one_non_whitespace {
-                                start_index = right_first_non_whitespace;
-                                end_index = right_last_non_whitespace + 1;
-                            } else {
-                                start_index = right_inner_index;
-                                end_index = right_inner_index;
-                            }
-                        } else if right_atleast_one_non_whitespace {
-                            start_index = right_first_non_whitespace;
-                            end_index = right_last_non_whitespace + 1;
-                        } else {
-                            start_index = right_index;
-                            end_index = right_index;
-                        }
-                    }
-                    IfCurrentNotFound::LookBackward => {
-                        if left_atleast_one_non_whitespace {
-                            let mut right_inner_index = right_index;
-                            let mut right_atleast_one_non_whitespace = false;
-                            let mut right_first_non_whitespace = CharIndex(0);
-                            let mut right_last_non_whitespace = CharIndex(0);
-                            loop {
-                                if right_inner_index == CharIndex(buffer.len_chars()) {
-                                    break;
-                                }
-                                right_inner_index = right_inner_index + 1;
-                                let Ok(ch) = buffer.char(right_inner_index) else {
-                                    break;
-                                };
-                                if ch == '\n' {
-                                    break;
-                                } else if ch.is_whitespace() {
-                                    continue;
-                                } else {
-                                    if !right_atleast_one_non_whitespace {
-                                        right_first_non_whitespace = right_inner_index;
-                                    }
-                                    right_atleast_one_non_whitespace = true;
-                                    right_last_non_whitespace = right_inner_index;
-                                }
-                            }
-                            if right_atleast_one_non_whitespace {
-                                start_index = right_first_non_whitespace;
-                                end_index = right_last_non_whitespace + 1;
-                            } else {
-                                start_index = right_inner_index;
-                                end_index = right_inner_index;
-                            }
-                        } else {
-                            let mut left_index_inner = left_index;
-                            let mut left_atleast_one_non_whitespace = false;
-                            let mut left_first_non_whitespace_inner = CharIndex(0);
-                            let mut left_last_non_whitespace_inner = CharIndex(0);
-                            loop {
-                                if left_index_inner == CharIndex(0) {
-                                    break;
-                                }
-                                left_index_inner = left_index_inner - 1;
-                                let Ok(ch) = buffer.char(left_index_inner) else {
-                                    break;
-                                };
-                                if ch == '\n' {
-                                    break;
-                                } else if ch.is_whitespace() {
-                                    continue;
-                                } else {
-                                    if !left_atleast_one_non_whitespace {
-                                        left_first_non_whitespace_inner = left_index_inner;
-                                    }
-                                    left_atleast_one_non_whitespace = true;
-                                    left_last_non_whitespace_inner = left_index_inner;
-                                }
-                            }
-                            if left_atleast_one_non_whitespace {
-                                start_index = left_last_non_whitespace_inner;
-                                end_index = left_first_non_whitespace_inner + 1;
-                            } else {
-                                start_index = left_index;
-                                end_index = left_index;
-                            }
-                        }
-                    }
-                }
-            } else {
-                let mut right_index = cursor_char_index;
-                let mut right_atleast_one_non_whitespace = false;
-                let mut right_last_non_whitespace = CharIndex(0);
-                loop {
-                    if right_index == CharIndex(buffer.len_chars()) {
-                        break;
-                    }
-                    right_index = right_index + 1;
-                    let Ok(ch) = buffer.char(right_index) else {
-                        break;
-                    };
-                    if ch == '\n' {
-                        break;
-                    } else if ch.is_whitespace() {
-                        continue;
-                    } else {
-                        right_atleast_one_non_whitespace = true;
-                        right_last_non_whitespace = right_index;
-                    }
-                }
-                let mut left_index = cursor_char_index;
-                let mut left_atleast_one_non_whitespace = false;
-                let mut left_last_non_whitespace = CharIndex(0);
-                loop {
-                    if left_index == CharIndex(0) {
-                        break;
-                    }
-                    left_index = left_index - 1;
-                    let Ok(ch) = buffer.char(left_index) else {
-                        break;
-                    };
-                    if ch == '\n' {
-                        break;
-                    } else if ch.is_whitespace() {
-                        continue;
-                    } else {
-                        left_atleast_one_non_whitespace = true;
-                        left_last_non_whitespace = left_index;
-                    }
-                }
-                if left_atleast_one_non_whitespace {
-                    start_index = left_last_non_whitespace;
-                } else {
-                    start_index = cursor_char_index;
-                }
-                if right_atleast_one_non_whitespace {
-                    end_index = right_last_non_whitespace + 1;
-                } else {
-                    end_index = cursor_char_index + 1;
-                }
-            };
+        if cursor_char_index >= CharIndex(buffer.len_chars()) {
+            return Ok(None);
         }
 
-        let trimmed_range =
-            buffer.char_index_range_to_byte_range((start_index..end_index).into())?;
-        Ok(Some(ByteRange::new(trimmed_range)))
+        // Handle special case where this newline char is the last character
+        // of the file.
+        // We need this special case to allow user to navigate to the last empty line.
+        if cursor_char_index == CharIndex(buffer.len_chars()) - 1
+            && buffer.char(cursor_char_index)? == '\n'
+        {
+            return Ok(Some(ByteRange::new(
+                buffer.char_index_range_to_byte_range(
+                    (cursor_char_index + 1..cursor_char_index + 1).into(),
+                )?,
+            )));
+        }
+
+        let line_index = buffer.char_to_line(cursor_char_index)?;
+        let line = buffer.get_line_by_line_index(line_index)?;
+        let current_trimmed_line_range = {
+            let line = line.to_string().trim_end_matches('\n').to_string();
+            let head_trimmed_line: String =
+                line.chars().skip_while(|c| c.is_whitespace()).collect();
+            let leading_whitespaces_count = line
+                .chars()
+                .count()
+                .saturating_sub(head_trimmed_line.chars().count());
+
+            let trailing_whitespaces_count = head_trimmed_line
+                .chars()
+                .rev()
+                .take_while(|c| c.is_whitespace())
+                .count();
+            let cursor_line_start = buffer.line_to_char(line_index)?;
+            let start = cursor_line_start + leading_whitespaces_count;
+
+            CharIndexRange::from(
+                start
+                    ..start + line.chars().count()
+                        - leading_whitespaces_count
+                        - trailing_whitespaces_count,
+            )
+        };
+
+        // Determine whether the cursor falls before, within or after the current_trimmed_line_range
+        let within_range = if current_trimmed_line_range.is_empty() {
+            current_trimmed_line_range.start == cursor_char_index
+        } else {
+            current_trimmed_line_range.start <= cursor_char_index
+                && cursor_char_index < current_trimmed_line_range.end
+        };
+
+        let result = Ok(Some(ByteRange::new(
+            buffer.char_index_range_to_byte_range(current_trimmed_line_range)?,
+        )));
+        if within_range {
+            // Cursor falls within range
+            result
+        } else if cursor_char_index < current_trimmed_line_range.start {
+            // Cursor falls before range
+            match if_current_not_found {
+                IfCurrentNotFound::LookBackward => {
+                    let next_cursor_char_index = cursor_char_index - 1;
+                    if cursor_char_index == next_cursor_char_index {
+                        return Ok(None);
+                    }
+                    // Recursively decrement cursor_char_index
+                    // until it lands in a trimmed line range
+                    self.get_current_selection_by_cursor(
+                        buffer,
+                        next_cursor_char_index,
+                        if_current_not_found,
+                    )
+                }
+                IfCurrentNotFound::LookForward => result,
+            }
+        } else {
+            // Cursor falls after range
+            match if_current_not_found {
+                IfCurrentNotFound::LookBackward => result,
+                IfCurrentNotFound::LookForward => {
+                    // Recursively increment cursor_char_index
+                    // until it lands in a trimmed line range
+                    self.get_current_selection_by_cursor(
+                        buffer,
+                        cursor_char_index + 1,
+                        if_current_not_found,
+                    )
+                }
+            }
+        }
     }
 
     fn get_current_meaningful_selection_by_cursor(
@@ -408,7 +127,6 @@ impl PositionBasedSelectionMode for LineTrimmed {
         let buffer = params.buffer;
         let start_char_index = {
             let cursor_char_index = params.cursor_char_index();
-
             // If current line is already an empty line,
             // find the next group of empty lines
             if buffer
@@ -430,19 +148,27 @@ impl PositionBasedSelectionMode for LineTrimmed {
                 cursor_char_index
             }
         };
-        let mut line_index = buffer.char_to_line(start_char_index)?;
 
-        while line_index < buffer.len_lines() {
-            if let Ok(slice) = buffer.get_line_by_line_index(line_index) {
-                if slice.chars().all(|char| char.is_whitespace()) {
-                    return Ok(self
-                        .to_index(params, line_index)?
-                        .map(ApplyMovementResult::from_selection));
-                } else {
-                    line_index += 1;
-                }
+        let mut line_index = buffer.char_to_line(start_char_index)?;
+        while let Ok(slice) = buffer.get_line_by_line_index(line_index) {
+            if slice.chars().all(|char| char.is_whitespace()) {
+                return Ok(self
+                    .get_current_selection_by_cursor(
+                        params.buffer,
+                        buffer.line_to_char(line_index)?,
+                        IfCurrentNotFound::LookForward,
+                    )?
+                    .and_then(|byte_range| {
+                        Some(ApplyMovementResult::from_selection(
+                            params.current_selection.clone().set_range(
+                                buffer
+                                    .byte_range_to_char_index_range(byte_range.range())
+                                    .ok()?,
+                            ),
+                        ))
+                    }));
             } else {
-                break;
+                line_index += 1;
             }
         }
         Ok(None)
@@ -611,7 +337,7 @@ fn get_line(
 #[cfg(test)]
 mod test_line {
     use crate::buffer::BufferOwner;
-    use crate::components::editor::Movement;
+    use crate::components::editor::{Direction, Movement};
     use crate::position::Position;
     use crate::selection::SelectionMode;
     use crate::test_app::*;
@@ -884,6 +610,57 @@ hello
                 Expect(CurrentSelectedTexts(&[""])),
                 Editor(MoveSelection(Movement::Left)),
                 Expect(CurrentSelectedTexts(&["world"])),
+            ])
+        })
+    }
+
+    #[test]
+    fn cursor_on_empty_space_between_words() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                Editor(SetContent("hello world\nbye".to_string())),
+                Editor(SetSelectionMode(
+                    IfCurrentNotFound::LookForward,
+                    SelectionMode::Word,
+                )),
+                Editor(MatchLiteral("world".to_string())),
+                Editor(EnterInsertMode(Direction::Start)),
+                Editor(EnterNormalMode),
+                Expect(CurrentSelectedTexts(&[" "])),
+                Editor(SetSelectionMode(
+                    IfCurrentNotFound::LookForward,
+                    SelectionMode::Line,
+                )),
+                Expect(CurrentSelectedTexts(&["hello world"])),
+            ])
+        })
+    }
+
+    #[test]
+    fn empty_line_navigation_using_prev_next() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                Editor(SetContent("foo\n\nbar".to_string())),
+                Editor(SetSelectionMode(
+                    IfCurrentNotFound::LookForward,
+                    SelectionMode::Line,
+                )),
+                Editor(MoveSelection(Movement::Next)),
+                Expect(EditorCursorPosition(Position::new(1, 0))),
+                Editor(MoveSelection(Movement::Next)),
+                Expect(EditorCursorPosition(Position::new(2, 0))),
+                Editor(MoveSelection(Movement::Previous)),
+                Expect(EditorCursorPosition(Position::new(1, 0))),
             ])
         })
     }
