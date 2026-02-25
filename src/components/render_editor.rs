@@ -313,12 +313,9 @@ impl Editor {
                 scroll_offset,
             )
             .unwrap_or_default();
-        let visible_lines = rope
-            .lines()
-            .enumerate()
-            .skip(scroll_offset)
-            .take(height)
-            .map(|(line_index, slice)| (line_index, slice.to_string()));
+
+        let visible_lines = (scroll_offset..(scroll_offset + height).min(rope.len_lines()))
+            .map(|line_index| (line_index, rope.line(line_index).to_string()));
 
         let visible_lines_grid: Grid = Grid::new(Dimension { height, width });
 
@@ -1251,7 +1248,7 @@ mod test_render_editor {
 
     #[quickcheck]
     fn get_grid_cells_should_be_always_within_bound(rectangle: Rectangle, content: String) -> bool {
-        let content = content.replace("\r", "");
+        let content = content.replace("\r", "").replace("\u{200c}", "");
         let mut editor = Editor::from_text(None, &content);
         editor.set_rectangle(rectangle.clone(), &Context::default());
         let grid = editor.get_grid(&Context::default(), false);

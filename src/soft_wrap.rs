@@ -168,9 +168,60 @@ impl WrappedLine {
     }
 }
 
-pub fn soft_wrap(text: &str, width: usize) -> WrappedLines {
-    let re = lazy_regex::lazy_regex!(r"\b");
+/// Splits a string at word boundaries, mimicking the behavior of `regex::Regex::split(r"\b")`.
+/// This is a drop-in replacement for the previous regex-based splitting, kept for backward
+/// compatibility so existing test cases continue to pass.
+fn split_word_boundaries(s: &str) -> Vec<&str> {
+    // regex::Regex::split on an empty string returns [""] rather than [],
+    // so we match that behavior here.
+    if s.is_empty() {
+        return vec![""];
+    }
 
+    let mut result = Vec::new();
+    let mut start = 0;
+    let mut chars = s.char_indices().peekable();
+
+    // \b is a zero-width assertion, so splitting by \b on a string that starts
+    // with a word character produces a leading empty string (the split "before"
+    // the first word char). e.g. "hi" -> ["", "hi", ""]
+    if s.chars()
+        .next()
+        .map(|c| c.is_alphanumeric() || c == '_')
+        .unwrap_or(false)
+    {
+        result.push(&s[0..0]);
+    }
+
+    while let Some((_i, c)) = chars.next() {
+        if let Some(&(next_i, next_c)) = chars.peek() {
+            let curr_word = c.is_alphanumeric() || c == '_';
+            let next_word = next_c.is_alphanumeric() || next_c == '_';
+            if curr_word != next_word {
+                result.push(&s[start..next_i]);
+                start = next_i;
+            }
+        }
+    }
+
+    if start < s.len() {
+        result.push(&s[start..]);
+    }
+
+    // \b also produces a trailing empty string when the string ends with a
+    // word character, symmetric to the leading empty string case.
+    if s.chars()
+        .last()
+        .map(|c| c.is_alphanumeric() || c == '_')
+        .unwrap_or(false)
+    {
+        result.push(&s[s.len()..s.len()]);
+    }
+
+    result
+}
+
+pub fn soft_wrap(text: &str, width: usize) -> WrappedLines {
     // LABEL: NEED_TO_REDUCE_WIDTH_BY_1
     // Need to reduce the width by 1 for wrapping,
     // that one space is reserved for rendering cursor at the last column
@@ -179,8 +230,10 @@ pub fn soft_wrap(text: &str, width: usize) -> WrappedLines {
         .lines()
         .enumerate()
         .filter_map(|(line_number, line)| {
-            let items = re
-                .split(&line.to_string())
+            let line_str = line.to_string();
+
+            let items = split_word_boundaries(&line_str)
+                .into_iter()
                 .map(|s| s.trim_end_matches('\n').to_string())
                 .collect_vec();
             let wrapped_lines: Vec<String> = wrap_items(items, wrap_width);
