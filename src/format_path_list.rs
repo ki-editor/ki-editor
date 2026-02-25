@@ -72,16 +72,24 @@ pub fn get_formatted_paths(
 
     let current_path_string = format_path_string(current_path);
 
-    // Add dirty indicator if needed
-    let dirty_indicator = if dirty { " [*]" } else { "" };
-
     // Format the current path
     let current_path_display = markup_focused_tab(&format!(
-        "{} {} {}{} ",
-        if contains_current_path { " #" } else { "" },
+        "{} {} {} ",
+        if contains_current_path {
+            if dirty {
+                "[÷]"
+            } else {
+                "[-]"
+            }
+        } else {
+            if dirty {
+                "[:]"
+            } else {
+                "[ ]"
+            }
+        },
         current_path.icon(),
-        current_path_string,
-        dirty_indicator
+        current_path_string
     ));
 
     // No paths in the list
@@ -96,7 +104,7 @@ pub fn get_formatted_paths(
             if p == current_path {
                 current_path_display.clone()
             } else {
-                format!(" # {} {} ", p.icon(), format_path_string(p))
+                format!("{} {} {} ", "[-]", p.icon(), format_path_string(p))
             }
         })
         .collect();
