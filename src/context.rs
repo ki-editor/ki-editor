@@ -49,6 +49,8 @@ pub struct Context {
 
     lsp_progress: String,
     kill_ring: RingHistory<Texts>,
+
+    buffer_dirty_status: HashMap<AbsolutePath, bool>,
 }
 
 #[derive(Debug)]
@@ -287,6 +289,7 @@ impl Context {
             lsp_progress: "".to_string(),
             quickfix_list: QuickfixList::default(),
             kill_ring: RingHistory::new(),
+            buffer_dirty_status: HashMap::new(),
         }
     }
 
@@ -370,6 +373,18 @@ impl Context {
 
     pub fn current_working_directory(&self) -> &AbsolutePath {
         &self.current_working_directory
+    }
+
+    pub fn set_buffer_dirty_status(&mut self, path: AbsolutePath, dirty: bool) {
+        self.buffer_dirty_status.insert(path, dirty);
+    }
+
+    pub fn clear_buffer_dirty_status(&mut self) {
+        self.buffer_dirty_status.clear();
+    }
+
+    pub fn get_buffer_dirty_status(&self, path: &AbsolutePath) -> bool {
+        self.buffer_dirty_status.get(path).copied().unwrap_or(false)
     }
 
     pub fn global_search_config(&self) -> &GlobalSearchConfig {

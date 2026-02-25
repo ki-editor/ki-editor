@@ -4,25 +4,31 @@ use shared::{absolute_path::AbsolutePath, get_minimal_unique_paths};
 use crate::components::render_editor::markup_focused_tab;
 
 #[cfg(test)]
-fn format_path_list(
+fn format_path_list<F>(
     paths: &[&AbsolutePath],
     current_path: &AbsolutePath,
     current_working_directory: &AbsolutePath,
-    dirty: bool,
-) -> String {
+    is_dirty: F,
+) -> String
+where
+    F: Fn(&AbsolutePath) -> bool,
+{
     let formatted_paths =
-        get_formatted_paths(paths, current_path, current_working_directory, dirty);
+        get_formatted_paths(paths, current_path, current_working_directory, is_dirty);
 
     // Join all formatted paths
     formatted_paths.join("")
 }
 
-pub fn get_formatted_paths(
+pub fn get_formatted_paths<F>(
     paths: &[&AbsolutePath],
     current_path: &AbsolutePath,
     current_working_directory: &AbsolutePath,
-    dirty: bool,
-) -> Vec<String> {
+    is_dirty: F,
+) -> Vec<String>
+where
+    F: Fn(&AbsolutePath) -> bool,
+{
     debug_assert_eq!(paths.iter().unique().count(), paths.len());
     // Check if current path is in the list
     let current_path_index = paths.iter().position(|&p| p == current_path);
@@ -72,22 +78,16 @@ pub fn get_formatted_paths(
 
     let current_path_string = format_path_string(current_path);
 
-    // Format the current path
+    let current_file_bracket = match (contains_current_path, is_dirty(current_path)) {
+        (false, false) => "[ ]",
+        (false, true) => "[:]",
+        (true, false) => "[-]",
+        (true, true) => "[÷]",
+    };
+
     let current_path_display = markup_focused_tab(&format!(
         "{} {} {} ",
-        if contains_current_path {
-            if dirty {
-                "[÷]"
-            } else {
-                "[-]"
-            }
-        } else {
-            if dirty {
-                "[:]"
-            } else {
-                "[ ]"
-            }
-        },
+        current_file_bracket,
         current_path.icon(),
         current_path_string
     ));
@@ -104,7 +104,9 @@ pub fn get_formatted_paths(
             if p == current_path {
                 current_path_display.clone()
             } else {
-                format!("{} {} {} ", "[-]", p.icon(), format_path_string(p))
+                let file_dirty = is_dirty(p);
+                let bracket = if file_dirty { "[÷]" } else { "[-]" };
+                format!("{} {} {} ", bracket, p.icon(), format_path_string(p))
             }
         })
         .collect();
@@ -127,13 +129,16 @@ mod test_format_path_list {
 
     use tempfile::tempdir;
 
-    fn run_test_case(
+    fn run_test_case<F>(
         file_paths: &[&str],
         marked_indices: &[usize],
         current_index: usize,
-        dirty: bool,
+        is_dirty: F,
         expected: &str,
-    ) -> Result<()> {
+    ) -> Result<()>
+    where
+        F: Fn(&AbsolutePath) -> bool,
+    {
         // Setup test environment
         let temp_dir = tempdir()?;
 
@@ -163,7 +168,7 @@ mod test_format_path_list {
         let current_path = &paths[current_index];
 
         // Test the function
-        let result = format_path_list(&marked_files, current_path, &cwd, dirty);
+        let result = format_path_list(&marked_files, current_path, &cwd, is_dirty);
 
         // Assert result
         assert_eq!(result, expected);
@@ -174,9 +179,9 @@ mod test_format_path_list {
     fn test_current_path_not_in_list() -> Result<()> {
         run_test_case(
             &["file1.txt", "file2.txt", "current.txt"],
-            &[0, 1], // Mark first two files
-            2,       // Current is third file (not in list)
-            false,   // Not dirty
+            &[0, 1],   // Mark first two files
+            2,         // Current is third file (not in list)
+            |_| false, // Not dirty
             " # 📝 file1.txt  # 📝 file2.txt \u{200b} 📝 current.txt \u{200b}",
         )
     }
@@ -185,9 +190,9 @@ mod test_format_path_list {
     fn test_current_path_as_first_file() -> Result<()> {
         run_test_case(
             &["first.txt", "second.txt", "third.txt"],
-            &[0, 1, 2], // All files marked
-            0,          // Current is first file
-            true,       // Dirty
+            &[0, 1, 2],                 // All files marked
+            0,                          // Current is first file
+            |path| path == "first.txt", // Dirty
             "\u{200B} # 📝 first.txt [*] \u{200B} # 📝 second.txt  # 📝 third.txt ",
         )
     }
@@ -198,7 +203,7 @@ mod test_format_path_list {
             &["first.txt", "middle.txt", "last.txt"],
             &[0, 1, 2], // All files marked
             1,          // Current is middle file
-            false,      // Not dirty
+            |_| false,  // Not dirty
             " # 📝 first.txt \u{200B} # 📝 middle.txt \u{200B} # 📝 last.txt ",
         )
     }
@@ -207,9 +212,9 @@ mod test_format_path_list {
     fn test_current_path_as_last_file() -> Result<()> {
         run_test_case(
             &["first.txt", "second.txt", "last.txt"],
-            &[0, 1, 2], // All files marked
-            2,          // Current is last file
-            true,       // Dirty
+            &[0, 1, 2],                // All files marked
+            2,                         // Current is last file
+            |path| path == "last.txt", // Dirty
             " # 📝 first.txt  # 📝 second.txt \u{200B} # 📝 last.txt [*] \u{200B}",
         )
     }
@@ -218,9 +223,9 @@ mod test_format_path_list {
     fn test_empty_path_list() -> Result<()> {
         run_test_case(
             &["only.txt"],
-            &[],   // No files marked
-            0,     // Current is the only file
-            false, // Not dirty
+            &[],       // No files marked
+            0,         // Current is the only file
+            |_| false, // Not dirty
             "\u{200B} 📝 only.txt \u{200B}",
         )
     }
@@ -229,9 +234,9 @@ mod test_format_path_list {
     fn test_same_basename_files() -> Result<()> {
         run_test_case(
             &["dir1/same_name.txt", "dir2/same_name.txt"],
-            &[1],  // Mark the second file
-            0,     // Current is first file
-            false, // Not dirty
+            &[1],      // Mark the second file
+            0,         // Current is first file
+            |_| false, // Not dirty
             " # 📝 dir2/same_name.txt \u{200B} 📝 dir1/same_name.txt \u{200B}",
         )
     }
@@ -240,9 +245,9 @@ mod test_format_path_list {
     fn test_relative_paths_stay_within_cwd() -> Result<()> {
         run_test_case(
             &["Cargo.txt", "event/Cargo.txt"],
-            &[0, 1], // Both files marked
-            0,       // Current is first file (root Cargo.txt)
-            false,   // Not dirty
+            &[0, 1],   // Both files marked
+            0,         // Current is first file (root Cargo.txt)
+            |_| false, // Not dirty
             "\u{200B} # 📝 Cargo.txt \u{200B} # 📝 event/Cargo.txt ",
         )
     }

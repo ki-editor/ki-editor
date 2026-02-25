@@ -452,6 +452,22 @@ impl<T: Frontend> App<T> {
         // Recalculate layout before each render
         self.layout.recalculate_layout(&self.context);
 
+        // We can remove this part from here if we make sure the buffer dirty status
+        // is aptly updated every elsewhere in the program.
+        // This part is here to avoid maintaining such a check everywhere else.
+        // But, it might be a bad idea to do inside get_screen which will be called
+        // more often than buffer dirty status is udpated. I am not sure, I'll check with WJH
+
+        // Populate buffer dirty status for format_path_list::get_formatted_paths
+        self.context.clear_buffer_dirty_status();
+        for buffer in self.layout.buffers() {
+            let buffer = buffer.borrow();
+            if let Some(path) = buffer.path() {
+                self.context
+                    .set_buffer_dirty_status(path.clone(), buffer.dirty());
+            }
+        }
+
         // Generate layout
         // Render every window
         let (windows, cursors): (Vec<_>, Vec<_>) = self

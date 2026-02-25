@@ -153,7 +153,7 @@ impl Editor {
                     &context.get_marked_files(),
                     &self.path()?,
                     context.current_working_directory(),
-                    self.buffer().dirty(),
+                    |path| context.get_buffer_dirty_status(path),
                 ),
                 // Reference: NEED_TO_REDUCE_WIDTH_BY_1
                 dimension.width.saturating_sub(1),
