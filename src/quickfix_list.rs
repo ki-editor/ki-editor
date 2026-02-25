@@ -8,12 +8,13 @@ use crate::{
     buffer::Buffer,
     char_index_range::CharIndexRange,
     components::{
-        dropdown::{Dropdown, DropdownConfig, DropdownItem},
+        dropdown_sync::{
+            DropdownItem, DropdownSync as Dropdown, DropdownSyncConfig as DropdownConfig,
+        },
         editor::Movement,
         suggestive_editor::Info,
     },
     position::Position,
-    thread::Callback,
 };
 use shared::absolute_path::AbsolutePath;
 
@@ -104,7 +105,7 @@ impl QuickfixList {
         self.dropdown.items_count()
     }
 
-    pub fn render(&self) -> crate::components::dropdown::DropdownRender {
+    pub fn render(&self) -> crate::components::dropdown_sync::DropdownRender {
         self.dropdown.render()
     }
 
@@ -125,7 +126,6 @@ impl QuickfixList {
         QuickfixList {
             dropdown: Dropdown::new(DropdownConfig {
                 title: String::default(),
-                on_nucleo_notify: Callback::no_op(),
             }),
             items: Vec::default(),
             title: String::default(),

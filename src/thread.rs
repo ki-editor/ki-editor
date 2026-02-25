@@ -20,6 +20,7 @@ impl<T> Callback<T> {
         self.0(event);
     }
 
+    #[cfg(test)]
     pub fn no_op() -> Callback<T> {
         Callback::new(Arc::new(|_| {}))
     }

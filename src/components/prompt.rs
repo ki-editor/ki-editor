@@ -22,7 +22,7 @@ use crate::{
 
 use super::{
     component::Component,
-    dropdown::DropdownItem,
+    dropdown_sync::DropdownItem,
     editor::{Editor, Mode},
     editor_keymap::alted,
     suggestive_editor::{DispatchSuggestiveEditor, SuggestiveEditor, SuggestiveEditorFilter},

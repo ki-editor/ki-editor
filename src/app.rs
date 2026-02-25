@@ -4,7 +4,7 @@ use crate::{
     clipboard::Texts,
     components::{
         component::{Component, ComponentId, GetGridResult},
-        dropdown::{DropdownItem, DropdownRender},
+        dropdown_sync::{DropdownItem, DropdownRender},
         editor::{
             Direction, DispatchEditor, Editor, IfCurrentNotFound, Movement, PriorChange, Reveal,
         },

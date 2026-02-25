@@ -1,6 +1,6 @@
 use itertools::Itertools;
 
-use crate::{app::Dispatch, components::dropdown::DropdownItem};
+use crate::{app::Dispatch, components::dropdown_sync::DropdownItem};
 
 use super::workspace_edit::WorkspaceEdit;
 

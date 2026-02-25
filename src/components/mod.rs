@@ -1,7 +1,8 @@
 pub mod component;
-pub mod dropdown;
+pub mod dropdown_sync;
 pub mod prompt;
 
+pub mod dropdown_async;
 pub mod editor;
 pub mod editor_keymap;
 mod editor_keymap_legend;

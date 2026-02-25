@@ -1,6 +1,6 @@
 use super::{
     component::ComponentId,
-    dropdown::DropdownRender,
+    dropdown_sync::DropdownRender,
     editor_keymap::{shifted_char, KEYMAP_SCORE},
     editor_keymap_legend::NormalModeOverride,
     render_editor::Source,

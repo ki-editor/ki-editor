@@ -6,7 +6,7 @@ use shared::icons::get_icon_config;
 
 use crate::{
     app::{Dispatch, Dispatches},
-    components::{dropdown::DropdownItem, editor::DispatchEditor, suggestive_editor::Info},
+    components::{dropdown_sync::DropdownItem, editor::DispatchEditor, suggestive_editor::Info},
     position::Position,
 };
 

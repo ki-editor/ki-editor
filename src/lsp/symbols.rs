@@ -1,7 +1,7 @@
 use crate::{
     app::{Dispatch, Dispatches},
     buffer::Buffer,
-    components::dropdown::DropdownItem,
+    components::dropdown_sync::DropdownItem,
     quickfix_list::Location,
 };
 use lsp_types::{DocumentSymbolResponse, SymbolKind};

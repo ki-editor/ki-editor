@@ -16,13 +16,13 @@ use itertools::Itertools;
 use my_proc_macros::key;
 use std::{cell::RefCell, rc::Rc};
 
-use super::dropdown::{Dropdown, DropdownConfig};
+use super::dropdown_async::{DropdownAsync as Dropdown, DropdownAsyncConfig as DropdownConfig};
 use super::editor::{Direction, DispatchEditor, IfCurrentNotFound};
 use super::editor_keymap::alted;
 use super::keymap_legend::{Keybinding, Keymap};
 use super::{
     component::Component,
-    dropdown::DropdownItem,
+    dropdown_sync::DropdownItem,
     editor::{Editor, Mode},
 };
 
@@ -186,7 +186,7 @@ impl SuggestiveEditor {
     }
 
     pub fn completion_dropdown_opened(&self) -> bool {
-        !self.completion_dropdown.items().is_empty()
+        self.completion_dropdown.opened()
     }
 
     pub fn set_completion(&mut self, completion: Completion) {
