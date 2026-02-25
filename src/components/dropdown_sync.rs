@@ -750,9 +750,7 @@ mod test_dropdown_sync {
 
     use crate::{
         components::{
-            dropdown_sync::{
-                DropdownItem, DropdownSync, DropdownSyncConfig,
-            },
+            dropdown_sync::{DropdownItem, DropdownSync, DropdownSyncConfig},
             suggestive_editor::{Decoration, Info},
         },
         position::Position,
