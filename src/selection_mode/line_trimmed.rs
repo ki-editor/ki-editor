@@ -346,7 +346,6 @@ mod test_line {
 
     use super::*;
 
-    
     use serial_test::serial;
 
     use crate::selection_mode::{GetGapMovement, PositionBased, SelectionModeTrait};
