@@ -346,6 +346,7 @@ mod test_line {
 
     use super::*;
 
+    use ki_protocol_types::SelectionModeParams;
     use serial_test::serial;
 
     use crate::selection_mode::{GetGapMovement, PositionBased, SelectionModeTrait};
@@ -358,6 +359,32 @@ mod test_line {
             Selection::default(),
             &[(0..1, "a"), (3..4, "b")],
         );
+    }
+
+    #[test]
+    fn jump_to_line_number() {
+        let buffer = Buffer::new(
+            None,
+            "foo
+bar
+spam
+
+baz",
+        );
+        let result = PositionBased(LineTrimmed)
+            .to_index(
+                &crate::selection_mode::SelectionModeParams {
+                    buffer: &buffer,
+                    current_selection: &Selection::default(),
+                    cursor_direction: &Direction::End,
+                },
+                4,
+            )
+            .unwrap()
+            .unwrap();
+        dbg!(result.range());
+        let selection = buffer.slice(&result.range()).unwrap();
+        assert_eq!(selection, "baz")
     }
 
     #[test]
