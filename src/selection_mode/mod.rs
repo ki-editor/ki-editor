@@ -1177,7 +1177,6 @@ pub trait PositionBasedSelectionMode {
                 cursor_char_index,
                 IfCurrentNotFound::LookForward,
             )? {
-                dbg!((cursor_char_index, &range));
                 if current_index == index {
                     return Ok(Some(range.to_selection(buffer, current_selection)?));
                 } else {

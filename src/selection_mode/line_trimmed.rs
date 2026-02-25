@@ -382,7 +382,6 @@ baz",
             )
             .unwrap()
             .unwrap();
-        dbg!(result.range());
         let selection = buffer.slice(&result.range()).unwrap();
         assert_eq!(selection, "baz")
     }
