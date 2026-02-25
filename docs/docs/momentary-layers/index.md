@@ -4,7 +4,7 @@ sidebar_position: 1
 
 # Intro
 
-Momentary Layers (MoL) are layers that activate when a key is held and deactivate when released, similar to how the Shift key works.
+Momentary Layers (≡) are layers that activate when a key is held and deactivate when released, similar to how the Shift key works.
 
 This terminology comes from the keyboard modding community. For more details, see: https://zmk.dev/docs/keymaps/behaviors/layers#momentary-layer.
 
