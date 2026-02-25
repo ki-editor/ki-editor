@@ -346,7 +346,7 @@ mod test_line {
 
     use super::*;
 
-    use ki_protocol_types::SelectionModeParams;
+    
     use serial_test::serial;
 
     use crate::selection_mode::{GetGapMovement, PositionBased, SelectionModeTrait};
@@ -383,7 +383,7 @@ baz",
             .unwrap()
             .unwrap();
         let selection = buffer.slice(&result.range()).unwrap();
-        assert_eq!(selection, "baz")
+        assert_eq!(selection, "baz");
     }
 
     #[test]
