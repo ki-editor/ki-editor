@@ -639,7 +639,7 @@ impl Editor {
         .to_vec()
     }
 
-    fn surround_keymap_legend_config(&self) -> super::keymap_legend::KeymapLegendConfig {
+    pub fn keymap_surround(&self) -> Keymap {
         fn select_surround_keymap_legend_config(kind: SurroundKind) -> KeymapLegendConfig {
             KeymapLegendConfig {
                 title: format!("Select Surround ({kind:?})"),
@@ -708,39 +708,43 @@ impl Editor {
                 }),
             }
         }
+        Keymap::new(&[
+            Keybinding::new(
+                "v",
+                "Delete Surround".to_string(),
+                Dispatch::ShowKeymapLegend(delete_surround_keymap_legend_config()),
+            ),
+            Keybinding::new(
+                "s",
+                "Surround".to_string(),
+                Dispatch::ShowKeymapLegend(surround_keymap_legend_config()),
+            ),
+            Keybinding::new(
+                "f",
+                "Change Surround".to_string(),
+                Dispatch::ShowKeymapLegend(change_surround_from_keymap_legend_config()),
+            ),
+            Keybinding::new(
+                "d",
+                "Select Inside".to_string(),
+                Dispatch::ShowKeymapLegend(select_surround_keymap_legend_config(
+                    SurroundKind::Inside,
+                )),
+            ),
+            Keybinding::new(
+                "e",
+                "Select Around".to_string(),
+                Dispatch::ShowKeymapLegend(select_surround_keymap_legend_config(
+                    SurroundKind::Around,
+                )),
+            ),
+        ])
+    }
+
+    fn surround_keymap_legend_config(&self) -> super::keymap_legend::KeymapLegendConfig {
         KeymapLegendConfig {
             title: "Surround".to_string(),
-            keymap: Keymap::new(&[
-                Keybinding::new(
-                    "v",
-                    "Delete Surround".to_string(),
-                    Dispatch::ShowKeymapLegend(delete_surround_keymap_legend_config()),
-                ),
-                Keybinding::new(
-                    "s",
-                    "Surround".to_string(),
-                    Dispatch::ShowKeymapLegend(surround_keymap_legend_config()),
-                ),
-                Keybinding::new(
-                    "f",
-                    "Change Surround".to_string(),
-                    Dispatch::ShowKeymapLegend(change_surround_from_keymap_legend_config()),
-                ),
-                Keybinding::new(
-                    "d",
-                    "Select Inside".to_string(),
-                    Dispatch::ShowKeymapLegend(select_surround_keymap_legend_config(
-                        SurroundKind::Inside,
-                    )),
-                ),
-                Keybinding::new(
-                    "e",
-                    "Select Around".to_string(),
-                    Dispatch::ShowKeymapLegend(select_surround_keymap_legend_config(
-                        SurroundKind::Around,
-                    )),
-                ),
-            ]),
+            keymap: self.keymap_surround(),
         }
     }
 

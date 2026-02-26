@@ -40,7 +40,7 @@ This is most useful when you want to search for the current selection with some 
 
 ### `Raise`
 
-This is one of my favorite actions, it only works for [syntax node](../selection-modes/primary.md#syntax) selection modes.
+This is one of my favorite actions, it only works for [syntax node](selection-modes/primary.md#syntax) selection modes.
 
 This replaces the parent node of the current node, with the current node.
 
@@ -224,14 +224,14 @@ Opens the Surround menu.
 
 This is a group of actions that is related to "surround" or "enclosures".
 
-| Label             | Action                                                                                                                                                       |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `Around`          | Select around `<x>`                                                                                                                                          |
-| `Inside`          | Select inside `<x>`                                                                                                                                          |
-| `Delete Surround` | Delete surrounding `<x>`                                                                                                                                     |
-| `Change Surround` | Change surrounding `<x>` to `<y>`                                                                                                                            |
-| `Surround`        | Surround current selection with `<x>`                                                                                                                        |
-| `Select All`      | Select the from first until the last selection of the current selection mode (use with [Line](../selection-modes/primary.md#line) to select the whole file). |
+| Label             | Action                                                                                                                                                    |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Around`          | Select around `<x>`                                                                                                                                       |
+| `Inside`          | Select inside `<x>`                                                                                                                                       |
+| `Delete Surround` | Delete surrounding `<x>`                                                                                                                                  |
+| `Change Surround` | Change surrounding `<x>` to `<y>`                                                                                                                         |
+| `Surround`        | Surround current selection with `<x>`                                                                                                                     |
+| `Select All`      | Select the from first until the last selection of the current selection mode (use with [Line](selection-modes/primary.md#line) to select the whole file). |
 
 `<x>` or `<y>` can be one of the following:
 

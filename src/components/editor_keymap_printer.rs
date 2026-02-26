@@ -330,6 +330,7 @@ impl KeymapPrintSections {
                 "Transform".to_string(),
                 &Keymap::new(&editor.keymap_transform()),
             ),
+            KeymapPrintSection::from_keymap("Surround".to_string(), &editor.keymap_surround()),
             KeymapPrintSection::from_keymap("Paste".to_string(), &paste_keymap()),
             KeymapPrintSection::from_keymap("Duplicate".to_string(), &duplicate_keymap()),
             KeymapPrintSection::from_keymap(
