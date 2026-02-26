@@ -65,15 +65,15 @@ For example:
 
 ### `Insert`
 
-Activates the [Insert≡](../momentary-layers/insert-mol.mdx).
+Activates the [Insert ≡](../momentary-layers/insert-mol.mdx).
 
 ### `Delete`
 
-Activates the [Delete≡](../momentary-layers/delete-mol.mdx).
+Activates the [Delete ≡](../momentary-layers/delete-mol.mdx).
 
 ### `Cut`
 
-Activates the [Cut≡](../momentary-layers/cut-mol.mdx).
+Activates the [Cut ≡](../momentary-layers/cut-mol.mdx).
 
 ### `Replace #`
 
@@ -152,7 +152,7 @@ File unmarking has two behaviors:
 1. When the current file is the only marked file: File remains unmarked and focused.
 2. When the current file is NOT the only marked file: File is unmarked and focus shifts to the next marked file, similar to closing a tab.
 
-To move between marked files, see [Buffer≡](../momentary-layers/buffer-mol).
+To move between marked files, see [Buffer ≡](../momentary-layers/buffer-mol).
 
 ### `Undo`/`Redo`
 
@@ -196,11 +196,11 @@ Copy behaves differently depending on the number of cursors.
 When there is more than one cursor, the selected texts of each cursor will be
 copied to the cursor-specific clipboard.
 
-Hold to activate the [Duplicate≡](../momentary-layers/duplicate-mol.mdx)
+Hold to activate the [Duplicate ≡](../momentary-layers/duplicate-mol.mdx)
 
 ### `Paste`
 
-Activates the [Paste≡](../momentary-layers/paste-mol.mdx).
+Activates the [Paste ≡](../momentary-layers/paste-mol.mdx).
 
 ### `Change X`
 
