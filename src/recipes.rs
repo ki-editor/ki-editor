@@ -451,7 +451,7 @@ Why?
                     content: "hello world".trim(),
                     file_extension: "md",
                     prepare_events: &[],
-                    events: keys!("a g , j"),
+                    events: keys!("a , s m"),
                     expectations: Box::new([CurrentComponentContent("(hello world)")]),
                     terminal_height: None,
                     similar_vim_combos: &[],
@@ -462,7 +462,7 @@ Why?
                     content: "hello world".trim(),
                     file_extension: "md",
                     prepare_events: &[],
-                    events: keys!("s g , p x y enter"),
+                    events: keys!("s , s ; x y enter"),
                     expectations: Box::new([
                         CurrentComponentContent("<xy>hello</xy> world"),
                         CurrentSelectedTexts(&["<xy>hello</xy>"]),
@@ -476,7 +476,7 @@ Why?
                     content: "(hello world)".trim(),
                     file_extension: "md",
                     prepare_events: keys!("w o"),
-                    events: keys!("g v j"),
+                    events: keys!(", v m"),
                     expectations: Box::new([CurrentComponentContent("hello world")]),
                     terminal_height: None,
                     similar_vim_combos: &[],
@@ -487,7 +487,7 @@ Why?
                     content: "(hello world)".trim(),
                     file_extension: "md",
                     prepare_events: keys!("w o"),
-                    events: keys!("g f j l"),
+                    events: keys!(", f m ."),
                     expectations: Box::new([CurrentComponentContent("{hello world}")]),
                     terminal_height: None,
                     similar_vim_combos: &[],
@@ -498,7 +498,7 @@ Why?
                     content: "(hello world)".trim(),
                     file_extension: "md",
                     prepare_events: keys!("w o"),
-                    events: keys!("g h j"),
+                    events: keys!(", d m"),
                     expectations: Box::new([CurrentSelectedTexts(&["hello world"])]),
                     terminal_height: None,
                     similar_vim_combos: &["v i ("],
@@ -509,7 +509,7 @@ Why?
                     content: "(hello world)".trim(),
                     file_extension: "md",
                     prepare_events: keys!("w o"),
-                    events: keys!("g ; j"),
+                    events: keys!(", e m"),
                     expectations: Box::new([CurrentSelectedTexts(&["(hello world)"])]),
                     terminal_height: None,
                     similar_vim_combos: &["v a ("],
@@ -1275,7 +1275,7 @@ fn foo() {
                     .trim(),
                     file_extension: "rs",
                     prepare_events: &[],
-                    events: keys!("a l g h l r space release-r a"),
+                    events: keys!("a l , d . r space release-r a"),
                     expectations: Box::new([CurrentSelectedTexts(&["bar();", "spam();", "baz();"])]),
                     terminal_height: Some(7),
                     similar_vim_combos: &[],
@@ -1986,7 +1986,7 @@ pub(crate) fn from_text(language: Option<tree_sitter::Language>, text: &str) -> 
                     file_extension: "rs",
                     prepare_events: &[],
                     events: keys!(
-                        "n d y x enter d r space release-r j k l g , j h S o m e esc r space release-r l"
+                        "n d y x enter d r space release-r j k l , s m h S o m e esc r space release-r l"
                     ),
                     expectations: Box::new([CurrentComponentContent(r#"
 pub(crate) fn from_text(language: Option<tree_sitter::Language>, text: &str) -> Self {

@@ -883,13 +883,7 @@ pub trait PositionBasedSelectionMode {
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
         let range = params.current_selection.range();
 
-        let next_cursor_char_index = if range.is_empty() {
-            // if the range is empty, we cannot use just `range.end`,
-            // we need to increment it by one to advance the cursor_char_index forward
-            range.end + 1
-        } else {
-            range.end
-        };
+        let next_cursor_char_index = self.next_char_index(params, range)?;
         self.get_current_selection_by_cursor(
             params.buffer,
             next_cursor_char_index.min(CharIndex(params.buffer.len_chars())),
@@ -999,7 +993,14 @@ pub trait PositionBasedSelectionMode {
         _: &SelectionModeParams,
         range: CharIndexRange,
     ) -> anyhow::Result<CharIndex> {
-        Ok(range.end)
+        let next_char_index = if range.is_empty() {
+            // if the range is empty, we cannot use just `range.end`,
+            // we need to increment it by one to advance the cursor_char_index forward
+            range.end + 1
+        } else {
+            range.end
+        };
+        Ok(next_char_index)
     }
 
     fn expand(&self, params: &SelectionModeParams) -> anyhow::Result<Option<ApplyMovementResult>> {

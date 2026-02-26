@@ -221,16 +221,16 @@ fn toggle_untoggle_mark() -> anyhow::Result<()> {
             }),
             Editor(SetContent("foo bar spam".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Subword)),
-            App(MarkFileAndToggleMark),
+            App(ToggleSelectionMark),
             Editor(MoveSelection(Right)),
             Editor(MoveSelection(Right)),
-            App(MarkFileAndToggleMark),
+            App(ToggleSelectionMark),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Mark)),
             Editor(CursorAddToAllSelections),
             Expect(CurrentSelectedTexts(&["foo", "spam"])),
             Editor(CursorKeepPrimaryOnly),
             Expect(CurrentSelectedTexts(&["spam"])),
-            App(MarkFileAndToggleMark),
+            App(ToggleSelectionMark),
             Editor(MoveSelection(Current(IfCurrentNotFound::LookForward))),
             Editor(CursorAddToAllSelections),
             Expect(CurrentSelectedTexts(&["foo"])),
@@ -585,7 +585,7 @@ fn update_mark_position() -> anyhow::Result<()> {
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Subword)),
             Editor(MoveSelection(Right)),
             Editor(MoveSelection(Right)),
-            App(MarkFileAndToggleMark),
+            App(ToggleSelectionMark),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Mark)),
             Expect(CurrentSelectedTexts(&["spim"])),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Subword)),
@@ -1706,7 +1706,7 @@ fn main() {
             )),
             // Bookmart "z"
             Editor(MatchLiteral("z".to_string())),
-            App(MarkFileAndToggleMark),
+            App(ToggleSelectionMark),
             // Expect the parent lines of the current selections are highlighted with parent_lines_background,
             // regardless of whether the parent lines are inbound or outbound
             ExpectMulti(
@@ -1740,7 +1740,7 @@ fn main() {
             ),
             // Mark the "fn" word
             Editor(MatchLiteral("fn".to_string())),
-            App(MarkFileAndToggleMark),
+            App(ToggleSelectionMark),
             // Go to "print()" and skip the first 3 lines for rendering
             Editor(MatchLiteral("print()".to_string())),
             Editor(SetScrollOffset(3)),
@@ -2082,7 +2082,7 @@ fn main() { // too long
             ),
             // Expect decorations overrides syntax highlighting
             Editor(MatchLiteral("fn".to_string())),
-            App(MarkFileAndToggleMark),
+            App(ToggleSelectionMark),
             // Move cursor to next line, so that "fn" is not selected,
             //  so that we can test the style applied to "fn" ,
             // otherwise the style of primary selection anchors will override the mark style
@@ -2145,7 +2145,7 @@ fn update_mark_position_with_undo_and_redo() -> anyhow::Result<()> {
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Subword)),
             Editor(MoveSelection(Right)),
             Editor(MoveSelection(Right)),
-            App(MarkFileAndToggleMark),
+            App(ToggleSelectionMark),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Mark)),
             Expect(CurrentSelectedTexts(&["spim"])),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Subword)),
@@ -2186,7 +2186,7 @@ fn saving_should_not_destroy_mark_if_selections_not_modified() -> anyhow::Result
                 crate::config::from_extension("rs").unwrap(),
             ))),
             Editor(MatchLiteral("bar".to_string())),
-            App(MarkFileAndToggleMark),
+            App(ToggleSelectionMark),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Mark)),
             Editor(ForceSave),
             // Expect the content is formatted (second line dedented)
@@ -2211,7 +2211,7 @@ fn surround() -> anyhow::Result<()> {
             }),
             Editor(SetContent("fn main() { x.y() }".to_string())),
             Editor(MatchLiteral("x.y()".to_string())),
-            App(HandleKeyEvents(keys!("g , j").to_vec())),
+            App(HandleKeyEvents(keys!(", s m").to_vec())),
             Expect(CurrentComponentContent("fn main() { (x.y()) }")),
             Expect(SelectionExtensionEnabled(false)),
         ])
@@ -2560,7 +2560,7 @@ fn select_surround_inside() -> Result<(), anyhow::Error> {
             }),
             Editor(SetContent("(hello (world))".to_string())),
             Editor(MatchLiteral("rl".to_string())),
-            App(HandleKeyEvents(keys!("g h j").to_vec())),
+            App(HandleKeyEvents(keys!(", d m").to_vec())),
             Expect(CurrentSelectedTexts(&["world"])),
             Expect(CurrentSelectionMode(SelectionMode::Custom)),
         ])
@@ -2578,7 +2578,7 @@ fn select_surround_around() -> Result<(), anyhow::Error> {
             }),
             Editor(SetContent("(hello (world))".to_string())),
             Editor(MatchLiteral("rl".to_string())),
-            App(HandleKeyEvents(keys!("g ; j").to_vec())),
+            App(HandleKeyEvents(keys!(", e m").to_vec())),
             Expect(CurrentSelectedTexts(&["(world)"])),
             Expect(CurrentSelectionMode(SelectionMode::Custom)),
         ])
@@ -2614,7 +2614,7 @@ fn delete_surround() -> Result<(), anyhow::Error> {
             }),
             Editor(SetContent("(hello (world))".to_string())),
             Editor(MatchLiteral("rl".to_string())),
-            App(HandleKeyEvents(keys!("g v j").to_vec())),
+            App(HandleKeyEvents(keys!(", v m").to_vec())),
             Expect(CurrentSelectedTexts(&["world"])),
             Expect(CurrentSelectionMode(SelectionMode::Custom)),
             Expect(CurrentComponentContent("(hello world)")),
@@ -2633,7 +2633,7 @@ fn change_surround_selection_not_on_enclosure() -> Result<(), anyhow::Error> {
             }),
             Editor(SetContent("(hello (world))".to_string())),
             Editor(MatchLiteral("rl".to_string())),
-            App(HandleKeyEvents(keys!("g f j l").to_vec())),
+            App(HandleKeyEvents(keys!(", f m .").to_vec())),
             Expect(CurrentSelectedTexts(&["{world}"])),
             Expect(CurrentSelectionMode(SelectionMode::Custom)),
             Expect(CurrentComponentContent("(hello {world})")),
@@ -2652,7 +2652,7 @@ fn change_surround_selection_on_enclosure() -> Result<(), anyhow::Error> {
             }),
             Editor(SetContent("(hello)".to_string())),
             Editor(MatchLiteral("(hello)".to_string())),
-            App(HandleKeyEvents(keys!("g f j l").to_vec())),
+            App(HandleKeyEvents(keys!(", f m .").to_vec())),
             Expect(CurrentSelectedTexts(&["{hello}"])),
         ])
     })
@@ -2907,9 +2907,9 @@ fn movement_current_look_forward_backward() -> Result<(), anyhow::Error> {
                 }),
                 Editor(SetContent("hello world is good".to_string())),
                 Editor(MatchLiteral("hello".to_string())),
-                App(MarkFileAndToggleMark),
+                App(ToggleSelectionMark),
                 Editor(MatchLiteral("good".to_string())),
-                App(MarkFileAndToggleMark),
+                App(ToggleSelectionMark),
                 Editor(MatchLiteral("world".to_string())),
                 Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Mark)),
                 Expect(CurrentSelectedTexts(&["good"])),
@@ -3036,7 +3036,7 @@ fn last_contiguous_selection_mode() -> Result<(), anyhow::Error> {
                 }),
                 Editor(SetContent("who lives in a".to_string())),
                 Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
-                App(MarkFileAndToggleMark),
+                App(ToggleSelectionMark),
                 Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Mark)),
                 Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
                 Expect(CurrentSelectedTexts(&["who"])),
@@ -4179,7 +4179,7 @@ fn surround_extended_selection() -> anyhow::Result<()> {
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
             Editor(EnableSelectionExtension),
             Editor(MoveSelection(Right)),
-            App(HandleKeyEvents(keys!("g , j").to_vec())),
+            App(HandleKeyEvents(keys!(", s m").to_vec())),
             Expect(CurrentComponentContent("(foo bar)")),
         ])
     })

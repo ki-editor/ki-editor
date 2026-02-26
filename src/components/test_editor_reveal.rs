@@ -77,9 +77,9 @@ zeta
                 .to_string(),
             )),
             Editor(MatchLiteral("mark-x".to_string())),
-            App(MarkFileAndToggleMark),
+            App(ToggleSelectionMark),
             Editor(MatchLiteral("mark-y".to_string())),
-            App(MarkFileAndToggleMark),
+            App(ToggleSelectionMark),
             Editor(MatchLiteral("zeta".to_string())),
             Expect(EditorGrid(
                 "# 🦀  main.rs [*]
@@ -511,7 +511,7 @@ fn total_count_of_rendered_marks_should_equal_total_count_of_actual_marks() -> a
             Editor(MatchLiteral("foo".to_string())),
             Editor(CursorAddToAllSelections),
             Editor(ToggleReveal(Reveal::Cursor)),
-            App(MarkFileAndToggleMark),
+            App(ToggleSelectionMark),
             Editor(CursorKeepPrimaryOnly),
             Editor(ToggleReveal(Reveal::Mark)),
             Expect(EditorGrid(

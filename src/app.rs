@@ -64,7 +64,7 @@ use shared::{absolute_path::AbsolutePath, language::Language};
 use std::{
     any::TypeId,
     cell::RefCell,
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     path::{Path, PathBuf},
     rc::Rc,
     sync::{
@@ -1109,7 +1109,7 @@ impl<T: Frontend> App<T> {
             Dispatch::OpenKeyboardLayoutPrompt => self.open_keyboard_layout_picker()?,
             Dispatch::NavigateForward => self.navigate_forward()?,
             Dispatch::NavigateBack => self.navigate_back()?,
-            Dispatch::MarkFileAndToggleMark => self.mark_file_and_toggle_mark()?,
+            Dispatch::ToggleSelectionMark => self.toggle_selection_mark()?,
             Dispatch::ToggleFileMark => self.toggle_file_mark()?,
             Dispatch::SetFileDirtyStatus { dirty_status } => {
                 self.set_file_dirty_status(dirty_status)
@@ -2806,9 +2806,32 @@ impl<T: Frontend> App<T> {
         }
     }
 
-    fn mark_file_and_toggle_mark(&mut self) -> anyhow::Result<()> {
+    fn toggle_selection_mark(&mut self) -> anyhow::Result<()> {
+        // Mark the current file if we are actually marking some selection
         if let Some(path) = self.get_current_file_path() {
-            let _ = self.context.mark_file(path);
+            let marks: HashSet<_> = self
+                .context
+                .get_marks(Some(path.clone()))
+                .into_iter()
+                .collect();
+            let current_selections: HashSet<_> = self
+                .current_component()
+                .borrow()
+                .editor()
+                .selection_set
+                .selections()
+                .iter()
+                .map(|selection| selection.extended_range())
+                .collect();
+
+            // If the set of current selections is the subset of the marks of this file
+            // then this `toggle_selection_mark` action only consists of unmarking action,
+            // and zero marking action.
+            //
+            // We only mark the current file if there are some marking actions
+            if !current_selections.is_subset(&marks) {
+                let _ = self.context.mark_file(path);
+            }
         }
         let dispatches = self
             .current_component()
@@ -3672,7 +3695,7 @@ pub enum Dispatch {
     OpenKeyboardLayoutPrompt,
     NavigateForward,
     NavigateBack,
-    MarkFileAndToggleMark,
+    ToggleSelectionMark,
     ToggleFileMark,
     SetFileDirtyStatus {
         dirty_status: bool,

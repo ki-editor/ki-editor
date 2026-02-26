@@ -361,6 +361,31 @@ mod test_line {
     }
 
     #[test]
+    fn jump_to_line_number() {
+        let buffer = Buffer::new(
+            None,
+            "foo
+bar
+spam
+
+baz",
+        );
+        let result = PositionBased(LineTrimmed)
+            .to_index(
+                &crate::selection_mode::SelectionModeParams {
+                    buffer: &buffer,
+                    current_selection: &Selection::default(),
+                    cursor_direction: &Direction::End,
+                },
+                4,
+            )
+            .unwrap()
+            .unwrap();
+        let selection = buffer.slice(&result.range()).unwrap();
+        assert_eq!(selection, "baz");
+    }
+
+    #[test]
     fn prev_next_movement() -> Result<(), anyhow::Error> {
         execute_test(|s| {
             Box::new([
