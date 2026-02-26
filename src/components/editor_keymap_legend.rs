@@ -348,8 +348,6 @@ impl Editor {
                 Dispatch::ToEditor(EnterInsertMode(Direction::End)),
             )
             .override_keymap(normal_mode_override.append.as_ref(), none_if_no_override),
-            Keybinding::new(",", Direction::End.format_action(""), Dispatch::Null)
-                .override_keymap(normal_mode_override.open.as_ref(), none_if_no_override),
         ]
         .into_iter()
         .flatten()
@@ -628,12 +626,122 @@ impl Editor {
                 Dispatch::ToEditor(DispatchEditor::PressSpace),
             ),
             Keybinding::new(
+                ",",
+                "Surround".to_string(),
+                Dispatch::ShowKeymapLegend(self.surround_keymap_legend_config()),
+            ),
+            Keybinding::new(
                 "esc",
                 "Remain only this window".to_string(),
                 Dispatch::ToEditor(DispatchEditor::HandleEsc),
             ),
         ]
         .to_vec()
+    }
+
+    fn surround_keymap_legend_config(&self) -> super::keymap_legend::KeymapLegendConfig {
+        fn select_surround_keymap_legend_config(kind: SurroundKind) -> KeymapLegendConfig {
+            KeymapLegendConfig {
+                title: format!("Select Surround ({kind:?})"),
+
+                keymap: generate_enclosures_keymap(|enclosure| {
+                    Dispatch::ToEditor(SelectSurround {
+                        enclosure,
+                        kind: kind.clone(),
+                    })
+                }),
+            }
+        }
+
+        fn delete_surround_keymap_legend_config() -> KeymapLegendConfig {
+            KeymapLegendConfig {
+                title: "Delete Surround".to_string(),
+
+                keymap: generate_enclosures_keymap(|enclosure| {
+                    Dispatch::ToEditor(DeleteSurround(enclosure))
+                }),
+            }
+        }
+
+        fn surround_keymap_legend_config() -> KeymapLegendConfig {
+            KeymapLegendConfig {
+                title: "Surround".to_string(),
+
+                keymap: Keymap::new(
+                    &generate_enclosures_keymap(|enclosure| {
+                        let (open, close) = enclosure.open_close_symbols_str();
+                        Dispatch::ToEditor(Surround(open.to_string(), close.to_string()))
+                    })
+                    .into_vec()
+                    .into_iter()
+                    .chain(Some(Keybinding::new(
+                        ";",
+                        "<></>".to_string(),
+                        Dispatch::OpenSurroundXmlPrompt,
+                    )))
+                    .collect_vec(),
+                ),
+            }
+        }
+
+        fn change_surround_from_keymap_legend_config() -> super::keymap_legend::KeymapLegendConfig {
+            KeymapLegendConfig {
+                title: "Change Surround from:".to_string(),
+
+                keymap: generate_enclosures_keymap(|enclosure| {
+                    Dispatch::ShowKeymapLegend(change_surround_to_keymap_legend_config(enclosure))
+                }),
+            }
+        }
+
+        fn change_surround_to_keymap_legend_config(
+            from: EnclosureKind,
+        ) -> super::keymap_legend::KeymapLegendConfig {
+            KeymapLegendConfig {
+                title: format!("Change Surround from {} to:", from.to_str()),
+
+                keymap: generate_enclosures_keymap(|enclosure| {
+                    Dispatch::ToEditor(ChangeSurround {
+                        from,
+                        to: enclosure,
+                    })
+                }),
+            }
+        }
+        KeymapLegendConfig {
+            title: "Surround".to_string(),
+            keymap: Keymap::new(&[
+                Keybinding::new(
+                    "v",
+                    "Delete Surround".to_string(),
+                    Dispatch::ShowKeymapLegend(delete_surround_keymap_legend_config()),
+                ),
+                Keybinding::new(
+                    "s",
+                    "Surround".to_string(),
+                    Dispatch::ShowKeymapLegend(surround_keymap_legend_config()),
+                ),
+                Keybinding::new(
+                    "f",
+                    "Change Surround".to_string(),
+                    Dispatch::ShowKeymapLegend(change_surround_from_keymap_legend_config()),
+                ),
+                Keybinding::new(
+                    "d",
+                    "Select Inside".to_string(),
+                    Dispatch::ShowKeymapLegend(select_surround_keymap_legend_config(
+                        SurroundKind::Inside,
+                    )),
+                ),
+                Keybinding::new(
+                    "e",
+                    "Select Around".to_string(),
+                    Dispatch::ShowKeymapLegend(select_surround_keymap_legend_config(
+                        SurroundKind::Around,
+                    )),
+                ),
+            ]),
+        }
     }
 
     pub fn keymap_sub_modes(&self) -> Vec<Keybinding> {
@@ -776,10 +884,7 @@ impl Editor {
             title: "Extend".to_string(),
             keymap: Keymap::new(
                 &self
-                    .normal_mode_keymap(
-                        Some(extend_mode_normal_mode_override()),
-                        Some(PriorChange::EnableSelectionExtension),
-                    )
+                    .normal_mode_keymap(None, Some(PriorChange::EnableSelectionExtension))
                     .into_iter()
                     .chain(Some(Keybinding::new(
                         "g",
@@ -1695,13 +1800,13 @@ pub struct KeymapOverride {
 fn generate_enclosures_keymap(get_dispatch: impl Fn(EnclosureKind) -> Dispatch) -> Keymap {
     Keymap::new(
         &[
-            ("j", EnclosureKind::Parentheses),
-            ("k", EnclosureKind::SquareBrackets),
-            ("l", EnclosureKind::CurlyBraces),
-            (";", EnclosureKind::AngularBrackets),
-            ("u", EnclosureKind::SingleQuotes),
-            ("i", EnclosureKind::DoubleQuotes),
-            ("o", EnclosureKind::Backticks),
+            ("m", EnclosureKind::Parentheses),
+            (",", EnclosureKind::SquareBrackets),
+            (".", EnclosureKind::CurlyBraces),
+            ("/", EnclosureKind::AngularBrackets),
+            ("j", EnclosureKind::SingleQuotes),
+            ("k", EnclosureKind::DoubleQuotes),
+            ("l", EnclosureKind::Backticks),
         ]
         .into_iter()
         .map(|(key, enclosure)| {
@@ -1710,104 +1815,6 @@ fn generate_enclosures_keymap(get_dispatch: impl Fn(EnclosureKind) -> Dispatch) 
         })
         .collect_vec(),
     )
-}
-
-pub fn extend_mode_normal_mode_override() -> NormalModeOverride {
-    fn select_surround_keymap_legend_config(kind: SurroundKind) -> KeymapLegendConfig {
-        KeymapLegendConfig {
-            title: format!("Select Surround ({kind:?})"),
-
-            keymap: generate_enclosures_keymap(|enclosure| {
-                Dispatch::ToEditor(SelectSurround {
-                    enclosure,
-                    kind: kind.clone(),
-                })
-            }),
-        }
-    }
-
-    fn delete_surround_keymap_legend_config() -> KeymapLegendConfig {
-        KeymapLegendConfig {
-            title: "Delete Surround".to_string(),
-
-            keymap: generate_enclosures_keymap(|enclosure| {
-                Dispatch::ToEditor(DeleteSurround(enclosure))
-            }),
-        }
-    }
-
-    fn surround_keymap_legend_config() -> KeymapLegendConfig {
-        KeymapLegendConfig {
-            title: "Surround".to_string(),
-
-            keymap: Keymap::new(
-                &generate_enclosures_keymap(|enclosure| {
-                    let (open, close) = enclosure.open_close_symbols_str();
-                    Dispatch::ToEditor(Surround(open.to_string(), close.to_string()))
-                })
-                .into_vec()
-                .into_iter()
-                .chain(Some(Keybinding::new(
-                    "p",
-                    "<></>".to_string(),
-                    Dispatch::OpenSurroundXmlPrompt,
-                )))
-                .collect_vec(),
-            ),
-        }
-    }
-
-    fn change_surround_from_keymap_legend_config() -> super::keymap_legend::KeymapLegendConfig {
-        KeymapLegendConfig {
-            title: "Change Surround from:".to_string(),
-
-            keymap: generate_enclosures_keymap(|enclosure| {
-                Dispatch::ShowKeymapLegend(change_surround_to_keymap_legend_config(enclosure))
-            }),
-        }
-    }
-
-    fn change_surround_to_keymap_legend_config(
-        from: EnclosureKind,
-    ) -> super::keymap_legend::KeymapLegendConfig {
-        KeymapLegendConfig {
-            title: format!("Change Surround from {} to:", from.to_str()),
-
-            keymap: generate_enclosures_keymap(|enclosure| {
-                Dispatch::ToEditor(ChangeSurround {
-                    from,
-                    to: enclosure,
-                })
-            }),
-        }
-    }
-    NormalModeOverride {
-        insert: Some(KeymapOverride {
-            description: "Inside",
-            dispatch: Dispatch::ShowKeymapLegend(select_surround_keymap_legend_config(
-                SurroundKind::Inside,
-            )),
-        }),
-        append: Some(KeymapOverride {
-            description: "Around",
-            dispatch: Dispatch::ShowKeymapLegend(select_surround_keymap_legend_config(
-                SurroundKind::Around,
-            )),
-        }),
-        delete: Some(KeymapOverride {
-            description: "Delete Surround",
-            dispatch: Dispatch::ShowKeymapLegend(delete_surround_keymap_legend_config()),
-        }),
-        change: Some(KeymapOverride {
-            description: "Change Surround",
-            dispatch: Dispatch::ShowKeymapLegend(change_surround_from_keymap_legend_config()),
-        }),
-        open: Some(KeymapOverride {
-            description: "Surround",
-            dispatch: Dispatch::ShowKeymapLegend(surround_keymap_legend_config()),
-        }),
-        ..Default::default()
-    }
 }
 
 fn primary_selection_modes() -> Vec<(&'static str, SelectionMode)> {

@@ -1,7 +1,6 @@
 use super::{
     editor::IfCurrentNotFound,
     editor_keymap::alted,
-    editor_keymap_legend::extend_mode_normal_mode_override,
     file_explorer::file_explorer_normal_mode_override,
     keymap_legend::{Keybinding, Keymap},
     suggestive_editor::completion_item_keymap,
@@ -318,10 +317,6 @@ impl KeymapPrintSections {
                 &Keymap::new(
                     &editor.keymap_overridable(&file_explorer_normal_mode_override(), true),
                 ),
-            ),
-            KeymapPrintSection::from_keymap(
-                "Extend".to_string(),
-                &Keymap::new(&editor.keymap_overridable(&extend_mode_normal_mode_override(), true)),
             ),
             KeymapPrintSection::from_keymap(
                 "Completion Items".to_string(),

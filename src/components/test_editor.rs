@@ -2211,7 +2211,7 @@ fn surround() -> anyhow::Result<()> {
             }),
             Editor(SetContent("fn main() { x.y() }".to_string())),
             Editor(MatchLiteral("x.y()".to_string())),
-            App(HandleKeyEvents(keys!("g , j").to_vec())),
+            App(HandleKeyEvents(keys!(", s m").to_vec())),
             Expect(CurrentComponentContent("fn main() { (x.y()) }")),
             Expect(SelectionExtensionEnabled(false)),
         ])
@@ -2560,7 +2560,7 @@ fn select_surround_inside() -> Result<(), anyhow::Error> {
             }),
             Editor(SetContent("(hello (world))".to_string())),
             Editor(MatchLiteral("rl".to_string())),
-            App(HandleKeyEvents(keys!("g h j").to_vec())),
+            App(HandleKeyEvents(keys!(", d m").to_vec())),
             Expect(CurrentSelectedTexts(&["world"])),
             Expect(CurrentSelectionMode(SelectionMode::Custom)),
         ])
@@ -2578,7 +2578,7 @@ fn select_surround_around() -> Result<(), anyhow::Error> {
             }),
             Editor(SetContent("(hello (world))".to_string())),
             Editor(MatchLiteral("rl".to_string())),
-            App(HandleKeyEvents(keys!("g ; j").to_vec())),
+            App(HandleKeyEvents(keys!(", e m").to_vec())),
             Expect(CurrentSelectedTexts(&["(world)"])),
             Expect(CurrentSelectionMode(SelectionMode::Custom)),
         ])
@@ -2614,7 +2614,7 @@ fn delete_surround() -> Result<(), anyhow::Error> {
             }),
             Editor(SetContent("(hello (world))".to_string())),
             Editor(MatchLiteral("rl".to_string())),
-            App(HandleKeyEvents(keys!("g v j").to_vec())),
+            App(HandleKeyEvents(keys!(", v m").to_vec())),
             Expect(CurrentSelectedTexts(&["world"])),
             Expect(CurrentSelectionMode(SelectionMode::Custom)),
             Expect(CurrentComponentContent("(hello world)")),
@@ -2633,7 +2633,7 @@ fn change_surround_selection_not_on_enclosure() -> Result<(), anyhow::Error> {
             }),
             Editor(SetContent("(hello (world))".to_string())),
             Editor(MatchLiteral("rl".to_string())),
-            App(HandleKeyEvents(keys!("g f j l").to_vec())),
+            App(HandleKeyEvents(keys!(", f m .").to_vec())),
             Expect(CurrentSelectedTexts(&["{world}"])),
             Expect(CurrentSelectionMode(SelectionMode::Custom)),
             Expect(CurrentComponentContent("(hello {world})")),
@@ -2652,7 +2652,7 @@ fn change_surround_selection_on_enclosure() -> Result<(), anyhow::Error> {
             }),
             Editor(SetContent("(hello)".to_string())),
             Editor(MatchLiteral("(hello)".to_string())),
-            App(HandleKeyEvents(keys!("g f j l").to_vec())),
+            App(HandleKeyEvents(keys!(", f m .").to_vec())),
             Expect(CurrentSelectedTexts(&["{hello}"])),
         ])
     })
@@ -4179,7 +4179,7 @@ fn surround_extended_selection() -> anyhow::Result<()> {
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
             Editor(EnableSelectionExtension),
             Editor(MoveSelection(Right)),
-            App(HandleKeyEvents(keys!("g , j").to_vec())),
+            App(HandleKeyEvents(keys!(", s m").to_vec())),
             Expect(CurrentComponentContent("(foo bar)")),
         ])
     })
