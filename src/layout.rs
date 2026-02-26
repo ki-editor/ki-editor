@@ -205,7 +205,9 @@ impl Layout {
         context: &Context,
     ) -> anyhow::Result<()> {
         let info_panel = Rc::new(RefCell::new(Editor::from_text(None, "")));
-        info_panel.borrow_mut().show_info(info, context)?;
+        // dropping dispatch as this is a buffer with no path and
+        // show_info dispatches are relate to file dirty status
+        let _dispatches = info_panel.borrow_mut().show_info(info, context)?;
         self.tree
             .replace_node_child(node_id, kind, info_panel, false);
         Ok(())
@@ -305,8 +307,14 @@ impl Layout {
         self.background_suggestive_editors.shift_remove(path);
     }
 
-    pub fn refresh_file_explorer(&self, context: &Context) -> anyhow::Result<()> {
-        self.background_file_explorer.borrow_mut().refresh(context)
+    pub fn refresh_file_explorer(&self, context: &Context) -> Result<(), anyhow::Error> {
+        // dropping dispatch as this is a buffer with no path and
+        // refresh dispatches are relate to file dirty status
+        let _dispatches = self
+            .background_file_explorer
+            .borrow_mut()
+            .refresh(context)?;
+        Ok(())
     }
 
     pub fn open_file_explorer(&mut self) {

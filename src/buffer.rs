@@ -755,10 +755,12 @@ impl Buffer {
 
             self.last_synced_time = path.last_modified_time().ok();
 
-            Dispatches::one(Dispatch::SetFileDirtyStatus {
-                dirty_status: false,
-            });
-            Ok((Dispatches::default(), Some(path.clone())))
+            Ok((
+                Dispatches::default().chain(Dispatches::one(Dispatch::SetFileDirtyStatus {
+                    dirty_status: false,
+                })),
+                Some(path.clone()),
+            ))
         } else {
             log::info!("Buffer has no path");
             Ok((Dispatches::default(), None))
@@ -1155,7 +1157,7 @@ impl Buffer {
                 .into_iter()
                 .cloned()
                 .collect_vec();
-            edits
+            let dispatches = edits
                 .clone()
                 .into_iter()
                 .try_fold(Dispatches::default(), |_, edit| {
@@ -1167,7 +1169,7 @@ impl Buffer {
             self.undo_stack.push(history.inverse());
 
             // Return both the selection set and the applied transaction
-            Ok(Some((selection_set, diff_edits, edits)))
+            Ok(Some((dispatches, selection_set, diff_edits, edits)))
         } else {
             Ok(None)
         }
@@ -1184,7 +1186,7 @@ impl Buffer {
                 .into_iter()
                 .cloned()
                 .collect_vec();
-            edits
+            let dispatches = edits
                 .clone()
                 .into_iter()
                 .try_fold(Dispatches::default(), |_, edit| {
@@ -1196,7 +1198,7 @@ impl Buffer {
             self.redo_stack.push(history.inverse());
 
             // Return both the selection set and the applied transaction
-            Ok(Some((selection_set, diff_edits, edits)))
+            Ok(Some((dispatches, selection_set, diff_edits, edits)))
         } else {
             Ok(None)
         }
@@ -1400,7 +1402,7 @@ fn f(
         fn should_format_code() {
             run_test(|path, mut buffer| {
                 // Update the buffer with unformatted code
-                buffer.update(" fn main\n() {}");
+                let _dispatches = buffer.update(" fn main\n() {}");
 
                 // Save the buffer
                 let _ = buffer
@@ -1431,7 +1433,7 @@ fn f(
         fn should_be_undoable() {
             run_test(|_, mut buffer| {
                 let original = " fn main\n() {}";
-                buffer.update(original);
+                let _dispatches = buffer.update(original);
 
                 let _ = buffer
                     .save(&Context::default(), SelectionSet::default(), false, 0)
@@ -1454,7 +1456,7 @@ fn f(
         fn should_not_run_when_syntax_node_is_malformed() {
             run_test(|_, mut buffer| {
                 // Update the buffer to be invalid Rust code
-                buffer.update("fn main() {");
+                let _dispatches = buffer.update("fn main() {");
 
                 // Save the buffer
                 let _ = buffer
@@ -1476,7 +1478,7 @@ fn f(
             run_test(|_, mut buffer| {
                 // Update the buffer to be valid Rust code
                 // but unformatable
-                buffer.update(code);
+                let _dispatches = buffer.update(code);
 
                 // The code should be deemed as valid by Tree-sitter,
                 // but not to the formatter
@@ -1683,4 +1685,9 @@ impl EditHistory {
     }
 }
 
-type UndoRedoReturn = Option<(SelectionSet, Vec<ki_protocol_types::DiffEdit>, Vec<Edit>)>;
+type UndoRedoReturn = Option<(
+    Dispatches,
+    SelectionSet,
+    Vec<ki_protocol_types::DiffEdit>,
+    Vec<Edit>,
+)>;

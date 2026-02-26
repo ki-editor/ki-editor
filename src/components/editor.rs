@@ -3256,9 +3256,10 @@ impl Editor {
 
         // Create dispatches for document changes and buffer edit transaction
         let dispatches = match result {
-            Some((selection_set, diff_edits, edits)) => {
+            Some((dispatches, selection_set, diff_edits, edits)) => {
                 // Update selection set
-                let dispatches = self.update_selection_set(selection_set, false, context);
+                let update_selection_dispatches =
+                    self.update_selection_set(selection_set, false, context);
 
                 // Create a BufferEditTransaction dispatch for external integrations
                 let dispatch = if let Some(path) = self.buffer().path() {
@@ -3272,7 +3273,9 @@ impl Editor {
                     Dispatches::default()
                 };
 
-                dispatches.chain(dispatch)
+                dispatches
+                    .chain(update_selection_dispatches)
+                    .chain(dispatch)
             }
             Option::None => Dispatches::default(),
         };

@@ -295,7 +295,8 @@ impl KeymapLegend {
 
     fn refresh(&mut self, context: &Context) {
         let content = self.display();
-        self.editor_mut()
+        let _dispatches = self
+            .editor_mut()
             .set_content(&content, context)
             .unwrap_or_default();
     }
