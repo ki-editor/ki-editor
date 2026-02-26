@@ -353,7 +353,11 @@ impl Layout {
             .collect_vec()
     }
 
-    pub fn reload_buffers(&self, affected_paths: Vec<AbsolutePath>) -> anyhow::Result<Dispatches> {
+    pub fn reload_buffers(
+        &self,
+        context: &Context,
+        affected_paths: Vec<AbsolutePath>,
+    ) -> anyhow::Result<Dispatches> {
         self.buffers()
             .into_iter()
             .try_fold(Dispatches::default(), |dispatches, buffer| {
@@ -363,7 +367,7 @@ impl Layout {
                         .iter()
                         .any(|affected_path| affected_path == &path)
                     {
-                        return Ok(dispatches.chain(buffer.reload(true)?));
+                        return Ok(dispatches.chain(buffer.reload(context, true)?));
                     }
                 }
                 Ok(dispatches)
@@ -454,10 +458,10 @@ impl Layout {
                 .replace_root_node_child(ComponentKind::QuickfixList, editor.clone(), false);
         let dispatches = {
             let mut editor = editor.borrow_mut();
-            editor.set_content(&render.content, context)?;
+            let dispatches = editor.set_content(&render.content, context);
             editor.set_decorations(&render.decorations);
             editor.set_title("Quickfix list".to_string());
-            editor.select_line_at(render.highlight_line_index, context)?
+            dispatches?.chain(editor.select_line_at(render.highlight_line_index, context)?)
         };
 
         // If the QuickfixList is the only component in the layout,

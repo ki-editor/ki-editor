@@ -4,41 +4,40 @@ use shared::{absolute_path::AbsolutePath, get_minimal_unique_paths};
 use crate::components::render_editor::markup_focused_tab;
 
 #[cfg(test)]
-fn format_path_list<F>(
-    paths: &[&AbsolutePath],
+fn format_path_list(
+    marked_paths: &[&AbsolutePath],
+    dirty_paths: &[&AbsolutePath],
     current_path: &AbsolutePath,
     current_working_directory: &AbsolutePath,
-    is_dirty: F,
-) -> String
-where
-    F: Fn(&AbsolutePath) -> bool,
-{
-    let formatted_paths =
-        get_formatted_paths(paths, current_path, current_working_directory, is_dirty);
+) -> String {
+    let formatted_paths = get_formatted_paths(
+        marked_paths,
+        dirty_paths,
+        current_path,
+        current_working_directory,
+    );
 
     // Join all formatted paths
     formatted_paths.join("")
 }
 
-pub fn get_formatted_paths<F>(
-    paths: &[&AbsolutePath],
+pub fn get_formatted_paths(
+    marked_paths: &[&AbsolutePath],
+    dirty_paths: &[&AbsolutePath],
     current_path: &AbsolutePath,
     current_working_directory: &AbsolutePath,
-    is_dirty: F,
-) -> Vec<String>
-where
-    F: Fn(&AbsolutePath) -> bool,
-{
-    debug_assert_eq!(paths.iter().unique().count(), paths.len());
+) -> Vec<String> {
+    debug_assert_eq!(marked_paths.iter().unique().count(), marked_paths.len());
     // Check if current path is in the list
-    let current_path_index = paths.iter().position(|&p| p == current_path);
+    let current_path_index = marked_paths.iter().position(|&p| p == current_path);
     let contains_current_path = current_path_index.is_some();
+    let is_dirty = |path| dirty_paths.contains(&path);
 
     // Create a combined list for minimal unique paths calculation, including the current path
     // even though we won't use its minimal version (we need it for context in minimization)
-    let paths_for_minimal = paths
+    let paths_for_minimal = marked_paths
         .iter()
-        .map(|&p| p.to_path_buf().clone())
+        .map(|&path| path.to_path_buf().clone())
         .chain(
             // Add current path if it's not already in the list (for context, not for display)
             if !contains_current_path {
@@ -78,7 +77,7 @@ where
 
     let current_path_string = format_path_string(current_path);
 
-    let current_file_bracket = match (contains_current_path, is_dirty(current_path)) {
+    let current_file_bracket = match (contains_current_path, is_dirty(&current_path)) {
         (false, false) => "[ ]",
         (false, true) => "[:]",
         (true, false) => "[-]",
@@ -93,20 +92,20 @@ where
     ));
 
     // No paths in the list
-    if paths.is_empty() {
+    if marked_paths.is_empty() {
         return Some(current_path_display).into_iter().collect();
     }
 
     // Generate formatted strings for all paths in the list
-    let result: Vec<String> = paths
+    let result: Vec<String> = marked_paths
         .iter()
-        .map(|&p| {
-            if p == current_path {
+        .map(|&path| {
+            if path == current_path {
                 current_path_display.clone()
             } else {
-                let file_dirty = is_dirty(p);
+                let file_dirty = is_dirty(&path);
                 let bracket = if file_dirty { "[÷]" } else { "[-]" };
-                format!("{} {} {} ", bracket, p.icon(), format_path_string(p))
+                format!("{} {} {} ", bracket, path.icon(), format_path_string(path))
             }
         })
         .collect();
@@ -129,16 +128,13 @@ mod test_format_path_list {
 
     use tempfile::tempdir;
 
-    fn run_test_case<F>(
+    fn run_test_case(
         file_paths: &[&str],
         marked_indices: &[usize],
+        dirty_indices: &[usize],
         current_index: usize,
-        is_dirty: F,
         expected: &str,
-    ) -> Result<()>
-    where
-        F: Fn(&AbsolutePath) -> bool,
-    {
+    ) -> Result<()> {
         // Setup test environment
         let temp_dir = tempdir()?;
 
@@ -163,12 +159,13 @@ mod test_format_path_list {
 
         // Create marked paths from indices
         let marked_files = marked_indices.iter().map(|&i| &paths[i]).collect_vec();
+        let dirty_files = dirty_indices.iter().map(|&i| &paths[i]).collect_vec();
 
         // Get current path
         let current_path = &paths[current_index];
 
         // Test the function
-        let result = format_path_list(&marked_files, current_path, &cwd, is_dirty);
+        let result = format_path_list(&marked_files, &dirty_files, current_path, &cwd);
 
         // Assert result
         assert_eq!(result, expected);
@@ -179,9 +176,9 @@ mod test_format_path_list {
     fn test_current_path_not_in_list() -> Result<()> {
         run_test_case(
             &["file1.txt", "file2.txt", "current.txt"],
-            &[0, 1],   // Mark first two files
-            2,         // Current is third file (not in list)
-            |_| false, // Not dirty
+            &[0, 1], // Mark first two files
+            &[],     // No files dirty
+            2,       // Current is third file (not in list)
             " # 📝 file1.txt  # 📝 file2.txt \u{200b} 📝 current.txt \u{200b}",
         )
     }
@@ -190,9 +187,9 @@ mod test_format_path_list {
     fn test_current_path_as_first_file() -> Result<()> {
         run_test_case(
             &["first.txt", "second.txt", "third.txt"],
-            &[0, 1, 2],                 // All files marked
-            0,                          // Current is first file
-            |path| path == "first.txt", // Dirty
+            &[0, 1, 2], // All files marked
+            &[0],       // First file dirty
+            0,          // Current is first file
             "\u{200B} # 📝 first.txt [*] \u{200B} # 📝 second.txt  # 📝 third.txt ",
         )
     }
@@ -202,8 +199,8 @@ mod test_format_path_list {
         run_test_case(
             &["first.txt", "middle.txt", "last.txt"],
             &[0, 1, 2], // All files marked
+            &[],        // No files dirty
             1,          // Current is middle file
-            |_| false,  // Not dirty
             " # 📝 first.txt \u{200B} # 📝 middle.txt \u{200B} # 📝 last.txt ",
         )
     }
@@ -212,9 +209,9 @@ mod test_format_path_list {
     fn test_current_path_as_last_file() -> Result<()> {
         run_test_case(
             &["first.txt", "second.txt", "last.txt"],
-            &[0, 1, 2],                // All files marked
-            2,                         // Current is last file
-            |path| path == "last.txt", // Dirty
+            &[0, 1, 2], // All files marked
+            &[2],       // Last file dirty
+            2,          // Current is last file
             " # 📝 first.txt  # 📝 second.txt \u{200B} # 📝 last.txt [*] \u{200B}",
         )
     }
@@ -223,9 +220,9 @@ mod test_format_path_list {
     fn test_empty_path_list() -> Result<()> {
         run_test_case(
             &["only.txt"],
-            &[],       // No files marked
-            0,         // Current is the only file
-            |_| false, // Not dirty
+            &[], // No files marked
+            &[], // No files dirty
+            0,   // Current is the only file
             "\u{200B} 📝 only.txt \u{200B}",
         )
     }
@@ -234,9 +231,9 @@ mod test_format_path_list {
     fn test_same_basename_files() -> Result<()> {
         run_test_case(
             &["dir1/same_name.txt", "dir2/same_name.txt"],
-            &[1],      // Mark the second file
-            0,         // Current is first file
-            |_| false, // Not dirty
+            &[1], // Mark the second file
+            &[],  // No files dirty
+            0,    // Current is first file
             " # 📝 dir2/same_name.txt \u{200B} 📝 dir1/same_name.txt \u{200B}",
         )
     }
@@ -245,9 +242,9 @@ mod test_format_path_list {
     fn test_relative_paths_stay_within_cwd() -> Result<()> {
         run_test_case(
             &["Cargo.txt", "event/Cargo.txt"],
-            &[0, 1],   // Both files marked
-            0,         // Current is first file (root Cargo.txt)
-            |_| false, // Not dirty
+            &[0, 1], // Both files marked
+            &[],     // No files dirty
+            0,       // Current is first file (root Cargo.txt)
             "\u{200B} # 📝 Cargo.txt \u{200B} # 📝 event/Cargo.txt ",
         )
     }

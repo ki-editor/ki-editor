@@ -106,7 +106,7 @@ impl FileExplorer {
         Ok(())
     }
 
-    fn refresh_editor(&mut self, context: &Context) -> anyhow::Result<()> {
+    fn refresh_editor(&mut self, context: &Context) -> anyhow::Result<Dispatches> {
         let text = self.tree.render();
         self.editor_mut().set_content(&text, context)
     }

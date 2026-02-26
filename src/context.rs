@@ -50,7 +50,7 @@ pub struct Context {
     lsp_progress: String,
     kill_ring: RingHistory<Texts>,
 
-    buffer_dirty_status: HashMap<AbsolutePath, bool>,
+    file_dirty_status: HashMap<AbsolutePath, bool>,
 }
 
 #[derive(Debug)]
@@ -289,7 +289,7 @@ impl Context {
             lsp_progress: "".to_string(),
             quickfix_list: QuickfixList::default(),
             kill_ring: RingHistory::new(),
-            buffer_dirty_status: HashMap::new(),
+            file_dirty_status: HashMap::new(),
         }
     }
 
@@ -375,16 +375,14 @@ impl Context {
         &self.current_working_directory
     }
 
-    pub fn set_buffer_dirty_status(&mut self, path: AbsolutePath, dirty: bool) {
-        self.buffer_dirty_status.insert(path, dirty);
+    pub fn set_file_dirty_status(&mut self, path: &AbsolutePath, dirty_status: bool) {
+        self.file_dirty_status
+            .entry(path.clone())
+            .or_insert(dirty_status);
     }
 
-    pub fn clear_buffer_dirty_status(&mut self) {
-        self.buffer_dirty_status.clear();
-    }
-
-    pub fn get_buffer_dirty_status(&self, path: &AbsolutePath) -> bool {
-        self.buffer_dirty_status.get(path).copied().unwrap_or(false)
+    pub fn get_file_dirty_status(&self, path: &AbsolutePath) -> Option<&bool> {
+        self.file_dirty_status.get(path)
     }
 
     pub fn global_search_config(&self) -> &GlobalSearchConfig {
@@ -484,6 +482,14 @@ impl Context {
 
     pub fn get_marked_files(&self) -> Vec<&AbsolutePath> {
         self.marked_files.iter().collect()
+    }
+
+    pub fn get_dirty_files(&self) -> Vec<&AbsolutePath> {
+        self.file_dirty_status
+            .iter()
+            .filter(|(_path, dirty_status)| **dirty_status)
+            .map(|(path, _dirty_status)| path)
+            .collect()
     }
 
     /// Returns some path if we should focus another file.

@@ -305,7 +305,9 @@ impl ExpectKind {
                 let (result, context) = expect_kind.get_result(app)?;
                 (!result, format!("NOT ({context})"))
             }
-            EditorIsDirty() => contextualize(&component.borrow().editor().buffer().dirty(), &true),
+            EditorIsDirty() => {
+                contextualize(&component.borrow().editor().buffer().dirty(context), &true)
+            }
             CurrentMode(mode) => contextualize(&component.borrow().editor().mode, mode),
             EditorCursorPosition(position) => contextualize(
                 &component.borrow().editor().get_cursor_position().unwrap(),
