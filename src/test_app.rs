@@ -1570,14 +1570,14 @@ fn global_marks() -> Result<(), anyhow::Error> {
                 focus: true,
             }),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Subword)),
-            App(MarkFileAndToggleMark),
+            App(ToggleSelectionMark),
             App(OpenFile {
                 path: s.foo_rs(),
                 owner: BufferOwner::User,
                 focus: true,
             }),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Subword)),
-            App(MarkFileAndToggleMark),
+            App(ToggleSelectionMark),
             App(SetQuickfixList(
                 crate::quickfix_list::QuickfixListType::Mark,
             )),
@@ -1613,14 +1613,14 @@ fn global_marks_updated_by_edits() -> Result<(), anyhow::Error> {
                 focus: true,
             }),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Subword)),
-            App(MarkFileAndToggleMark),
+            App(ToggleSelectionMark),
             App(OpenFile {
                 path: s.foo_rs(),
                 owner: BufferOwner::User,
                 focus: true,
             }),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Subword)),
-            App(MarkFileAndToggleMark),
+            App(ToggleSelectionMark),
             App(SetQuickfixList(
                 crate::quickfix_list::QuickfixListType::Mark,
             )),
@@ -1680,7 +1680,7 @@ fn esc_global_quickfix_mode() -> Result<(), anyhow::Error> {
                 focus: true,
             }),
             Editor(SetContent("foo bar foo bar".to_string())),
-            App(MarkFileAndToggleMark),
+            App(ToggleSelectionMark),
             App(OpenFile {
                 path: s.foo_rs(),
                 owner: BufferOwner::User,
@@ -3919,6 +3919,31 @@ fn change_working_directory_prompt() -> Result<(), anyhow::Error> {
             Expect(CurrentComponentContentString(get_path("src"))),
             App(HandleKeyEvent(key!("enter"))),
             Expect(CurrentWorkingDirectory(s.temp_dir().join("src").unwrap())),
+        ])
+    })
+}
+
+#[test]
+fn untoggling_marks_should_not_file_mark_current_file() -> Result<(), anyhow::Error> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.foo_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("foo bar spam".to_string())),
+            Editor(DispatchEditor::SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                Word,
+            )),
+            Expect(CurrentSelectedTexts(&["foo"])),
+            App(ToggleSelectionMark),
+            Expect(MarkedFiles([s.foo_rs()].to_vec())),
+            App(ToggleFileMark),
+            Expect(MarkedFiles([].to_vec())),
+            App(ToggleSelectionMark),
+            Expect(MarkedFiles([].to_vec())),
         ])
     })
 }

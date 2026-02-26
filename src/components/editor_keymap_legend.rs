@@ -153,7 +153,7 @@ impl Editor {
                 },
                 on_tap: Some(OnTap::new(
                     "Toggle Selection Mark",
-                    Dispatches::one(Dispatch::MarkFileAndToggleMark),
+                    Dispatches::one(Dispatch::ToggleSelectionMark),
                 )),
                 on_spacebar_tapped: None,
             }),
