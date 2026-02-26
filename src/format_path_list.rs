@@ -179,7 +179,7 @@ mod test_format_path_list {
             &[0, 1], // Mark first two files
             &[],     // No files dirty
             2,       // Current is third file (not in list)
-            " # 📝 file1.txt  # 📝 file2.txt \u{200b} 📝 current.txt \u{200b}",
+            " [-] 📝 file1.txt  [-] 📝 file2.txt \u{200b} [ ] 📝 current.txt \u{200b}",
         )
     }
 
@@ -190,7 +190,7 @@ mod test_format_path_list {
             &[0, 1, 2], // All files marked
             &[0],       // First file dirty
             0,          // Current is first file
-            "\u{200B} # 📝 first.txt [*] \u{200B} # 📝 second.txt  # 📝 third.txt ",
+            "\u{200b} [÷] 📝 first.txt \u{200b} [-] 📝 second.txt  [-] 📝 third.txt ",
         )
     }
 
@@ -201,7 +201,29 @@ mod test_format_path_list {
             &[0, 1, 2], // All files marked
             &[],        // No files dirty
             1,          // Current is middle file
-            " # 📝 first.txt \u{200B} # 📝 middle.txt \u{200B} # 📝 last.txt ",
+            " [-] 📝 first.txt \u{200b} [-] 📝 middle.txt \u{200b} [-] 📝 last.txt ",
+        )
+    }
+
+    #[test]
+    fn test_current_unmarked_saved() -> Result<()> {
+        run_test_case(
+            &["first.txt", "middle.txt", "last.txt"],
+            &[1, 2], // First file is unmarked
+            &[1],    // First marked file is dirty
+            0,       // Current is middle file
+            " [÷] 📝 middle.txt  [-] 📝 last.txt \u{200b} [ ] 📝 first.txt \u{200b}",
+        )
+    }
+
+    #[test]
+    fn test_current_multiple_unmarked_unsaved() -> Result<()> {
+        run_test_case(
+            &["a.rs", "b.rs", "c.rs", "d.rs"],
+            &[1, 2],    // First and last file is unmarked
+            &[0, 2, 3], // First marked file is dirty
+            3,          // Current is middle file
+            " [-] 🦀 b.rs  [÷] 🦀 c.rs \u{200b} [:] 🦀 d.rs \u{200b}",
         )
     }
 
@@ -212,7 +234,7 @@ mod test_format_path_list {
             &[0, 1, 2], // All files marked
             &[2],       // Last file dirty
             2,          // Current is last file
-            " # 📝 first.txt  # 📝 second.txt \u{200B} # 📝 last.txt [*] \u{200B}",
+            " [-] 📝 first.txt  [-] 📝 second.txt \u{200b} [÷] 📝 last.txt \u{200b}",
         )
     }
 
@@ -223,7 +245,7 @@ mod test_format_path_list {
             &[], // No files marked
             &[], // No files dirty
             0,   // Current is the only file
-            "\u{200B} 📝 only.txt \u{200B}",
+            "\u{200b} [ ] 📝 only.txt \u{200b}",
         )
     }
 
@@ -234,7 +256,7 @@ mod test_format_path_list {
             &[1], // Mark the second file
             &[],  // No files dirty
             0,    // Current is first file
-            " # 📝 dir2/same_name.txt \u{200B} 📝 dir1/same_name.txt \u{200B}",
+            " [-] 📝 dir2/same_name.txt \u{200b} [ ] 📝 dir1/same_name.txt \u{200b}",
         )
     }
 
@@ -245,7 +267,7 @@ mod test_format_path_list {
             &[0, 1], // Both files marked
             &[],     // No files dirty
             0,       // Current is first file (root Cargo.txt)
-            "\u{200B} # 📝 Cargo.txt \u{200B} # 📝 event/Cargo.txt ",
+            "\u{200b} [-] 📝 Cargo.txt \u{200b} [-] 📝 event/Cargo.txt ",
         )
     }
 }
