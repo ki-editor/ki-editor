@@ -87,7 +87,7 @@ impl Component for Editor {
     }
 
     fn set_content(&mut self, str: &str, context: &Context) -> Result<Dispatches, anyhow::Error> {
-        let dispatches = self.update_buffer(str);
+        let dispatches = Ok(self.update_buffer(str));
         self.clamp(context)?;
         return dispatches;
     }
@@ -2704,7 +2704,7 @@ impl Editor {
         self.buffer.borrow_mut()
     }
 
-    fn update_buffer(&mut self, s: &str) -> anyhow::Result<Dispatches> {
+    fn update_buffer(&mut self, s: &str) -> Dispatches {
         self.buffer.borrow_mut().update(s)
     }
 

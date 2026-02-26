@@ -47,8 +47,8 @@ impl EmbeddedApp {
         {
             let mut comp_ref = comp.borrow_mut();
             // dropping dispatch as this is a buffer with no path and
-            // set_content dispatches are relate to file dirty status
-            let _dispatches = comp_ref.set_content(&content, &self.context)?;
+            // set_content dispatches are related to file dirty status
+            let _ = comp_ref.set_content(&content, &self.context)?;
         }
 
         Ok(())

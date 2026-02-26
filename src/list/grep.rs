@@ -93,8 +93,8 @@ pub fn replace(
     // `Rc<RefCell<Buffer>>` (via `QuickfixList`) which is not `Send + Sync`.
     // Instead we return the modified `Buffer` to the main thread and call
     // `save_without_formatting` here, where `context` is available.
-    let modified_buffers: Vec<(Buffer, AbsolutePath)> =
-        walk_builder_config.run(Box::new(move |path, sender| {
+    let (buffers, paths): (Vec<_>, Vec<_>) = walk_builder_config
+        .run(Box::new(move |path, sender| {
             let path: AbsolutePath = path.try_into()?;
             let mut buffer = Buffer::from_path(&path, local_search_config.require_tree_sitter())?;
             let (modified, _, _, _) =
@@ -106,16 +106,22 @@ pub fn replace(
                     .unwrap_or_default();
             }
             Ok(())
-        }))?;
+        }))?
+        .into_iter()
+        .unzip();
 
-    let mut all_dispatches = Dispatches::default();
-    let mut paths = Vec::new();
-    for (mut buffer, path) in modified_buffers {
-        let (dispatches, _) = buffer.save_without_formatting(context, false)?;
-        all_dispatches = all_dispatches.chain(dispatches);
-        paths.push(path);
-    }
-    Ok((all_dispatches, paths))
+    let dispatches = buffers
+        .into_iter()
+        .map(|mut buffer| {
+            buffer
+                .save_without_formatting(context, false)
+                .map(|(d, _)| d)
+        })
+        .collect::<anyhow::Result<Vec<_>>>()?
+        .into_iter()
+        .reduce(Dispatches::chain)
+        .unwrap_or_default();
+    Ok((dispatches, paths))
 }
 
 pub fn run(

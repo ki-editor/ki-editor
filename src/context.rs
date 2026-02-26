@@ -376,13 +376,19 @@ impl Context {
     }
 
     pub fn set_file_dirty_status(&mut self, path: &AbsolutePath, dirty_status: bool) {
-        self.file_dirty_status
-            .entry(path.clone())
-            .or_insert(dirty_status);
+        self.file_dirty_status.insert(path.clone(), dirty_status);
     }
 
     pub fn get_file_dirty_status(&self, path: &AbsolutePath) -> Option<&bool> {
         self.file_dirty_status.get(path)
+    }
+
+    pub fn get_dirty_files(&self) -> Vec<&AbsolutePath> {
+        self.file_dirty_status
+            .iter()
+            .filter(|(_path, dirty_status)| **dirty_status)
+            .map(|(path, _dirty_status)| path)
+            .collect()
     }
 
     pub fn global_search_config(&self) -> &GlobalSearchConfig {
@@ -482,14 +488,6 @@ impl Context {
 
     pub fn get_marked_files(&self) -> Vec<&AbsolutePath> {
         self.marked_files.iter().collect()
-    }
-
-    pub fn get_dirty_files(&self) -> Vec<&AbsolutePath> {
-        self.file_dirty_status
-            .iter()
-            .filter(|(_path, dirty_status)| **dirty_status)
-            .map(|(path, _dirty_status)| path)
-            .collect()
     }
 
     /// Returns some path if we should focus another file.

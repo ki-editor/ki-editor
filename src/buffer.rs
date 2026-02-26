@@ -141,9 +141,9 @@ impl Buffer {
             let updated_content = path.read()?;
             let dispatches = self
                 .update_content(&updated_content, SelectionSet::default(), 0)?
-                .chain(Dispatches::one(Dispatch::SetFileDirtyStatus {
+                .append(Dispatch::SetFileDirtyStatus {
                     dirty_status: false,
-                }));
+                });
             self.last_synced_time = path.last_modified_time().ok();
 
             Ok(dispatches)
@@ -346,7 +346,7 @@ impl Buffer {
         }
     }
 
-    pub fn update(&mut self, text: &str) -> anyhow::Result<Dispatches> {
+    pub fn update(&mut self, text: &str) -> Dispatches {
         (self.rope, self.tree) = Self::get_rope_and_tree(self.treesitter_language.clone(), text);
         let dispatches = self.flag_as_modified();
         return dispatches;
@@ -566,12 +566,12 @@ impl Buffer {
             .map(|edit| edit.to_vscode_diff_edit(self))
             .collect::<anyhow::Result<Vec<_>>>()?;
 
-        let dirty_status_update_dispatches = edit_transaction
-            .edits()
-            .into_iter()
-            .try_fold(Dispatches::default(), |_, edit| {
-                self.apply_edit(edit, last_visible_line)
-            })?;
+        let dirty_status_update_dispatches = edit_transaction.edits().into_iter().try_fold(
+            Dispatches::default(),
+            |dispatches, edit| -> anyhow::Result<Dispatches, anyhow::Error> {
+                Ok(dispatches.chain(self.apply_edit(edit, last_visible_line)?))
+            },
+        )?;
 
         // NOTE: the inverted VS Code edits should be computed AFTER applying the edits
         let inverted_unnormalized_edits = inverted_edit_transaction.unnormalized_edits();
@@ -616,10 +616,10 @@ impl Buffer {
         Ok((new_selection_set, dispatches, applied_vscode_edits))
     }
 
-    fn flag_as_modified(&mut self) -> anyhow::Result<Dispatches> {
+    fn flag_as_modified(&mut self) -> Dispatches {
         let dispatches = Dispatches::one(Dispatch::SetFileDirtyStatus { dirty_status: true });
         self.owner = BufferOwner::User;
-        return Ok(dispatches);
+        return dispatches;
     }
 
     // Add these methods for undo/redo
@@ -664,7 +664,7 @@ impl Buffer {
         self.selection_set_history = std::mem::take(&mut self.selection_set_history)
             .apply(|selection_set| selection_set.apply_edit(edit, max_char_index));
 
-        return dispatches;
+        return Ok(dispatches);
     }
 
     pub fn batch_id(&self) -> &SyntaxHighlightRequestBatchId {
@@ -756,9 +756,9 @@ impl Buffer {
             self.last_synced_time = path.last_modified_time().ok();
 
             Ok((
-                Dispatches::default().chain(Dispatches::one(Dispatch::SetFileDirtyStatus {
+                Dispatches::one(Dispatch::SetFileDirtyStatus {
                     dirty_status: false,
-                })),
+                }),
                 Some(path.clone()),
             ))
         } else {
@@ -874,13 +874,11 @@ impl Buffer {
 
     /// Has the buffer changed since its last save?
     pub fn dirty(&self, context: &Context) -> bool {
-        match &self.path {
-            None => false,
-            Some(path) => match &context.get_file_dirty_status(&path) {
-                None => false,
-                Some(dirty_status) => **dirty_status,
-            },
-        }
+        *self
+            .path
+            .as_ref()
+            .and_then(|path| context.get_file_dirty_status(path))
+            .unwrap_or(&false)
     }
 
     pub fn byte_to_position(&self, byte_index: usize) -> anyhow::Result<Position> {
@@ -1157,12 +1155,12 @@ impl Buffer {
                 .into_iter()
                 .cloned()
                 .collect_vec();
-            let dispatches = edits
-                .clone()
-                .into_iter()
-                .try_fold(Dispatches::default(), |_, edit| {
-                    self.apply_edit(&edit, last_visible_line)
-                })?;
+            let dispatches = edits.clone().into_iter().try_fold(
+                Dispatches::default(),
+                |dispatches, edit| -> Result<Dispatches, anyhow::Error> {
+                    Ok(dispatches.chain(self.apply_edit(&edit, last_visible_line)?))
+                },
+            )?;
             self.reparse_tree()?;
 
             let selection_set = history.old_state.selection_set.clone();
@@ -1186,12 +1184,12 @@ impl Buffer {
                 .into_iter()
                 .cloned()
                 .collect_vec();
-            let dispatches = edits
-                .clone()
-                .into_iter()
-                .try_fold(Dispatches::default(), |_, edit| {
-                    self.apply_edit(&edit, last_visible_line)
-                })?;
+            let dispatches = edits.clone().into_iter().try_fold(
+                Dispatches::default(),
+                |dispatches, edit| -> Result<Dispatches, anyhow::Error> {
+                    Ok(dispatches.chain(self.apply_edit(&edit, last_visible_line)?))
+                },
+            )?;
             self.reparse_tree()?;
 
             let selection_set = history.old_state.selection_set.clone();
@@ -1402,7 +1400,7 @@ fn f(
         fn should_format_code() {
             run_test(|path, mut buffer| {
                 // Update the buffer with unformatted code
-                let _dispatches = buffer.update(" fn main\n() {}");
+                let _ = buffer.update(" fn main\n() {}");
 
                 // Save the buffer
                 let _ = buffer
@@ -1433,7 +1431,7 @@ fn f(
         fn should_be_undoable() {
             run_test(|_, mut buffer| {
                 let original = " fn main\n() {}";
-                let _dispatches = buffer.update(original);
+                let _ = buffer.update(original);
 
                 let _ = buffer
                     .save(&Context::default(), SelectionSet::default(), false, 0)
@@ -1456,7 +1454,7 @@ fn f(
         fn should_not_run_when_syntax_node_is_malformed() {
             run_test(|_, mut buffer| {
                 // Update the buffer to be invalid Rust code
-                let _dispatches = buffer.update("fn main() {");
+                let _ = buffer.update("fn main() {");
 
                 // Save the buffer
                 let _ = buffer
@@ -1478,7 +1476,7 @@ fn f(
             run_test(|_, mut buffer| {
                 // Update the buffer to be valid Rust code
                 // but unformatable
-                let _dispatches = buffer.update(code);
+                let _ = buffer.update(code);
 
                 // The code should be deemed as valid by Tree-sitter,
                 // but not to the formatter

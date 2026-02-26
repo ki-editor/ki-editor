@@ -95,7 +95,7 @@ impl FileExplorer {
         if let Some(index) = self.tree.find_index(path) {
             self.editor_mut().select_line_at(index, context)
         } else {
-            Ok(Dispatches::default().chain(dispatches))
+            Ok(dispatches)
         }
     }
 
@@ -156,8 +156,8 @@ impl FileExplorer {
                     let tree = std::mem::take(&mut self.tree);
                     self.tree = tree.toggle(&node.path, |open| !open);
                     // dropping dispatch as this is a buffer with no path and
-                    // refresh dispatches are relate to file dirty status
-                    let _dispatches = self.refresh_editor(context)?;
+                    // refresh dispatches are related to file dirty status
+                    let _ = self.refresh_editor(context)?;
                     Ok(Vec::new().into())
                 }
             }

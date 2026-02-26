@@ -206,8 +206,8 @@ impl Layout {
     ) -> anyhow::Result<()> {
         let info_panel = Rc::new(RefCell::new(Editor::from_text(None, "")));
         // dropping dispatch as this is a buffer with no path and
-        // show_info dispatches are relate to file dirty status
-        let _dispatches = info_panel.borrow_mut().show_info(info, context)?;
+        // show_info dispatches are related to file dirty status
+        let _ = info_panel.borrow_mut().show_info(info, context)?;
         self.tree
             .replace_node_child(node_id, kind, info_panel, false);
         Ok(())
@@ -309,8 +309,8 @@ impl Layout {
 
     pub fn refresh_file_explorer(&self, context: &Context) -> Result<(), anyhow::Error> {
         // dropping dispatch as this is a buffer with no path and
-        // refresh dispatches are relate to file dirty status
-        let _dispatches = self
+        // refresh dispatches are related to file dirty status
+        let _ = self
             .background_file_explorer
             .borrow_mut()
             .refresh(context)?;

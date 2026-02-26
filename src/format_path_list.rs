@@ -85,7 +85,7 @@ pub fn get_formatted_paths(
     };
 
     let current_path_display = markup_focused_tab(&format!(
-        "{} {} {} ",
+        " {} {} {} ",
         current_file_bracket,
         current_path.icon(),
         current_path_string
@@ -105,7 +105,7 @@ pub fn get_formatted_paths(
             } else {
                 let file_dirty = is_dirty(&path);
                 let bracket = if file_dirty { "[÷]" } else { "[-]" };
-                format!("{} {} {} ", bracket, path.icon(), format_path_string(path))
+                format!(" {} {} {} ", bracket, path.icon(), format_path_string(path))
             }
         })
         .collect();

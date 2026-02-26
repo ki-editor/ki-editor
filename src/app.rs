@@ -1112,7 +1112,7 @@ impl<T: Frontend> App<T> {
             Dispatch::MarkFileAndToggleMark => self.mark_file_and_toggle_mark()?,
             Dispatch::ToggleFileMark => self.toggle_file_mark()?,
             Dispatch::SetFileDirtyStatus { dirty_status } => {
-                self.set_file_dirty_status(dirty_status)?
+                self.set_file_dirty_status(dirty_status)
             }
             Dispatch::ToHostApp(to_host_app) => self.handle_to_host_app(to_host_app)?,
             Dispatch::FromHostApp(from_host_app) => self.handle_from_host_app(from_host_app)?,
@@ -2828,11 +2828,10 @@ impl<T: Frontend> App<T> {
         Ok(())
     }
 
-    fn set_file_dirty_status(&mut self, dirty_status: bool) -> anyhow::Result<()> {
+    fn set_file_dirty_status(&mut self, dirty_status: bool) {
         if let Some(path) = self.get_current_file_path() {
             self.context.set_file_dirty_status(&path, dirty_status);
         }
-        Ok(())
     }
 
     fn mode_changed(&self) {
@@ -3473,11 +3472,6 @@ pub struct Dispatches(Vec<Dispatch>);
 impl From<Vec<Dispatch>> for Dispatches {
     fn from(value: Vec<Dispatch>) -> Self {
         Self(value)
-    }
-}
-impl FromIterator<Dispatch> for Dispatches {
-    fn from_iter<I: IntoIterator<Item = Dispatch>>(iter: I) -> Self {
-        Self(iter.into_iter().collect())
     }
 }
 impl Dispatches {
