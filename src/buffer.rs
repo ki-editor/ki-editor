@@ -1401,9 +1401,12 @@ fn f(
                 // Update the buffer with unformatted code
                 let _ = buffer.update(" fn main\n() {}");
 
+                let mut context = Context::default();
+                context.set_file_dirty_status(&path, true);
+
                 // Save the buffer
                 let _ = buffer
-                    .save(&Context::default(), SelectionSet::default(), false, 0)
+                    .save(&context, SelectionSet::default(), false, 0)
                     .unwrap();
 
                 // Expect the output is formatted
@@ -1428,12 +1431,15 @@ fn f(
         /// The formatted output should be undoable,
         /// in case the formatter messed up the code.
         fn should_be_undoable() {
-            run_test(|_, mut buffer| {
+            run_test(|path, mut buffer| {
                 let original = " fn main\n() {}";
                 let _ = buffer.update(original);
 
+                let mut context = Context::default();
+                context.set_file_dirty_status(&path, true);
+
                 let _ = buffer
-                    .save(&Context::default(), SelectionSet::default(), false, 0)
+                    .save(&context, SelectionSet::default(), false, 0)
                     .unwrap();
 
                 // Expect the buffer is formatted
