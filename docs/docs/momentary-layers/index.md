@@ -4,7 +4,7 @@ sidebar_position: 1
 
 # Intro
 
-Momentary Layers (≡) activate when a key is held down and deactivate immediately upon release. This allows temporary access to an alternate set of key functions without toggling the layer on permanently.
+Momentary Layers (≡), or MoL, activate when a key is held down and deactivate immediately upon release. This allows temporary access to an alternate set of key functions without toggling the layer on permanently.
 
 This terminology comes from the keyboard modding community. For more details, see: https://zmk.dev/docs/keymaps/behaviors/layers#momentary-layer.
 
