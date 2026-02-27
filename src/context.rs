@@ -227,6 +227,10 @@ impl Context {
         self.quickfix_list
             .extend_items(items, &self.current_working_directory);
     }
+
+    pub(crate) fn get_last_visited_file(&self) -> Option<&Location> {
+        self.location_history_backward.last()
+    }
 }
 
 impl Context {
