@@ -82,7 +82,7 @@ zeta
             App(ToggleSelectionMark),
             Editor(MatchLiteral("zeta".to_string())),
             Expect(EditorGrid(
-                "# 🦀  main.rs [*]
+                "[÷] 🦀  main.rs
 4│mark-y
 5│█eta
 ",
@@ -90,7 +90,7 @@ zeta
             Editor(ToggleReveal(Reveal::Mark)),
             Expect(EditorGrid(
                 "
-# 🦀  main.rs [*]
+[÷] 🦀  main.rs
 2│mark-x
 4│mark-y
 5│█eta
@@ -100,7 +100,7 @@ zeta
             Editor(MatchLiteral("phi".to_string())),
             Expect(EditorGrid(
                 "
-# 🦀  main.rs [*]
+[÷] 🦀  main.rs
 2│mark-x
 3│█hi
 4│mark-y
@@ -110,7 +110,7 @@ zeta
             Editor(MatchLiteral("beta".to_string())),
             Expect(EditorGrid(
                 "
-# 🦀  main.rs [*]
+[÷] 🦀  main.rs
 1│█eta
 2│mark-x
 4│mark-y
@@ -152,7 +152,7 @@ fn spam() {
             Expect(CurrentSelectedTexts(&["fn main() {\n}"])),
             Expect(EditorGrid(
                 "
-🦀  main.rs [*]
+[:] 🦀  main.rs
 1│█n main() {
 2│}
 3│fn bar() {
@@ -162,7 +162,7 @@ fn spam() {
             Editor(ToggleReveal(Reveal::CurrentSelectionMode)),
             Expect(EditorGrid(
                 "
-🦀  main.rs [*]
+[:] 🦀  main.rs
 1│█n main() {
 3│fn bar() {
 5│fn spam() {
@@ -221,7 +221,7 @@ foo
             Expect(CurrentReveal(Some(Reveal::Cursor))),
             Expect(EditorGrid(
                 "
-🦀  main.rs [*]
+[:] 🦀  main.rs
 1│█oo
 3│foo
 5│foo
@@ -232,7 +232,7 @@ foo
             Expect(CurrentReveal(None)),
             Expect(EditorGrid(
                 "
-🦀  main.rs [*]
+[:] 🦀  main.rs
 1│█oo
 2│x
 3│foo
@@ -277,7 +277,7 @@ fn two() {
             Expect(CurrentReveal(Some(Reveal::Cursor))),
             Expect(EditorGrid(
                 "
-🦀  main.rs [*]
+[:] 🦀  main.rs
 1│fn main() {
 3│  █ar();
 5│fn two() {
@@ -324,7 +324,7 @@ fn two() {
             // The parent lines of the both `bar();` are trimmed due to space constrained
             Expect(EditorGrid(
                 "
-🦀  main.rs [*]
+[:] 🦀  main.rs
 3│  █ar();
 7│  bar();
 "
@@ -370,7 +370,7 @@ fn two() {
             // The parent lines of the both `bar();` are trimmed due to space constrained
             Expect(EditorGrid(
                 "
-🦀  main.rs [*]
+[:] 🦀  main.rs
 ↪│█arXXX();
 ↪│barYYY();
 "
@@ -401,7 +401,7 @@ fn all_selections_on_same_line_but_all_wrapped() -> anyhow::Result<()> {
             Editor(ToggleReveal(Reveal::CurrentSelectionMode)),
             Expect(EditorGrid(
                 "
-🦀  main.rs [*]
+[:] 🦀  main.rs
 1│█oofooApple
 ↪│foofooBanana"
                     .trim(),
@@ -430,7 +430,7 @@ fn total_count_of_highlighted_ranges_should_equal_total_count_of_possible_select
             Editor(ToggleReveal(Reveal::CurrentSelectionMode)),
             Expect(EditorGrid(
                 "
-🦀  main.rs [*]
+[:] 🦀  main.rs
 1│█oo foo foo
 1│foo foo foo
 1│foo foo foo
@@ -471,7 +471,7 @@ fn total_count_of_rendered_secondary_selections_should_equal_total_count_of_actu
             Editor(ToggleReveal(Reveal::Cursor)),
             Expect(EditorGrid(
                 "
-🦀  main.rs [*]
+[:] 🦀  main.rs
 1│█oo foo foo
 1│foo foo foo
 1│foo foo foo
@@ -516,7 +516,7 @@ fn total_count_of_rendered_marks_should_equal_total_count_of_actual_marks() -> a
             Editor(ToggleReveal(Reveal::Mark)),
             Expect(EditorGrid(
                 "
-# 🦀  main.rs [*]
+[÷] 🦀  main.rs
 1│█oo foo foo
 1│foo foo foo
 1│foo foo foo
@@ -561,7 +561,7 @@ fn section_divider_style() -> anyhow::Result<()> {
             Editor(SwitchViewAlignment),
             Expect(EditorGrid(
                 "
-🦀  main.rs [*]
+[:] 🦀  main.rs
 1│foo
 2│█ar
 3│bar
@@ -615,7 +615,7 @@ fn reveal_cursor_selection_extension() -> anyhow::Result<()> {
             Editor(ToggleReveal(Reveal::Cursor)),
             Expect(EditorGrid(
                 "
-🦀  main.rs [*]
+[:] 🦀  main.rs
 1│foo
 2│█ar spam
 3│foo
@@ -629,7 +629,7 @@ fn reveal_cursor_selection_extension() -> anyhow::Result<()> {
             Editor(MoveSelection(Right)),
             Expect(EditorGrid(
                 "
-🦀  main.rs [*]
+[:] 🦀  main.rs
 1│foo
 2│bar █pam
 3│foo
@@ -717,7 +717,7 @@ d();
             Expect(CurrentViewAlignment(Some(ViewAlignment::Top))),
             Expect(EditorGrid(
                 "
-🦀  main.rs [*]
+[:] 🦀  main.rs
 3│█pam();
 4│c();
 5│d();
@@ -728,7 +728,7 @@ d();
             Expect(CurrentViewAlignment(Some(ViewAlignment::Center))),
             Expect(EditorGrid(
                 "
-🦀  main.rs [*]
+[:] 🦀  main.rs
 2│b();
 3│█pam();
 4│c();
@@ -739,7 +739,7 @@ d();
             Expect(CurrentViewAlignment(Some(ViewAlignment::Bottom))),
             Expect(EditorGrid(
                 "
-🦀  main.rs [*]
+[:] 🦀  main.rs
 1│a();
 2│b();
 3│█pam();

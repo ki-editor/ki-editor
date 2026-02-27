@@ -1449,7 +1449,7 @@ fn scroll_offset() -> anyhow::Result<()> {
             })),
             Editor(MatchLiteral("gamma".to_string())),
             Editor(SetScrollOffset(2)),
-            Expect(EditorGrid("🦀  main.rs [*]\n3│█amma\n4│lok")),
+            Expect(EditorGrid("[:] 🦀  main.rs\n3│█amma\n4│lok")),
         ])
     })
 }
@@ -1526,7 +1526,7 @@ fn main() {
             // The "long" of "too long" is not shown, because it exceeded the view width
             Expect(EditorGrid(
                 "
-🦀  main.rs [*]
+ [:] 🦀  main.rs
 1│fn main() {
 3│  █eta()
 4│}
@@ -1694,7 +1694,7 @@ fn main() {
             // because it is amongst the parent lines of the current selection
             Expect(EditorGrid(
                 "
-🦀  main.rs [*]
+ [:] 🦀  main.rs
 2│fn main() {
 4│  let y = 2; //
 ↪│too long, wrapped
@@ -1746,7 +1746,7 @@ fn main() {
             Editor(SetScrollOffset(3)),
             Expect(EditorGrid(
                 "
-# 🦀  main.rs [*]
+[÷] 🦀  main.rs
 2│fn main() {
 4│  let y = 2; //
 ↪│too long, wrapped
@@ -1810,7 +1810,7 @@ fn test_wrapped_lines() -> anyhow::Result<()> {
             Editor(EnterInsertMode(Direction::End)),
             Expect(EditorGrid(
                 "
-🦀  main.rs [*]
+[:] 🦀  main.rs
 1│// hellohello
 ↪│world█orld
 2│ heyhey"
@@ -2023,7 +2023,7 @@ fn main() { // too long
             // The "long" of "too long" is not shown, because it exceeded the view width
             Expect(EditorGrid(
                 "
-🦀  main.rs [*]
+[:] 🦀  main.rs
 1│fn main() { // too
 3│  let █ar = baba;
 ↪│let wrapped = coco
@@ -2089,7 +2089,7 @@ fn main() { // too long
             Editor(MatchLiteral("let".to_string())),
             Expect(EditorGrid(
                 "
-# 🦀  main.rs [*]
+[÷] 🦀  main.rs
 1│fn main() { // too
 ↪│ long
 2│  █et foo = 1;
@@ -2123,7 +2123,7 @@ fn empty_content_should_have_one_line() -> anyhow::Result<()> {
             Editor(SetContent("".to_string())),
             Expect(EditorGrid(
                 "
-🦀  main.rs [*]
+[:] 🦀  main.rs
 1│█
 "
                 .trim(),
@@ -2237,7 +2237,7 @@ fn swap_cursor_with_anchor() -> anyhow::Result<()> {
             Editor(SwapCursor),
             Expect(EditorGrid(
                 "
-🦀  main.rs [*]
+[:] 🦀  main.rs
 1│fn main() { x.y
 ↪│() █  // hello
 "
@@ -2272,7 +2272,7 @@ fn consider_unicode_width() -> anyhow::Result<()> {
             // Expect the cursor is on the letter 'a'
             // Expect an extra space is added between 'a' and the emoji
             // because, the unicode width of the emoji is 2
-            Expect(EditorGrid("🦀  main.rs [*]\n1│👩  █bc\n\n\n\n\n\n\n")),
+            Expect(EditorGrid("[:] 🦀  main.rs\n1│👩  █bc\n\n\n\n\n\n\n")),
         ])
     })
 }
@@ -2388,12 +2388,14 @@ fn modifying_editor_causes_dirty_state() -> anyhow::Result<()> {
                 focus: true,
             }),
             Expect(Not(Box::new(EditorIsDirty()))),
-            Expect(CurrentComponentTitle(markup_focused_tab(" 🦀 main.rs "))),
+            Expect(CurrentComponentTitle(markup_focused_tab(
+                " [ ] 🦀 main.rs ",
+            ))),
             Editor(EnterInsertMode(Direction::Start)),
             App(HandleKeyEvents(keys!("a a esc").to_vec())),
             Expect(EditorIsDirty()),
             Expect(CurrentComponentTitle(markup_focused_tab(
-                " 🦀 main.rs [*] ",
+                " [:] 🦀 main.rs ",
             ))),
         ])
     })
@@ -2413,11 +2415,13 @@ fn saving_editor_clears_dirty_state() -> anyhow::Result<()> {
             App(HandleKeyEvents(keys!("a a esc").to_vec())),
             Expect(EditorIsDirty()),
             Expect(CurrentComponentTitle(markup_focused_tab(
-                " 🦀 main.rs [*] ",
+                " [:] 🦀 main.rs ",
             ))),
             Editor(Save),
             Expect(Not(Box::new(EditorIsDirty()))),
-            Expect(CurrentComponentTitle(markup_focused_tab(" 🦀 main.rs "))),
+            Expect(CurrentComponentTitle(markup_focused_tab(
+                " [ ] 🦀 main.rs ",
+            ))),
         ])
     })
 }
@@ -3912,7 +3916,9 @@ fn background_editor_forefront_on_edit() -> anyhow::Result<()> {
             )),
             Expect(OpenedFilesCount(0)),
             WaitForAppMessage(regex!("GlobalSearchFinished")),
-            Expect(CurrentComponentTitle(markup_focused_tab(" 🦀 main.rs "))),
+            Expect(CurrentComponentTitle(markup_focused_tab(
+                " [:] 🦀 main.rs ",
+            ))),
             Editor(EnterInsertMode(Direction::Start)),
             App(HandleKeyEvents(keys!("a a esc").to_vec())),
             Expect(OpenedFilesCount(1)),
@@ -3927,7 +3933,9 @@ fn background_editor_user_from_explorer() -> anyhow::Result<()> {
             App(HandleKeyEvents(
                 keys!("space ; n d s r c enter enter n d m a i n . r s enter enter").to_vec(),
             )),
-            Expect(CurrentComponentTitle(markup_focused_tab(" 🦀 main.rs "))),
+            Expect(CurrentComponentTitle(markup_focused_tab(
+                " [ ] 🦀 main.rs ",
+            ))),
             Expect(OpenedFilesCount(1)),
         ])
     })
@@ -3943,7 +3951,7 @@ fn background_editor_closing_no_system_buffer() -> anyhow::Result<()> {
             }),
             App(HandleKeyEvents(keys!("f o o enter").to_vec())),
             WaitForAppMessage(regex!("GlobalSearchFinished")),
-            Expect(CurrentComponentTitle(markup_focused_tab(" 🦀 foo.rs "))),
+            Expect(CurrentComponentTitle(markup_focused_tab(" [:] 🦀 foo.rs "))),
             Expect(OpenedFilesCount(0)),
             App(CloseCurrentWindow),
             Expect(OpenedFilesCount(0)),
@@ -4089,7 +4097,7 @@ fn main() {
             Expect(CurrentSelectedTexts(&["bar"])),
             Expect(EditorGrid(
                 "
-🦀  main.rs [*]
+[:] 🦀  main.rs
 1│fn main() {
 3│        █ar();
 "
@@ -4118,7 +4126,7 @@ fn should_prioritize_wrapped_selection_if_no_space_left() -> anyhow::Result<()> 
             Expect(CurrentSelectedTexts(&["bar"])),
             Expect(EditorGrid(
                 "
-🦀  main.rs [*]
+[:] 🦀  main.rs
 ↪│█arbarbar"
                     .trim(),
             )),
@@ -4155,7 +4163,7 @@ fn foo() {
             )),
             Editor(MatchLiteral("yyy".to_string())),
             Expect(EditorGrid(
-                "🦀  main.rs [*]
+                "[:] 🦀  main.rs
 1│fn foo() {
 2│  fn bar() {
 5│        █yy();
@@ -4292,7 +4300,7 @@ fn multicursor_intersected_edits() -> anyhow::Result<()> {
             Editor(DeleteWithMovement(Right)),
             // Expect the primary cursor is still there
             // And the Deletion of `foo()` is ignored
-            Expect(AppGrid(" 🦀  main.rs [*]\n1│fn main█)".to_string())),
+            Expect(AppGrid(" [:] 🦀  main.rs\n1│fn main█)".to_string())),
         ])
     })
 }
@@ -4881,7 +4889,7 @@ fn main() {
             )),
             Editor(SwapCursor),
             Expect(AppGrid(
-                " 🦀  main.rs [*]
+                " [:] 🦀  main.rs
 2│fn main() {
 5│  t();
 6│█
@@ -5006,7 +5014,7 @@ fn main() {
             Editor(MatchLiteral("foo".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
             Expect(AppGrid(
-                " 🦀  main.rs [*]
+                " [:] 🦀  main.rs
  6│fn main() {
  9│  // padding y
 10│  // padding z
@@ -5019,7 +5027,7 @@ fn main() {
             )),
             Editor(AlignViewTop),
             Expect(AppGrid(
-                " 🦀  main.rs [*]
+                " [:] 🦀  main.rs
  6│fn main() {
 11│  █oo { // this line should be at top
 12│    x: 2
@@ -5077,7 +5085,7 @@ fn main() {
     run_test(
         300,
         9,
-        " 🦀  main.rs [*]
+        " [:] 🦀  main.rs
  4│// padding 3
  5│
  6│fn main() {
@@ -5092,7 +5100,7 @@ fn main() {
     run_test(
         30,
         7,
-        " 🦀  main.rs [*]
+        " [:] 🦀  main.rs
  6│fn main() {
  8│  █oo {
  9│    x: 2
@@ -5147,7 +5155,7 @@ fn main() {
     run_test(
         300,
         9,
-        " 🦀  main.rs [*]
+        " [:] 🦀  main.rs
  6│fn main() {
  7│  this_is_a_long_line_for_testing_wrapping();
  8│  █oo {
@@ -5162,7 +5170,7 @@ fn main() {
     run_test(
         30,
         7,
-        " 🦀  main.rs [*]
+        " [:] 🦀  main.rs
  6│fn main() {
  8│  █oo {
  9│    x: 2 // this line
@@ -5177,7 +5185,7 @@ fn main() {
     run_test(
         300,
         5,
-        " 🦀  main.rs [*]
+        " [:] 🦀  main.rs
  6│fn main() {
  8│  █oo {
  9│    x: 2 // this line should be at center
@@ -5229,7 +5237,7 @@ zzz
     }
     run_test(
         AlignViewTop,
-        " 🦀  main.rs [*]
+        " [:] 🦀  main.rs
  6│xxx
  7│yyy
  8│█zz
@@ -5240,7 +5248,7 @@ zzz
     )?;
     run_test(
         AlignViewCenter,
-        " 🦀  main.rs [*]
+        " [:] 🦀  main.rs
  5│
  6│xxx
  7│yyy
@@ -5251,7 +5259,7 @@ zzz
     )?;
     run_test(
         AlignViewBottom,
-        " 🦀  main.rs [*]
+        " [:] 🦀  main.rs
  2│// padding 1
  3│// padding 2
  4│// padding 3
@@ -5357,7 +5365,7 @@ fn git_hunk_gutter() -> anyhow::Result<()> {
                 width: 20,
             })),
             Expect(EditorGrid(
-                r#"🦀  main.rs [*]
+                r#"[:] 🦀  main.rs
 1│mod foo;
 2│alpha
 3│
@@ -5672,7 +5680,7 @@ fn last_wrapped_line_with_trailing_newline_char() -> anyhow::Result<()> {
             })),
             // Expect Line 2 is present due to the trailing newline char
             Expect(AppGrid(
-                " 🦀  main.rs [*]
+                " [:] 🦀  main.rs
 1│█oo bar spam baz
 2│"
                 .to_string(),
@@ -5683,7 +5691,7 @@ fn last_wrapped_line_with_trailing_newline_char() -> anyhow::Result<()> {
                 width: 17,
             })),
             Expect(AppGrid(
-                " 🦀  main.rs [*]
+                " [:] 🦀  main.rs
 1│█oo bar spam
 ↪│baz
 2│"
@@ -5727,7 +5735,7 @@ fn main() {
             Editor(AlignViewTop),
             // Expect the cursor is not gone
             Expect(AppGrid(
-                " 🦀  main.rs [*]
+                " [:] 🦀  main.rs
  2│fn main() {
 10│█ // last line
 11│"
@@ -5756,7 +5764,7 @@ fn files_longer_than_65535_lines() -> anyhow::Result<()> {
             })),
             Editor(MoveSelection(Last)),
             Expect(AppGrid(
-                " 🙈  .gitignore [*]
+                " [:] 🙈  .gitignore
 65535│Line 65535
 65536│█ine 65536"
                     .to_string(),

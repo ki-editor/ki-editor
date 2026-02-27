@@ -582,7 +582,7 @@ foo
                 }),
                 Editor(SetContent(
                     "
-🦀  main.rs [*]
+[÷] 🦀  main.rs
 1│fn first () {
 5│  █ifth();
 6│}
@@ -594,7 +594,7 @@ foo
                     IfCurrentNotFound::LookForward,
                     SelectionMode::Line,
                 )),
-                Expect(CurrentSelectedTexts(&["🦀  main.rs [*]"])),
+                Expect(CurrentSelectedTexts(&["[÷] 🦀  main.rs"])),
                 Editor(MoveSelection(Movement::Right)),
                 Expect(CurrentSelectedTexts(&["1│fn first () {"])),
                 Editor(MoveSelection(Movement::Right)),
