@@ -77,7 +77,7 @@ pub fn get_formatted_paths(
 
     let current_path_string = format_path_string(current_path);
 
-    let current_file_bracket = match (contains_current_path, is_dirty(&current_path)) {
+    let current_file_bracket = match (contains_current_path, is_dirty(current_path)) {
         (false, false) => "[ ]",
         (false, true) => "[:]",
         (true, false) => "[-]",
@@ -103,7 +103,7 @@ pub fn get_formatted_paths(
             if path == current_path {
                 current_path_display.clone()
             } else {
-                let file_dirty = is_dirty(&path);
+                let file_dirty = is_dirty(path);
                 let bracket = if file_dirty { "[÷]" } else { "[-]" };
                 format!(" {} {} {} ", bracket, path.icon(), format_path_string(path))
             }

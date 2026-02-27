@@ -348,8 +348,8 @@ impl Buffer {
 
     pub fn update(&mut self, text: &str) -> Dispatches {
         (self.rope, self.tree) = Self::get_rope_and_tree(self.treesitter_language.clone(), text);
-        let dispatches = self.flag_as_modified();
-        return dispatches;
+        
+        self.flag_as_modified()
     }
 
     pub fn update_path(&mut self, path: AbsolutePath) {
@@ -619,7 +619,7 @@ impl Buffer {
     fn flag_as_modified(&mut self) -> Dispatches {
         let dispatches = Dispatches::one(Dispatch::SetFileDirtyStatus { dirty_status: true });
         self.owner = BufferOwner::User;
-        return dispatches;
+        dispatches
     }
 
     // Add these methods for undo/redo
@@ -664,7 +664,7 @@ impl Buffer {
         self.selection_set_history = std::mem::take(&mut self.selection_set_history)
             .apply(|selection_set| selection_set.apply_edit(edit, max_char_index));
 
-        return Ok(dispatches);
+        Ok(dispatches)
     }
 
     pub fn batch_id(&self) -> &SyntaxHighlightRequestBatchId {

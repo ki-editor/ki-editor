@@ -89,7 +89,7 @@ impl Component for Editor {
     fn set_content(&mut self, str: &str, context: &Context) -> Result<Dispatches, anyhow::Error> {
         let dispatches = Ok(self.update_buffer(str));
         self.clamp(context)?;
-        return dispatches;
+        dispatches
     }
 
     fn title(&self, context: &Context) -> String {
@@ -2520,7 +2520,7 @@ impl Editor {
             .into_iter()
             .flatten()
             .collect::<Vec<_>>();
-        selections.sort_by(|a, b| a.0.start.0.cmp(&b.0.start.0));
+        selections.sort_by_key(|a| a.0.start.0);
         selections
             .into_iter()
             .map(|selection| selection.1)
