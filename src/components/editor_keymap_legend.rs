@@ -1727,7 +1727,7 @@ pub fn buffer_keymap() -> Keymap {
             "m",
             "Alternate".to_string(),
             "Switch to the previous file".to_string(),
-            Dispatch::AlternateFile,
+            Dispatch::OpenAlternateFile,
         )))
         .collect_vec(),
     )
