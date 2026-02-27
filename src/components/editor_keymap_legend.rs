@@ -94,6 +94,14 @@ impl Editor {
                 "To Index (1-based)".to_string(),
                 Dispatch::OpenMoveToIndexPrompt(prior_change),
             ),
+            Keybinding::new(
+                ".",
+                "Parent Line".to_string(),
+                Dispatch::ToEditor(MoveSelectionWithPriorChange(
+                    Movement::ParentLine,
+                    prior_change,
+                )),
+            ),
         ]
         .to_vec()
     }
@@ -138,14 +146,14 @@ impl Editor {
             ),
             Keybinding::momentary_layer(MomentaryLayer {
                 key: "e",
-                description: "Mark".to_string(),
+                description: "≡ Buffer".to_string(),
                 config: KeymapLegendConfig {
-                    title: "Marked File Keymap".to_string(),
-                    keymap: marked_file_keymap(),
+                    title: "≡ Buffer".to_string(),
+                    keymap: buffer_keymap(),
                 },
                 on_tap: Some(OnTap::new(
                     "Toggle Selection Mark",
-                    Dispatches::one(Dispatch::MarkFileAndToggleMark),
+                    Dispatches::one(Dispatch::ToggleSelectionMark),
                 )),
                 on_spacebar_tapped: None,
             }),
@@ -298,18 +306,25 @@ impl Editor {
         none_if_no_override: bool,
     ) -> Vec<Keybinding> {
         [
-            Keybinding::new_extended(
-                "f",
-                "Change".to_string(),
-                "Change".to_string(),
-                Dispatch::ToEditor(Change),
-            )
+            Keybinding::momentary_layer(MomentaryLayer {
+                key: "f",
+                description: "≡ Insert".to_string(),
+                config: KeymapLegendConfig {
+                    title: "≡ Insert".to_string(),
+                    keymap: insert_keymap(),
+                },
+                on_tap: Some(OnTap::new(
+                    "Change",
+                    Dispatches::one(Dispatch::ToEditor(Change)),
+                )),
+                on_spacebar_tapped: None,
+            })
             .override_keymap(normal_mode_override.change.as_ref(), none_if_no_override),
             Keybinding::momentary_layer(MomentaryLayer {
                 key: "v",
-                description: "Delete".to_string(),
+                description: "≡ Delete".to_string(),
                 config: KeymapLegendConfig {
-                    title: "Delete".to_string(),
+                    title: "≡ Delete".to_string(),
                     keymap: delete_keymap(),
                 },
                 on_tap: Some(OnTap::new(
@@ -333,13 +348,6 @@ impl Editor {
                 Dispatch::ToEditor(EnterInsertMode(Direction::End)),
             )
             .override_keymap(normal_mode_override.append.as_ref(), none_if_no_override),
-            Keybinding::new_extended(
-                ",",
-                Direction::End.format_action("Open"),
-                Direction::End.format_action("Open"),
-                Dispatch::ToEditor(Open),
-            )
-            .override_keymap(normal_mode_override.open.as_ref(), none_if_no_override),
         ]
         .into_iter()
         .flatten()
@@ -375,12 +383,19 @@ impl Editor {
                 format!("{}{}", "Change Cut", extra),
                 Dispatch::ToEditor(ChangeCut),
             ),
-            Keybinding::new_extended(
-                "c",
-                format("Copy"),
-                format!("{}{}", "Copy", extra),
-                Dispatch::ToEditor(Copy),
-            ),
+            Keybinding::momentary_layer(MomentaryLayer {
+                key: "c",
+                description: "≡ Copy".to_string(),
+                config: KeymapLegendConfig {
+                    title: "≡ Copy".to_string(),
+                    keymap: duplicate_keymap(),
+                },
+                on_tap: Some(OnTap::new(
+                    "Copy",
+                    Dispatches::one(Dispatch::ToEditor(Copy)),
+                )),
+                on_spacebar_tapped: None,
+            }),
         ]
         .into_iter()
         .chain(self.keymap_clipboard_related_actions_overridable(
@@ -402,9 +417,9 @@ impl Editor {
         [
             Keybinding::momentary_layer(MomentaryLayer {
                 key: "b",
-                description: format("Paste"),
+                description: format("≡ Paste"),
                 config: KeymapLegendConfig {
-                    title: "Paste".to_string(),
+                    title: "≡ Paste".to_string(),
                     keymap: paste_keymap(),
                 },
                 on_tap: Some(OnTap::new(
@@ -421,9 +436,9 @@ impl Editor {
             ),
             Keybinding::momentary_layer(MomentaryLayer {
                 key: "x",
-                description: "Cut".to_string(),
+                description: "≡ Cut".to_string(),
                 config: KeymapLegendConfig {
-                    title: "Cut".to_string(),
+                    title: "≡ Cut".to_string(),
                     keymap: cut_keymap(),
                 },
                 on_tap: Some(OnTap::new(
@@ -441,12 +456,6 @@ impl Editor {
 
     pub fn keymap_universal(&self) -> Vec<Keybinding> {
         [
-            Keybinding::new_extended(
-                "alt+v",
-                "Close".to_string(),
-                "Close current window".to_string(),
-                Dispatch::CloseCurrentWindow,
-            ),
             Keybinding::new_extended(
                 "alt+;",
                 "⇋ Align View".to_string(),
@@ -566,7 +575,7 @@ impl Editor {
                 .chain(if include_universal_keymap {
                     self.keymap_universal()
                 } else {
-                    Default::default()
+                    Vec::default()
                 })
                 .collect_vec(),
             ),
@@ -597,7 +606,7 @@ impl Editor {
         {
             self.insert(&c.to_string(), context)
         } else {
-            Ok(Default::default())
+            Ok(Dispatches::default())
         }
     }
 
@@ -617,12 +626,126 @@ impl Editor {
                 Dispatch::ToEditor(DispatchEditor::PressSpace),
             ),
             Keybinding::new(
+                ",",
+                "Surround".to_string(),
+                Dispatch::ShowKeymapLegend(self.surround_keymap_legend_config()),
+            ),
+            Keybinding::new(
                 "esc",
                 "Remain only this window".to_string(),
                 Dispatch::ToEditor(DispatchEditor::HandleEsc),
             ),
         ]
         .to_vec()
+    }
+
+    pub fn keymap_surround(&self) -> Keymap {
+        fn select_surround_keymap_legend_config(kind: SurroundKind) -> KeymapLegendConfig {
+            KeymapLegendConfig {
+                title: format!("Select Surround ({kind:?})"),
+
+                keymap: generate_enclosures_keymap(|enclosure| {
+                    Dispatch::ToEditor(SelectSurround {
+                        enclosure,
+                        kind: kind.clone(),
+                    })
+                }),
+            }
+        }
+
+        fn delete_surround_keymap_legend_config() -> KeymapLegendConfig {
+            KeymapLegendConfig {
+                title: "Delete Surround".to_string(),
+
+                keymap: generate_enclosures_keymap(|enclosure| {
+                    Dispatch::ToEditor(DeleteSurround(enclosure))
+                }),
+            }
+        }
+
+        fn surround_keymap_legend_config() -> KeymapLegendConfig {
+            KeymapLegendConfig {
+                title: "Surround".to_string(),
+
+                keymap: Keymap::new(
+                    &generate_enclosures_keymap(|enclosure| {
+                        let (open, close) = enclosure.open_close_symbols_str();
+                        Dispatch::ToEditor(Surround(open.to_string(), close.to_string()))
+                    })
+                    .into_vec()
+                    .into_iter()
+                    .chain(Some(Keybinding::new(
+                        ";",
+                        "<></>".to_string(),
+                        Dispatch::OpenSurroundXmlPrompt,
+                    )))
+                    .collect_vec(),
+                ),
+            }
+        }
+
+        fn change_surround_from_keymap_legend_config() -> super::keymap_legend::KeymapLegendConfig {
+            KeymapLegendConfig {
+                title: "Change Surround from:".to_string(),
+
+                keymap: generate_enclosures_keymap(|enclosure| {
+                    Dispatch::ShowKeymapLegend(change_surround_to_keymap_legend_config(enclosure))
+                }),
+            }
+        }
+
+        fn change_surround_to_keymap_legend_config(
+            from: EnclosureKind,
+        ) -> super::keymap_legend::KeymapLegendConfig {
+            KeymapLegendConfig {
+                title: format!("Change Surround from {} to:", from.to_str()),
+
+                keymap: generate_enclosures_keymap(|enclosure| {
+                    Dispatch::ToEditor(ChangeSurround {
+                        from,
+                        to: enclosure,
+                    })
+                }),
+            }
+        }
+        Keymap::new(&[
+            Keybinding::new(
+                "v",
+                "Delete Surround".to_string(),
+                Dispatch::ShowKeymapLegend(delete_surround_keymap_legend_config()),
+            ),
+            Keybinding::new(
+                "s",
+                "Surround".to_string(),
+                Dispatch::ShowKeymapLegend(surround_keymap_legend_config()),
+            ),
+            Keybinding::new(
+                "f",
+                "Change Surround".to_string(),
+                Dispatch::ShowKeymapLegend(change_surround_from_keymap_legend_config()),
+            ),
+            Keybinding::new(
+                "d",
+                "Select Inside".to_string(),
+                Dispatch::ShowKeymapLegend(select_surround_keymap_legend_config(
+                    SurroundKind::Inside,
+                )),
+            ),
+            Keybinding::new(
+                "e",
+                "Select Around".to_string(),
+                Dispatch::ShowKeymapLegend(select_surround_keymap_legend_config(
+                    SurroundKind::Around,
+                )),
+            ),
+        ])
+    }
+
+    fn surround_keymap_legend_config(&self) -> super::keymap_legend::KeymapLegendConfig {
+        KeymapLegendConfig {
+            title: "Surround".to_string(),
+            keymap: self.keymap_surround(),
+        }
     }
 
     pub fn keymap_sub_modes(&self) -> Vec<Keybinding> {
@@ -634,9 +757,9 @@ impl Editor {
             )),
             Some(Keybinding::momentary_layer(MomentaryLayer {
                 key: "t",
-                description: "Swap".to_string(),
+                description: "≡ Swap".to_string(),
                 config: KeymapLegendConfig {
-                    title: "Swap".to_string(),
+                    title: "≡ Swap".to_string(),
                     keymap: swap_keymap(),
                 },
                 on_tap: None,
@@ -649,9 +772,9 @@ impl Editor {
             )),
             Some(Keybinding::momentary_layer(MomentaryLayer {
                 key: "r",
-                description: "Multi-cursor Momentary Layer".to_string(),
+                description: "≡ Multi-cursor".to_string(),
                 config: KeymapLegendConfig {
-                    title: "Multi-cursor Momentary Layer".to_string(),
+                    title: "≡ Multi-cursor".to_string(),
                     keymap: self.multicursor_momentary_layer_keymap(),
                 },
                 on_tap: None,
@@ -765,10 +888,7 @@ impl Editor {
             title: "Extend".to_string(),
             keymap: Keymap::new(
                 &self
-                    .normal_mode_keymap(
-                        Some(extend_mode_normal_mode_override()),
-                        Some(PriorChange::EnableSelectionExtension),
-                    )
+                    .normal_mode_keymap(None, Some(PriorChange::EnableSelectionExtension))
                     .into_iter()
                     .chain(Some(Keybinding::new(
                         "g",
@@ -940,6 +1060,12 @@ impl Editor {
                     "Copy Relative Path".to_string(),
                     Dispatch::ToEditor(DispatchEditor::CopyRelativePath),
                 ),
+                Keybinding::new(
+                    "t",
+                    "TS Node Sexp".to_string(),
+                    Dispatch::ToEditor(DispatchEditor::ShowCurrentTreeSitterNodeSexp),
+                ),
+                Keybinding::new("e", "Pipe".to_string(), Dispatch::OpenPipeToShellPrompt),
             ]),
         }
     }
@@ -957,18 +1083,12 @@ impl Editor {
                     },
                 ),
                 Keybinding::new(
-                    "t",
-                    "TS Node Sexp".to_string(),
-                    Dispatch::ToEditor(DispatchEditor::ShowCurrentTreeSitterNodeSexp),
-                ),
-                Keybinding::new(
                     "enter",
                     "Force Save".to_string(),
                     Dispatch::ToEditor(DispatchEditor::ForceSave),
                 ),
                 Keybinding::new("c", "Save All".to_string(), Dispatch::SaveAll),
                 Keybinding::new("v", "Quit No Save".to_string(), Dispatch::QuitAll),
-                Keybinding::new("g", "Pipe".to_string(), Dispatch::OpenPipeToShellPrompt),
                 Keybinding::new(
                     "f",
                     "Change Work Dir".to_string(),
@@ -1460,13 +1580,13 @@ pub fn paste_keymap() -> Keymap {
             ),
             Keybinding::new(
                 "y",
-                Direction::Start.format_action("Replace w/ copied text"),
+                Direction::Start.format_action("Replace History"),
                 Dispatch::ToEditor(ReplaceWithPreviousCopiedText),
             ),
             Keybinding::new(
                 "p",
-                Direction::End.format_action("Replace w/ copied text"),
-                Dispatch::ToEditor(DispatchEditor::PasteVertically(Direction::End)),
+                Direction::End.format_action("Replace History"),
+                Dispatch::ToEditor(ReplaceWithNextCopiedText),
             ),
             Keybinding::new(
                 "i",
@@ -1477,6 +1597,54 @@ pub fn paste_keymap() -> Keymap {
                 "k",
                 Movement::Down.format_action("Paste"),
                 Dispatch::ToEditor(PasteVertically(Direction::End)),
+            ),
+        ]
+        .as_ref(),
+    )
+}
+
+pub fn duplicate_keymap() -> Keymap {
+    Keymap::new(
+        [
+            Keybinding::new(
+                "j",
+                Movement::Left.format_action("Gap Dup"),
+                Dispatch::ToEditor(DuplicateWithMovement(GetGapMovement::Left)),
+            ),
+            Keybinding::new(
+                "l",
+                Movement::Right.format_action("Gap Dup"),
+                Dispatch::ToEditor(DuplicateWithMovement(GetGapMovement::Right)),
+            ),
+            Keybinding::new(
+                "o",
+                Movement::Next.format_action("Gap Dup"),
+                Dispatch::ToEditor(DuplicateWithMovement(GetGapMovement::Next)),
+            ),
+            Keybinding::new(
+                "u",
+                Movement::Previous.format_action("Gap Dup"),
+                Dispatch::ToEditor(DuplicateWithMovement(GetGapMovement::Previous)),
+            ),
+            Keybinding::new(
+                ";",
+                "Dup >".to_string(),
+                Dispatch::ToEditor(DuplicateWithMovement(GetGapMovement::AfterWithoutGap)),
+            ),
+            Keybinding::new(
+                "h",
+                "< Dup".to_string(),
+                Dispatch::ToEditor(DuplicateWithMovement(GetGapMovement::BeforeWithoutGap)),
+            ),
+            Keybinding::new(
+                "i",
+                Movement::Up.format_action("Dup"),
+                Dispatch::ToEditor(DuplicateVertically(Direction::Start)),
+            ),
+            Keybinding::new(
+                "k",
+                Movement::Down.format_action("Dup"),
+                Dispatch::ToEditor(DuplicateVertically(Direction::End)),
             ),
         ]
         .as_ref(),
@@ -1510,7 +1678,7 @@ pub fn cut_keymap() -> Keymap {
     )
 }
 
-pub fn marked_file_keymap() -> Keymap {
+pub fn buffer_keymap() -> Keymap {
     Keymap::new(
         &[
             ("j", Movement::Left),
@@ -1526,11 +1694,34 @@ pub fn marked_file_keymap() -> Keymap {
                 Dispatch::CycleMarkedFile(movement),
             )
         })
+        .chain(
+            [("u", Movement::Previous), ("o", Movement::Next)]
+                .into_iter()
+                .map(|(key, movement)| {
+                    Keybinding::new(
+                        key,
+                        movement.format_action("Opened File"),
+                        Dispatch::CycleMarkedFile(movement),
+                    )
+                }),
+        )
         .chain(Some(Keybinding::new_extended(
             "k",
             "Mark File".to_string(),
             "Toggle File Mark".to_string(),
             Dispatch::ToggleFileMark,
+        )))
+        .chain(Some(Keybinding::new_extended(
+            "n",
+            "Close".to_string(),
+            "Close current window".to_string(),
+            Dispatch::CloseCurrentWindow,
+        )))
+        .chain(Some(Keybinding::new_extended(
+            "i",
+            "Unmark Others".to_string(),
+            "Unmark all other buffers".to_string(),
+            Dispatch::UnmarkAllOthers,
         )))
         .collect_vec(),
     )
@@ -1558,6 +1749,40 @@ pub fn delete_keymap() -> Keymap {
     )
 }
 
+pub fn insert_keymap() -> Keymap {
+    Keymap::new(
+        &[
+            (GetGapMovement::Left, "<< Open", "j"),
+            (GetGapMovement::Right, "Open >>", "l"),
+            (GetGapMovement::Previous, "< Open", "u"),
+            (GetGapMovement::Next, "Open >", "o"),
+            (GetGapMovement::BeforeWithoutGap, "< Insert", "h"),
+            (GetGapMovement::AfterWithoutGap, "Insert >", ";"),
+        ]
+        .into_iter()
+        .map(|(movement, description, key)| {
+            Keybinding::new(
+                key,
+                description.to_string(),
+                Dispatch::ToEditor(DispatchEditor::Open(movement)),
+            )
+        })
+        .chain([
+            Keybinding::new(
+                "i",
+                "Open ^".to_string(),
+                Dispatch::ToEditor(OpenVertically(Direction::Start)),
+            ),
+            Keybinding::new(
+                "k",
+                "Open v".to_string(),
+                Dispatch::ToEditor(OpenVertically(Direction::End)),
+            ),
+        ])
+        .collect_vec(),
+    )
+}
+
 #[derive(Default, Clone)]
 pub struct NormalModeOverride {
     pub change: Option<KeymapOverride>,
@@ -1579,13 +1804,13 @@ pub struct KeymapOverride {
 fn generate_enclosures_keymap(get_dispatch: impl Fn(EnclosureKind) -> Dispatch) -> Keymap {
     Keymap::new(
         &[
-            ("j", EnclosureKind::Parentheses),
-            ("k", EnclosureKind::SquareBrackets),
-            ("l", EnclosureKind::CurlyBraces),
-            (";", EnclosureKind::AngularBrackets),
-            ("u", EnclosureKind::SingleQuotes),
-            ("i", EnclosureKind::DoubleQuotes),
-            ("o", EnclosureKind::Backticks),
+            ("m", EnclosureKind::Parentheses),
+            (",", EnclosureKind::SquareBrackets),
+            (".", EnclosureKind::CurlyBraces),
+            ("/", EnclosureKind::AngularBrackets),
+            ("j", EnclosureKind::SingleQuotes),
+            ("k", EnclosureKind::DoubleQuotes),
+            ("l", EnclosureKind::Backticks),
         ]
         .into_iter()
         .map(|(key, enclosure)| {
@@ -1594,104 +1819,6 @@ fn generate_enclosures_keymap(get_dispatch: impl Fn(EnclosureKind) -> Dispatch) 
         })
         .collect_vec(),
     )
-}
-
-pub fn extend_mode_normal_mode_override() -> NormalModeOverride {
-    fn select_surround_keymap_legend_config(kind: SurroundKind) -> KeymapLegendConfig {
-        KeymapLegendConfig {
-            title: format!("Select Surround ({kind:?})"),
-
-            keymap: generate_enclosures_keymap(|enclosure| {
-                Dispatch::ToEditor(SelectSurround {
-                    enclosure,
-                    kind: kind.clone(),
-                })
-            }),
-        }
-    }
-
-    fn delete_surround_keymap_legend_config() -> KeymapLegendConfig {
-        KeymapLegendConfig {
-            title: "Delete Surround".to_string(),
-
-            keymap: generate_enclosures_keymap(|enclosure| {
-                Dispatch::ToEditor(DeleteSurround(enclosure))
-            }),
-        }
-    }
-
-    fn surround_keymap_legend_config() -> KeymapLegendConfig {
-        KeymapLegendConfig {
-            title: "Surround".to_string(),
-
-            keymap: Keymap::new(
-                &generate_enclosures_keymap(|enclosure| {
-                    let (open, close) = enclosure.open_close_symbols_str();
-                    Dispatch::ToEditor(Surround(open.to_string(), close.to_string()))
-                })
-                .into_vec()
-                .into_iter()
-                .chain(Some(Keybinding::new(
-                    "p",
-                    "<></>".to_string(),
-                    Dispatch::OpenSurroundXmlPrompt,
-                )))
-                .collect_vec(),
-            ),
-        }
-    }
-
-    fn change_surround_from_keymap_legend_config() -> super::keymap_legend::KeymapLegendConfig {
-        KeymapLegendConfig {
-            title: "Change Surround from:".to_string(),
-
-            keymap: generate_enclosures_keymap(|enclosure| {
-                Dispatch::ShowKeymapLegend(change_surround_to_keymap_legend_config(enclosure))
-            }),
-        }
-    }
-
-    fn change_surround_to_keymap_legend_config(
-        from: EnclosureKind,
-    ) -> super::keymap_legend::KeymapLegendConfig {
-        KeymapLegendConfig {
-            title: format!("Change Surround from {} to:", from.to_str()),
-
-            keymap: generate_enclosures_keymap(|enclosure| {
-                Dispatch::ToEditor(ChangeSurround {
-                    from,
-                    to: enclosure,
-                })
-            }),
-        }
-    }
-    NormalModeOverride {
-        insert: Some(KeymapOverride {
-            description: "Inside",
-            dispatch: Dispatch::ShowKeymapLegend(select_surround_keymap_legend_config(
-                SurroundKind::Inside,
-            )),
-        }),
-        append: Some(KeymapOverride {
-            description: "Around",
-            dispatch: Dispatch::ShowKeymapLegend(select_surround_keymap_legend_config(
-                SurroundKind::Around,
-            )),
-        }),
-        delete: Some(KeymapOverride {
-            description: "Delete Surround",
-            dispatch: Dispatch::ShowKeymapLegend(delete_surround_keymap_legend_config()),
-        }),
-        change: Some(KeymapOverride {
-            description: "Change Surround",
-            dispatch: Dispatch::ShowKeymapLegend(change_surround_from_keymap_legend_config()),
-        }),
-        open: Some(KeymapOverride {
-            description: "Surround",
-            dispatch: Dispatch::ShowKeymapLegend(surround_keymap_legend_config()),
-        }),
-        ..Default::default()
-    }
 }
 
 fn primary_selection_modes() -> Vec<(&'static str, SelectionMode)> {

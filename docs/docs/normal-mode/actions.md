@@ -63,17 +63,17 @@ For example:
 
 <TutorialFallback filename="open"/>
 
-### `Change`
+### `Insert`
 
-This deletes the current selected text, and enter [Insert mode](../insert-mode.md).
+Activates the [≡ Insert](../momentary-layers/insert-mol.mdx).
 
 ### `Delete`
 
-Activates the [Delete MOL](../momentary-layers/delete-mol.mdx).
+Activates the [≡ Delete](../momentary-layers/delete-mol.mdx).
 
 ### `Cut`
 
-Activates the [Cut MOL](../momentary-layers/cut-mol.mdx).
+Activates the [≡ Cut](../momentary-layers/cut-mol.mdx).
 
 ### `Replace #`
 
@@ -152,20 +152,7 @@ File unmarking has two behaviors:
 1. When the current file is the only marked file: File remains unmarked and focused.
 2. When the current file is NOT the only marked file: File is unmarked and focus shifts to the next marked file, similar to closing a tab.
 
-To move between marked files, see [here](other-movements#-markedmarked-).
-
-#### Workflow Overview
-
-This workflow is designed to streamline your editing process by allowing quick
-access to your primary files. During an editing session, you often work on
-primary files while occasionally referring to other less important files. Using
-`alt+j` and `alt+l` (on Qwerty), you can quickly jump back to your main files, enhancing your
-productivity and focus.
-
-By utilizing file marking, you can efficiently navigate your editing
-environment and maintain your workflow's momentum.
-
-<TutorialFallback filename="mark-file"/>
+To move between marked files, see [≡ Buffer](../momentary-layers/buffer-mol).
 
 ### `Undo`/`Redo`
 
@@ -209,13 +196,15 @@ Copy behaves differently depending on the number of cursors.
 When there is more than one cursor, the selected texts of each cursor will be
 copied to the cursor-specific clipboard.
 
+Hold to activate the [≡ Copy](../momentary-layers/duplicate-mol.mdx)
+
 ### `Paste`
 
-Activates the [Paste MOL](../momentary-layers/paste-mol.mdx).
+Activates the [≡ Paste](../momentary-layers/paste-mol.mdx).
 
 ### `Change X`
 
-This is similar to [Change](#change), but it copies the deleted text into the clipboard.Like `ctrl+x` in Windows and `cmd+x` in macOS.
+This is similar to [Change](../momentary-layers/insert-mol.mdx#tap-action-change), but it copies the deleted text into the clipboard.Like `ctrl+x` in Windows and `cmd+x` in macOS.
 
 ### `Replace`
 
@@ -228,3 +217,31 @@ Keybinding: `*`
 This has a special keybinding that is non-positional so that the keyboard layout can be switched easily.
 
 [^directionality]: Actions can have Directionality which can be changed using [`⇋ Curs`](../normal-mode/other-movements/#-curs). Directionality means, that the result of that action can be applied in two opposite directions. For example, deleting backward and deleting forward, both are the same action only directionally opposite. To change the direction of the action make sure to first swap the cursor using [`⇋ Curs`](../normal-mode/other-movements/#-curs) before applying the action.
+
+### `Surround`
+
+Opens the Surround menu.
+
+This is a group of actions that is related to "surround" or "enclosures".
+
+| Label             | Action                                                                                                                                                    |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Around`          | Select around `<x>`                                                                                                                                       |
+| `Inside`          | Select inside `<x>`                                                                                                                                       |
+| `Delete Surround` | Delete surrounding `<x>`                                                                                                                                  |
+| `Change Surround` | Change surrounding `<x>` to `<y>`                                                                                                                         |
+| `Surround`        | Surround current selection with `<x>`                                                                                                                     |
+| `Select All`      | Select the from first until the last selection of the current selection mode (use with [Line](selection-modes/primary.md#line) to select the whole file). |
+
+`<x>` or `<y>` can be one of the following:
+
+- `()` Parenthesis
+- `{}` Curly Brace
+- `[]` Square Bracket
+- `<>` Angular Bracket
+- `'` Single Quote
+- `"` Double Quote
+- <code>`</code> Backtick
+- `<></>` XML Tag
+
+<TutorialFallback filename="surround"/>

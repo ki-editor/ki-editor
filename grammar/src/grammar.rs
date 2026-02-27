@@ -3,7 +3,6 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::time::SystemTime;
 use std::{
-    collections::HashSet,
     path::{Path, PathBuf},
     process::Command,
     sync::mpsc::channel,
@@ -19,20 +18,6 @@ const DYLIB_EXTENSION: &str = "dll";
 
 #[cfg(target_arch = "wasm32")]
 const DYLIB_EXTENSION: &str = "wasm";
-
-#[derive(Debug, Serialize, Deserialize)]
-struct Configuration {
-    #[serde(rename = "use-grammars")]
-    pub(crate) grammar_selection: Option<GrammarSelection>,
-    pub(crate) grammar: Vec<GrammarConfiguration>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase", untagged)]
-pub(crate) enum GrammarSelection {
-    Only { only: HashSet<String> },
-    Except { except: HashSet<String> },
-}
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]

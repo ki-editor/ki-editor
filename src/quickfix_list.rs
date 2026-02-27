@@ -1,4 +1,4 @@
-use std::{cell::RefCell, ops::Range, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, ops::Range, rc::Rc};
 
 use itertools::Itertools;
 use lsp_types::DiagnosticSeverity;
@@ -8,20 +8,22 @@ use crate::{
     buffer::Buffer,
     char_index_range::CharIndexRange,
     components::{
-        dropdown::{Dropdown, DropdownConfig, DropdownItem},
+        dropdown_sync::{
+            DropdownItem, DropdownSync as Dropdown, DropdownSyncConfig as DropdownConfig,
+        },
         editor::Movement,
         suggestive_editor::Info,
     },
     position::Position,
 };
-use shared::canonicalized_path::CanonicalizedPath;
+use shared::absolute_path::AbsolutePath;
 
 impl QuickfixListItem {
     fn into_dropdown_item(
-        self: QuickfixListItem,
-        buffers: &[Rc<RefCell<Buffer>>],
-        position_range: Range<Position>,
-        current_working_directory: &CanonicalizedPath,
+        self: &QuickfixListItem,
+        buffers: &HashMap<AbsolutePath, Rc<RefCell<Buffer>>>,
+        position_range: &Range<Position>,
+        current_working_directory: &AbsolutePath,
         show_line_number: bool,
         max_line_number_digits_count: usize,
         max_column_number_digits_count: usize,
@@ -52,6 +54,7 @@ impl QuickfixListItem {
         DropdownItem::new({
             let content = self
                 .line
+                .clone()
                 .map(|line| line.trim_end_matches(['\n', '\r']).to_string())
                 .unwrap_or_else(|| {
                     self.location
@@ -88,21 +91,83 @@ impl QuickfixListItem {
 
 pub struct QuickfixList {
     dropdown: Dropdown,
-    #[cfg(test)]
     items: Vec<QuickfixListItem>,
+    title: String,
+    buffers: HashMap<AbsolutePath, Rc<RefCell<Buffer>>>,
 }
 
 impl QuickfixList {
-    pub fn new(
-        title: String,
+    pub fn items(&self) -> &[QuickfixListItem] {
+        &self.items
+    }
+
+    pub fn items_count(&self) -> usize {
+        self.dropdown.items_count()
+    }
+
+    pub fn render(&self) -> crate::components::dropdown_sync::DropdownRender {
+        self.dropdown.render()
+    }
+
+    /// Returns the current item index after `movement` is applied
+    pub fn get_item(&mut self, movement: Movement) -> Option<(usize, Dispatches)> {
+        self.dropdown.apply_movement(movement);
+        Some((
+            self.dropdown.current_item_index(),
+            self.dropdown.current_item()?.dispatches,
+        ))
+    }
+
+    pub fn set_current_item_index(&mut self, item_index: usize) {
+        self.dropdown.set_current_item_index(item_index);
+    }
+
+    pub(crate) fn default() -> QuickfixList {
+        QuickfixList {
+            dropdown: Dropdown::new(DropdownConfig {
+                title: String::default(),
+            }),
+            items: Vec::default(),
+            title: String::default(),
+            buffers: HashMap::default(),
+        }
+    }
+
+    pub(crate) fn extend_items(
+        &mut self,
         items: Vec<QuickfixListItem>,
-        buffers: Vec<Rc<RefCell<Buffer>>>,
-        current_working_directory: &CanonicalizedPath,
-    ) -> QuickfixList {
-        let mut dropdown = Dropdown::new(DropdownConfig {
-            title: title.clone(),
-        });
-        // Merge items of same locations
+        current_working_directory: &AbsolutePath,
+    ) {
+        self.extend_buffers(&items, current_working_directory);
+
+        let items = {
+            self.items.extend(items);
+            self.items.drain(..).collect()
+        };
+        let (items, dropdown_items) = self.convert_items(items, current_working_directory);
+        self.dropdown.set_items(dropdown_items);
+        self.items = items;
+    }
+
+    pub(crate) fn set_items(
+        &mut self,
+        items: Vec<QuickfixListItem>,
+        current_working_directory: &AbsolutePath,
+    ) {
+        // Clear buffers cache
+        self.buffers.clear();
+        self.extend_buffers(&items, current_working_directory);
+
+        let (items, dropdown_items) = self.convert_items(items, current_working_directory);
+        self.dropdown.set_items(dropdown_items);
+        self.items = items;
+    }
+
+    fn convert_items(
+        &mut self,
+        items: Vec<QuickfixListItem>,
+        current_working_directory: &AbsolutePath,
+    ) -> (Vec<QuickfixListItem>, Vec<DropdownItem>) {
         let items = items
             .into_iter()
             // Sort the items by location
@@ -114,36 +179,19 @@ impl QuickfixList {
                 line,
                 info: items
                     .into_iter()
-                    .flat_map(|item| item.info)
+                    .flat_map(|item| item.info.clone())
                     .reduce(Info::join),
             })
             .collect_vec();
         let items_with_position_range = items
             .iter()
-            .map(|item| {
-                let buffer = buffers
-                    .iter()
-                    .find(|buffer| {
-                        if let Some(path) = buffer.borrow().path() {
-                            path == item.location.path
-                        } else {
-                            false
-                        }
-                    })
-                    .unwrap_or_else(|| {
-                        panic!(
-                            "The unique buffers of all quickfix list items
-should be preloaded beforehand,
-but the buffer for {:?} is not loaded.",
-                            item.location.path
-                        )
-                    });
+            .filter_map(|item| {
+                let buffer = self.buffers.get(&item.location.path)?;
                 let position_range = buffer
                     .borrow()
                     .char_index_range_to_position_range(item.location.range)
-                    .ok()
-                    .unwrap_or_default();
-                (position_range, item)
+                    .ok()?;
+                Some((position_range, item))
             })
             .collect_vec();
 
@@ -166,58 +214,80 @@ but the buffer for {:?} is not loaded.",
         .to_string()
         .chars()
         .count();
+        let dropdown_items = items_with_position_range
+            .iter()
+            .chunk_by(|(position_range, item)| {
+                (position_range.start.line, item.location.path.clone())
+            })
+            .into_iter()
+            .flat_map(|(_, items)| {
+                items
+                    .into_iter()
+                    .enumerate()
+                    .map(|(index, (position_range, item))| {
+                        item.to_owned().into_dropdown_item(
+                            &self.buffers,
+                            position_range,
+                            current_working_directory,
+                            index == 0,
+                            max_line_number_digits_count,
+                            max_column_number_digits_count,
+                        )
+                    })
+            })
+            .collect_vec();
 
-        dropdown.set_items(
-            items_with_position_range
-                .into_iter()
-                .chunk_by(|(position_range, _)| position_range.start.line)
-                .into_iter()
-                .flat_map(|(_, items)| {
-                    items
-                        .into_iter()
-                        .enumerate()
-                        .map(|(index, (position_range, item))| {
-                            item.to_owned().into_dropdown_item(
-                                &buffers,
-                                position_range,
-                                current_working_directory,
-                                index == 0,
-                                max_line_number_digits_count,
-                                max_column_number_digits_count,
-                            )
-                        })
-                })
-                .collect_vec(),
-        );
+        (items, dropdown_items)
+    }
 
-        QuickfixList {
-            #[cfg(test)]
-            items,
-            dropdown,
+    pub(crate) fn handle_applied_edits(
+        &mut self,
+        path: &AbsolutePath,
+        edits: &[crate::edit::Edit],
+        current_working_directory: &AbsolutePath,
+    ) {
+        let items = self
+            .items
+            .drain(..)
+            .filter_map(|item| {
+                if &item.location().path == path {
+                    edits
+                        .iter()
+                        .try_fold(item, |item, edit| item.apply_edit(edit))
+                } else {
+                    Some(item)
+                }
+            })
+            .collect_vec();
+        self.set_items(items, current_working_directory);
+    }
+
+    pub(crate) fn title(&self) -> String {
+        self.title.clone()
+    }
+
+    pub(crate) fn set_title(&mut self, title: &str) {
+        self.title = title.to_string();
+    }
+
+    fn extend_buffers(
+        &mut self,
+        items: &[QuickfixListItem],
+        current_working_directory: &AbsolutePath,
+    ) {
+        // Extend the buffers cache with new paths
+        for path in items
+            .iter()
+            .map(|item| &item.location().path)
+            .unique_by(|path| path.try_display_relative_to(current_working_directory))
+        {
+            self.buffers.entry(path.clone()).or_insert_with(|| {
+                Buffer::from_path(path, false)
+                    .ok()
+                    .map(|buffer| Rc::new(RefCell::new(buffer)))
+                    .unwrap_or_else(|| Rc::new(RefCell::new(Buffer::new(None, ""))))
+            });
         }
-    }
-
-    #[cfg(test)]
-    pub fn items(&self) -> Vec<QuickfixListItem> {
-        self.items.clone()
-    }
-
-    pub fn render(&self) -> crate::components::dropdown::DropdownRender {
-        self.dropdown.render()
-    }
-
-    /// Returns the current item index after `movement` is applied
-    pub fn get_item(&mut self, movement: Movement) -> Option<(usize, Dispatches)> {
-        self.dropdown.apply_movement(movement);
-        Some((
-            self.dropdown.current_item_index(),
-            self.dropdown.current_item()?.dispatches,
-        ))
-    }
-
-    pub fn set_current_item_index(mut self, item_index: usize) -> Self {
-        self.dropdown.set_current_item_index(item_index);
-        self
     }
 }
 
@@ -282,30 +352,24 @@ impl QuickfixListItem {
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Location {
-    pub path: CanonicalizedPath,
+    pub path: AbsolutePath,
     pub range: CharIndexRange,
 }
 
 impl Location {
-    fn read_from_buffers(&self, buffers: &[Rc<RefCell<Buffer>>]) -> Option<String> {
-        buffers
-            .iter()
-            .find(|buffer| {
-                if let Some(path) = buffer.borrow().path() {
-                    path == self.path
-                } else {
-                    false
-                }
-            })
-            .and_then(|buffer| {
-                Some(
-                    buffer
-                        .borrow()
-                        .get_line_by_char_index(self.range.start)
-                        .ok()?
-                        .to_string(),
-                )
-            })
+    fn read_from_buffers(
+        &self,
+        buffers: &HashMap<AbsolutePath, Rc<RefCell<Buffer>>>,
+    ) -> Option<String> {
+        buffers.get(&self.path).and_then(|buffer| {
+            Some(
+                buffer
+                    .borrow()
+                    .get_line_by_char_index(self.range.start)
+                    .ok()?
+                    .to_string(),
+            )
+        })
     }
 
     fn apply_edit(self, edit: &crate::edit::Edit) -> Option<Location> {
@@ -391,14 +455,13 @@ impl DiagnosticSeverityRange {
 
 #[cfg(test)]
 mod test_quickfix_list {
-    use std::{cell::RefCell, rc::Rc};
 
     use crate::{
         app::{
             Dispatch::{self, *},
             LocalSearchConfigUpdate, Scope,
         },
-        buffer::{Buffer, BufferOwner},
+        buffer::BufferOwner,
         components::{
             editor::{DispatchEditor::*, IfCurrentNotFound, Movement::*},
             suggestive_editor::Info,
@@ -408,14 +471,13 @@ mod test_quickfix_list {
     };
 
     use super::{Location, QuickfixList, QuickfixListItem};
-    use itertools::Itertools;
     use pretty_assertions::assert_eq;
-    use shared::canonicalized_path::CanonicalizedPath;
+    use shared::absolute_path::AbsolutePath;
 
     #[test]
     fn should_sort_items() {
-        let git_ignore_path: CanonicalizedPath = ".gitignore".try_into().unwrap();
-        let readme_path: CanonicalizedPath = "README.md".try_into().unwrap();
+        let git_ignore_path: AbsolutePath = ".gitignore".try_into().unwrap();
+        let readme_path: AbsolutePath = "README.md".try_into().unwrap();
         let foo = QuickfixListItem {
             location: Location {
                 path: git_ignore_path.clone(),
@@ -440,21 +502,17 @@ mod test_quickfix_list {
             info: None,
             line: None,
         };
-        let quickfix_list = QuickfixList::new(
-            "".to_string(),
+        let mut quickfix_list = QuickfixList::default();
+        quickfix_list.set_items(
             vec![foo.clone(), bar.clone(), spam.clone()],
-            [readme_path, git_ignore_path]
-                .into_iter()
-                .map(|path| Rc::new(RefCell::new(Buffer::from_path(&path, false).unwrap())))
-                .collect_vec(),
             &std::env::current_dir().unwrap().try_into().unwrap(),
         );
-        assert_eq!(quickfix_list.items(), vec![spam, foo, bar])
+        assert_eq!(quickfix_list.items(), &vec![spam, foo, bar]);
     }
 
     #[test]
     fn should_merge_items_of_same_location() {
-        let readme_path: CanonicalizedPath = "README.md".try_into().unwrap();
+        let readme_path: AbsolutePath = "README.md".try_into().unwrap();
         let items = [
             QuickfixListItem {
                 location: Location {
@@ -475,19 +533,12 @@ mod test_quickfix_list {
         ]
         .to_vec();
 
-        let quickfix_list = QuickfixList::new(
-            "".to_string(),
-            items,
-            [readme_path]
-                .into_iter()
-                .map(|path| Rc::new(RefCell::new(Buffer::from_path(&path, false).unwrap())))
-                .collect_vec(),
-            &std::env::current_dir().unwrap().try_into().unwrap(),
-        );
+        let mut quickfix_list = QuickfixList::default();
+        quickfix_list.set_items(items, &std::env::current_dir().unwrap().try_into().unwrap());
 
         assert_eq!(
             quickfix_list.items(),
-            vec![QuickfixListItem {
+            &vec![QuickfixListItem {
                 location: Location {
                     path: "README.md".try_into().unwrap(),
                     range: (CharIndex(1)..CharIndex(2)).into(),
@@ -498,7 +549,7 @@ mod test_quickfix_list {
                 )),
                 line: None
             }]
-        )
+        );
     }
     #[test]
     fn should_hide_line_number_of_non_first_same_line_entries() -> anyhow::Result<()> {
@@ -575,7 +626,7 @@ src/foo.rs
                 App(new_dispatch(LocalSearchConfigUpdate::Search(
                     search.to_string(),
                 ))),
-                WaitForAppMessage(lazy_regex::regex!("AddQuickfixListEntries")),
+                WaitForAppMessage(lazy_regex::regex!("GlobalSearchFinished")),
                 Expect(QuickfixListContent(expected.to_string().trim().to_string())),
             ])
         })
@@ -613,7 +664,7 @@ aslmlkm ki aslmlkm"
                 App(new_dispatch(LocalSearchConfigUpdate::Search(
                     "aslmlkm".to_string(),
                 ))),
-                WaitForAppMessage(lazy_regex::regex!("AddQuickfixListEntries")),
+                WaitForAppMessage(lazy_regex::regex!("GlobalSearchFinished")),
                 Expect(QuickfixListContent(
                     "
 src/foo.rs
@@ -636,6 +687,55 @@ src/foo.rs
                 Expect(QuickfixListCurrentLine("    3: 1  aslmlkm kitty aslmlkm")),
                 Editor(MoveSelection(Left)),
                 Expect(QuickfixListCurrentLine("    1: 1  aslmlkm world aslmlkm")),
+            ])
+        })
+    }
+
+    #[test]
+    fn line_number_of_next_file_entries_should_not_be_elided() -> anyhow::Result<()> {
+        execute_test(|s| {
+            let new_dispatch = |update: LocalSearchConfigUpdate| -> Dispatch {
+                UpdateLocalSearchConfig {
+                    update,
+                    scope: Scope::Global,
+                    if_current_not_found: IfCurrentNotFound::LookForward,
+                    run_search_after_config_updated: true,
+                    component_id: None,
+                }
+            };
+            Box::new([
+                App(OpenFile {
+                    path: s.foo_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                Editor(SetContent("foo bar foo\nfoo spam".trim().to_string())),
+                Editor(Save),
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                Editor(SetContent("main main\nmain foo spam".trim().to_string())),
+                Editor(Save),
+                App(new_dispatch(LocalSearchConfigUpdate::Search(
+                    "foo".to_string(),
+                ))),
+                WaitForAppMessage(lazy_regex::regex!("GlobalSearchFinished")),
+                Expect(QuickfixListContent(
+                    "
+src/foo.rs
+    1:1  foo bar foo
+     :9  foo bar foo
+    2:1  foo spam
+
+src/main.rs
+    2:6  main foo spam
+"
+                    .to_string()
+                    .trim()
+                    .to_string(),
+                )),
             ])
         })
     }

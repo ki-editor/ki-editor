@@ -289,7 +289,7 @@ fn incremental_search_highlight_should_be_when_selection_mode_changes() -> anyho
             App(OtherWindow),
             App(OtherWindow),
             Expect(CurrentComponentTitle(
-                "\u{200b} 🙈 .gitignore [*] \u{200b}".to_string(),
+                "\u{200b} [:] 🙈 .gitignore \u{200b}".to_string(),
             )),
             // Closes all other window by pressing esc
             App(HandleKeyEvent(key!("esc"))),

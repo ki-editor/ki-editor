@@ -46,7 +46,9 @@ impl EmbeddedApp {
         // Scope the mutable borrow to avoid borrow checker issues
         {
             let mut comp_ref = comp.borrow_mut();
-            comp_ref.set_content(&content, &self.context)?;
+            // dropping dispatch as this is a buffer with no path and
+            // set_content dispatches are related to file dirty status
+            let _ = comp_ref.set_content(&content, &self.context)?;
         }
 
         Ok(())

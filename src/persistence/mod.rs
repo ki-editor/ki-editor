@@ -66,13 +66,13 @@ impl Persistence {
         Persistence::load(path.clone())
             .map_err(|err| {
                 #[cfg(test)]
-                dbg!("Persistence::load_or_default error: {err}");
+                println!("Persistence::load_or_default error: {err}");
 
-                log::error!("Unable to load persisted data due to {err:?}")
+                log::error!("Unable to load persisted data due to {err:?}");
             })
             .unwrap_or_else(|_| Self {
                 path,
-                root: Default::default(),
+                root: Root::default(),
             })
     }
 

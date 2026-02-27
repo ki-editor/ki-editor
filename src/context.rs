@@ -4,16 +4,16 @@ use globset::Glob;
 
 use indexmap::IndexSet;
 use itertools::{Either, Itertools};
-use shared::canonicalized_path::CanonicalizedPath;
+use shared::absolute_path::AbsolutePath;
 
 use crate::{
     app::{GlobalSearchConfigUpdate, LocalSearchConfigUpdate, Scope},
     char_index_range::CharIndexRange,
-    clipboard::{Clipboard, CopiedTexts},
+    clipboard::{Clipboard, RingHistory, Texts},
     components::{editor_keymap::KeyboardLayoutKind, prompt::PromptHistoryKey},
     list::grep::RegexConfig,
     persistence::{Persistence, WorkspaceSession},
-    quickfix_list::{DiagnosticSeverityRange, Location, QuickfixListItem},
+    quickfix_list::{DiagnosticSeverityRange, Location, QuickfixList, QuickfixListItem},
     selection::SelectionMode,
     themes::Theme,
 };
@@ -25,10 +25,10 @@ pub struct Context {
 
     #[cfg(test)]
     highlight_configs: crate::syntax_highlight::HighlightConfigs,
-    current_working_directory: CanonicalizedPath,
+    current_working_directory: AbsolutePath,
     local_search_config: LocalSearchConfig,
     global_search_config: GlobalSearchConfig,
-    quickfix_list_state: Option<QuickfixListState>,
+    quickfix_list: QuickfixList,
     prompt_histories: HashMap<PromptHistoryKey, IndexSet<String>>,
     last_non_contiguous_selection_mode: Option<Either<SelectionMode, GlobalMode>>,
     keyboard_layout_kind: KeyboardLayoutKind,
@@ -38,22 +38,22 @@ pub struct Context {
     // We use CanonicalizedPath instead of CanonicalizedPath because these paths
     // may be deleted during program execution, and CanonicalizedPath
     // requires the path to exist on the filesystem.
-    marked_files: IndexSet<CanonicalizedPath>,
+    marked_files: IndexSet<AbsolutePath>,
 
-    marks: HashMap<CanonicalizedPath, Vec<CharIndexRange>>,
+    marks: HashMap<AbsolutePath, Vec<CharIndexRange>>,
 
     /// This is true, for example, when Ki is running as a VS Code's extension
     is_running_as_embedded: bool,
 
     persistence: Option<Persistence>,
+
+    lsp_progress: String,
+    kill_ring: RingHistory<Texts>,
+
+    file_dirty_status: HashMap<AbsolutePath, bool>,
 }
 
-pub struct QuickfixListState {
-    pub title: String,
-    pub source: QuickfixListSource,
-    pub current_item_index: usize,
-}
-
+#[derive(Debug)]
 pub enum QuickfixListSource {
     Diagnostic(DiagnosticSeverityRange),
     Mark,
@@ -81,7 +81,7 @@ pub struct Search {
 impl Context {
     #[cfg(test)]
     pub fn default() -> Self {
-        Self::new(CanonicalizedPath::try_from(".").unwrap(), false, None)
+        Self::new(AbsolutePath::try_from(".").unwrap(), false, None)
     }
 
     pub fn persist_data(&mut self) {
@@ -105,58 +105,18 @@ impl Context {
             );
 
             if let Err(error) = persistence.write() {
-                log::error!("Failed to write persistence due to {error:?}")
+                log::error!("Failed to write persistence due to {error:?}");
             }
         }
     }
 
-    pub fn extend_quickfix_list_items(&mut self, new_items: Vec<QuickfixListItem>) {
-        if let Some(QuickfixListState {
-            source: QuickfixListSource::Custom(items),
-            ..
-        }) = self.quickfix_list_state.as_mut()
-        {
-            items.extend(new_items)
-        }
+    pub fn quickfix_list_items(&self) -> &[QuickfixListItem] {
+        self.quickfix_list.items()
     }
 
-    pub fn quickfix_list_items(&self) -> Vec<&QuickfixListItem> {
-        if let Some(QuickfixListState {
-            source: QuickfixListSource::Custom(items),
-            ..
-        }) = &self.quickfix_list_state
-        {
-            items.iter().collect()
-        } else {
-            Default::default()
-        }
-    }
-
-    pub fn handle_applied_edits(&mut self, path: CanonicalizedPath, edits: Vec<crate::edit::Edit>) {
-        if let Some(state) = self.quickfix_list_state.take() {
-            self.quickfix_list_state = Some(match state.source {
-                QuickfixListSource::Diagnostic(_) => state,
-                QuickfixListSource::Mark => state,
-                QuickfixListSource::Custom(quickfix_list_items) => {
-                    let items = quickfix_list_items
-                        .into_iter()
-                        .filter_map(|item| {
-                            if item.location().path == path {
-                                edits
-                                    .iter()
-                                    .try_fold(item, |item, edit| item.apply_edit(edit))
-                            } else {
-                                Some(item)
-                            }
-                        })
-                        .collect_vec();
-                    QuickfixListState {
-                        source: QuickfixListSource::Custom(items),
-                        ..state
-                    }
-                }
-            })
-        }
+    pub fn handle_applied_edits(&mut self, path: AbsolutePath, edits: Vec<crate::edit::Edit>) {
+        self.quickfix_list
+            .handle_applied_edits(&path, &edits, &self.current_working_directory);
 
         self.marks = std::mem::take(&mut self.marks)
             .into_iter()
@@ -180,7 +140,7 @@ impl Context {
             .collect();
     }
 
-    pub fn save_marks(&mut self, path: CanonicalizedPath, marks: Vec<CharIndexRange>) {
+    pub fn save_marks(&mut self, path: AbsolutePath, marks: Vec<CharIndexRange>) {
         let old_ranges = self
             .marks
             .get(&path)
@@ -202,20 +162,16 @@ impl Context {
         );
     }
 
-    pub fn get_marks(&self, path: Option<CanonicalizedPath>) -> Vec<CharIndexRange> {
+    pub fn get_marks(&self, path: Option<AbsolutePath>) -> Vec<CharIndexRange> {
         path.map(|path| self.marks.get(&path).cloned().unwrap_or_default().to_vec())
             .unwrap_or_default()
     }
 
-    pub fn marks(&self) -> &HashMap<CanonicalizedPath, Vec<CharIndexRange>> {
+    pub fn marks(&self) -> &HashMap<AbsolutePath, Vec<CharIndexRange>> {
         &self.marks
     }
 
-    pub fn handle_file_renamed(
-        &mut self,
-        source: std::path::PathBuf,
-        destination: CanonicalizedPath,
-    ) {
+    pub fn handle_file_renamed(&mut self, source: std::path::PathBuf, destination: AbsolutePath) {
         if let Some(path) = self
             .marked_files
             .iter()
@@ -226,20 +182,56 @@ impl Context {
         }
     }
 
-    pub fn mark_files(&mut self, paths: nonempty::NonEmpty<CanonicalizedPath>) {
+    pub fn mark_files(&mut self, paths: nonempty::NonEmpty<AbsolutePath>) {
         for path in paths {
             self.mark_file(path);
         }
     }
 
-    pub fn change_working_directory(&mut self, path: CanonicalizedPath) {
-        self.current_working_directory = path
+    pub fn change_working_directory(&mut self, path: AbsolutePath) -> Result<(), std::io::Error> {
+        self.current_working_directory = path;
+        std::env::set_current_dir(self.current_working_directory.clone())?;
+        Ok(())
+    }
+
+    pub(crate) fn update_lsp_progress(&mut self, lsp_progress: String) {
+        self.lsp_progress = lsp_progress;
+    }
+
+    pub(crate) fn lsp_progress(&self) -> String {
+        self.lsp_progress.clone()
+    }
+
+    pub(crate) fn quickfix_list(&self) -> &QuickfixList {
+        &self.quickfix_list
+    }
+
+    pub(crate) fn get_quickfix_list_item(
+        &mut self,
+        movement: crate::components::editor::Movement,
+    ) -> Option<(usize, crate::app::Dispatches)> {
+        self.quickfix_list.get_item(movement)
+    }
+
+    pub(crate) fn set_quickfix_list_items(&mut self, title: &str, items: Vec<QuickfixListItem>) {
+        self.quickfix_list.set_title(title);
+        self.quickfix_list
+            .set_items(items, &self.current_working_directory);
+    }
+
+    pub(crate) fn quickfix_list_items_count(&self) -> usize {
+        self.quickfix_list.items_count()
+    }
+
+    pub(crate) fn extend_quickfix_list_items(&mut self, items: Vec<QuickfixListItem>) {
+        self.quickfix_list
+            .extend_items(items, &self.current_working_directory);
     }
 }
 
 impl Context {
     pub fn new(
-        current_working_directory: CanonicalizedPath,
+        current_working_directory: AbsolutePath,
         is_running_as_embedded: bool,
         persistence: Option<Persistence>,
     ) -> Self {
@@ -250,7 +242,7 @@ impl Context {
                     persistence
                         .get_marked_files(current_working_directory.to_path_buf())?
                         .into_iter()
-                        .filter_map(|path| CanonicalizedPath::try_from(path).ok())
+                        .filter_map(|path| AbsolutePath::try_from(path).ok())
                         .collect(),
                 )
             })
@@ -285,7 +277,6 @@ impl Context {
             current_working_directory,
             local_search_config: LocalSearchConfig::default(),
             global_search_config: GlobalSearchConfig::default(),
-            quickfix_list_state: Default::default(),
             prompt_histories,
             last_non_contiguous_selection_mode: None,
             keyboard_layout_kind: crate::config::AppConfig::singleton().keyboard_layout_kind(),
@@ -295,6 +286,10 @@ impl Context {
             is_running_as_embedded,
             persistence,
             marks,
+            lsp_progress: "".to_string(),
+            quickfix_list: QuickfixList::default(),
+            kill_ring: RingHistory::new(),
+            file_dirty_status: HashMap::new(),
         }
     }
 
@@ -312,15 +307,19 @@ impl Context {
         app_clipboard_content == system_clipboard_content
     }
 
-    pub fn add_clipboard_history(&mut self, item: CopiedTexts) {
-        self.clipboard.add_clipboard_history(item)
+    pub(crate) fn add_kill_ring_entry(&mut self, texts: Texts) {
+        self.kill_ring.add(texts);
+    }
+
+    pub fn get_kill_ring_content(&self, history_offset: isize) -> Option<Texts> {
+        self.kill_ring.get(history_offset)
     }
 
     /// Note: `history_offset` is ignored when `use_system_clipboard` is true.
     ///
     /// This method should never fail, if `use_system_clipboard` is true but
     /// the system clipboard is inaccessible, the app clipboard will be used.
-    pub fn get_clipboard_content(&self, history_offset: isize) -> Option<CopiedTexts> {
+    pub fn get_clipboard_content(&self, history_offset: isize) -> Option<Texts> {
         // Always use the system clipboard if the content of the system clipboard is no longer the same
         // with the content of the app clipboard
         let use_system_clipboard = !self.clipboards_synced();
@@ -329,7 +328,7 @@ impl Context {
             match self.clipboard.get_from_system_clipboard() {
                 Ok(copied_texts) => return Some(copied_texts),
                 Err(err) => {
-                    log::error!("Context::get_clipboard_content: cannot access system clipboard due to {err:?}")
+                    log::error!("Context::get_clipboard_content: cannot access system clipboard due to {err:?}");
                 }
             }
         }
@@ -337,16 +336,18 @@ impl Context {
         self.clipboard.get(history_offset)
     }
 
-    pub fn set_clipboard_content(&mut self, contents: CopiedTexts) -> anyhow::Result<()> {
-        self.clipboard.set(contents.clone())
+    pub fn set_clipboard_content(&mut self, contents: Texts) -> anyhow::Result<()> {
+        self.kill_ring.add(contents.clone());
+        self.clipboard.set(contents)
     }
+
     pub fn mode(&self) -> Option<GlobalMode> {
         self.mode.clone()
     }
     pub fn set_mode(&mut self, mode: Option<GlobalMode>) {
         self.mode = mode.clone();
         if let Some(mode) = mode {
-            self.last_non_contiguous_selection_mode = Some(Either::Right(mode))
+            self.last_non_contiguous_selection_mode = Some(Either::Right(mode));
         }
     }
 
@@ -355,7 +356,7 @@ impl Context {
     }
 
     pub fn set_theme(&mut self, theme: Theme) {
-        self.theme = theme
+        self.theme = theme;
     }
 
     #[cfg(test)]
@@ -370,8 +371,24 @@ impl Context {
             .highlight(language, source_code, &AtomicUsize::new(0))
     }
 
-    pub fn current_working_directory(&self) -> &CanonicalizedPath {
+    pub fn current_working_directory(&self) -> &AbsolutePath {
         &self.current_working_directory
+    }
+
+    pub fn set_file_dirty_status(&mut self, path: &AbsolutePath, dirty_status: bool) {
+        self.file_dirty_status.insert(path.clone(), dirty_status);
+    }
+
+    pub fn get_file_dirty_status(&self, path: &AbsolutePath) -> Option<&bool> {
+        self.file_dirty_status.get(path)
+    }
+
+    pub fn get_dirty_files(&self) -> Vec<&AbsolutePath> {
+        self.file_dirty_status
+            .iter()
+            .filter(|(_path, dirty_status)| **dirty_status)
+            .map(|(path, _dirty_status)| path)
+            .collect()
     }
 
     pub fn global_search_config(&self) -> &GlobalSearchConfig {
@@ -383,7 +400,7 @@ impl Context {
             Scope::Local => &mut self.local_search_config,
             Scope::Global => &mut self.global_search_config.local_config,
         }
-        .update(update)
+        .update(update);
     }
 
     pub fn update_global_search_config(
@@ -403,25 +420,9 @@ impl Context {
         }
     }
 
-    pub fn quickfix_list_state(&self) -> &Option<QuickfixListState> {
-        &self.quickfix_list_state
-    }
-
     pub fn set_quickfix_list_current_item_index(&mut self, current_item_index: usize) {
-        if let Some(state) = self.quickfix_list_state.take() {
-            self.quickfix_list_state = Some(QuickfixListState {
-                current_item_index,
-                ..state
-            })
-        }
-    }
-
-    pub fn set_quickfix_list_source(&mut self, title: String, source: QuickfixListSource) {
-        self.quickfix_list_state = Some(QuickfixListState {
-            title,
-            source,
-            current_item_index: 0,
-        })
+        self.quickfix_list
+            .set_current_item_index(current_item_index);
     }
 
     pub fn push_history_prompt(&mut self, key: PromptHistoryKey, line: String) {
@@ -451,7 +452,7 @@ impl Context {
         &mut self,
         selection_mode: Either<crate::selection::SelectionMode, GlobalMode>,
     ) {
-        self.last_non_contiguous_selection_mode = Some(selection_mode)
+        self.last_non_contiguous_selection_mode = Some(selection_mode);
     }
 
     pub fn last_non_contiguous_selection_mode(
@@ -465,7 +466,7 @@ impl Context {
     }
 
     pub fn set_keyboard_layout_kind(&mut self, keyboard_layout_kind: KeyboardLayoutKind) {
-        self.keyboard_layout_kind = keyboard_layout_kind
+        self.keyboard_layout_kind = keyboard_layout_kind;
     }
 
     pub fn push_location_history(&mut self, location: Location, backward: bool) {
@@ -485,14 +486,14 @@ impl Context {
         self.location_history_forward.pop()
     }
 
-    pub fn get_marked_files(&self) -> Vec<&CanonicalizedPath> {
+    pub fn get_marked_files(&self) -> Vec<&AbsolutePath> {
         self.marked_files.iter().collect()
     }
 
     /// Returns some path if we should focus another file.
     /// If the action is to unmark a file, and the file is not the only marked file left,
     /// then we return the nearest neighbor.
-    pub fn toggle_path_mark(&mut self, path: CanonicalizedPath) -> Option<&CanonicalizedPath> {
+    pub fn toggle_path_mark(&mut self, path: AbsolutePath) -> Option<&AbsolutePath> {
         if let Some(index) = self.marked_files.get_index_of(&path) {
             self.unmark_path_impl(index, path)
         } else {
@@ -501,12 +502,12 @@ impl Context {
         }
     }
 
-    pub fn mark_file(&mut self, path: CanonicalizedPath) -> (usize, bool) {
+    pub fn mark_file(&mut self, path: AbsolutePath) -> (usize, bool) {
         self.marked_files.insert_sorted(path)
     }
 
     /// Returns true if the path to be removed is in the list
-    pub fn unmark_path(&mut self, path: CanonicalizedPath) -> Option<&CanonicalizedPath> {
+    pub fn unmark_path(&mut self, path: AbsolutePath) -> Option<&AbsolutePath> {
         if let Some(index) = self.marked_files.get_index_of(&path) {
             self.unmark_path_impl(index, path)
         } else {
@@ -514,11 +515,7 @@ impl Context {
         }
     }
 
-    fn unmark_path_impl(
-        &mut self,
-        index: usize,
-        path: CanonicalizedPath,
-    ) -> Option<&CanonicalizedPath> {
+    fn unmark_path_impl(&mut self, index: usize, path: AbsolutePath) -> Option<&AbsolutePath> {
         let _ = self.marked_files.shift_remove(&path);
         self.marked_files
             .get_index(if index == self.marked_files.len() {
@@ -532,7 +529,7 @@ impl Context {
         self.is_running_as_embedded
     }
 
-    pub fn rename_path_mark(&mut self, from: &CanonicalizedPath, to: &CanonicalizedPath) {
+    pub fn rename_path_mark(&mut self, from: &AbsolutePath, to: &AbsolutePath) {
         self.marked_files.shift_remove(from);
         self.marked_files.insert_sorted(to.clone());
     }
@@ -579,7 +576,7 @@ impl LocalSearchConfigMode {
 
 impl Default for LocalSearchConfigMode {
     fn default() -> Self {
-        Self::Regex(Default::default())
+        Self::Regex(RegexConfig::default())
     }
 }
 
@@ -613,8 +610,8 @@ impl LocalSearchConfig {
     pub fn new(mode: LocalSearchConfigMode) -> Self {
         Self {
             mode,
-            search: Default::default(),
-            replacement: Default::default(),
+            search: None,
+            replacement: None,
         }
     }
 
@@ -670,7 +667,7 @@ mod test_context {
 
     use indexmap::IndexSet;
     use itertools::Itertools;
-    use shared::canonicalized_path::CanonicalizedPath;
+    use shared::absolute_path::AbsolutePath;
 
     use crate::{
         char_index_range::CharIndexRange, components::prompt::PromptHistoryKey, context::Context,
@@ -701,7 +698,7 @@ mod test_context {
             context
                 .prompt_histories
                 .insert(PromptHistoryKey::Theme, index_set);
-            context.persist_data()
+            context.persist_data();
         }
 
         // Load data
@@ -714,13 +711,13 @@ mod test_context {
                 .cloned()
                 .collect_vec();
 
-            let expected_marked_files = vec![CanonicalizedPath::try_from(random_file.clone())?];
+            let expected_marked_files = vec![AbsolutePath::try_from(random_file.clone())?];
 
             assert_eq!(actual_marked_files, expected_marked_files);
 
             let actual_marks = context.marks;
 
-            let expected_marks: HashMap<CanonicalizedPath, Vec<CharIndexRange>> =
+            let expected_marks: HashMap<AbsolutePath, Vec<CharIndexRange>> =
                 [(random_file.try_into()?, marks)].into_iter().collect();
 
             assert_eq!(actual_marks, expected_marks);

@@ -4,13 +4,23 @@ sidebar_position: 1
 
 # Intro
 
-Momentary Layers (MOL) are layers that activate when a key is held and deactivate when released, similar to how the Shift key works.
+Momentary Layers (≡) activate when a key is held down and deactivate immediately upon release. This allows temporary access to an alternate set of key functions without toggling the layer on permanently.
 
 This terminology comes from the keyboard modding community. For more details, see: https://zmk.dev/docs/keymaps/behaviors/layers#momentary-layer.
 
+Momentary Layer is the same as the `⊞ Win` key. You can use it as a modifier, and you can tap it to trigger an action: `⊞ Win` to open Windows menu, `⊞ Win + R` to open the Run dialog.
+
+In ki, for example, tapping `≡ Insert` deletes the current selection and enters Insert mode. Holding `≡ Insert` additionally displays a menu with additional actions like opening new line below.
+
+Windows keyboards use `⊞` for Win, MacBook keyboards use e.g., `⌘` for Command, to visually denote modifier keys. The `≡` symbol here mimics that convention by representing layered or "stacked" functionality, similar to a hamburger menu.
+
+In documentation and in ki itself, we will use this `≡` icon like a general symbol for modifiers.
+
+So that you will have `≡ Buffer`, `≡ Insert` etc.
+
 ## Terminal Support
 
-MOL requires terminals that support the [Kitty Keyboard Protocol](https://sw.kovidgoyal.net/kitty/keyboard-protocol/) (KKP):
+MoL requires terminals that support the [Kitty Keyboard Protocol](https://sw.kovidgoyal.net/kitty/keyboard-protocol/) (KKP):
 
 - Alacritty
 - Ghostty

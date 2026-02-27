@@ -20,15 +20,60 @@ pub fn render_flex_layout(
     separator: &str,
     components: &[FlexLayoutComponent],
 ) -> String {
-    let width = width
-        .saturating_sub(components.len().saturating_sub(1) * UnicodeWidthStr::width(separator));
-    // Calculate the fixed width taken by Text components
-    let fixed_width: usize = components
+    let separator_width = UnicodeWidthStr::width(separator);
+    let total_separator_width = components.len().saturating_sub(1) * separator_width;
+
+    // Create a mutable copy of text components for trimming
+    let mut text_components: Vec<String> = components
         .iter()
-        .map(|comp| match comp {
-            FlexLayoutComponent::Text(text) => UnicodeWidthStr::width(text.as_str()),
-            FlexLayoutComponent::Spacer => 0,
+        .filter_map(|comp| match comp {
+            FlexLayoutComponent::Text(text) => Some(text.clone()),
+            FlexLayoutComponent::Spacer => None,
         })
+        .collect();
+
+    // Trim the longest text components if they exceed available width
+    loop {
+        let fixed_width: usize = text_components
+            .iter()
+            .map(|text| UnicodeWidthStr::width(text.as_str()))
+            .sum();
+
+        let total_fixed_width = fixed_width + total_separator_width;
+
+        if total_fixed_width <= width {
+            break;
+        }
+
+        // Find the longest text component(s)
+        let max_width = text_components
+            .iter()
+            .map(|text| UnicodeWidthStr::width(text.as_str()))
+            .max()
+            .unwrap_or(0);
+
+        if max_width == 0 {
+            break;
+        }
+
+        // Find the first text component with max_width and trim it by one character
+        if let Some(longest) = text_components
+            .iter_mut()
+            .find(|text| UnicodeWidthStr::width(text.as_str()) == max_width)
+        {
+            // Remove the last character (accounting for multi-byte characters)
+            if !longest.is_empty() {
+                longest.pop();
+            }
+        }
+    }
+
+    let available_width = width.saturating_sub(total_separator_width);
+
+    // Calculate the fixed width taken by Text components after trimming
+    let fixed_width: usize = text_components
+        .iter()
+        .map(|text| UnicodeWidthStr::width(text.as_str()))
         .sum();
 
     // Count the number of spacers
@@ -38,19 +83,20 @@ pub fn render_flex_layout(
         .count();
 
     // Calculate remaining width to distribute among spacers
-    let remaining_width = width.saturating_sub(fixed_width);
+    let remaining_width = available_width.saturating_sub(fixed_width);
 
     // Distribute the remaining width among spacers
     let spacer_widths = distribute_items(remaining_width, spacer_count);
 
-    // Create an iterator of spacer widths
+    // Create iterators for trimmed texts and spacer widths
+    let mut text_iter = text_components.into_iter();
     let mut spacer_iter = spacer_widths.into_iter();
 
     // Build the result by mapping each component to its string representation
     components
         .iter()
         .map(|component| match component {
-            FlexLayoutComponent::Text(text) => text.clone(),
+            FlexLayoutComponent::Text(_) => text_iter.next().unwrap_or_default(),
             FlexLayoutComponent::Spacer => " ".repeat(spacer_iter.next().unwrap_or(0)),
         })
         .join(separator)
@@ -154,16 +200,16 @@ mod test_render_flex_layout {
         ];
 
         // Width = 9, which is less than the fixed components (10)
-        // Spacer should get 0 width since there's no remaining space
+        // Longer text should be trimmed
         let result = render_flex_layout(9, "", &components);
-        assert_eq!(result, "HelloWorld");
+        assert_eq!(result, "HellWorld");
 
-        // With even less width
+        // With even less width, both should be trimmed
         let result = render_flex_layout(5, "", &components);
-        assert_eq!(result, "HelloWorld");
+        assert_eq!(result, "HeWor");
 
         // Join all parts to verify total width
-        assert_eq!(UnicodeWidthStr::width(result.as_str()), 10); // Still 10 despite requesting 5
+        assert_eq!(UnicodeWidthStr::width(result.as_str()), 5);
     }
 
     #[test]
@@ -189,8 +235,38 @@ mod test_render_flex_layout {
             FlexLayoutComponent::Spacer,
         ];
 
-        // Width = 0, spacers should have 0 width
+        // Width = 0, all text should be trimmed
         let result = render_flex_layout(0, "", &components);
-        assert_eq!(result, "Hello");
+        assert_eq!(result, "");
+    }
+
+    #[test]
+    fn test_trimming_with_separator() {
+        let components = [
+            FlexLayoutComponent::Text("Hello".to_string()),
+            FlexLayoutComponent::Text("World".to_string()),
+        ];
+
+        // Width = 10, separator "|" takes 1, so we have 9 for text
+        // "Hello" (5) + "World" (5) = 10, need to trim 1
+        let result = render_flex_layout(10, "|", &components);
+        assert_eq!(result, "Hell|World");
+        assert_eq!(UnicodeWidthStr::width(result.as_str()), 10);
+    }
+
+    #[test]
+    fn test_trimming_multiple_texts() {
+        let components = [
+            FlexLayoutComponent::Text("Short".to_string()),
+            FlexLayoutComponent::Text("VeryLongText".to_string()),
+            FlexLayoutComponent::Text("Medium".to_string()),
+        ];
+
+        // Width = 15, no separator
+        // Total = 5 + 12 + 6 = 23, need to trim 8
+        // Should trim longest first
+        let result = render_flex_layout(15, "", &components);
+        assert_eq!(result, "ShortVeryLMediu");
+        assert_eq!(UnicodeWidthStr::width(result.as_str()), 15);
     }
 }

@@ -17,7 +17,12 @@ impl<T> Callback<T> {
     }
 
     pub fn call(&self, event: T) {
-        self.0(event)
+        self.0(event);
+    }
+
+    #[cfg(test)]
+    pub fn no_op() -> Callback<T> {
+        Callback::new(Arc::new(|_| {}))
     }
 }
 
@@ -32,7 +37,7 @@ pub fn debounce<T: PartialEq + Eq + Send + Sync + 'static>(
         let debounce = EventDebouncer::new(duration, move |x| callback.call(x));
 
         while let Ok(event) = receiver.recv() {
-            debounce.put(event)
+            debounce.put(event);
         }
     });
 
@@ -60,24 +65,105 @@ impl<T> From<Result<(), SendError<T>>> for SendResult {
     }
 }
 
-pub fn batch<T: Send + Sync + 'static>(
-    callback: Arc<dyn Fn(Vec<T>) -> SendResult + Send + Sync>,
+#[derive(Debug)]
+pub enum BatchResult<T> {
+    Items(Vec<T>),
+    LimitReached,
+}
+
+pub fn batch<T: std::fmt::Debug + Send + Sync + 'static>(
+    callback: Arc<dyn Fn(BatchResult<T>) -> SendResult + Send + Sync>,
+    on_finish: Callback<()>,
     interval: Duration,
+    limit: usize,
 ) -> Arc<dyn Fn(T) -> SendResult + Send + Sync> {
     let (sender, receiver) = std::sync::mpsc::channel::<T>();
 
     std::thread::spawn(move || {
+        let mut count = 0;
         let mut batch = vec![];
         let mut last_sent = Instant::now();
         while let Ok(item) = receiver.recv() {
-            batch.push(item);
+            // Send the first item immediatly to allow instant UI feedback
+            if count == 0 {
+                callback(BatchResult::Items(std::iter::once(item).collect()));
+            } else {
+                batch.push(item);
+            };
+            count += 1;
             if Instant::now() - last_sent > interval {
-                callback(std::mem::take(&mut batch));
+                callback(BatchResult::Items(std::mem::take(&mut batch)));
                 last_sent = Instant::now();
             }
+            if count > limit {
+                callback(BatchResult::LimitReached);
+                break;
+            }
         }
-        callback(std::mem::take(&mut batch))
+
+        // Sending the remaining items
+        callback(BatchResult::Items(std::mem::take(&mut batch)));
+
+        on_finish.call(());
     });
 
     Arc::new(move |item| SendResult::from(sender.send(item)))
+}
+
+#[derive(Clone)]
+pub struct Interval {
+    callback: Callback<IntervalEvent>,
+}
+
+impl Interval {
+    pub fn cancel(&self) {
+        self.callback.call(IntervalEvent::Cancel);
+    }
+
+    pub(crate) fn resume(&self) {
+        self.callback.call(IntervalEvent::Resume);
+    }
+
+    pub(crate) fn pause(&self) {
+        self.callback.call(IntervalEvent::Pause);
+    }
+}
+
+#[derive(Clone)]
+enum IntervalEvent {
+    Resume,
+    Pause,
+    Cancel,
+}
+
+pub fn set_interval(callback: Callback<usize>, duration: Duration) -> Interval {
+    let (sender, receiver) = std::sync::mpsc::channel::<IntervalEvent>();
+
+    let mut iteration_count = 0;
+
+    std::thread::spawn(move || loop {
+        callback.call(iteration_count);
+        iteration_count += 1;
+        std::thread::sleep(duration);
+
+        if let Ok(event) = receiver.try_recv() {
+            match event {
+                IntervalEvent::Resume => continue,
+                IntervalEvent::Pause => {
+                    while let Ok(event) = receiver.recv() {
+                        if matches!(event, IntervalEvent::Resume) {
+                            break;
+                        }
+                    }
+                }
+                IntervalEvent::Cancel => break,
+            }
+        }
+    });
+
+    Interval {
+        callback: Callback::new(Arc::new(move |event| {
+            let _ = sender.send(event);
+        })),
+    }
 }

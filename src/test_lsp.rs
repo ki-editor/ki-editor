@@ -9,6 +9,7 @@ use crate::{
     components::editor::{Direction, DispatchEditor::*, IfCurrentNotFound},
     grid::StyleKey,
     selection::SelectionMode,
+    selection_mode::GetGapMovement,
     test_app::{execute_test_custom, ExpectKind::*, RunTestOptions, Step::*},
 };
 
@@ -49,7 +50,7 @@ fn main() {
                 width: 100,
             })),
             // Attempt to import `std::path::Path` from the auto-completion of "path"
-            Editor(Open),
+            Editor(Open(GetGapMovement::Right)),
             App(HandleKeyEvents(keys!("P a t h").to_vec())),
             WaitForAppMessage(regex!("LspNotification.*Completion")),
             Expect(AppGridContains("Path(use std::path::Path)")),

@@ -6,7 +6,11 @@ default:
     @just test 
     @just doc 
 
-check: build check-typeshare fmt-check lint 
+run path="":
+    rustup default 1.89.0
+    CARGO_CODEGEN_BACKEND=cranelift CARGO_UNSTABLE_CODEGEN_BACKEND=true cargo +nightly run {{path}}
+
+check: check-typeshare fmt-check lint 
     
 build-all: tree-sitter-quickfix build vscode-build
     
@@ -71,13 +75,13 @@ test-setup:
 
 test testname="": test-setup
     echo "Running cargo nextest..."
-    cargo nextest run --workspace -- --skip 'doc_assets_' {{testname}}
+    cargo nextest run --workspace --no-fail-fast -- --skip 'doc_assets_' {{testname}}
     
 tree-sitter-quickfix:
     just -f tree_sitter_quickfix/justfile
 
 doc-assets testname="": test-setup
-    cargo nextest run --workspace -- 'doc_assets_' {{testname}}
+    RUST_BACKTRACE=1 cargo nextest run --workspace -- 'doc_assets_' {{testname}}
 
 doc-assets-generate-keymaps:
     cargo test -- doc_assets_export_keymaps_json
@@ -88,7 +92,7 @@ check-config-schema:
     set -e
     set -x
     cargo build 
-    cargo test -- doc_assets_export_app_config_json_schema
+    cargo test -- doc_assets_export_json_schemas
     if ! git diff --exit-code docs/static/app_config_json_schema.json; then
         echo "❌ Config schema is out of date!"
         echo "Please run 'just check-config-schema' and commit 'docs/static/app_config_json_schema.json'."
@@ -111,7 +115,7 @@ codecov:
     
 
 watch-test testname:
-	RUST_BACKTRACE=1 cargo watch --ignore ki-vscode --ignore ki-jetbrains --ignore 'mock_repos/*' --ignore 'docs/static/*.json' -- cargo test --workspace  -- {{testname}}
+	CARGO_CODEGEN_BACKEND=cranelift CARGO_UNSTABLE_CODEGEN_BACKEND=true RUST_BACKTRACE=1 cargo watch --ignore ki-vscode --ignore ki-jetbrains --ignore 'mock_repos/*' --ignore 'docs/static/*.json' -- cargo test --workspace  -- {{testname}}
 	
 watch-clippy:
 	RUST_BACKTRACE=1 cargo watch --ignore ki-vscode --ignore ki-jetbrains -- cargo clippy --workspace --tests

@@ -22,10 +22,11 @@ use anyhow::Context as _;
 use itertools::Itertools;
 use regex::Regex;
 use ropey::Rope;
-use shared::{canonicalized_path::CanonicalizedPath, language::Language};
+use shared::{absolute_path::AbsolutePath, language::Language};
 use std::ops::Range;
 use std::time::SystemTime;
 use tree_sitter::{Node, Parser, Tree};
+#[cfg(test)]
 use tree_sitter_traversal2::{traverse, Order};
 
 /// Determines the buffer's owner. Ki distinguishes buffer ownership during switches.
@@ -44,12 +45,12 @@ pub struct Buffer {
     tree: Option<Tree>,
     treesitter_language: Option<tree_sitter::Language>,
     language: Option<Language>,
-    path: Option<CanonicalizedPath>,
+    path: Option<AbsolutePath>,
     highlighted_spans: HighlightedSpans,
     diagnostics: Vec<Diagnostic>,
     decorations: Vec<Decoration>,
     selection_set_history: History<SelectionSet>,
-    dirty: bool,
+
     owner: BufferOwner,
     pub undo_stack: Vec<EditHistory>,
     redo_stack: Vec<EditHistory>,
@@ -101,12 +102,12 @@ impl Buffer {
             decorations: Vec::new(),
             diagnostics: Vec::new(),
             selection_set_history: History::new(),
-            dirty: false,
+
             owner: BufferOwner::System,
-            undo_stack: Default::default(),
-            redo_stack: Default::default(),
-            batch_id: Default::default(),
-            cached_hunks: Default::default(),
+            undo_stack: Vec::default(),
+            redo_stack: Vec::default(),
+            batch_id: SyntaxHighlightRequestBatchId::default(),
+            cached_hunks: None,
             last_synced_time: None,
         }
     }
@@ -121,9 +122,9 @@ impl Buffer {
         self.owner
     }
 
-    pub fn reload(&mut self, force: bool) -> anyhow::Result<Dispatches> {
+    pub fn reload(&mut self, context: &Context, force: bool) -> anyhow::Result<Dispatches> {
         if let Some(path) = self.path() {
-            if let Ok(Some(dispatches)) = self.check_conflict(force, &path) {
+            if let Ok(Some(dispatches)) = self.check_conflict(context, force, &path) {
                 return Ok(dispatches);
             }
 
@@ -134,16 +135,20 @@ impl Buffer {
             // read the file again, if the notification is generated
             // because of the save.
             if path.last_modified_time().ok() == self.last_synced_time {
-                return Ok(Default::default());
+                return Ok(Dispatches::default());
             }
 
             let updated_content = path.read()?;
-            let dispatches = self.update_content(&updated_content, SelectionSet::default(), 0)?;
+            let dispatches = self
+                .update_content(&updated_content, SelectionSet::default(), 0)?
+                .append(Dispatch::SetFileDirtyStatus {
+                    dirty_status: false,
+                });
             self.last_synced_time = path.last_modified_time().ok();
-            self.dirty = false;
+
             Ok(dispatches)
         } else {
-            Ok(Default::default())
+            Ok(Dispatches::default())
         }
     }
 
@@ -156,15 +161,15 @@ impl Buffer {
     }
 
     pub fn set_decorations(&mut self, decorations: &[Decoration]) {
-        decorations.clone_into(&mut self.decorations)
+        decorations.clone_into(&mut self.decorations);
     }
 
-    pub fn path(&self) -> Option<CanonicalizedPath> {
+    pub fn path(&self) -> Option<AbsolutePath> {
         self.path.clone()
     }
 
     #[cfg(test)]
-    pub fn set_path(&mut self, path: CanonicalizedPath) {
+    pub fn set_path(&mut self, path: AbsolutePath) {
         self.path = Some(path);
     }
 
@@ -187,7 +192,7 @@ impl Buffer {
                     self.cached_hunks = Some(cached_hunks);
                     hunks
                 } else {
-                    Default::default()
+                    Vec::default()
                 }
             }
         })
@@ -197,7 +202,7 @@ impl Buffer {
         self.diagnostics = diagnostics
             .into_iter()
             .filter_map(|diagnostic| Diagnostic::try_from(self, diagnostic).ok())
-            .collect()
+            .collect();
     }
 
     pub fn diagnostics(&self) -> Vec<Diagnostic> {
@@ -214,9 +219,14 @@ impl Buffer {
             .collect()
     }
 
-    pub fn get_parent_lines(&self, line_number: usize) -> anyhow::Result<Vec<Line>> {
-        let char_index = self.line_to_char(line_number)?;
-        let node = self.get_nearest_node_after_char(char_index);
+    pub fn get_parent_lines(&self, line_index: usize) -> anyhow::Result<Vec<Line>> {
+        let line = self.get_line_by_line_index(line_index)?;
+        let indentation = line.chars().take_while(|c| c.is_whitespace()).count();
+        let char_index = self.line_to_char(line_index)? + indentation;
+        let node = self.get_current_node(
+            &Selection::default().set_range((char_index..char_index + 1).into()),
+            false,
+        )?;
         fn get_parent_lines(
             buffer: &Buffer,
             node: Option<tree_sitter::Node>,
@@ -225,7 +235,7 @@ impl Buffer {
             let Some(node) = node else { return Ok(lines) };
             let start_position = buffer.byte_to_position(node.start_byte())?;
 
-            let Some(line) = buffer.get_line_by_line_index(start_position.line) else {
+            let Ok(line) = buffer.get_line_by_line_index(start_position.line) else {
                 return Ok(lines);
             };
             let lines = lines
@@ -239,6 +249,7 @@ impl Buffer {
             get_parent_lines(buffer, node.parent(), lines)
         }
         let parent_lines = get_parent_lines(self, node, Vec::new())?;
+
         Ok(parent_lines
             .into_iter()
             // Remove lines that contains no alphabet
@@ -256,7 +267,7 @@ impl Buffer {
             .into_iter()
             .rev()
             // Remove line that is not above `line`
-            .filter(|line| line.line < line_number)
+            .filter(|line| line.line < line_index)
             .collect_vec())
     }
 
@@ -335,13 +346,13 @@ impl Buffer {
         }
     }
 
-    pub fn update(&mut self, text: &str) {
+    pub fn update(&mut self, text: &str) -> Dispatches {
         (self.rope, self.tree) = Self::get_rope_and_tree(self.treesitter_language.clone(), text);
         self.flag_as_modified()
     }
 
-    pub fn update_path(&mut self, path: CanonicalizedPath) {
-        self.path = Some(path)
+    pub fn update_path(&mut self, path: AbsolutePath) {
+        self.path = Some(path);
     }
 
     pub fn get_line_by_char_index(&self, char_index: CharIndex) -> anyhow::Result<Rope> {
@@ -470,15 +481,6 @@ impl Buffer {
         }
     }
 
-    pub fn get_nearest_node_after_char(&self, char_index: CharIndex) -> Option<Node<'_>> {
-        let byte = self.char_to_byte(char_index).ok()?;
-        // Preorder is the main key here,
-        // because preorder traversal walks the parent first
-        self.tree.as_ref().and_then(|tree| {
-            traverse(tree.root_node().walk(), Order::Pre).find(|&node| node.start_byte() >= byte)
-        })
-    }
-
     pub fn get_current_node<'a>(
         &'a self,
         selection: &Selection,
@@ -563,10 +565,12 @@ impl Buffer {
             .map(|edit| edit.to_vscode_diff_edit(self))
             .collect::<anyhow::Result<Vec<_>>>()?;
 
-        edit_transaction
-            .edits()
-            .into_iter()
-            .try_fold((), |_, edit| self.apply_edit(edit, last_visible_line))?;
+        let dirty_status_update_dispatches = edit_transaction.edits().into_iter().try_fold(
+            Dispatches::default(),
+            |dispatches, edit| -> anyhow::Result<Dispatches, anyhow::Error> {
+                Ok(dispatches.chain(self.apply_edit(edit, last_visible_line)?))
+            },
+        )?;
 
         // NOTE: the inverted VS Code edits should be computed AFTER applying the edits
         let inverted_unnormalized_edits = inverted_edit_transaction.unnormalized_edits();
@@ -604,19 +608,25 @@ impl Buffer {
             .path
             .clone()
             .map(|path| Dispatches::one(Dispatch::AppliedEdits { edits, path }))
-            .unwrap_or_default();
+            .unwrap_or_default()
+            .chain(dirty_status_update_dispatches);
 
         // Return both the new selection set and a clone of the edit transaction
         Ok((new_selection_set, dispatches, applied_vscode_edits))
     }
 
-    fn flag_as_modified(&mut self) {
-        self.dirty = true;
+    fn flag_as_modified(&mut self) -> Dispatches {
+        let dispatches = Dispatches::one(Dispatch::SetFileDirtyStatus { dirty_status: true });
         self.owner = BufferOwner::User;
+        dispatches
     }
 
     // Add these methods for undo/redo
-    fn apply_edit(&mut self, edit: &Edit, last_visible_line: usize) -> Result<(), anyhow::Error> {
+    fn apply_edit(
+        &mut self,
+        edit: &Edit,
+        last_visible_line: usize,
+    ) -> Result<Dispatches, anyhow::Error> {
         // We have to get the char index range of positional spans before updating the content
         if let Ok(byte_range) = self.char_index_range_to_byte_range(edit.range()) {
             let last_line_len_bytes = self
@@ -638,7 +648,7 @@ impl Buffer {
         self.rope.try_remove(edit.range.start.0..edit.end().0)?;
         self.rope
             .try_insert(edit.range.start.0, edit.new.to_string().as_str())?;
-        self.flag_as_modified();
+        let dispatches = self.flag_as_modified();
 
         // Update all the non-positional spans
         self.diagnostics.retain_mut(|diagnostic| {
@@ -653,7 +663,7 @@ impl Buffer {
         self.selection_set_history = std::mem::take(&mut self.selection_set_history)
             .apply(|selection_set| selection_set.apply_edit(edit, max_char_index));
 
-        Ok(())
+        Ok(dispatches)
     }
 
     pub fn batch_id(&self) -> &SyntaxHighlightRequestBatchId {
@@ -674,7 +684,7 @@ impl Buffer {
         }
     }
 
-    pub fn from_path(path: &CanonicalizedPath, enable_tree_sitter: bool) -> anyhow::Result<Buffer> {
+    pub fn from_path(path: &AbsolutePath, enable_tree_sitter: bool) -> anyhow::Result<Buffer> {
         let content = path.read()?;
         let language = if enable_tree_sitter {
             crate::config::from_path(path)
@@ -728,14 +738,15 @@ impl Buffer {
 
     pub fn save_without_formatting(
         &mut self,
+        context: &Context,
         force: bool,
-    ) -> anyhow::Result<(Dispatches, Option<CanonicalizedPath>)> {
-        if !force && !self.dirty {
+    ) -> anyhow::Result<(Dispatches, Option<AbsolutePath>)> {
+        if !force && !self.dirty(context) {
             return Ok((Dispatches::default(), None));
         }
 
         if let Some(path) = &self.path {
-            if let Ok(Some(dispatches)) = self.check_conflict(force, path) {
+            if let Ok(Some(dispatches)) = self.check_conflict(context, force, path) {
                 return Ok((dispatches, Some(path.clone())));
             }
 
@@ -743,8 +754,12 @@ impl Buffer {
 
             self.last_synced_time = path.last_modified_time().ok();
 
-            self.dirty = false;
-            Ok((Dispatches::default(), Some(path.clone())))
+            Ok((
+                Dispatches::one(Dispatch::SetFileDirtyStatus {
+                    dirty_status: false,
+                }),
+                Some(path.clone()),
+            ))
         } else {
             log::info!("Buffer has no path");
             Ok((Dispatches::default(), None))
@@ -755,10 +770,11 @@ impl Buffer {
     /// Return None if no conflict.
     fn check_conflict(
         &self,
+        context: &Context,
         force: bool,
-        path: &CanonicalizedPath,
+        path: &AbsolutePath,
     ) -> anyhow::Result<Option<Dispatches>> {
-        if force || !self.dirty {
+        if force || !self.dirty(context) {
             return Ok(None);
         }
         let last_modified_time_system = path.last_modified_time()?;
@@ -779,23 +795,24 @@ impl Buffer {
 
     pub fn save(
         &mut self,
+        context: &Context,
         current_selection_set: SelectionSet,
         force: bool,
         last_visible_line: usize,
-    ) -> anyhow::Result<(Dispatches, Option<CanonicalizedPath>)> {
-        if force || self.dirty {
+    ) -> anyhow::Result<(Dispatches, Option<AbsolutePath>)> {
+        if force || self.dirty(context) {
             if let Some(formatted_content) = self.get_formatted_content() {
                 let dispatches = self.update_content(
                     &formatted_content,
                     current_selection_set,
                     last_visible_line,
                 )?;
-                let (other_dispatches, path) = self.save_without_formatting(force)?;
+                let (other_dispatches, path) = self.save_without_formatting(context, force)?;
                 return Ok((dispatches.chain(other_dispatches), path));
             }
         }
 
-        self.save_without_formatting(force)
+        self.save_without_formatting(context, force)
     }
 
     pub fn update_content(
@@ -855,8 +872,12 @@ impl Buffer {
     }
 
     /// Has the buffer changed since its last save?
-    pub fn dirty(&self) -> bool {
-        self.dirty
+    pub fn dirty(&self, context: &Context) -> bool {
+        *self
+            .path
+            .as_ref()
+            .and_then(|path| context.get_file_dirty_status(path))
+            .unwrap_or(&false)
     }
 
     pub fn byte_to_position(&self, byte_index: usize) -> anyhow::Result<Position> {
@@ -868,8 +889,13 @@ impl Buffer {
         Ok(self.rope.try_byte_to_line(byte)?)
     }
 
-    pub fn get_line_by_line_index(&self, line_index: usize) -> Option<ropey::RopeSlice<'_>> {
-        self.rope.get_line(line_index)
+    pub fn get_line_by_line_index(
+        &self,
+        line_index: usize,
+    ) -> anyhow::Result<ropey::RopeSlice<'_>> {
+        self.rope
+            .get_line(line_index)
+            .ok_or_else(|| anyhow::anyhow!("Unable to get line at line index {line_index}"))
     }
 
     pub fn byte_range_to_char_index_range(
@@ -1019,7 +1045,7 @@ impl Buffer {
                 let edits = if let Some(language) = self.treesitter_language() {
                     AstGrep::replace(language, &before, &config.search(), &config.replacement())?
                 } else {
-                    Default::default()
+                    Vec::default()
                 };
                 EditTransaction::from_action_groups(
                     edits
@@ -1073,14 +1099,7 @@ impl Buffer {
     ) -> anyhow::Result<CharIndexRange> {
         let last_line_index = line_range.end.saturating_sub(1);
         let end_line_char_start = self.line_to_char(last_line_index)?;
-        let line = self
-            .get_line_by_line_index(last_line_index)
-            .ok_or_else(|| {
-                anyhow::anyhow!(
-                    "Buffer::line_range_to_char_index_range: Unable to get line at index {}",
-                    line_range.end
-                )
-            })?;
+        let line = self.get_line_by_line_index(last_line_index)?;
         Ok((self.line_to_char(line_range.start)?..end_line_char_start + line.len_chars()).into())
     }
 
@@ -1135,17 +1154,19 @@ impl Buffer {
                 .into_iter()
                 .cloned()
                 .collect_vec();
-            edits
-                .clone()
-                .into_iter()
-                .try_fold((), |_, edit| self.apply_edit(&edit, last_visible_line))?;
+            let dispatches = edits.clone().into_iter().try_fold(
+                Dispatches::default(),
+                |dispatches, edit| -> Result<Dispatches, anyhow::Error> {
+                    Ok(dispatches.chain(self.apply_edit(&edit, last_visible_line)?))
+                },
+            )?;
             self.reparse_tree()?;
 
             let selection_set = history.old_state.selection_set.clone();
             self.undo_stack.push(history.inverse());
 
             // Return both the selection set and the applied transaction
-            Ok(Some((selection_set, diff_edits, edits)))
+            Ok(Some((dispatches, selection_set, diff_edits, edits)))
         } else {
             Ok(None)
         }
@@ -1162,17 +1183,19 @@ impl Buffer {
                 .into_iter()
                 .cloned()
                 .collect_vec();
-            edits
-                .clone()
-                .into_iter()
-                .try_fold((), |_, edit| self.apply_edit(&edit, last_visible_line))?;
+            let dispatches = edits.clone().into_iter().try_fold(
+                Dispatches::default(),
+                |dispatches, edit| -> Result<Dispatches, anyhow::Error> {
+                    Ok(dispatches.chain(self.apply_edit(&edit, last_visible_line)?))
+                },
+            )?;
             self.reparse_tree()?;
 
             let selection_set = history.old_state.selection_set.clone();
             self.redo_stack.push(history.inverse());
 
             // Return both the selection set and the applied transaction
-            Ok(Some((selection_set, diff_edits, edits)))
+            Ok(Some((dispatches, selection_set, diff_edits, edits)))
         } else {
             Ok(None)
         }
@@ -1203,10 +1226,10 @@ impl Buffer {
 
 #[cfg(test)]
 mod test_buffer {
-    use std::fs::File;
+    use std::{fs::File, ops::Range};
 
     use itertools::Itertools;
-    use shared::canonicalized_path::CanonicalizedPath;
+    use shared::absolute_path::AbsolutePath;
     use tempfile::tempdir;
 
     use crate::{
@@ -1246,7 +1269,7 @@ mod test_buffer {
 "
         .trim()
         .to_string();
-        pretty_assertions::assert_eq!(actual, expected)
+        pretty_assertions::assert_eq!(actual, expected);
     }
 
     #[test]
@@ -1277,7 +1300,7 @@ fn f(
 ) -> Result<"
             .trim()
             .to_string();
-        pretty_assertions::assert_eq!(actual, expected)
+        pretty_assertions::assert_eq!(actual, expected);
     }
 
     mod replace {
@@ -1350,22 +1373,25 @@ fn f(
 
     /// The TempDir is returned so that the directory is not deleted
     /// when the TempDir object is dropped
-    fn run_test(f: impl Fn(CanonicalizedPath, Buffer)) {
+    fn run_test(f: impl Fn(AbsolutePath, Buffer)) {
         let dir = tempdir().unwrap();
 
         let file_path = dir.path().join("main.rs");
         File::create(&file_path).unwrap();
-        let path = CanonicalizedPath::try_from(file_path).unwrap();
+        let path = AbsolutePath::try_from(file_path).unwrap();
         path.write("").unwrap();
 
         let buffer = Buffer::from_path(&path, true).unwrap();
 
-        f(path, buffer)
+        f(path, buffer);
     }
 
     mod auto_format {
 
-        use crate::selection::{CharIndex, SelectionSet};
+        use crate::{
+            context::Context,
+            selection::{CharIndex, SelectionSet},
+        };
 
         use super::run_test;
 
@@ -1373,10 +1399,15 @@ fn f(
         fn should_format_code() {
             run_test(|path, mut buffer| {
                 // Update the buffer with unformatted code
-                buffer.update(" fn main\n() {}");
+                let _ = buffer.update(" fn main\n() {}");
+
+                let mut context = Context::default();
+                context.set_file_dirty_status(&path, true);
 
                 // Save the buffer
-                let _ = buffer.save(SelectionSet::default(), false, 0).unwrap();
+                let _ = buffer
+                    .save(&context, SelectionSet::default(), false, 0)
+                    .unwrap();
 
                 // Expect the output is formatted
                 let saved_content = path.read().unwrap();
@@ -1393,18 +1424,23 @@ fn f(
                         .byte_range(),
                     0..2
                 );
-            })
+            });
         }
 
         #[test]
         /// The formatted output should be undoable,
         /// in case the formatter messed up the code.
         fn should_be_undoable() {
-            run_test(|_, mut buffer| {
+            run_test(|path, mut buffer| {
                 let original = " fn main\n() {}";
-                buffer.update(original);
+                let _ = buffer.update(original);
 
-                let _ = buffer.save(SelectionSet::default(), false, 0).unwrap();
+                let mut context = Context::default();
+                context.set_file_dirty_status(&path, true);
+
+                let _ = buffer
+                    .save(&context, SelectionSet::default(), false, 0)
+                    .unwrap();
 
                 // Expect the buffer is formatted
                 assert_ne!(buffer.rope.to_string(), original);
@@ -1416,22 +1452,24 @@ fn f(
 
                 // Expect the content is reverted to the original
                 assert_eq!(content, " fn main\n() {}");
-            })
+            });
         }
 
         #[test]
         fn should_not_run_when_syntax_node_is_malformed() {
             run_test(|_, mut buffer| {
                 // Update the buffer to be invalid Rust code
-                buffer.update("fn main() {");
+                let _ = buffer.update("fn main() {");
 
                 // Save the buffer
-                let _ = buffer.save(SelectionSet::default(), false, 0).unwrap();
+                let _ = buffer
+                    .save(&Context::default(), SelectionSet::default(), false, 0)
+                    .unwrap();
 
                 // Expect the buffer remain unchanged,
                 // because the syntax node is invalid
                 assert_eq!(buffer.rope.to_string(), "fn main() {");
-            })
+            });
         }
 
         #[test]
@@ -1443,17 +1481,19 @@ fn f(
             run_test(|_, mut buffer| {
                 // Update the buffer to be valid Rust code
                 // but unformatable
-                buffer.update(code);
+                let _ = buffer.update(code);
 
                 // The code should be deemed as valid by Tree-sitter,
                 // but not to the formatter
                 assert!(!buffer.tree.as_ref().unwrap().root_node().has_error());
 
-                let _ = buffer.save(SelectionSet::default(), false, 0).unwrap();
+                let _ = buffer
+                    .save(&Context::default(), SelectionSet::default(), false, 0)
+                    .unwrap();
 
                 // Expect the buffer remain unchanged
                 assert_eq!(buffer.rope.to_string(), code);
-            })
+            });
         }
     }
 
@@ -1466,13 +1506,13 @@ fn f(
 
             // Update the buffer, this should cause the batch ID to be changed
             let _ = buffer
-                .update_content("testing", Default::default(), 1)
+                .update_content("testing", SelectionSet::default(), 1)
                 .unwrap();
 
             // Update the buffer with new highlight spans using the initial batch ID
             let new_highlighted_spans = HighlightedSpans(
                 [HighlightedSpan {
-                    byte_range: Default::default(),
+                    byte_range: Range::default(),
                     style_key: StyleKey::Syntax(IndexedHighlightGroup::new(0)),
                 }]
                 .to_vec(),
@@ -1481,8 +1521,8 @@ fn f(
 
             // Expect the highlight spans remain the same, because the batch ID is changed
             assert_eq!(&initial_spans, buffer.highlighted_spans());
-            assert_ne!(&new_highlighted_spans.0, buffer.highlighted_spans())
-        })
+            assert_ne!(&new_highlighted_spans.0, buffer.highlighted_spans());
+        });
     }
 
     mod patch_edit {
@@ -1648,4 +1688,9 @@ impl EditHistory {
     }
 }
 
-type UndoRedoReturn = Option<(SelectionSet, Vec<ki_protocol_types::DiffEdit>, Vec<Edit>)>;
+type UndoRedoReturn = Option<(
+    Dispatches,
+    SelectionSet,
+    Vec<ki_protocol_types::DiffEdit>,
+    Vec<Edit>,
+)>;

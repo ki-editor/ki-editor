@@ -1,0 +1,43 @@
+import {TutorialFallback} from '@site/src/components/TutorialFallback';
+import {KeymapFallback} from '@site/src/components/KeymapFallback';
+
+# ≡ Buffer
+
+## Keymap
+
+<KeymapFallback filename="Buffer"/>
+
+In this Momentary Layer (≡), every core movement means:
+
+> change focus to \<movement\> buffer.
+
+Buffers can be either marked or un-marked: each marked file gets its own tab
+on the tab bar, however only one the very rightmost end of the tabs on the tab bar
+show the open buffers.
+
+When using coarse movements like `>>` and `<<` you can only visit navigate to marked files.
+Opened but non-marked files can be navigated-to through fine-movements like `>` and `<`.
+Noteably, when doing `<<` on the left-most marked-file, the focus lands "warps" or cycles to
+the righmost file.
+
+Besides the core movements based actions, a few other common actions are also sheltered in the ≡ Buffer
+these are: closing the current buffer, and unmarking all files except the current one.
+
+## Examples
+
+<TutorialFallback filename="mark-file"/>
+
+<TutorialFallback filename="open-file"/>
+
+## Workflow Overview
+
+This workflow is designed to streamline your editing process by allowing quick
+access to your primary files.
+
+During an editing session, you often work on
+primary files while occasionally referring to other less important files.
+Using ≡ Buffer, you can quickly jump back to your main files, enhancing your
+productivity and focus.
+
+By utilizing file marking, you can efficiently navigate your editing
+environment and maintain your workflow's momentum.

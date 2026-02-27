@@ -12,7 +12,7 @@ import {KeymapFallback} from '@site/src/components/KeymapFallback';
 Core Movements is one of the main concepts in Ki, because it is standardized for
 every [selection modes](./selection-modes/index.md).
 
-There are 9 movements in total:
+There are 10 movements in total:
 
 ## Keymap
 
@@ -97,7 +97,7 @@ It allows you to jump to your desired position (as long as it is within the scre
 It works like this:
 
 1. Choose your selection mode
-1. Press `;`
+1. Press `m`
 1. Press the first letter of the selection that you want to jump to.
 1. Press the letter that appears on top of the selection.
 1. Done.
@@ -113,6 +113,17 @@ This movement can also work with the Swap mode to swap two syntax expressions th
 [^1]: hop.nvim, leap.nvim, lightspeed.nvim etc.
 
 <TutorialFallback filename="jump"/>
+
+### `Parent Line`
+
+This movement allows you to jump to the nearest parent line above the current line.
+
+Most of the time, nearest parent line is the same as the nearest dedented line above.
+
+It is particularly useful in the File Explorer (which is displayed in YAML), where you can jump
+to the parent directory with just a keypress.
+
+<TutorialFallback filename="parent-line"/>
 
 Note: All letters after the first will be selected based on key accessibility in the chosen keyboard layout.
 

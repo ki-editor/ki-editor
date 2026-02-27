@@ -25,7 +25,6 @@ mod app;
 mod generate_recipes;
 pub mod history;
 mod non_empty_extensions;
-mod osc52;
 mod quickfix_list;
 #[cfg(test)]
 mod recipes;
@@ -65,7 +64,7 @@ use std::{rc::Rc, sync::Mutex};
 use anyhow::Context;
 use frontend::crossterm::Crossterm;
 use log::LevelFilter;
-use shared::canonicalized_path::CanonicalizedPath;
+use shared::absolute_path::AbsolutePath;
 
 use app::App;
 
@@ -77,8 +76,8 @@ pub fn main() {
 
 #[derive(Default)]
 pub struct RunConfig {
-    pub entry_path: Option<CanonicalizedPath>,
-    pub working_directory: Option<CanonicalizedPath>,
+    pub entry_path: Option<AbsolutePath>,
+    pub working_directory: Option<AbsolutePath>,
 }
 
 pub fn run(config: RunConfig) -> anyhow::Result<()> {

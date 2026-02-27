@@ -1,4 +1,4 @@
-const LANGS: &[&str] = &[
+const INCLUDED_NVIM_TREESITTER_LANGUAGES: &[&str] = &[
     "bash",
     "c",
     "c_sharp",
@@ -23,6 +23,7 @@ const LANGS: &[&str] = &[
     "graphql",
     "hare",
     "haskell",
+    "hcl",
     "heex",
     "html",
     "html_tags",
@@ -70,7 +71,7 @@ fn main() {
     .join("compiled_highlight_queries.bin");
 
     // Format is lang={query}, null-separated
-    let data = LANGS
+    let data = INCLUDED_NVIM_TREESITTER_LANGUAGES
         .iter()
         .map(|lang| {
             let path = format!("queries/{lang}-highlights.scm");

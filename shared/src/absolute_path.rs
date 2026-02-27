@@ -7,21 +7,18 @@ use url::Url;
 
 /// This is used as a standardization of Paths across the codebase,
 /// so that we have a single unified representation of paths.
-///
-/// However, the construction of a `CanonicalizedPath` is slow,
-/// because `std::path::Path::canonicalize` is expensive.
 #[derive(
     Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Deserialize, serde::Serialize,
 )]
-pub struct CanonicalizedPath(PathBuf);
+pub struct AbsolutePath(PathBuf);
 
-impl AsRef<Path> for CanonicalizedPath {
+impl AsRef<Path> for AbsolutePath {
     fn as_ref(&self) -> &Path {
         &self.0
     }
 }
 
-impl TryFrom<lsp_types::Url> for CanonicalizedPath {
+impl TryFrom<lsp_types::Url> for AbsolutePath {
     type Error = anyhow::Error;
 
     fn try_from(value: lsp_types::Url) -> Result<Self, Self::Error> {
@@ -32,7 +29,7 @@ impl TryFrom<lsp_types::Url> for CanonicalizedPath {
     }
 }
 
-impl TryFrom<String> for CanonicalizedPath {
+impl TryFrom<String> for AbsolutePath {
     type Error = anyhow::Error;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
@@ -40,7 +37,7 @@ impl TryFrom<String> for CanonicalizedPath {
     }
 }
 
-impl TryFrom<&Path> for CanonicalizedPath {
+impl TryFrom<&Path> for AbsolutePath {
     type Error = anyhow::Error;
 
     fn try_from(value: &Path) -> Result<Self, Self::Error> {
@@ -48,23 +45,25 @@ impl TryFrom<&Path> for CanonicalizedPath {
     }
 }
 
-impl TryFrom<PathBuf> for CanonicalizedPath {
+impl TryFrom<PathBuf> for AbsolutePath {
     type Error = anyhow::Error;
 
     fn try_from(value: PathBuf) -> Result<Self, Self::Error> {
-        Ok(Self(value.canonicalize().map_err(|error| {
-            anyhow::anyhow!("Cannot canonicalize path: {:?}. Error: {:?}", value, error)
-        })?))
+        Ok(Self(if value.is_relative() {
+            std::env::current_dir()?.join(value)
+        } else {
+            value
+        }))
     }
 }
 
-impl From<CanonicalizedPath> for PathBuf {
-    fn from(val: CanonicalizedPath) -> Self {
+impl From<AbsolutePath> for PathBuf {
+    fn from(val: AbsolutePath) -> Self {
         val.0
     }
 }
 
-impl TryFrom<&str> for CanonicalizedPath {
+impl TryFrom<&str> for AbsolutePath {
     type Error = anyhow::Error;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
@@ -72,7 +71,7 @@ impl TryFrom<&str> for CanonicalizedPath {
     }
 }
 
-impl TryFrom<&String> for CanonicalizedPath {
+impl TryFrom<&String> for AbsolutePath {
     type Error = anyhow::Error;
 
     fn try_from(value: &String) -> Result<Self, Self::Error> {
@@ -96,7 +95,7 @@ pub fn get_path_icon(path: &Path) -> &String {
         .unwrap_or(&config.file)
 }
 
-impl CanonicalizedPath {
+impl AbsolutePath {
     pub fn icon(&self) -> &String {
         get_path_icon(&self.0)
     }
@@ -118,7 +117,7 @@ impl CanonicalizedPath {
         self.display_relative_to(&current_dir.try_into()?)
     }
 
-    pub fn display_relative_to(&self, other: &CanonicalizedPath) -> anyhow::Result<String> {
+    pub fn display_relative_to(&self, other: &AbsolutePath) -> anyhow::Result<String> {
         let relative = self.0.strip_prefix(&other.0)?;
         Ok(relative.display().to_string())
     }
@@ -126,7 +125,7 @@ impl CanonicalizedPath {
     /// If the path is relative to home, format it relative to the home directory with
     /// a leading ~ character. Otherwise it will be displayed as an absolute path.
     pub fn display_relative_to_home(&self) -> anyhow::Result<String> {
-        let home_dir: CanonicalizedPath = match etcetera::home_dir() {
+        let home_dir: AbsolutePath = match etcetera::home_dir() {
             Ok(dir) => dir.try_into()?,
             Err(_) => return Ok(self.display_absolute()),
         };
@@ -141,8 +140,8 @@ impl CanonicalizedPath {
         self.0.display().to_string()
     }
 
-    pub fn join(&self, other_path: &str) -> anyhow::Result<CanonicalizedPath> {
-        let CanonicalizedPath(path) = self.clone();
+    pub fn join(&self, other_path: &str) -> anyhow::Result<AbsolutePath> {
+        let AbsolutePath(path) = self.clone();
         path.join(other_path).try_into()
     }
 
@@ -157,7 +156,7 @@ impl CanonicalizedPath {
             .collect::<Vec<_>>()
     }
 
-    pub fn parent(&self) -> anyhow::Result<Option<CanonicalizedPath>> {
+    pub fn parent(&self) -> anyhow::Result<Option<AbsolutePath>> {
         self.0.parent().map(|path| path.try_into()).transpose()
     }
 
@@ -182,7 +181,7 @@ impl CanonicalizedPath {
             .unwrap_or_else(|_| self.display_absolute())
     }
 
-    pub fn try_display_relative_to(&self, other: &CanonicalizedPath) -> String {
+    pub fn try_display_relative_to(&self, other: &AbsolutePath) -> String {
         self.display_relative_to(other)
             .unwrap_or_else(|_| self.display_absolute())
     }
@@ -203,20 +202,24 @@ impl CanonicalizedPath {
         Ok(self.0.metadata()?.modified()?)
     }
 
-    pub fn is_parent_of(&self, path: &CanonicalizedPath) -> bool {
+    pub fn is_parent_of(&self, path: &AbsolutePath) -> bool {
         path.0.starts_with(&self.0)
     }
 
     /// This function might return optional on non-Unix OS like Windows which has
     ///  multiple roots (e.g. C:\, D:\, E:\, etc.).
     pub fn nearest_common_ancestor(
-        path1: &CanonicalizedPath,
-        path2: &CanonicalizedPath,
-    ) -> Option<CanonicalizedPath> {
+        path1: &AbsolutePath,
+        path2: &AbsolutePath,
+    ) -> Option<AbsolutePath> {
         path1
             .0
             .ancestors()
             .find(|ancestor| path2.0.starts_with(ancestor))
-            .map(|p| CanonicalizedPath(p.to_path_buf()))
+            .map(|p| AbsolutePath(p.to_path_buf()))
+    }
+
+    pub fn canonicalize(&self) -> anyhow::Result<Self> {
+        Ok(Self(self.0.canonicalize()?))
     }
 }

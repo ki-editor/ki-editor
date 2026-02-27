@@ -30,12 +30,13 @@ pub use Movement::*;
 pub use SelectionMode::*;
 
 use crate::{
-    app::StatusLine,
+    app::{NucleoSource, StatusLine},
+    lsp::process::ResponseContext,
     scripting::{ScriptInput, ScriptOutput},
     selection_mode::GetGapMovement,
 };
 
-use shared::{canonicalized_path::CanonicalizedPath, language::LanguageId};
+use shared::{absolute_path::AbsolutePath, language::LanguageId};
 
 #[cfg(test)]
 use crate::layout::BufferContentsMap;
@@ -47,7 +48,7 @@ use crate::{
     },
     buffer::{Buffer, BufferOwner},
     char_index_range::CharIndexRange,
-    clipboard::CopiedTexts,
+    clipboard::Texts,
     components::{
         component::Component,
         editor::{
@@ -99,6 +100,7 @@ pub enum Step {
     /// necessary for testing async features like Global Search
     WaitForAppMessage(&'static lazy_regex::Lazy<regex::Regex>),
     WaitForDuration(Duration),
+    HandleNucleoNotify(NucleoSource),
 }
 
 impl Step {
@@ -115,6 +117,7 @@ impl Step {
             WaitForAppMessage(regex) => format!("WaitForAppMessage({regex:?})"),
             Shell(command, args) => format!("Shell: {command} {}", args.join(" ")),
             WaitForDuration(duration) => format!("Wait for duration {duration:?}"),
+            HandleNucleoNotify(source) => format!("HandleNucleoNotify({source:?})"),
         }
     }
 }
@@ -147,8 +150,8 @@ pub enum ExpectKind {
     EditorGridCursorPosition(Position),
     EditorIsDirty(),
     CurrentMode(Mode),
-    FileContent(CanonicalizedPath, String),
-    FileContentEqual(CanonicalizedPath, CanonicalizedPath),
+    FileContent(AbsolutePath, String),
+    FileContentEqual(AbsolutePath, AbsolutePath),
     /// This is for any component
     CurrentSelectedTexts(&'static [&'static str]),
     /// This is only for the main editor (e.g. not prompt, not completion, etc)
@@ -160,7 +163,7 @@ pub enum ExpectKind {
     AppGrid(String),
     AppGridContains(&'static str),
     EditorGrid(&'static str),
-    CurrentPath(CanonicalizedPath),
+    CurrentPath(AbsolutePath),
     GridCellBackground(
         /*Row*/ usize,
         /*Column*/ usize,
@@ -177,7 +180,7 @@ pub enum ExpectKind {
     DiagnosticsRanges(Vec<CharIndexRange>),
     BufferQuickfixListItems(Vec<CharIndexRange>),
     ComponentCount(usize),
-    CurrentComponentPath(Option<CanonicalizedPath>),
+    CurrentComponentPath(Option<AbsolutePath>),
     OpenedFilesCount(usize),
     GlobalInfo(String),
     ComponentsOrder(Vec<ComponentKind>),
@@ -185,13 +188,13 @@ pub enum ExpectKind {
     CurrentSelectionMode(SelectionMode),
     CurrentGlobalMode(Option<GlobalMode>),
     LspRequestSent(FromEditor),
-    LspServerInitializedArgs(Option<(LanguageId, Vec<CanonicalizedPath>)>),
+    LspServerInitializedArgs(Option<(LanguageId, Vec<AbsolutePath>)>),
     CurrentCopiedTextHistoryOffset(isize),
     CurrentReveal(Option<Reveal>),
     CountHighlightedCells(StyleKey, usize),
     SelectionExtensionEnabled(bool),
     PromptHistory(PromptHistoryKey, Vec<String>),
-    MarkedFiles(Vec<CanonicalizedPath>),
+    MarkedFiles(Vec<AbsolutePath>),
     /// Similar to `Step::WaitForAppMessage`, but expect the opposites, with a timeout
     AppMessageNotReceived {
         matches: &'static lazy_regex::Lazy<regex::Regex>,
@@ -203,7 +206,7 @@ pub enum ExpectKind {
     },
     CurrentEditorIncrementalSearchMatches(Vec<std::ops::Range<usize>>),
     CurrentRangeAndInitialRange(CharIndexRange, Option<CharIndexRange>),
-    CurrentWorkingDirectory(CanonicalizedPath),
+    CurrentWorkingDirectory(AbsolutePath),
 }
 fn log<T: std::fmt::Debug>(s: T) {
     if !is_ci::cached() {
@@ -268,21 +271,18 @@ impl ExpectKind {
             }
             ComponentsLength(length) => contextualize(app.components().len(), *length),
             Quickfixes(expected_quickfixes) => contextualize(
-                app.get_quickfix_list()
-                    .map(|q| {
-                        q.items()
-                            .into_iter()
-                            .map(|quickfix| {
-                                let info = quickfix
-                                    .info()
-                                    .as_ref()
-                                    .map(|info| info.clone().set_decorations(Vec::new()));
-                                quickfix.set_info(info)
-                            })
-                            .collect_vec()
-                            .into_boxed_slice()
+                app.quickfix_list()
+                    .items()
+                    .iter()
+                    .map(|quickfix| {
+                        let info = quickfix
+                            .info()
+                            .as_ref()
+                            .map(|info| info.clone().set_decorations(Vec::new()));
+                        quickfix.clone().set_info(info)
                     })
-                    .unwrap_or_default(),
+                    .collect_vec()
+                    .into_boxed_slice(),
                 expected_quickfixes.clone(),
             ),
             EditorGrid(grid) => contextualize(
@@ -305,7 +305,9 @@ impl ExpectKind {
                 let (result, context) = expect_kind.get_result(app)?;
                 (!result, format!("NOT ({context})"))
             }
-            EditorIsDirty() => contextualize(&component.borrow().editor().buffer().dirty(), &true),
+            EditorIsDirty() => {
+                contextualize(&component.borrow().editor().buffer().dirty(context), &true)
+            }
             CurrentMode(mode) => contextualize(&component.borrow().editor().mode, mode),
             EditorCursorPosition(position) => contextualize(
                 &component.borrow().editor().get_cursor_position().unwrap(),
@@ -447,7 +449,7 @@ impl ExpectKind {
                 item,
             ),
             QuickfixListContent(content) => {
-                let actual = app.get_quickfix_list().unwrap().render().content;
+                let actual = app.quickfix_list().render().content;
                 let expected = content.to_string();
                 println!("Expected =\n{expected}");
                 println!("Actual =\n{actual}");
@@ -518,7 +520,7 @@ impl ExpectKind {
                 expected,
                 &app.context()
                     .quickfix_list_items()
-                    .into_iter()
+                    .iter()
                     .map(|d| d.location().range)
                     .collect_vec(),
             ),
@@ -641,9 +643,13 @@ impl ExpectKind {
                     (&selection.range, &selection.initial_range),
                 )
             }
-            CurrentWorkingDirectory(expected) => {
-                contextualize(expected, app.context().current_working_directory())
-            }
+            CurrentWorkingDirectory(expected) => contextualize(
+                expected.canonicalize().unwrap(),
+                app.context()
+                    .current_working_directory()
+                    .canonicalize()
+                    .unwrap(),
+            ),
         })
     }
 }
@@ -691,22 +697,22 @@ pub use ExpectKind::*;
 pub use Step::*;
 #[derive(Clone)]
 pub struct State {
-    temp_dir: CanonicalizedPath,
-    main_rs: CanonicalizedPath,
-    foo_rs: CanonicalizedPath,
-    hello_ts: CanonicalizedPath,
-    git_ignore: CanonicalizedPath,
+    temp_dir: AbsolutePath,
+    main_rs: AbsolutePath,
+    foo_rs: AbsolutePath,
+    hello_ts: AbsolutePath,
+    git_ignore: AbsolutePath,
 }
 impl State {
-    pub fn main_rs(&self) -> CanonicalizedPath {
+    pub fn main_rs(&self) -> AbsolutePath {
         self.main_rs.clone()
     }
 
-    pub fn foo_rs(&self) -> CanonicalizedPath {
+    pub fn foo_rs(&self) -> AbsolutePath {
         self.foo_rs.clone()
     }
 
-    pub fn hello_ts(&self) -> CanonicalizedPath {
+    pub fn hello_ts(&self) -> AbsolutePath {
         self.hello_ts.clone()
     }
 
@@ -714,11 +720,11 @@ impl State {
         self.temp_dir.to_path_buf().join(path)
     }
 
-    pub fn gitignore(&self) -> CanonicalizedPath {
+    pub fn gitignore(&self) -> AbsolutePath {
         self.git_ignore.clone()
     }
 
-    pub fn temp_dir(&self) -> CanonicalizedPath {
+    pub fn temp_dir(&self) -> AbsolutePath {
         self.temp_dir.clone()
     }
 }
@@ -795,7 +801,7 @@ fn execute_test_helper(
     assert_last_step_is_expect: bool,
     options: RunTestOptions,
 ) -> anyhow::Result<TestOutput> {
-    let callback = |mut app: App<MockFrontend>, temp_dir: CanonicalizedPath| {
+    let callback = |mut app: App<MockFrontend>, temp_dir: AbsolutePath| {
         let steps = {
             callback(State {
                 main_rs: temp_dir.join("src/main.rs").unwrap(),
@@ -807,7 +813,7 @@ fn execute_test_helper(
         };
 
         if render {
-            app.render()?
+            app.render()?;
         }
         if assert_last_step_is_expect {
             debug_assert!(
@@ -829,46 +835,48 @@ fn execute_test_helper(
             match step.to_owned() {
                 Step::WaitForAppMessage(regex) => {
                     log(format!("Wait for app message: {}", ***regex));
-                    app.wait_for_app_message(regex, None)?
+                    app.wait_for_app_message(regex, None)?;
                 }
                 Step::App(dispatch) => {
                     log(dispatch);
-                    app.handle_dispatch(dispatch.to_owned())?
+                    app.handle_dispatch(dispatch.to_owned())?;
                 }
                 Step::AppLater(get_dispatch) => {
                     let dispatch = get_dispatch();
                     log(&dispatch);
-                    app.handle_dispatch(dispatch.to_owned())?
+                    app.handle_dispatch(dispatch.to_owned())?;
                 }
                 Step::Expect(expect_kind) => expect_kind.run(&mut app)?,
                 ExpectLater(f) => f().run(&mut app)?,
                 Editor(dispatch) => {
                     log(dispatch);
-                    app.handle_dispatch_editor(dispatch.to_owned())?
+                    app.handle_dispatch_editor(dispatch.to_owned())?;
                 }
                 ExpectCustom(f) => {
                     f();
                 }
                 ExpectMulti(expect_kinds) => {
                     for expect_kind in expect_kinds.iter() {
-                        expect_kind.run(&mut app)?
+                        expect_kind.run(&mut app)?;
                     }
                 }
                 SuggestiveEditor(dispatch) => {
                     log(dispatch);
-                    app.handle_dispatch_suggestive_editor(dispatch.to_owned())?
+                    app.handle_dispatch_suggestive_editor(dispatch.to_owned())?;
                 }
                 Shell(program, args) => {
                     log(format!("Shell: {program} {args:?}",));
                     let output = std::process::Command::new(program).args(args).output();
-                    log(output)
+                    log(output);
                 }
                 WaitForDuration(duration) => std::thread::sleep(*duration),
+
+                HandleNucleoNotify(source) => app.handle_nucleo_notify(*source)?,
             };
         }
 
         if render {
-            app.render()?
+            app.render()?;
         }
         let buffer_contents = app.get_buffer_contents_map();
         Ok(buffer_contents)
@@ -887,7 +895,7 @@ fn run_test(
     options: RunTestOptions,
     writer: fn() -> Box<dyn MyWriter>,
     status_lines: Vec<StatusLine>,
-    callback: impl Fn(App<MockFrontend>, CanonicalizedPath) -> anyhow::Result<BufferContentsMap>,
+    callback: impl Fn(App<MockFrontend>, AbsolutePath) -> anyhow::Result<BufferContentsMap>,
 ) -> anyhow::Result<TestOutput> {
     TestRunner::run(move |temp_dir| {
         let frontend = Rc::new(Mutex::new(MockFrontend::new(writer())));
@@ -1128,7 +1136,7 @@ fn highlight_mode_replace() -> anyhow::Result<()> {
 
 #[serial]
 #[test]
-fn multi_paste() -> anyhow::Result<()> {
+fn multi_paste_1() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile {
@@ -1160,7 +1168,7 @@ fn multi_paste() -> anyhow::Result<()> {
             )),
             Editor(CursorKeepPrimaryOnly),
             App(SetClipboardContent {
-                copied_texts: CopiedTexts::one(".hello".to_owned()),
+                copied_texts: Texts::one(".hello".to_owned()),
             }),
             Editor(PasteWithMovement(GetGapMovement::Right)),
             Expect(CurrentComponentContent(
@@ -1281,7 +1289,10 @@ pub fn repo_git_hunks() -> Result<(), anyhow::Error> {
                 Quickfixes(Box::new([
                     QuickfixListItem::new(
                         Location {
-                            path: path_new_file.clone().try_into().unwrap(),
+                            path: AbsolutePath::try_from(path_new_file.clone())
+                                .unwrap()
+                                .canonicalize()
+                                .unwrap(),
                             range: (CharIndex(0)..CharIndex(0)).into(),
                         },
                         strs_to_strings(&["[This file is untracked or renamed]"]),
@@ -1289,7 +1300,7 @@ pub fn repo_git_hunks() -> Result<(), anyhow::Error> {
                     ),
                     QuickfixListItem::new(
                         Location {
-                            path: s.foo_rs(),
+                            path: s.foo_rs().canonicalize().unwrap(),
                             range: (CharIndex(0)..CharIndex(32)).into(),
                         },
                         strs_to_strings(&[
@@ -1300,7 +1311,7 @@ pub fn repo_git_hunks() -> Result<(), anyhow::Error> {
                     ),
                     QuickfixListItem::new(
                         Location {
-                            path: s.main_rs(),
+                            path: s.main_rs().canonicalize().unwrap(),
                             range: (CharIndex(0)..CharIndex(0)).into(),
                         },
                         strs_to_strings(&["mod foo;"]),
@@ -1430,7 +1441,7 @@ pub fn non_git_ignored_files() -> Result<(), anyhow::Error> {
                 let paths = paths
                     .into_iter()
                     .flat_map(|path| {
-                        CanonicalizedPath::try_from(path)
+                        AbsolutePath::try_from(path)
                             .unwrap()
                             .display_relative_to(&s.temp_dir())
                     })
@@ -1471,7 +1482,7 @@ fn number_of_lines_rendered_should_equal_to_number_of_newline_characters_plus_on
             })),
             Editor(SetContent("hello\n".to_string())),
             Expect(AppGrid(
-                " 🦀  main.rs [*]
+                " [:] 🦀  main.rs
 1│█ello
 2│"
                 .to_string(),
@@ -1509,7 +1520,7 @@ fn first () {
             Editor(AlignViewTop),
             Expect(AppGrid(
                 "
- 🦀  main.rs [*]
+ [:] 🦀  main.rs
 1│fn first () {
 5│  █ifth();
 6│}
@@ -1521,7 +1532,7 @@ fn first () {
             Editor(AlignViewBottom),
             Expect(AppGrid(
                 "
- 🦀  main.rs [*]
+ [:] 🦀  main.rs
 1│fn first () {
 3│  third();
 4│  fourth(); // this line is long
@@ -1538,7 +1549,7 @@ fn first () {
             Editor(AlignViewBottom),
             Expect(AppGrid(
                 "
- 🦀  main.rs [*]
+ [:] 🦀  main.rs
 1│fn first () {
 4│  fourth(); //
 ↪│this line is long
@@ -1561,14 +1572,14 @@ fn global_marks() -> Result<(), anyhow::Error> {
                 focus: true,
             }),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Subword)),
-            App(MarkFileAndToggleMark),
+            App(ToggleSelectionMark),
             App(OpenFile {
                 path: s.foo_rs(),
                 owner: BufferOwner::User,
                 focus: true,
             }),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Subword)),
-            App(MarkFileAndToggleMark),
+            App(ToggleSelectionMark),
             App(SetQuickfixList(
                 crate::quickfix_list::QuickfixListType::Mark,
             )),
@@ -1604,14 +1615,14 @@ fn global_marks_updated_by_edits() -> Result<(), anyhow::Error> {
                 focus: true,
             }),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Subword)),
-            App(MarkFileAndToggleMark),
+            App(ToggleSelectionMark),
             App(OpenFile {
                 path: s.foo_rs(),
                 owner: BufferOwner::User,
                 focus: true,
             }),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Subword)),
-            App(MarkFileAndToggleMark),
+            App(ToggleSelectionMark),
             App(SetQuickfixList(
                 crate::quickfix_list::QuickfixListType::Mark,
             )),
@@ -1671,7 +1682,7 @@ fn esc_global_quickfix_mode() -> Result<(), anyhow::Error> {
                 focus: true,
             }),
             Editor(SetContent("foo bar foo bar".to_string())),
-            App(MarkFileAndToggleMark),
+            App(ToggleSelectionMark),
             App(OpenFile {
                 path: s.foo_rs(),
                 owner: BufferOwner::User,
@@ -1686,7 +1697,7 @@ fn esc_global_quickfix_mode() -> Result<(), anyhow::Error> {
                 run_search_after_config_updated: true,
                 component_id: None,
             }),
-            WaitForAppMessage(regex!("AddQuickfixListEntries")),
+            WaitForAppMessage(regex!("GlobalSearchFinished")),
             Expect(CurrentGlobalMode(Some(GlobalMode::QuickfixListItem))),
             Expect(Quickfixes(Box::new([
                 QuickfixListItem::new(
@@ -1769,7 +1780,7 @@ fn local_lsp_references() -> anyhow::Result<()> {
 #[test]
 fn global_diagnostics() -> Result<(), anyhow::Error> {
     execute_test(|s| {
-        let publish_diagnostics = |path: CanonicalizedPath| {
+        let publish_diagnostics = |path: AbsolutePath| {
             LspNotification::PublishDiagnostics(lsp_types::PublishDiagnosticsParams {
                 uri: path.to_url().unwrap(),
                 diagnostics: [lsp_types::Diagnostic {
@@ -1921,7 +1932,7 @@ fn test_global_repeat_search() -> anyhow::Result<()> {
                 run_search_after_config_updated: true,
                 component_id: None,
             }),
-            WaitForAppMessage(regex!("AddQuickfixListEntries")),
+            WaitForAppMessage(regex!("GlobalSearchFinished")),
             Expect(CurrentSelectedTexts(&["bye"])),
             // Change the selection mode
             Editor(SetSelectionMode(
@@ -1934,7 +1945,7 @@ fn test_global_repeat_search() -> anyhow::Result<()> {
                 IfCurrentNotFound::LookForward,
                 None,
             )),
-            WaitForAppMessage(regex!("AddQuickfixListEntries")),
+            WaitForAppMessage(regex!("GlobalSearchFinished")),
             Expect(CurrentSelectedTexts(&["bye"])),
         ])
     })
@@ -2030,7 +2041,7 @@ foo a // Line 10
             App(new_dispatch(LocalSearchConfigUpdate::Search(
                 "foo".to_string(),
             ))),
-            WaitForAppMessage(regex!("AddQuickfixListEntries")),
+            WaitForAppMessage(regex!("GlobalSearchFinished")),
             Expect(QuickfixListContent(
                 // Line 10 should be placed below Line 2 (sorted numerically, not lexicograhically)
                 "
@@ -2254,7 +2265,7 @@ fn diagnostic_info() -> Result<(), anyhow::Error> {
                 LspNotification::PublishDiagnostics(lsp_types::PublishDiagnosticsParams {
                     uri: Url::from_file_path(s.foo_rs()).unwrap(),
                     // No diagnostic
-                    diagnostics: Default::default(),
+                    diagnostics: Vec::default(),
                     version: None,
                 }),
             )),
@@ -2465,7 +2476,7 @@ fn cycle_window() -> anyhow::Result<()> {
             kind: None,
             detail: None,
             insert_text: None,
-            completion_item: Default::default(),
+            completion_item: lsp_types::CompletionItem::default(),
         };
 
         execute_test(|s| {
@@ -2526,7 +2537,7 @@ fn esc_in_normal_mode_in_suggestive_editor_should_close_all_other_windows() -> a
             kind: None,
             detail: None,
             insert_text: None,
-            completion_item: Default::default(),
+            completion_item: lsp_types::CompletionItem::default(),
         };
         execute_test(|s| {
             Box::new([
@@ -2575,7 +2586,7 @@ fn saving_in_insert_mode_in_suggestive_editor_should_close_all_other_windows() -
             kind: None,
             detail: None,
             insert_text: None,
-            completion_item: Default::default(),
+            completion_item: lsp_types::CompletionItem::default(),
         };
         execute_test(|s| {
             Box::new([
@@ -2887,7 +2898,7 @@ fn request_signature_help() -> anyhow::Result<()> {
                 FromEditor::TextDocumentSignatureHelp(RequestParams {
                     path: s.main_rs(),
                     position: Position::new(0, 3),
-                    context: Default::default(),
+                    context: ResponseContext::default(),
                 }),
             )),
             App(HandleKeyEvent(key!("left"))),
@@ -2895,7 +2906,7 @@ fn request_signature_help() -> anyhow::Result<()> {
                 FromEditor::TextDocumentSignatureHelp(RequestParams {
                     path: s.main_rs(),
                     position: Position::new(0, 2),
-                    context: Default::default(),
+                    context: ResponseContext::default(),
                 }),
             )),
         ])
@@ -2972,7 +2983,7 @@ fn doc_assets_export_keymaps_json() {
     sections.into_iter().for_each(|section| {
         let path = get_path(&section.name);
         let json = serde_json::to_string(&section).unwrap();
-        std::fs::write(path, json).unwrap()
+        std::fs::write(path, json).unwrap();
     });
 }
 
@@ -3141,15 +3152,15 @@ fn test_navigate_back_from_go_to_location() -> anyhow::Result<()> {
         Box::new([
             App(GotoLocation(Location {
                 path: s.main_rs(),
-                range: Default::default(),
+                range: CharIndexRange::default(),
             })),
             App(GotoLocation(Location {
                 path: s.foo_rs(),
-                range: Default::default(),
+                range: CharIndexRange::default(),
             })),
             App(GotoLocation(Location {
                 path: s.gitignore(),
-                range: Default::default(),
+                range: CharIndexRange::default(),
             })),
             Expect(CurrentComponentPath(Some(s.gitignore()))),
             App(NavigateBack),
@@ -3170,7 +3181,7 @@ fn test_navigate_back_from_quickfix_list() -> anyhow::Result<()> {
                 focus: true,
             }),
             App(HandleLspNotification(LspNotification::Definition(
-                Default::default(),
+                ResponseContext::default(),
                 GotoDefinitionResponse::Multiple(
                     [
                         Location {
@@ -3202,7 +3213,7 @@ fn toggling_global_quickfix_should_show_quickfix_list() -> anyhow::Result<()> {
                 focus: true,
             }),
             App(HandleLspNotification(LspNotification::Definition(
-                Default::default(),
+                ResponseContext::default(),
                 GotoDefinitionResponse::Multiple(
                     [
                         Location {
@@ -3249,7 +3260,9 @@ fn mark_files_tabline_wrapping_no_word_break() -> anyhow::Result<()> {
                 width: 20,
                 height: 3,
             })),
-            Expect(EditorGrid("🦀  foo.rs\n# 🦀  main.rs\n1│█ub(crate) struct")),
+            Expect(EditorGrid(
+                "[-] 🦀  main.rs\n[ ] 🦀  foo.rs\n1│█ub(crate) struct",
+            )),
         ])
     })
 }
@@ -3276,13 +3289,12 @@ fn mark_files_tabline_wrapping_with_word_break() -> anyhow::Result<()> {
             })),
             Expect(EditorGrid(
                 "
-🙈  .gitig
-nore
-# 🦀  main
-.rs
-1│█arget/
-"
-                .trim(),
+[-] 🦀  ma
+in.rs
+[ ] 🙈  .g
+itignore
+1│█arget/"
+                    .trim(),
             )),
         ])
     })
@@ -3401,6 +3413,7 @@ fn using_suggested_search_term() -> anyhow::Result<()> {
                 scope: Scope::Local,
                 if_current_not_found: IfCurrentNotFound::LookForward,
             }),
+            HandleNucleoNotify(NucleoSource::Prompt),
             Expect(CompletionDropdownContent("bar\nfoo\nspam")),
             App(HandleKeyEvents(keys!("f o alt+x").to_vec())),
             Expect(CurrentComponentContent("foo")),
@@ -3424,7 +3437,7 @@ fn cursor_line_number_style_handle_text_wrapping() -> anyhow::Result<()> {
             Editor(SetContent("foo bar spongebob spam".to_string())),
             Editor(MatchLiteral("spam".to_string())),
             Expect(AppGrid(
-                " 🦀  main.rs [*]
+                " [:] 🦀  main.rs
 1│foo bar spongebob
 ↪│ █pam"
                     .to_string(),
@@ -3466,8 +3479,9 @@ spam
             })),
             Editor(MatchLiteral("XXX".to_string())),
             Editor(CursorAddToAllSelections),
+            Editor(ToggleReveal(Reveal::Cursor)),
             Expect(AppGrid(
-                " 🦀  main.rs [*]
+                " [:] 🦀  main.rs
 1│bar
 2│█XX XXX
 1│bar
@@ -3512,8 +3526,9 @@ spam
             })),
             Editor(MatchLiteral("XXX".to_string())),
             Editor(CursorAddToAllSelections),
+            Editor(ToggleReveal(Reveal::Cursor)),
             Expect(AppGrid(
-                " 🦀  main.rs [*]
+                " [:] 🦀  main.rs
 1│bar
 2│█XX XXX
 1│bar
@@ -3665,7 +3680,7 @@ fn navigating_to_marked_file_that_is_deleted_should_not_cause_error() -> anyhow:
             }),
             App(ToggleFileMark),
             Expect(AppGrid(
-                r#" # 🙈  .gitignore  # 📘  hello.ts  # 🦀  main.rs
+                r#" [-] 🙈  .gitignore  [-] 📘  hello.ts  [-] 🦀  main.rs
 1│█arget/
 2│"#
                 .to_string(),
@@ -3678,7 +3693,7 @@ fn navigating_to_marked_file_that_is_deleted_should_not_cause_error() -> anyhow:
             // Expect main.rs is removed from the tabline
             // Also an error is shown to notify the user that main.rs is removed from the tabline
             Expect(AppGrid(
-                r#" # 🙈  .gitignore  # 📘  hello.ts
+                r#" [-] 🙈  .gitignore  [-] 📘  hello.ts
 1│█onsole.log("hello");
 2│
 
@@ -3729,7 +3744,7 @@ fn renaming_marked_files_should_update_file_marks() -> anyhow::Result<()> {
             }),
             App(ToggleFileMark),
             Expect(AppGrid(
-                r#" # 🙈  .gitignore  # 📘  hello.ts  # 🦀  main.rs
+                r#" [-] 🙈  .gitignore  [-] 📘  hello.ts  [-] 🦀  main.rs
 1│█arget/
 2│"#
                 .to_string(),
@@ -3742,7 +3757,7 @@ fn renaming_marked_files_should_update_file_marks() -> anyhow::Result<()> {
             // Press enter to hide File Explorer and focus the renamed file
             App(HandleKeyEvent(key!("enter"))),
             Expect(AppGrid(
-                r#" # 📄  new_name  # 📘  hello.ts  # 🦀  main.rs
+                r#" [-] 📄  new_name  [-] 📘  hello.ts  [-] 🦀  main.rs
 1│█arget/
 2│"#
                 .to_string(),
@@ -3754,7 +3769,7 @@ fn renaming_marked_files_should_update_file_marks() -> anyhow::Result<()> {
 #[test]
 fn escape_global_diagnostics_should_not_change_selection() -> Result<(), anyhow::Error> {
     execute_test(|s| {
-        let diagnostic = |path: CanonicalizedPath| {
+        let diagnostic = |path: AbsolutePath| {
             Dispatch::HandleLspNotification(LspNotification::PublishDiagnostics(
                 lsp_types::PublishDiagnosticsParams {
                     uri: Url::from_file_path(path).unwrap(),
@@ -3866,22 +3881,10 @@ fn closing_all_buffers_should_land_on_scratch_buffer() -> Result<(), anyhow::Err
                 focus: true,
             }),
             Expect(CurrentComponentTitle(
-                "\u{200b} 🦀 foo.rs \u{200b}".to_string(),
+                "\u{200b} [ ] 🦀 foo.rs \u{200b}".to_string(),
             )),
-            App(HandleKeyEvent(key!("alt+v"))),
-            Expect(AppGrid(
-                "[ROOT] (Cannot be saved)
-1│█
-
-
-
-
-
-
-
- Close current window"
-                    .to_string(),
-            )),
+            App(Dispatch::CloseCurrentWindow),
+            Expect(AppGrid("[ROOT] (Cannot be saved)\n1│█".to_string())),
         ])
     })
 }
@@ -3890,11 +3893,12 @@ fn closing_all_buffers_should_land_on_scratch_buffer() -> Result<(), anyhow::Err
 fn change_working_directory_prompt() -> Result<(), anyhow::Error> {
     execute_test(|s| {
         let get_path = |child: &str| {
-            format!(
-                "{}{}",
-                s.temp_dir().join(child).unwrap().display_absolute(),
-                std::path::MAIN_SEPARATOR
-            )
+            s.temp_dir()
+                .join(child)
+                .unwrap()
+                .canonicalize()
+                .unwrap()
+                .display_absolute()
         };
         Box::new([
             App(OpenFile {
@@ -3919,6 +3923,31 @@ fn change_working_directory_prompt() -> Result<(), anyhow::Error> {
             Expect(CurrentComponentContentString(get_path("src"))),
             App(HandleKeyEvent(key!("enter"))),
             Expect(CurrentWorkingDirectory(s.temp_dir().join("src").unwrap())),
+        ])
+    })
+}
+
+#[test]
+fn untoggling_marks_should_not_file_mark_current_file() -> Result<(), anyhow::Error> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.foo_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("foo bar spam".to_string())),
+            Editor(DispatchEditor::SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                Word,
+            )),
+            Expect(CurrentSelectedTexts(&["foo"])),
+            App(ToggleSelectionMark),
+            Expect(MarkedFiles([s.foo_rs()].to_vec())),
+            App(ToggleFileMark),
+            Expect(MarkedFiles([].to_vec())),
+            App(ToggleSelectionMark),
+            Expect(MarkedFiles([].to_vec())),
         ])
     })
 }

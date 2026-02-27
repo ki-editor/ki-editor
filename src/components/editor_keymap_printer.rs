@@ -1,7 +1,6 @@
 use super::{
     editor::IfCurrentNotFound,
     editor_keymap::alted,
-    editor_keymap_legend::extend_mode_normal_mode_override,
     file_explorer::file_explorer_normal_mode_override,
     keymap_legend::{Keybinding, Keymap},
     suggestive_editor::completion_item_keymap,
@@ -11,7 +10,10 @@ use crate::{
     components::{
         editor::Editor,
         editor_keymap::{shifted, QWERTY},
-        editor_keymap_legend::{cut_keymap, delete_keymap, paste_keymap, swap_keymap},
+        editor_keymap_legend::{
+            buffer_keymap, cut_keymap, delete_keymap, duplicate_keymap, insert_keymap,
+            paste_keymap, swap_keymap, NormalModeOverride,
+        },
     },
     context::Context,
 };
@@ -22,7 +24,7 @@ use comfy_table::{
     Width::{self, Fixed},
 };
 use itertools::Itertools;
-use shared::canonicalized_path::CanonicalizedPath;
+use shared::absolute_path::AbsolutePath;
 
 #[derive(Debug, Clone)]
 pub struct KeymapPrintSection {
@@ -243,7 +245,7 @@ pub struct KeymapPrintSections {
 
 impl KeymapPrintSections {
     pub fn new() -> Self {
-        let context = Context::new(CanonicalizedPath::try_from(".").unwrap(), false, None);
+        let context = Context::new(AbsolutePath::try_from(".").unwrap(), false, None);
         let editor = Editor::from_text(Option::None, "");
         let sections: Vec<KeymapPrintSection> = [
             KeymapPrintSection::from_keymap(
@@ -252,7 +254,7 @@ impl KeymapPrintSections {
             ),
             KeymapPrintSection::from_keymap(
                 "Normal".to_string(),
-                &Keymap::new(&editor.normal_mode_keymap(Default::default(), None)),
+                &Keymap::new(&editor.normal_mode_keymap(None, None)),
             ),
             KeymapPrintSection::from_keymap(
                 "Movements".to_string(),
@@ -288,7 +290,7 @@ impl KeymapPrintSections {
             ),
             KeymapPrintSection::from_keymap(
                 "Actions".to_string(),
-                &Keymap::new(&editor.keymap_actions(&Default::default(), false, None)),
+                &Keymap::new(&editor.keymap_actions(&NormalModeOverride::default(), false, None)),
             ),
             KeymapPrintSection::from_keymap(
                 "Other Movements".to_string(),
@@ -317,10 +319,6 @@ impl KeymapPrintSections {
                 ),
             ),
             KeymapPrintSection::from_keymap(
-                "Extend".to_string(),
-                &Keymap::new(&editor.keymap_overridable(&extend_mode_normal_mode_override(), true)),
-            ),
-            KeymapPrintSection::from_keymap(
                 "Completion Items".to_string(),
                 &completion_item_keymap(),
             ),
@@ -332,7 +330,9 @@ impl KeymapPrintSections {
                 "Transform".to_string(),
                 &Keymap::new(&editor.keymap_transform()),
             ),
+            KeymapPrintSection::from_keymap("Surround".to_string(), &editor.keymap_surround()),
             KeymapPrintSection::from_keymap("Paste".to_string(), &paste_keymap()),
+            KeymapPrintSection::from_keymap("Duplicate".to_string(), &duplicate_keymap()),
             KeymapPrintSection::from_keymap(
                 "Multi-cursor Momentary Layer".to_string(),
                 &editor.multicursor_momentary_layer_keymap(),
@@ -344,6 +344,8 @@ impl KeymapPrintSections {
             KeymapPrintSection::from_keymap("Cut".to_string(), &cut_keymap()),
             KeymapPrintSection::from_keymap("Swap".to_string(), &swap_keymap()),
             KeymapPrintSection::from_keymap("Delete".to_string(), &delete_keymap()),
+            KeymapPrintSection::from_keymap("Insert".to_string(), &insert_keymap()),
+            KeymapPrintSection::from_keymap("Buffer".to_string(), &buffer_keymap()),
         ]
         .to_vec();
 

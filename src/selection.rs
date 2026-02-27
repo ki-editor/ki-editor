@@ -86,7 +86,7 @@ impl SelectionSet {
     pub fn move_left(&mut self, cursor_direction: &Direction) {
         self.apply_mut(|selection| {
             let cursor_char_index = selection.to_char_index(cursor_direction);
-            selection.range = (cursor_char_index - 1..cursor_char_index - 1).into()
+            selection.range = (cursor_char_index - 1..cursor_char_index - 1).into();
         });
     }
 
@@ -94,7 +94,7 @@ impl SelectionSet {
         self.apply_mut(|selection| {
             let cursor_char_index = selection.to_char_index(cursor_direction);
             let next = (cursor_char_index + 1).min(CharIndex(len_chars));
-            selection.range = (next..next).into()
+            selection.range = (next..next).into();
         });
     }
 
@@ -184,7 +184,7 @@ impl SelectionSet {
                 .find(|(_, selection)| selection.extended_range() == new_selection_range);
 
             if let Some((matching_index, _)) = matching_index {
-                self.cursor_index = matching_index
+                self.cursor_index = matching_index;
             }
         }
 
@@ -500,8 +500,8 @@ impl SelectionMode {
         buffer: &Buffer,
         current_selection: &Selection,
         cursor_direction: &Direction,
-        working_directory: &shared::canonicalized_path::CanonicalizedPath,
-        quickfix_list_items: Vec<&QuickfixListItem>,
+        working_directory: &shared::absolute_path::AbsolutePath,
+        quickfix_list_items: &[QuickfixListItem],
         marks: &[CharIndexRange],
     ) -> anyhow::Result<Box<dyn selection_mode::SelectionModeTrait>> {
         let params = SelectionModeParams {
@@ -661,7 +661,7 @@ impl Selection {
     #[cfg(test)]
     pub fn disable_extension(&mut self) {
         log::info!("escape highlight mode");
-        self.initial_range = None
+        self.initial_range = None;
     }
 
     pub fn enable_selection_extension(&mut self) {

@@ -63,7 +63,3 @@ Press `Select →` to restore the selection to the current state.
 ### `← Nav`/`Nav →`
 
 These are useful for navigating back to previous locations after actions such as Go to Definition/References or Global Search.
-
-### `← Marked`/`Marked →`
-
-Go to the previous/next marked files.

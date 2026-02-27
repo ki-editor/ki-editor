@@ -7,6 +7,7 @@
                 "KiCharacter",
                 "Mode",
                 "SelectionMode",
+                "Language",
                 "Reveal",
                 "LastSearchString",
                 "Spacer",
@@ -19,9 +20,9 @@
             "components": [
                 "GitBranch",
                 "LineColumn",
+                "LspProgress",
                 "Spacer",
                 "CurrentFileParentFolder",
-                "Spacer",
                 "CurrentWorkingDirectory"
             ]
         }
