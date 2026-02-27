@@ -146,9 +146,9 @@ impl Editor {
             ),
             Keybinding::momentary_layer(MomentaryLayer {
                 key: "e",
-                description: "Buffer ≡".to_string(),
+                description: "≡ Buffer".to_string(),
                 config: KeymapLegendConfig {
-                    title: "Buffer".to_string(),
+                    title: "≡ Buffer".to_string(),
                     keymap: buffer_keymap(),
                 },
                 on_tap: Some(OnTap::new(
@@ -308,9 +308,9 @@ impl Editor {
         [
             Keybinding::momentary_layer(MomentaryLayer {
                 key: "f",
-                description: "Insert ≡".to_string(),
+                description: "≡ Insert".to_string(),
                 config: KeymapLegendConfig {
-                    title: "Insert".to_string(),
+                    title: "≡ Insert".to_string(),
                     keymap: insert_keymap(),
                 },
                 on_tap: Some(OnTap::new(
@@ -322,9 +322,9 @@ impl Editor {
             .override_keymap(normal_mode_override.change.as_ref(), none_if_no_override),
             Keybinding::momentary_layer(MomentaryLayer {
                 key: "v",
-                description: "Delete ≡".to_string(),
+                description: "≡ Delete".to_string(),
                 config: KeymapLegendConfig {
-                    title: "Delete".to_string(),
+                    title: "≡ Delete".to_string(),
                     keymap: delete_keymap(),
                 },
                 on_tap: Some(OnTap::new(
@@ -385,9 +385,9 @@ impl Editor {
             ),
             Keybinding::momentary_layer(MomentaryLayer {
                 key: "c",
-                description: "Copy ≡".to_string(),
+                description: "≡ Copy".to_string(),
                 config: KeymapLegendConfig {
-                    title: "Duplicate".to_string(),
+                    title: "≡ Copy".to_string(),
                     keymap: duplicate_keymap(),
                 },
                 on_tap: Some(OnTap::new(
@@ -417,9 +417,9 @@ impl Editor {
         [
             Keybinding::momentary_layer(MomentaryLayer {
                 key: "b",
-                description: format("Paste ≡"),
+                description: format("≡ Paste"),
                 config: KeymapLegendConfig {
-                    title: "Paste ≡".to_string(),
+                    title: "≡ Paste".to_string(),
                     keymap: paste_keymap(),
                 },
                 on_tap: Some(OnTap::new(
@@ -436,9 +436,9 @@ impl Editor {
             ),
             Keybinding::momentary_layer(MomentaryLayer {
                 key: "x",
-                description: "Cut ≡".to_string(),
+                description: "≡ Cut".to_string(),
                 config: KeymapLegendConfig {
-                    title: "Cut".to_string(),
+                    title: "≡ Cut".to_string(),
                     keymap: cut_keymap(),
                 },
                 on_tap: Some(OnTap::new(
@@ -757,9 +757,9 @@ impl Editor {
             )),
             Some(Keybinding::momentary_layer(MomentaryLayer {
                 key: "t",
-                description: "Swap ≡".to_string(),
+                description: "≡ Swap".to_string(),
                 config: KeymapLegendConfig {
-                    title: "Swap".to_string(),
+                    title: "≡ Swap".to_string(),
                     keymap: swap_keymap(),
                 },
                 on_tap: None,
@@ -772,9 +772,9 @@ impl Editor {
             )),
             Some(Keybinding::momentary_layer(MomentaryLayer {
                 key: "r",
-                description: "Multi-cursor ≡".to_string(),
+                description: "≡ Multi-cursor".to_string(),
                 config: KeymapLegendConfig {
-                    title: "Multi-cursor Momentary Layer".to_string(),
+                    title: "≡ Multi-cursor".to_string(),
                     keymap: self.multicursor_momentary_layer_keymap(),
                 },
                 on_tap: None,

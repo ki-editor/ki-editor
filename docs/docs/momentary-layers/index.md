@@ -8,13 +8,15 @@ Momentary Layers (≡) activate when a key is held down and deactivate immediate
 
 This terminology comes from the keyboard modding community. For more details, see: https://zmk.dev/docs/keymaps/behaviors/layers#momentary-layer.
 
-This behavior is akin to keyboard modifiers (e.g., `Win + R` to open the Run dialog), which also apply changes only while held. In ki, holding a key (e.g. `Insert ≡`) additionally triggers displaying a menu for quick reference. Also, pressing and releasing `Insert ≡` is a command in itself, similar to the `Win` key.
+Momentary Layer is the same as the `⊞ Win` key. You can use it as a modifier, and you can tap it to trigger an action: `⊞ Win` to open Windows menu, `⊞ Win + R` to open the Run dialog.
 
-Windows keyboards use `Win` icon, MacBook keyboards use e.g., ⌘ for Command, to visually denote modifier keys. The `≡` symbol here mimics that convention by representing layered or "stacked" functionality, similar to a hamburger menu.
+In ki, for example, tapping  `≡ Insert` deletes the current selection and enters Insert mode. Holding `≡ Insert` additionally displays a menu with additional actions like opening new line below.
+
+Windows keyboards use `⊞` icon, MacBook keyboards use e.g., `⌘` for Command, to visually denote modifier keys. The `≡` symbol here mimics that convention by representing layered or "stacked" functionality, similar to a hamburger menu.
 
 In documentation and in ki itself, we will use this `≡` icon like a general symbol for modifiers.
 
-So that you will have `Buffer ≡`, `Insert ≡` etc.
+So that you will have `≡ Buffer`, `≡ Insert` etc.
 
 ## Terminal Support
 
