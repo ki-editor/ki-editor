@@ -201,7 +201,7 @@ impl Editor {
     ) -> Vec<Keybinding> {
         [Keybinding::new_extended(
             "n",
-            Direction::End.format_action("Local"),
+            "⚲ Local".to_string(),
             "Find (Local)".to_string(),
             Dispatch::ShowKeymapLegend(self.secondary_selection_modes_keymap_legend_config(
                 Scope::Local,
