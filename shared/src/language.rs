@@ -112,7 +112,7 @@ impl CargoLinkedTreesitterLanguage {
             }
             CargoLinkedTreesitterLanguage::TSX => tree_sitter_typescript::LANGUAGE_TSX.into(),
             CargoLinkedTreesitterLanguage::Python => tree_sitter_python::LANGUAGE.into(),
-            CargoLinkedTreesitterLanguage::Perl => tree_sitter_perl::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::Perl => tree_sitter_perl_next::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::Julia => tree_sitter_julia::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::Scheme => tree_sitter_scheme::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::OCaml => tree_sitter_ocaml::LANGUAGE_OCAML.into(),
@@ -160,7 +160,7 @@ impl CargoLinkedTreesitterLanguage {
             }
             CargoLinkedTreesitterLanguage::TSX => Some(tree_sitter_typescript::HIGHLIGHTS_QUERY),
             CargoLinkedTreesitterLanguage::Python => Some(tree_sitter_python::HIGHLIGHTS_QUERY),
-            CargoLinkedTreesitterLanguage::Perl => None, // the queries are there in tree-sitter-perl but gated
+            CargoLinkedTreesitterLanguage::Perl => Some(tree_sitter_perl_next::HIGHLIGHTS_QUERY),
             CargoLinkedTreesitterLanguage::Julia => None,
             CargoLinkedTreesitterLanguage::Scheme => Some(tree_sitter_scheme::HIGHLIGHTS_QUERY),
             CargoLinkedTreesitterLanguage::OCaml => Some(tree_sitter_ocaml::HIGHLIGHTS_QUERY),
