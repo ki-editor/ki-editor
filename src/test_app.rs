@@ -3947,3 +3947,35 @@ fn untoggling_marks_should_not_file_mark_current_file() -> Result<(), anyhow::Er
         ])
     })
 }
+
+#[test]
+fn marking_selections_should_refresh_mark_quickfix() -> Result<(), anyhow::Error> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.foo_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("foo bar spam".to_string())),
+            Editor(DispatchEditor::SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                Word,
+            )),
+            Expect(CurrentSelectedTexts(&["foo"])),
+            App(ToggleSelectionMark),
+            App(SetQuickfixList(QuickfixListType::Mark)),
+            Expect(ExpectKind::QuickfixListContent(
+                "
+src/foo.rs
+    1:1  pub(crate) struct Foo {
+    "
+                .trim()
+                .to_string(),
+            )),
+            // When we untoggled the same mark, we expect the quickfix list to be updated
+            App(ToggleSelectionMark),
+            Expect(ExpectKind::QuickfixListContent("".trim().to_string())),
+        ])
+    })
+}

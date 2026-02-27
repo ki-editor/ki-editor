@@ -211,10 +211,18 @@ impl Context {
         self.quickfix_list.get_item(movement)
     }
 
-    pub(crate) fn set_quickfix_list_items(&mut self, title: &str, items: Vec<QuickfixListItem>) {
-        self.quickfix_list.set_title(title);
+    pub fn set_quickfix_list_items(
+        &mut self,
+        items: Vec<QuickfixListItem>,
+        kind: Option<QuickfixListKind>,
+    ) {
         self.quickfix_list
             .set_items(items, &self.current_working_directory);
+        self.quickfix_list.set_kind(kind);
+    }
+
+    pub fn set_quickfix_list_title(&mut self, title: &str) {
+        self.quickfix_list.set_title(title);
     }
 
     pub(crate) fn quickfix_list_items_count(&self) -> usize {
@@ -225,6 +233,10 @@ impl Context {
         self.quickfix_list
             .extend_items(items, &self.current_working_directory);
     }
+}
+
+pub enum QuickfixListKind {
+    Mark,
 }
 
 impl Context {

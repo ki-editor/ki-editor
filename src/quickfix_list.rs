@@ -94,6 +94,7 @@ pub struct QuickfixList {
     items: Vec<QuickfixListItem>,
     title: String,
     buffers: HashMap<AbsolutePath, Rc<RefCell<Buffer>>>,
+    kind: Option<crate::context::QuickfixListKind>,
 }
 
 impl QuickfixList {
@@ -130,6 +131,7 @@ impl QuickfixList {
             items: Vec::default(),
             title: String::default(),
             buffers: HashMap::default(),
+            kind: None,
         }
     }
 
@@ -288,6 +290,14 @@ impl QuickfixList {
                     .unwrap_or_else(|| Rc::new(RefCell::new(Buffer::new(None, ""))))
             });
         }
+    }
+
+    pub fn set_kind(&mut self, kind: Option<crate::context::QuickfixListKind>) {
+        self.kind = kind;
+    }
+
+    pub fn kind(&self) -> &Option<crate::context::QuickfixListKind> {
+        &self.kind
     }
 }
 

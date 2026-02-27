@@ -21,7 +21,8 @@ use crate::{
         },
     },
     context::{
-        Context, GlobalMode, GlobalSearchConfig, LocalSearchConfigMode, QuickfixListSource, Search,
+        Context, GlobalMode, GlobalSearchConfig, LocalSearchConfigMode, QuickfixListKind,
+        QuickfixListSource, Search,
     },
     edit::Edit,
     file_watcher::{FileWatcherEvent, FileWatcherInput},
@@ -1749,19 +1750,11 @@ impl<T: Frontend> App<T> {
         let title = context.description.unwrap_or_default();
         self.context.set_mode(Some(GlobalMode::QuickfixListItem));
 
-        let source = match r#type {
-            QuickfixListType::Diagnostic(severity_range) => {
-                QuickfixListSource::Diagnostic(severity_range)
-            }
-            QuickfixListType::Items(items) => QuickfixListSource::Custom(items),
-            QuickfixListType::Mark => QuickfixListSource::Mark,
-        };
+        let items_length = self.update_quickfix_list_item(r#type);
 
-        let items = self.layout.get_quickfix_list_items(&source, &self.context);
+        self.context.set_quickfix_list_title(&title);
 
-        let go_to_first_quickfix = !items.is_empty();
-
-        self.context.set_quickfix_list_items(&title, items);
+        let go_to_first_quickfix = items_length > 0;
 
         match context.scope {
             None | Some(Scope::Global) => {
@@ -1777,6 +1770,25 @@ impl<T: Frontend> App<T> {
                 SelectionMode::LocalQuickfix { title },
             ))),
         }
+    }
+
+    /// Returns the items length
+    fn update_quickfix_list_item(&mut self, r#type: QuickfixListType) -> usize {
+        let (kind, source) = match r#type {
+            QuickfixListType::Diagnostic(severity_range) => {
+                (None, QuickfixListSource::Diagnostic(severity_range))
+            }
+            QuickfixListType::Items(items) => (None, QuickfixListSource::Custom(items)),
+            QuickfixListType::Mark => (Some(QuickfixListKind::Mark), QuickfixListSource::Mark),
+        };
+
+        let items = self.layout.get_quickfix_list_items(&source, &self.context);
+
+        let length = items.len();
+
+        self.context.set_quickfix_list_items(items, kind);
+
+        length
     }
 
     fn apply_workspace_edit(&mut self, workspace_edit: WorkspaceEdit) -> Result<(), anyhow::Error> {
@@ -2835,7 +2847,18 @@ impl<T: Frontend> App<T> {
             .borrow_mut()
             .editor_mut()
             .toggle_marks();
-        let _ = self.handle_dispatches(dispatches);
+
+        self.handle_dispatches(dispatches)?;
+
+        // Refresh the quickfix list if possible
+        // TODO: we need to maintain the last quickfix list index too
+        match self.context.quickfix_list().kind() {
+            Some(QuickfixListKind::Mark) => {
+                self.update_quickfix_list_item(QuickfixListType::Mark);
+            }
+            None => {}
+        }
+
         Ok(())
     }
 
