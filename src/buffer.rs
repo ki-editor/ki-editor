@@ -348,7 +348,6 @@ impl Buffer {
 
     pub fn update(&mut self, text: &str) -> Dispatches {
         (self.rope, self.tree) = Self::get_rope_and_tree(self.treesitter_language.clone(), text);
-        
         self.flag_as_modified()
     }
 
