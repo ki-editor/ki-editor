@@ -3901,6 +3901,7 @@ fn go_to_file_under_selection() -> Result<(), anyhow::Error> {
                 SelectionMode::Line,
             )),
             Editor(GoToFile),
+            Expect(MarkedFiles([].to_vec())), // GoToFile should not mark if only a single file was opened
             Expect(CurrentComponentPath(Some(s.foo_rs()))),
         ])
     })

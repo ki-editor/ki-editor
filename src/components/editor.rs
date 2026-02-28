@@ -4425,10 +4425,27 @@ impl Editor {
                     .try_into()
             })
             .collect::<anyhow::Result<Vec<AbsolutePath>>>()?;
-        let paths = NonEmpty::from_vec(paths).ok_or_else(|| {
-            anyhow::anyhow!("Can't go to file. Requires atleast one selection to be made.")
-        })?;
-        Ok(Dispatches::one(Dispatch::OpenAndMarkFiles(paths)))
+
+        // When we have only one file to open, we do not mark it as we would most of the time
+        // expect only to have a sneak-peak and return to the original file. In the case of
+        // multiple selections, since non-marked files dont show up on the tab bar, it is better to
+        // mark them for visiblity.
+        //
+        // Behavorial Assymetry
+        match paths.as_slice() {
+            [] => Err(anyhow::anyhow!(
+                "Can't go to file. Requires atleast one selection to be made."
+            )),
+            [path] => Ok(Dispatches::one(Dispatch::OpenFile {
+                path: path.clone(),
+                owner: crate::buffer::BufferOwner::User,
+                focus: true,
+            })),
+            paths => {
+                let paths = NonEmpty::from_vec(paths.to_vec()).unwrap();
+                Ok(Dispatches::one(Dispatch::OpenAndMarkFiles(paths)))
+            }
+        }
     }
 
     fn press_space(&self, context: &Context) -> Dispatches {

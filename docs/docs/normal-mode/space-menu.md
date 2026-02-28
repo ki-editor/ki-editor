@@ -64,7 +64,13 @@ Show the Git Blame of the current line(s).
 
 ### `Go to File`
 
-Opens the filepath under selection(s) and marks the file. Suppose the current selection is "./foo.rs", this action will open this file and mark it on the tab bar.
+Opens the filepath under selection(s). In case of multiple selection, opens and marks the files.
+
+If there is exactly one selection, the file gets opened but not marked: To act like a quick sneak-and-return type of usage.
+
+Suppose the current selection is "./foo.rs", this action will open this file but not mark it.
+
+Suppose the current selection is multicursor selection: "foo.rs" and "main.rs", this action will open both of the files and mark it on the tab bar.
 
 ### `Copy Relative Path`
 
