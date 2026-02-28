@@ -24,7 +24,7 @@ The space menu can be brought up by pressing `space`.
 
 <KeymapFallback filename="Space"/>
 
-## Context Actions (only applicable in the main editor):
+## Context Actions
 
 This are actions that are related to the current selection(s). Similar to the right-click context menu in Windows or Mac OS.
 
@@ -64,7 +64,7 @@ Show the Git Blame of the current line(s).
 
 ### `Go to File`
 
-Go to file under selection.
+Opens the filepath under selection(s) and marks the file. Suppose the current selection is "./foo.rs", this action will open this file and mark it on the tab bar.
 
 ### `Copy Relative Path`
 

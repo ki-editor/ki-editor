@@ -4414,22 +4414,21 @@ impl Editor {
     }
 
     fn go_to_file(&self) -> Result<Dispatches, anyhow::Error> {
-        self.selection_set.selections.iter().try_fold(
-            Dispatches::default(),
-            |dispatches, selection| -> anyhow::Result<Dispatches, anyhow::Error> {
-                Ok(dispatches
-                    .append(Dispatch::OpenFile {
-                        path: self
-                            .buffer()
-                            .slice(&selection.extended_range())?
-                            .to_string()
-                            .try_into()?,
-                        owner: crate::buffer::BufferOwner::User,
-                        focus: true,
-                    })
-                    .append(Dispatch::ToggleFileMark))
-            },
-        )
+        let paths: Vec<AbsolutePath> = self
+            .selection_set
+            .selections
+            .iter()
+            .map(|selection| {
+                self.buffer()
+                    .slice(&selection.extended_range())?
+                    .to_string()
+                    .try_into()
+            })
+            .collect::<anyhow::Result<Vec<AbsolutePath>>>()?;
+        let paths = NonEmpty::from_vec(paths).ok_or_else(|| {
+            anyhow::anyhow!("Can't go to file. Requires atleast one selection to be made.")
+        })?;
+        Ok(Dispatches::one(Dispatch::OpenAndMarkFiles(paths)))
     }
 
     fn press_space(&self, context: &Context) -> Dispatches {

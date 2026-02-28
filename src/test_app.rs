@@ -3926,7 +3926,7 @@ fn go_to_file_with_multiple_selections() -> Result<(), anyhow::Error> {
             )),
             Editor(CursorAddToAllSelections),
             Editor(GoToFile),
-            Expect(CurrentComponentPath(Some(s.hello_ts()))),
+            Expect(CurrentComponentPath(Some(s.foo_rs()))),
             Expect(MarkedFiles([s.foo_rs(), s.hello_ts()].to_vec())),
         ])
     })
