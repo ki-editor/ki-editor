@@ -178,12 +178,11 @@ impl DropdownSync {
     }
 
     pub fn change_index(&mut self, index: usize) {
-        if !self.filtered_item_groups.iter().any(|group| {
-            group
-                .items
-                .iter()
-                .any(|item| item.item_index as usize == index)
-        }) {
+        if !self
+            .filtered_item_groups
+            .iter()
+            .any(|group| group.items.iter().any(|item| item.item_index == index))
+        {
             return;
         }
         self.current_item_index = index;
@@ -222,7 +221,7 @@ impl DropdownSync {
             .and_then(|item| item.items.last())
             .map(|item| item.item_index)
         {
-            self.change_index(index as usize);
+            self.change_index(index);
         }
     }
 
@@ -251,12 +250,7 @@ impl DropdownSync {
         self.filtered_item_groups
             .iter()
             .enumerate()
-            .find(|(_, group)| {
-                group
-                    .items
-                    .iter()
-                    .any(|item| item.item_index as usize == item_index)
-            })
+            .find(|(_, group)| group.items.iter().any(|item| item.item_index == item_index))
             .map(|(index, _)| index)
     }
 
@@ -626,10 +620,7 @@ impl DropdownSync {
                     let line_index = group
                         .items
                         .first()
-                        .map(|item| {
-                            self.item_line_index(item.item_index as usize)
-                                .saturating_sub(1)
-                        })
+                        .map(|item| self.item_line_index(item.item_index).saturating_sub(1))
                         .unwrap_or_default();
                     let pad_left = 3;
                     group
@@ -652,7 +643,7 @@ impl DropdownSync {
                         })
                 };
                 let display_decorations = group.items.iter().flat_map(|item| {
-                    let line_index = self.item_line_index(item.item_index as usize);
+                    let line_index = self.item_line_index(item.item_index);
                     let pad_left = if item.item.group.is_some() { 4 } else { 0 };
                     item.fuzzy_matched_char_indices
                         .iter()
@@ -695,22 +686,22 @@ impl DropdownSync {
     pub(crate) fn next_significantly_different_item(&mut self) {
         if let Some(item) = self.filtered_item_groups.iter().find_map(|group| {
             group.items.iter().find(|item| {
-                item.item_index as usize > self.current_item_index
+                item.item_index > self.current_item_index
                     && item.item.is_significant.unwrap_or(false)
             })
         }) {
-            self.current_item_index = item.item_index as usize;
+            self.current_item_index = item.item_index;
         }
     }
 
     pub(crate) fn previous_significantly_different_item(&mut self) {
         if let Some(item) = self.filtered_item_groups.iter().rev().find_map(|group| {
             group.items.iter().rev().find(|item| {
-                (item.item_index as usize) < self.current_item_index
+                item.item_index < self.current_item_index
                     && item.item.is_significant.unwrap_or(false)
             })
         }) {
-            self.current_item_index = item.item_index as usize;
+            self.current_item_index = item.item_index;
         }
     }
 
@@ -1152,7 +1143,7 @@ mod test_dropdown_sync {
             .filtered_item_groups
             .iter()
             .flat_map(|group| &group.items)
-            .map(|item| item.item_index as usize)
+            .map(|item| item.item_index)
             .collect_vec();
         let order = dropdown
             .filtered_item_groups
