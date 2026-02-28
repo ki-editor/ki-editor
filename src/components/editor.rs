@@ -4430,7 +4430,7 @@ impl Editor {
         // a sneak-and-return usage. But, for multiple selections, since non-marked files don't
         // show up on the tab bar, it is better to mark them for visibility.
         //
-        // @wongjiahau has termed this Behavioral Asymetry.
+        // @wongjiahau has termed this Behavioral Asymmetry.
 
         match paths.as_slice() {
             [] => Err(anyhow::anyhow!(
