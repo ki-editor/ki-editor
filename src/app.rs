@@ -2863,6 +2863,7 @@ impl<T: Frontend> App<T> {
         match self.context.quickfix_list().kind() {
             Some(QuickfixListKind::Mark) => {
                 self.update_quickfix_list_item(QuickfixListType::Mark);
+                self.render_quickfix_list()?;
             }
             None => {}
         }

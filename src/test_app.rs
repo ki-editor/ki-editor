@@ -3983,6 +3983,29 @@ src/foo.rs
             Expect(CurrentSelectedTexts(&["bar"])),
             // When we untoggled a mark, we expect the quickfix list to be updated
             App(ToggleSelectionMark),
+            Expect(AppGrid(
+                " # 🦀  foo.rs
+1│foo
+2│█ar
+3│spam
+
+
+
+
+
+
+
+
+
+
+
+
+Quickfix list
+1│src/foo.rs
+2│    1:1  foo
+3│█   3:1  spam"
+                    .to_string(),
+            )),
             Expect(ExpectKind::QuickfixListContent(
                 "
 src/foo.rs
