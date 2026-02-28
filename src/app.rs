@@ -1078,6 +1078,7 @@ impl<T: Frontend> App<T> {
             }
             Dispatch::OtherWindow => self.layout.cycle_window(),
             Dispatch::CycleMarkedFile(movement) => self.cycle_marked_file(movement)?,
+            Dispatch::OpenAlternateFile => self.open_alternate_file()?,
             Dispatch::PushPromptHistory { key, line } => self.push_history_prompt(key, line),
             Dispatch::OpenThemePrompt => self.open_theme_picker()?,
             Dispatch::SetLastNonContiguousSelectionMode(selection_mode) => self
@@ -2223,6 +2224,16 @@ impl<T: Frontend> App<T> {
                 )))
             })
             .collect_vec()
+    }
+
+    fn open_alternate_file(&mut self) -> anyhow::Result<()> {
+        if let Some(previous_location) = self.context.get_last_visited_file() {
+            let previous_path = previous_location.path.clone();
+            if previous_path.exists() {
+                self.open_file(&previous_path.clone(), BufferOwner::User, true, true)?;
+            }
+        }
+        Ok(())
     }
 
     fn cycle_marked_file(&mut self, movement: Movement) -> anyhow::Result<()> {
@@ -3672,6 +3683,7 @@ pub enum Dispatch {
     CloseEditorInfo,
     CloseGlobalInfo,
     CycleMarkedFile(Movement),
+    OpenAlternateFile,
     PushPromptHistory {
         key: PromptHistoryKey,
         line: String,

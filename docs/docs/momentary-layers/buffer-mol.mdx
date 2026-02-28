@@ -21,7 +21,22 @@ Noteably, when doing `<<` on the left-most marked-file, the focus lands "warps" 
 the righmost file.
 
 Besides the core movements based actions, a few other common actions are also sheltered in the ≡ Buffer
-these are: closing the current buffer, and unmarking all files except the current one.
+these are:
+
+1. Closing the current file.
+2. Unmarking all files except the current one.
+3. Alternating between the current file and previously visited file.
+
+Files on the tab bar have indicators for Marked/Unmarked status of a file and Saved/Unsaved status of a file. A note about the indicators is as follows:
+
+```
+marked  , saved  : [-]
+marked  , unsaved: [÷]
+unmarked, saved  : [ ]
+unmarked, unsaved: [:]
+```
+
+Here the horizontal dash in a symbol represents that the file is marked. The colon symbol represents there are unsaved changes in the buffer. Thus something like the divide symbol combines both the horizontal dash and the colon, correspondingly meaning a file with the divide symbol is marked on the tab bar and has unsaved changes.
 
 ## Examples
 

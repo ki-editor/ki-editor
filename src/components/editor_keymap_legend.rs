@@ -1723,6 +1723,12 @@ pub fn buffer_keymap() -> Keymap {
             "Unmark all other buffers".to_string(),
             Dispatch::UnmarkAllOthers,
         )))
+        .chain(Some(Keybinding::new_extended(
+            "m",
+            "Alternate".to_string(),
+            "Switch to the previous file".to_string(),
+            Dispatch::OpenAlternateFile,
+        )))
         .collect_vec(),
     )
 }

@@ -3400,6 +3400,41 @@ fn close_buffer_should_remove_mark() -> anyhow::Result<()> {
 }
 
 #[test]
+fn alternate_between_files() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.foo_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            App(ToggleFileMark),
+            App(OpenFile {
+                path: s.hello_ts(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            App(ToggleFileMark),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            App(ToggleFileMark),
+            App(OpenAlternateFile),
+            Expect(CurrentComponentPath(Some(s.hello_ts()))),
+            App(OpenAlternateFile),
+            App(CycleMarkedFile(Movement::Left)),
+            App(CycleMarkedFile(Movement::Left)),
+            App(OpenAlternateFile),
+            Expect(CurrentComponentPath(Some(s.hello_ts()))),
+            App(OpenAlternateFile),
+            Expect(CurrentComponentPath(Some(s.foo_rs()))),
+        ])
+    })
+}
+
+#[test]
 fn using_suggested_search_term() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
