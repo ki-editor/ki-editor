@@ -3907,6 +3907,32 @@ fn go_to_file_under_selection() -> Result<(), anyhow::Error> {
 }
 
 #[test]
+fn go_to_file_with_multiple_selections() -> Result<(), anyhow::Error> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent(format!(
+                "{}\n{}",
+                s.foo_rs().display_absolute(),
+                s.hello_ts().display_absolute()
+            ))),
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                SelectionMode::Line,
+            )),
+            Editor(CursorAddToAllSelections),
+            Editor(GoToFile),
+            Expect(CurrentComponentPath(Some(s.hello_ts()))),
+            Expect(MarkedFiles([s.foo_rs(), s.hello_ts()].to_vec())),
+        ])
+    })
+}
+
+#[test]
 fn closing_all_buffers_should_land_on_scratch_buffer() -> Result<(), anyhow::Error> {
     execute_test(|s| {
         Box::new([
