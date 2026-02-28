@@ -4023,7 +4023,7 @@ src/foo.rs
             // When we untoggled a mark, we expect the quickfix list to be updated
             App(ToggleSelectionMark),
             Expect(AppGrid(
-                " # 🦀  foo.rs
+                " [÷] 🦀  foo.rs
 1│foo
 2│█ar
 3│spam
