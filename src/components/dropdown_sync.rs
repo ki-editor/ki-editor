@@ -575,6 +575,16 @@ impl DropdownSync {
     }
 
     pub fn apply_movement(&mut self, movement: Movement) {
+        // Clamp the item index first before applying movement
+        let indices = self
+            .filtered_item_groups
+            .iter()
+            .flat_map(|group| group.items.iter().map(|item| item.item_index))
+            .sorted()
+            .collect_vec();
+        let min_index = indices.iter().min().cloned().unwrap_or_default();
+        let max_index = indices.into_iter().max().unwrap_or_default();
+        self.current_item_index = self.current_item_index.clamp(min_index, max_index);
         match movement {
             Movement::Next => self.next_item(),
             Movement::Right => self.next_significantly_different_item(),
@@ -730,7 +740,7 @@ pub struct DropdownRender {
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct FilteredDropdownItem {
-    pub(crate) item_index: u32,
+    pub(crate) item_index: usize,
     pub(crate) item: DropdownItem,
     pub(crate) fuzzy_score: u32,
     pub(crate) fuzzy_matched_char_indices: Vec<u32>,

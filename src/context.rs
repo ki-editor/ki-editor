@@ -204,6 +204,10 @@ impl Context {
         &self.quickfix_list
     }
 
+    pub fn quickfix_list_mut(&mut self) -> &mut QuickfixList {
+        &mut self.quickfix_list
+    }
+
     pub(crate) fn get_quickfix_list_item(
         &mut self,
         movement: crate::components::editor::Movement,

@@ -299,6 +299,10 @@ impl QuickfixList {
     pub fn kind(&self) -> &Option<crate::context::QuickfixListKind> {
         &self.kind
     }
+
+    pub(crate) fn current_index(&self) -> usize {
+        self.dropdown.current_item_index
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

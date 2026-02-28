@@ -1786,7 +1786,15 @@ impl<T: Frontend> App<T> {
 
         let length = items.len();
 
+        // We need to store the current item index,
+        // as we need to restore it after resetting the quickfix list items
+        let current_item_index = self.context.quickfix_list().current_index();
+
         self.context.set_quickfix_list_items(items, kind);
+
+        self.context
+            .quickfix_list_mut()
+            .set_current_item_index(current_item_index);
 
         length
     }
