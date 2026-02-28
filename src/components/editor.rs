@@ -4427,11 +4427,10 @@ impl Editor {
             .collect::<anyhow::Result<Vec<AbsolutePath>>>()?;
 
         // When we have only one file to open, we do not mark it as we would most of the time
-        // expect only to have a sneak-peak and return to the original file. In the case of
-        // multiple selections, since non-marked files dont show up on the tab bar, it is better to
-        // mark them for visiblity.
+        // multiple selections, since non-marked files don't show up on the tab bar, it is better to
+        // mark them for visibility.
         //
-        // Behavorial Assymetry
+        // @wongjiahau has termed this Behavioral Asymetry.
         match paths.as_slice() {
             [] => Err(anyhow::anyhow!(
                 "Can't go to file. Requires atleast one selection to be made."
