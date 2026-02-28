@@ -91,22 +91,22 @@ impl FileExplorer {
 
         let tree = std::mem::take(&mut self.tree);
         self.tree = tree.reveal(path)?;
-        self.refresh_editor(context)?;
+        let dispatches = self.refresh_editor(context)?;
         if let Some(index) = self.tree.find_index(path) {
             self.editor_mut().select_line_at(index, context)
         } else {
-            Ok(Dispatches::default())
+            Ok(dispatches)
         }
     }
 
-    pub fn refresh(&mut self, context: &Context) -> anyhow::Result<()> {
+    pub fn refresh(&mut self, context: &Context) -> anyhow::Result<Dispatches> {
         let tree = std::mem::take(&mut self.tree);
         self.tree = tree.refresh(context.current_working_directory())?;
-        self.refresh_editor(context)?;
-        Ok(())
+        let dispatches = self.refresh_editor(context)?;
+        Ok(dispatches)
     }
 
-    fn refresh_editor(&mut self, context: &Context) -> anyhow::Result<()> {
+    fn refresh_editor(&mut self, context: &Context) -> anyhow::Result<Dispatches> {
         let text = self.tree.render();
         self.editor_mut().set_content(&text, context)
     }
@@ -155,7 +155,9 @@ impl FileExplorer {
                 NodeKind::Directory { .. } => {
                     let tree = std::mem::take(&mut self.tree);
                     self.tree = tree.toggle(&node.path, |open| !open);
-                    self.refresh_editor(context)?;
+                    // dropping dispatch as this is a buffer with no path and
+                    // refresh dispatches are related to file dirty status
+                    let _ = self.refresh_editor(context)?;
                     Ok(Vec::new().into())
                 }
             }

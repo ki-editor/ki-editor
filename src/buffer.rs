@@ -50,7 +50,7 @@ pub struct Buffer {
     diagnostics: Vec<Diagnostic>,
     decorations: Vec<Decoration>,
     selection_set_history: History<SelectionSet>,
-    dirty: bool,
+
     owner: BufferOwner,
     pub undo_stack: Vec<EditHistory>,
     redo_stack: Vec<EditHistory>,
@@ -102,7 +102,7 @@ impl Buffer {
             decorations: Vec::new(),
             diagnostics: Vec::new(),
             selection_set_history: History::new(),
-            dirty: false,
+
             owner: BufferOwner::System,
             undo_stack: Vec::default(),
             redo_stack: Vec::default(),
@@ -122,9 +122,9 @@ impl Buffer {
         self.owner
     }
 
-    pub fn reload(&mut self, force: bool) -> anyhow::Result<Dispatches> {
+    pub fn reload(&mut self, context: &Context, force: bool) -> anyhow::Result<Dispatches> {
         if let Some(path) = self.path() {
-            if let Ok(Some(dispatches)) = self.check_conflict(force, &path) {
+            if let Ok(Some(dispatches)) = self.check_conflict(context, force, &path) {
                 return Ok(dispatches);
             }
 
@@ -139,9 +139,13 @@ impl Buffer {
             }
 
             let updated_content = path.read()?;
-            let dispatches = self.update_content(&updated_content, SelectionSet::default(), 0)?;
+            let dispatches = self
+                .update_content(&updated_content, SelectionSet::default(), 0)?
+                .append(Dispatch::SetFileDirtyStatus {
+                    dirty_status: false,
+                });
             self.last_synced_time = path.last_modified_time().ok();
-            self.dirty = false;
+
             Ok(dispatches)
         } else {
             Ok(Dispatches::default())
@@ -342,9 +346,9 @@ impl Buffer {
         }
     }
 
-    pub fn update(&mut self, text: &str) {
+    pub fn update(&mut self, text: &str) -> Dispatches {
         (self.rope, self.tree) = Self::get_rope_and_tree(self.treesitter_language.clone(), text);
-        self.flag_as_modified();
+        self.flag_as_modified()
     }
 
     pub fn update_path(&mut self, path: AbsolutePath) {
@@ -561,10 +565,12 @@ impl Buffer {
             .map(|edit| edit.to_vscode_diff_edit(self))
             .collect::<anyhow::Result<Vec<_>>>()?;
 
-        edit_transaction
-            .edits()
-            .into_iter()
-            .try_fold((), |_, edit| self.apply_edit(edit, last_visible_line))?;
+        let dirty_status_update_dispatches = edit_transaction.edits().into_iter().try_fold(
+            Dispatches::default(),
+            |dispatches, edit| -> anyhow::Result<Dispatches, anyhow::Error> {
+                Ok(dispatches.chain(self.apply_edit(edit, last_visible_line)?))
+            },
+        )?;
 
         // NOTE: the inverted VS Code edits should be computed AFTER applying the edits
         let inverted_unnormalized_edits = inverted_edit_transaction.unnormalized_edits();
@@ -602,19 +608,25 @@ impl Buffer {
             .path
             .clone()
             .map(|path| Dispatches::one(Dispatch::AppliedEdits { edits, path }))
-            .unwrap_or_default();
+            .unwrap_or_default()
+            .chain(dirty_status_update_dispatches);
 
         // Return both the new selection set and a clone of the edit transaction
         Ok((new_selection_set, dispatches, applied_vscode_edits))
     }
 
-    fn flag_as_modified(&mut self) {
-        self.dirty = true;
+    fn flag_as_modified(&mut self) -> Dispatches {
+        let dispatches = Dispatches::one(Dispatch::SetFileDirtyStatus { dirty_status: true });
         self.owner = BufferOwner::User;
+        dispatches
     }
 
     // Add these methods for undo/redo
-    fn apply_edit(&mut self, edit: &Edit, last_visible_line: usize) -> Result<(), anyhow::Error> {
+    fn apply_edit(
+        &mut self,
+        edit: &Edit,
+        last_visible_line: usize,
+    ) -> Result<Dispatches, anyhow::Error> {
         // We have to get the char index range of positional spans before updating the content
         if let Ok(byte_range) = self.char_index_range_to_byte_range(edit.range()) {
             let last_line_len_bytes = self
@@ -636,7 +648,7 @@ impl Buffer {
         self.rope.try_remove(edit.range.start.0..edit.end().0)?;
         self.rope
             .try_insert(edit.range.start.0, edit.new.to_string().as_str())?;
-        self.flag_as_modified();
+        let dispatches = self.flag_as_modified();
 
         // Update all the non-positional spans
         self.diagnostics.retain_mut(|diagnostic| {
@@ -651,7 +663,7 @@ impl Buffer {
         self.selection_set_history = std::mem::take(&mut self.selection_set_history)
             .apply(|selection_set| selection_set.apply_edit(edit, max_char_index));
 
-        Ok(())
+        Ok(dispatches)
     }
 
     pub fn batch_id(&self) -> &SyntaxHighlightRequestBatchId {
@@ -726,14 +738,15 @@ impl Buffer {
 
     pub fn save_without_formatting(
         &mut self,
+        context: &Context,
         force: bool,
     ) -> anyhow::Result<(Dispatches, Option<AbsolutePath>)> {
-        if !force && !self.dirty {
+        if !force && !self.dirty(context) {
             return Ok((Dispatches::default(), None));
         }
 
         if let Some(path) = &self.path {
-            if let Ok(Some(dispatches)) = self.check_conflict(force, path) {
+            if let Ok(Some(dispatches)) = self.check_conflict(context, force, path) {
                 return Ok((dispatches, Some(path.clone())));
             }
 
@@ -741,8 +754,12 @@ impl Buffer {
 
             self.last_synced_time = path.last_modified_time().ok();
 
-            self.dirty = false;
-            Ok((Dispatches::default(), Some(path.clone())))
+            Ok((
+                Dispatches::one(Dispatch::SetFileDirtyStatus {
+                    dirty_status: false,
+                }),
+                Some(path.clone()),
+            ))
         } else {
             log::info!("Buffer has no path");
             Ok((Dispatches::default(), None))
@@ -753,10 +770,11 @@ impl Buffer {
     /// Return None if no conflict.
     fn check_conflict(
         &self,
+        context: &Context,
         force: bool,
         path: &AbsolutePath,
     ) -> anyhow::Result<Option<Dispatches>> {
-        if force || !self.dirty {
+        if force || !self.dirty(context) {
             return Ok(None);
         }
         let last_modified_time_system = path.last_modified_time()?;
@@ -777,23 +795,24 @@ impl Buffer {
 
     pub fn save(
         &mut self,
+        context: &Context,
         current_selection_set: SelectionSet,
         force: bool,
         last_visible_line: usize,
     ) -> anyhow::Result<(Dispatches, Option<AbsolutePath>)> {
-        if force || self.dirty {
+        if force || self.dirty(context) {
             if let Some(formatted_content) = self.get_formatted_content() {
                 let dispatches = self.update_content(
                     &formatted_content,
                     current_selection_set,
                     last_visible_line,
                 )?;
-                let (other_dispatches, path) = self.save_without_formatting(force)?;
+                let (other_dispatches, path) = self.save_without_formatting(context, force)?;
                 return Ok((dispatches.chain(other_dispatches), path));
             }
         }
 
-        self.save_without_formatting(force)
+        self.save_without_formatting(context, force)
     }
 
     pub fn update_content(
@@ -853,8 +872,12 @@ impl Buffer {
     }
 
     /// Has the buffer changed since its last save?
-    pub fn dirty(&self) -> bool {
-        self.dirty
+    pub fn dirty(&self, context: &Context) -> bool {
+        *self
+            .path
+            .as_ref()
+            .and_then(|path| context.get_file_dirty_status(path))
+            .unwrap_or(&false)
     }
 
     pub fn byte_to_position(&self, byte_index: usize) -> anyhow::Result<Position> {
@@ -1131,17 +1154,19 @@ impl Buffer {
                 .into_iter()
                 .cloned()
                 .collect_vec();
-            edits
-                .clone()
-                .into_iter()
-                .try_fold((), |_, edit| self.apply_edit(&edit, last_visible_line))?;
+            let dispatches = edits.clone().into_iter().try_fold(
+                Dispatches::default(),
+                |dispatches, edit| -> Result<Dispatches, anyhow::Error> {
+                    Ok(dispatches.chain(self.apply_edit(&edit, last_visible_line)?))
+                },
+            )?;
             self.reparse_tree()?;
 
             let selection_set = history.old_state.selection_set.clone();
             self.undo_stack.push(history.inverse());
 
             // Return both the selection set and the applied transaction
-            Ok(Some((selection_set, diff_edits, edits)))
+            Ok(Some((dispatches, selection_set, diff_edits, edits)))
         } else {
             Ok(None)
         }
@@ -1158,17 +1183,19 @@ impl Buffer {
                 .into_iter()
                 .cloned()
                 .collect_vec();
-            edits
-                .clone()
-                .into_iter()
-                .try_fold((), |_, edit| self.apply_edit(&edit, last_visible_line))?;
+            let dispatches = edits.clone().into_iter().try_fold(
+                Dispatches::default(),
+                |dispatches, edit| -> Result<Dispatches, anyhow::Error> {
+                    Ok(dispatches.chain(self.apply_edit(&edit, last_visible_line)?))
+                },
+            )?;
             self.reparse_tree()?;
 
             let selection_set = history.old_state.selection_set.clone();
             self.redo_stack.push(history.inverse());
 
             // Return both the selection set and the applied transaction
-            Ok(Some((selection_set, diff_edits, edits)))
+            Ok(Some((dispatches, selection_set, diff_edits, edits)))
         } else {
             Ok(None)
         }
@@ -1361,7 +1388,10 @@ fn f(
 
     mod auto_format {
 
-        use crate::selection::{CharIndex, SelectionSet};
+        use crate::{
+            context::Context,
+            selection::{CharIndex, SelectionSet},
+        };
 
         use super::run_test;
 
@@ -1369,10 +1399,15 @@ fn f(
         fn should_format_code() {
             run_test(|path, mut buffer| {
                 // Update the buffer with unformatted code
-                buffer.update(" fn main\n() {}");
+                let _ = buffer.update(" fn main\n() {}");
+
+                let mut context = Context::default();
+                context.set_file_dirty_status(&path, true);
 
                 // Save the buffer
-                let _ = buffer.save(SelectionSet::default(), false, 0).unwrap();
+                let _ = buffer
+                    .save(&context, SelectionSet::default(), false, 0)
+                    .unwrap();
 
                 // Expect the output is formatted
                 let saved_content = path.read().unwrap();
@@ -1396,11 +1431,16 @@ fn f(
         /// The formatted output should be undoable,
         /// in case the formatter messed up the code.
         fn should_be_undoable() {
-            run_test(|_, mut buffer| {
+            run_test(|path, mut buffer| {
                 let original = " fn main\n() {}";
-                buffer.update(original);
+                let _ = buffer.update(original);
 
-                let _ = buffer.save(SelectionSet::default(), false, 0).unwrap();
+                let mut context = Context::default();
+                context.set_file_dirty_status(&path, true);
+
+                let _ = buffer
+                    .save(&context, SelectionSet::default(), false, 0)
+                    .unwrap();
 
                 // Expect the buffer is formatted
                 assert_ne!(buffer.rope.to_string(), original);
@@ -1419,10 +1459,12 @@ fn f(
         fn should_not_run_when_syntax_node_is_malformed() {
             run_test(|_, mut buffer| {
                 // Update the buffer to be invalid Rust code
-                buffer.update("fn main() {");
+                let _ = buffer.update("fn main() {");
 
                 // Save the buffer
-                let _ = buffer.save(SelectionSet::default(), false, 0).unwrap();
+                let _ = buffer
+                    .save(&Context::default(), SelectionSet::default(), false, 0)
+                    .unwrap();
 
                 // Expect the buffer remain unchanged,
                 // because the syntax node is invalid
@@ -1439,13 +1481,15 @@ fn f(
             run_test(|_, mut buffer| {
                 // Update the buffer to be valid Rust code
                 // but unformatable
-                buffer.update(code);
+                let _ = buffer.update(code);
 
                 // The code should be deemed as valid by Tree-sitter,
                 // but not to the formatter
                 assert!(!buffer.tree.as_ref().unwrap().root_node().has_error());
 
-                let _ = buffer.save(SelectionSet::default(), false, 0).unwrap();
+                let _ = buffer
+                    .save(&Context::default(), SelectionSet::default(), false, 0)
+                    .unwrap();
 
                 // Expect the buffer remain unchanged
                 assert_eq!(buffer.rope.to_string(), code);
@@ -1644,4 +1688,9 @@ impl EditHistory {
     }
 }
 
-type UndoRedoReturn = Option<(SelectionSet, Vec<ki_protocol_types::DiffEdit>, Vec<Edit>)>;
+type UndoRedoReturn = Option<(
+    Dispatches,
+    SelectionSet,
+    Vec<ki_protocol_types::DiffEdit>,
+    Vec<Edit>,
+)>;

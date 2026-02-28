@@ -28,12 +28,12 @@ Secondary selection modes are nested below the following two keybinds,
 with the exception of Search and Search Current, which are placed on the
 first layer due to their ubiquity.
 
-- Local
+- `⚲ Local`
 - Global
 
 Local Find is directional, meaning that if the cursor position does not overlap
 with any selections of the chosen secondary selection mode, the cursor will
-jump to the nearest selection in the chosen direction. `Local` initialisation
+jump to the nearest selection in the chosen direction. `⚲ Local` initialisation
 is [directional (see footnotes of actions)](../actions.md).
 
 Global Find however is non-directional.

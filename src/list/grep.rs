@@ -8,7 +8,7 @@ use fancy_regex::Regex;
 use crate::{
     app::Dispatches,
     buffer::Buffer,
-    context::LocalSearchConfig,
+    context::{Context, LocalSearchConfig},
     list::{reorder_batches::reorder_batches, Match},
     quickfix_list::Location,
     selection::SelectionSet,
@@ -84,19 +84,24 @@ impl Default for RegexConfig {
 
 /// Returns list of affected files
 pub fn replace(
+    context: &Context,
     walk_builder_config: WalkBuilderConfig,
     local_search_config: LocalSearchConfig,
 ) -> anyhow::Result<(Dispatches, Vec<AbsolutePath>)> {
-    let (dispatches, paths): (Vec<_>, Vec<_>) = walk_builder_config
+    // Collect modified buffers from worker threads. We deliberately do NOT
+    // capture `context` inside the closure because `Context` contains
+    // `Rc<RefCell<Buffer>>` (via `QuickfixList`) which is not `Send + Sync`.
+    // Instead we return the modified `Buffer` to the main thread and call
+    // `save_without_formatting` here, where `context` is available.
+    let (buffers, paths): (Vec<_>, Vec<_>) = walk_builder_config
         .run(Box::new(move |path, sender| {
-            let path = path.try_into()?;
+            let path: AbsolutePath = path.try_into()?;
             let mut buffer = Buffer::from_path(&path, local_search_config.require_tree_sitter())?;
             let (modified, _, _, _) =
                 buffer.replace(local_search_config.clone(), SelectionSet::default(), 0)?;
             if modified {
-                let (dispatches, _) = buffer.save_without_formatting(false)?;
                 sender
-                    .send((dispatches, path))
+                    .send((buffer, path))
                     .map_err(|err| log::info!("Error = {err:?}"))
                     .unwrap_or_default();
             }
@@ -104,7 +109,15 @@ pub fn replace(
         }))?
         .into_iter()
         .unzip();
-    let dispatches = dispatches
+
+    let dispatches = buffers
+        .into_iter()
+        .map(|mut buffer| {
+            buffer
+                .save_without_formatting(context, false)
+                .map(|(d, _)| d)
+        })
+        .collect::<anyhow::Result<Vec<_>>>()?
         .into_iter()
         .reduce(Dispatches::chain)
         .unwrap_or_default();

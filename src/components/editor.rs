@@ -86,9 +86,10 @@ impl Component for Editor {
         self
     }
 
-    fn set_content(&mut self, str: &str, context: &Context) -> Result<(), anyhow::Error> {
-        self.update_buffer(str);
-        self.clamp(context)
+    fn set_content(&mut self, str: &str, context: &Context) -> Result<Dispatches, anyhow::Error> {
+        let dispatches = Ok(self.update_buffer(str));
+        self.clamp(context)?;
+        dispatches
     }
 
     fn title(&self, context: &Context) -> String {
@@ -231,7 +232,7 @@ impl Component for Editor {
                 return self.replace_with_historical_text(context, cut, 0, false)
             }
             SelectAll => return self.select_all(context),
-            SetContent(content) => self.set_content(&content, context)?,
+            SetContent(content) => return self.set_content(&content, context),
             EnableSelectionExtension => self.enable_selection_extension(),
             DisableSelectionExtension => self.disable_selection_extension(),
             EnterInsertMode(direction) => return self.enter_insert_mode(direction, context),
@@ -377,7 +378,7 @@ impl Component for Editor {
             }
             RevertHunk(diff_mode) => return self.revert_hunk(context, diff_mode),
             GitBlame => return self.git_blame(context),
-            ReloadFile { force } => return self.reload(force),
+            ReloadFile { force } => return self.reload(context, force),
             MergeContent {
                 content_filesystem,
                 content_editor,
@@ -710,7 +711,11 @@ impl Editor {
             .partition(|line| line.line < scroll_offset))
     }
 
-    pub fn show_info(&mut self, info: Info, context: &Context) -> Result<(), anyhow::Error> {
+    pub fn show_info(
+        &mut self,
+        info: Info,
+        context: &Context,
+    ) -> Result<Dispatches, anyhow::Error> {
         self.set_title(info.title());
         self.set_decorations(info.decorations());
         self.set_content(info.content(), context)
@@ -2515,7 +2520,7 @@ impl Editor {
             .into_iter()
             .flatten()
             .collect::<Vec<_>>();
-        selections.sort_by(|a, b| a.0.start.0.cmp(&b.0.start.0));
+        selections.sort_by_key(|a| a.0.start.0);
         selections
             .into_iter()
             .map(|selection| selection.1)
@@ -2699,8 +2704,8 @@ impl Editor {
         self.buffer.borrow_mut()
     }
 
-    fn update_buffer(&mut self, s: &str) {
-        self.buffer.borrow_mut().update(s);
+    fn update_buffer(&mut self, s: &str) -> Dispatches {
+        self.buffer.borrow_mut().update(s)
     }
 
     fn scroll(
@@ -2865,9 +2870,12 @@ impl Editor {
         let (dispatches, path) = if context.is_running_as_embedded() {
             (Dispatches::default(), self.path())
         } else {
-            self.buffer
-                .borrow_mut()
-                .save(self.selection_set.clone(), force, last_visible_line)?
+            self.buffer.borrow_mut().save(
+                context,
+                self.selection_set.clone(),
+                force,
+                last_visible_line,
+            )?
         };
 
         let Some(path) = path else {
@@ -3248,9 +3256,10 @@ impl Editor {
 
         // Create dispatches for document changes and buffer edit transaction
         let dispatches = match result {
-            Some((selection_set, diff_edits, edits)) => {
+            Some((dispatches, selection_set, diff_edits, edits)) => {
                 // Update selection set
-                let dispatches = self.update_selection_set(selection_set, false, context);
+                let update_selection_dispatches =
+                    self.update_selection_set(selection_set, false, context);
 
                 // Create a BufferEditTransaction dispatch for external integrations
                 let dispatch = if let Some(path) = self.buffer().path() {
@@ -3264,7 +3273,9 @@ impl Editor {
                     Dispatches::default()
                 };
 
-                dispatches.chain(dispatch)
+                dispatches
+                    .chain(update_selection_dispatches)
+                    .chain(dispatch)
             }
             Option::None => Dispatches::default(),
         };
@@ -4356,8 +4367,8 @@ impl Editor {
         Ok(dispatches.chain(self.do_save(true, context)?))
     }
 
-    fn reload(&mut self, force: bool) -> Result<Dispatches, anyhow::Error> {
-        let dispatches = self.buffer_mut().reload(force)?;
+    fn reload(&mut self, context: &Context, force: bool) -> Result<Dispatches, anyhow::Error> {
+        let dispatches = self.buffer_mut().reload(context, force)?;
         Ok(dispatches.chain(self.get_document_did_change_dispatch()))
     }
 

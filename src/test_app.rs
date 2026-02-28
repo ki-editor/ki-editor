@@ -305,7 +305,9 @@ impl ExpectKind {
                 let (result, context) = expect_kind.get_result(app)?;
                 (!result, format!("NOT ({context})"))
             }
-            EditorIsDirty() => contextualize(&component.borrow().editor().buffer().dirty(), &true),
+            EditorIsDirty() => {
+                contextualize(&component.borrow().editor().buffer().dirty(context), &true)
+            }
             CurrentMode(mode) => contextualize(&component.borrow().editor().mode, mode),
             EditorCursorPosition(position) => contextualize(
                 &component.borrow().editor().get_cursor_position().unwrap(),
@@ -1480,7 +1482,7 @@ fn number_of_lines_rendered_should_equal_to_number_of_newline_characters_plus_on
             })),
             Editor(SetContent("hello\n".to_string())),
             Expect(AppGrid(
-                " 🦀  main.rs [*]
+                " [:] 🦀  main.rs
 1│█ello
 2│"
                 .to_string(),
@@ -1518,7 +1520,7 @@ fn first () {
             Editor(AlignViewTop),
             Expect(AppGrid(
                 "
- 🦀  main.rs [*]
+ [:] 🦀  main.rs
 1│fn first () {
 5│  █ifth();
 6│}
@@ -1530,7 +1532,7 @@ fn first () {
             Editor(AlignViewBottom),
             Expect(AppGrid(
                 "
- 🦀  main.rs [*]
+ [:] 🦀  main.rs
 1│fn first () {
 3│  third();
 4│  fourth(); // this line is long
@@ -1547,7 +1549,7 @@ fn first () {
             Editor(AlignViewBottom),
             Expect(AppGrid(
                 "
- 🦀  main.rs [*]
+ [:] 🦀  main.rs
 1│fn first () {
 4│  fourth(); //
 ↪│this line is long
@@ -3258,7 +3260,9 @@ fn mark_files_tabline_wrapping_no_word_break() -> anyhow::Result<()> {
                 width: 20,
                 height: 3,
             })),
-            Expect(EditorGrid("# 🦀  main.rs\n🦀  foo.rs\n1│█ub(crate) struct")),
+            Expect(EditorGrid(
+                "[-] 🦀  main.rs\n[ ] 🦀  foo.rs\n1│█ub(crate) struct",
+            )),
         ])
     })
 }
@@ -3285,10 +3289,10 @@ fn mark_files_tabline_wrapping_with_word_break() -> anyhow::Result<()> {
             })),
             Expect(EditorGrid(
                 "
-# 🦀  main
-.rs
-🙈  .gitig
-nore
+[-] 🦀  ma
+in.rs
+[ ] 🙈  .g
+itignore
 1│█arget/"
                     .trim(),
             )),
@@ -3396,6 +3400,41 @@ fn close_buffer_should_remove_mark() -> anyhow::Result<()> {
 }
 
 #[test]
+fn alternate_between_files() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.foo_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            App(ToggleFileMark),
+            App(OpenFile {
+                path: s.hello_ts(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            App(ToggleFileMark),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            App(ToggleFileMark),
+            App(OpenAlternateFile),
+            Expect(CurrentComponentPath(Some(s.hello_ts()))),
+            App(OpenAlternateFile),
+            App(CycleMarkedFile(Movement::Left)),
+            App(CycleMarkedFile(Movement::Left)),
+            App(OpenAlternateFile),
+            Expect(CurrentComponentPath(Some(s.hello_ts()))),
+            App(OpenAlternateFile),
+            Expect(CurrentComponentPath(Some(s.foo_rs()))),
+        ])
+    })
+}
+
+#[test]
 fn using_suggested_search_term() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
@@ -3433,7 +3472,7 @@ fn cursor_line_number_style_handle_text_wrapping() -> anyhow::Result<()> {
             Editor(SetContent("foo bar spongebob spam".to_string())),
             Editor(MatchLiteral("spam".to_string())),
             Expect(AppGrid(
-                " 🦀  main.rs [*]
+                " [:] 🦀  main.rs
 1│foo bar spongebob
 ↪│ █pam"
                     .to_string(),
@@ -3477,7 +3516,7 @@ spam
             Editor(CursorAddToAllSelections),
             Editor(ToggleReveal(Reveal::Cursor)),
             Expect(AppGrid(
-                " 🦀  main.rs [*]
+                " [:] 🦀  main.rs
 1│bar
 2│█XX XXX
 1│bar
@@ -3524,7 +3563,7 @@ spam
             Editor(CursorAddToAllSelections),
             Editor(ToggleReveal(Reveal::Cursor)),
             Expect(AppGrid(
-                " 🦀  main.rs [*]
+                " [:] 🦀  main.rs
 1│bar
 2│█XX XXX
 1│bar
@@ -3676,7 +3715,7 @@ fn navigating_to_marked_file_that_is_deleted_should_not_cause_error() -> anyhow:
             }),
             App(ToggleFileMark),
             Expect(AppGrid(
-                r#" # 🙈  .gitignore  # 📘  hello.ts  # 🦀  main.rs
+                r#" [-] 🙈  .gitignore  [-] 📘  hello.ts  [-] 🦀  main.rs
 1│█arget/
 2│"#
                 .to_string(),
@@ -3689,7 +3728,7 @@ fn navigating_to_marked_file_that_is_deleted_should_not_cause_error() -> anyhow:
             // Expect main.rs is removed from the tabline
             // Also an error is shown to notify the user that main.rs is removed from the tabline
             Expect(AppGrid(
-                r#" # 🙈  .gitignore  # 📘  hello.ts
+                r#" [-] 🙈  .gitignore  [-] 📘  hello.ts
 1│█onsole.log("hello");
 2│
 
@@ -3740,7 +3779,7 @@ fn renaming_marked_files_should_update_file_marks() -> anyhow::Result<()> {
             }),
             App(ToggleFileMark),
             Expect(AppGrid(
-                r#" # 🙈  .gitignore  # 📘  hello.ts  # 🦀  main.rs
+                r#" [-] 🙈  .gitignore  [-] 📘  hello.ts  [-] 🦀  main.rs
 1│█arget/
 2│"#
                 .to_string(),
@@ -3753,7 +3792,7 @@ fn renaming_marked_files_should_update_file_marks() -> anyhow::Result<()> {
             // Press enter to hide File Explorer and focus the renamed file
             App(HandleKeyEvent(key!("enter"))),
             Expect(AppGrid(
-                r#" # 📄  new_name  # 📘  hello.ts  # 🦀  main.rs
+                r#" [-] 📄  new_name  [-] 📘  hello.ts  [-] 🦀  main.rs
 1│█arget/
 2│"#
                 .to_string(),
@@ -3877,7 +3916,7 @@ fn closing_all_buffers_should_land_on_scratch_buffer() -> Result<(), anyhow::Err
                 focus: true,
             }),
             Expect(CurrentComponentTitle(
-                "\u{200b} 🦀 foo.rs \u{200b}".to_string(),
+                "\u{200b} [ ] 🦀 foo.rs \u{200b}".to_string(),
             )),
             App(Dispatch::CloseCurrentWindow),
             Expect(AppGrid("[ROOT] (Cannot be saved)\n1│█".to_string())),

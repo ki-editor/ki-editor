@@ -295,7 +295,10 @@ impl KeymapLegend {
 
     fn refresh(&mut self, context: &Context) {
         let content = self.display();
-        self.editor_mut()
+        // dropping dispatch as this is a buffer with no path and
+        // set_content dispatches are related to file dirty status
+        let _ = self
+            .editor_mut()
             .set_content(&content, context)
             .unwrap_or_default();
     }

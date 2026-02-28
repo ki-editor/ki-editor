@@ -151,9 +151,9 @@ impl Editor {
             let wrapped_items = wrap_items(
                 get_formatted_paths(
                     &context.get_marked_files(),
+                    &context.get_dirty_files(),
                     &self.path()?,
                     context.current_working_directory(),
-                    self.buffer().dirty(),
                 ),
                 // Reference: NEED_TO_REDUCE_WIDTH_BY_1
                 dimension.width.saturating_sub(1),

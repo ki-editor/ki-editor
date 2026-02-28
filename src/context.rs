@@ -49,6 +49,8 @@ pub struct Context {
 
     lsp_progress: String,
     kill_ring: RingHistory<Texts>,
+
+    file_dirty_status: HashMap<AbsolutePath, bool>,
 }
 
 #[derive(Debug)]
@@ -237,6 +239,10 @@ impl Context {
         self.quickfix_list
             .extend_items(items, &self.current_working_directory);
     }
+
+    pub(crate) fn get_last_visited_file(&self) -> Option<&Location> {
+        self.location_history_backward.last()
+    }
 }
 
 pub enum QuickfixListKind {
@@ -303,6 +309,7 @@ impl Context {
             lsp_progress: "".to_string(),
             quickfix_list: QuickfixList::default(),
             kill_ring: RingHistory::new(),
+            file_dirty_status: HashMap::new(),
         }
     }
 
@@ -386,6 +393,22 @@ impl Context {
 
     pub fn current_working_directory(&self) -> &AbsolutePath {
         &self.current_working_directory
+    }
+
+    pub fn set_file_dirty_status(&mut self, path: &AbsolutePath, dirty_status: bool) {
+        self.file_dirty_status.insert(path.clone(), dirty_status);
+    }
+
+    pub fn get_file_dirty_status(&self, path: &AbsolutePath) -> Option<&bool> {
+        self.file_dirty_status.get(path)
+    }
+
+    pub fn get_dirty_files(&self) -> Vec<&AbsolutePath> {
+        self.file_dirty_status
+            .iter()
+            .filter(|(_path, dirty_status)| **dirty_status)
+            .map(|(path, _dirty_status)| path)
+            .collect()
     }
 
     pub fn global_search_config(&self) -> &GlobalSearchConfig {

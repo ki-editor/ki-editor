@@ -1079,6 +1079,7 @@ impl<T: Frontend> App<T> {
             }
             Dispatch::OtherWindow => self.layout.cycle_window(),
             Dispatch::CycleMarkedFile(movement) => self.cycle_marked_file(movement)?,
+            Dispatch::OpenAlternateFile => self.open_alternate_file()?,
             Dispatch::PushPromptHistory { key, line } => self.push_history_prompt(key, line),
             Dispatch::OpenThemePrompt => self.open_theme_picker()?,
             Dispatch::SetLastNonContiguousSelectionMode(selection_mode) => self
@@ -1112,6 +1113,9 @@ impl<T: Frontend> App<T> {
             Dispatch::NavigateBack => self.navigate_back()?,
             Dispatch::ToggleSelectionMark => self.toggle_selection_mark()?,
             Dispatch::ToggleFileMark => self.toggle_file_mark()?,
+            Dispatch::SetFileDirtyStatus { dirty_status } => {
+                self.set_file_dirty_status(dirty_status);
+            }
             Dispatch::ToHostApp(to_host_app) => self.handle_to_host_app(to_host_app)?,
             Dispatch::FromHostApp(from_host_app) => self.handle_from_host_app(from_host_app)?,
             Dispatch::OpenSurroundXmlPrompt => self.open_surround_xml_prompt()?,
@@ -1860,9 +1864,9 @@ impl<T: Frontend> App<T> {
         };
         let config = self.context.global_search_config().local_config();
         let (dispatches, affected_paths) =
-            list::grep::replace(walk_builder_config, config.clone())?;
+            list::grep::replace(&self.context, walk_builder_config, config.clone())?;
         self.handle_dispatches(dispatches)?;
-        let dispatches = self.layout.reload_buffers(affected_paths)?;
+        let dispatches = self.layout.reload_buffers(&self.context, affected_paths)?;
         self.handle_dispatches(dispatches)
     }
 
@@ -2240,6 +2244,16 @@ impl<T: Frontend> App<T> {
                 )))
             })
             .collect_vec()
+    }
+
+    fn open_alternate_file(&mut self) -> anyhow::Result<()> {
+        if let Some(previous_location) = self.context.get_last_visited_file() {
+            let previous_path = previous_location.path.clone();
+            if previous_path.exists() {
+                self.open_file(&previous_path.clone(), BufferOwner::User, true, true)?;
+            }
+        }
+        Ok(())
     }
 
     fn cycle_marked_file(&mut self, movement: Movement) -> anyhow::Result<()> {
@@ -2878,6 +2892,12 @@ impl<T: Frontend> App<T> {
             }
         }
         Ok(())
+    }
+
+    fn set_file_dirty_status(&mut self, dirty_status: bool) {
+        if let Some(path) = self.get_current_file_path() {
+            self.context.set_file_dirty_status(&path, dirty_status);
+        }
     }
 
     fn mode_changed(&self) {
@@ -3695,6 +3715,7 @@ pub enum Dispatch {
     CloseEditorInfo,
     CloseGlobalInfo,
     CycleMarkedFile(Movement),
+    OpenAlternateFile,
     PushPromptHistory {
         key: PromptHistoryKey,
         line: String,
@@ -3720,6 +3741,9 @@ pub enum Dispatch {
     NavigateBack,
     ToggleSelectionMark,
     ToggleFileMark,
+    SetFileDirtyStatus {
+        dirty_status: bool,
+    },
     Suspend,
 
     ToHostApp(ToHostApp),
