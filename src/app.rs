@@ -2676,44 +2676,48 @@ impl<T: Frontend> App<T> {
     }
 
     fn open_git_branch_picker(&mut self) -> anyhow::Result<()> {
-        let output = std::process::Command::new("git")
-            .args(["branch", "--format=%(refname:short)"])
-            .output()?;
-        let branches = String::from_utf8_lossy(&output.stdout);
-        let branch_names: Vec<String> = branches.lines().map(|s| s.to_string()).collect();
+        let repo = git2::Repository::open(self.working_directory().display_absolute())?;
+        let branches = repo.branches(None)?;
+
+        let dropdown_items = branches.into_iter().enumerate().try_fold(
+            Vec::<DropdownItem>::new(),
+            |mut dropdown_items, (index, git_branch)| -> Result<Vec<DropdownItem>, anyhow::Error> {
+                let (branch_name, _branch_type) = git_branch?;
+                let branch_name = branch_name.name()?.unwrap().to_string();
+                dropdown_items.push(
+                    DropdownItem::new(branch_name.clone())
+                        .set_rank(Some(Box::from([index].to_vec())))
+                        .set_dispatches(Dispatches::one(Dispatch::GitCheckout(branch_name))),
+                );
+                Ok(dropdown_items)
+            },
+        )?;
 
         self.open_prompt(PromptConfig::new(
             "Git Branch".to_string(),
             PromptOnEnter::SelectsFirstMatchingItem {
-                items: PromptItems::Precomputed(
-                    branch_names
-                        .into_iter()
-                        .enumerate()
-                        .map(|(index, git_branch_name)| {
-                            DropdownItem::new(git_branch_name.clone())
-                                .set_rank(Some(Box::from([index].to_vec())))
-                                .set_dispatches(Dispatches::one(Dispatch::GitCheckout(
-                                    git_branch_name,
-                                )))
-                        })
-                        .collect_vec(),
-                ),
+                items: PromptItems::Precomputed(dropdown_items),
             },
         ))
     }
 
     fn git_checkout(&mut self, branch: &str) -> anyhow::Result<()> {
-        let output = std::process::Command::new("git")
-            .args(["checkout", branch])
-            .output()?;
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        let content = if stdout.is_empty() {
-            stderr.to_string()
+        let repo = git2::Repository::open(self.working_directory().display_absolute())?;
+        let reference_name = if branch.starts_with("refs/heads/") {
+            branch.to_string()
         } else {
-            stdout.to_string()
+            format!("refs/heads/{}", branch)
         };
-        let info = Info::new("Git Checkout".to_string(), content);
+        let reference = repo.find_reference(&reference_name)?;
+        let oid = reference
+            .target()
+            .ok_or_else(|| anyhow::anyhow!("Cannot get OID from reference"))?;
+        let object = repo.find_object(oid, None)?;
+        repo.checkout_tree(&object, None)?;
+        let info = Info::new(
+            "Git Checkout".to_string(),
+            format!("Checked out branch: {}", branch),
+        );
         self.show_editor_info(info)
     }
 
