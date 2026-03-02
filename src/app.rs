@@ -1082,6 +1082,7 @@ impl<T: Frontend> App<T> {
             Dispatch::OpenAlternateFile => self.open_alternate_file()?,
             Dispatch::PushPromptHistory { key, line } => self.push_history_prompt(key, line),
             Dispatch::OpenThemePrompt => self.open_theme_picker()?,
+            Dispatch::OpenGitBranchPrompt => self.open_git_branch_picker()?,
             Dispatch::SetLastNonContiguousSelectionMode(selection_mode) => self
                 .context
                 .set_last_non_contiguous_selection_mode(selection_mode),
@@ -2673,6 +2674,35 @@ impl<T: Frontend> App<T> {
         self.context.push_history_prompt(key, line);
     }
 
+    fn open_git_branch_picker(&mut self) -> anyhow::Result<()> {
+        let output = std::process::Command::new("git")
+            .args(["branch", "--format=%(refname:short)"])
+            .output()?;
+        let branches = String::from_utf8_lossy(&output.stdout);
+        let branch_names: Vec<String> = branches.lines().map(|s| s.to_string()).collect();
+
+        self.open_prompt(PromptConfig::new(
+            "Git Branch".to_string(),
+            PromptOnEnter::SelectsFirstMatchingItem {
+                items: PromptItems::Precomputed(
+                    branch_names
+                        .into_iter()
+                        .enumerate()
+                        .map(|(index, git_branch_name)| {
+                            DropdownItem::new(git_branch_name.clone())
+                                .set_rank(Some(Box::from([index].to_vec())))
+                                .set_dispatches(Dispatches::one(Dispatch::ToEditor(
+                                    DispatchEditor::PipeToShell {
+                                        command: format!("git checkout {}", git_branch_name),
+                                    },
+                                )))
+                        })
+                        .collect_vec(),
+                ),
+            },
+        ))
+    }
+
     fn open_theme_picker(&mut self) -> anyhow::Result<()> {
         self.open_prompt(
             PromptConfig::new(
@@ -3721,6 +3751,7 @@ pub enum Dispatch {
         line: String,
     },
     OpenThemePrompt,
+    OpenGitBranchPrompt,
     ResolveCompletionItem(lsp_types::CompletionItem),
     OpenPipeToShellPrompt,
     SetLastNonContiguousSelectionMode(Either<SelectionMode, GlobalMode>),

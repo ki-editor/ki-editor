@@ -991,6 +991,11 @@ impl Editor {
                     "Theme".to_string(),
                     Dispatch::OpenThemePrompt,
                 )))
+                .chain(Some(Keybinding::new(
+                    "b",
+                    "Git Branch".to_string(),
+                    Dispatch::OpenGitBranchPrompt,
+                )))
                 .collect_vec(),
             ),
         }
