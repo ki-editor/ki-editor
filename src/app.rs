@@ -1083,6 +1083,7 @@ impl<T: Frontend> App<T> {
             Dispatch::PushPromptHistory { key, line } => self.push_history_prompt(key, line),
             Dispatch::OpenThemePrompt => self.open_theme_picker()?,
             Dispatch::OpenGitBranchPrompt => self.open_git_branch_picker()?,
+            Dispatch::GitCheckout(branch) => self.git_checkout(&branch)?,
             Dispatch::SetLastNonContiguousSelectionMode(selection_mode) => self
                 .context
                 .set_last_non_contiguous_selection_mode(selection_mode),
@@ -2691,16 +2692,29 @@ impl<T: Frontend> App<T> {
                         .map(|(index, git_branch_name)| {
                             DropdownItem::new(git_branch_name.clone())
                                 .set_rank(Some(Box::from([index].to_vec())))
-                                .set_dispatches(Dispatches::one(Dispatch::ToEditor(
-                                    DispatchEditor::PipeToShell {
-                                        command: format!("git checkout {}", git_branch_name),
-                                    },
+                                .set_dispatches(Dispatches::one(Dispatch::GitCheckout(
+                                    git_branch_name,
                                 )))
                         })
                         .collect_vec(),
                 ),
             },
         ))
+    }
+
+    fn git_checkout(&mut self, branch: &str) -> anyhow::Result<()> {
+        let output = std::process::Command::new("git")
+            .args(["checkout", branch])
+            .output()?;
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let content = if stdout.is_empty() {
+            stderr.to_string()
+        } else {
+            stdout.to_string()
+        };
+        let info = Info::new("Git Checkout".to_string(), content);
+        self.show_editor_info(info)
     }
 
     fn open_theme_picker(&mut self) -> anyhow::Result<()> {
@@ -3752,6 +3766,7 @@ pub enum Dispatch {
     },
     OpenThemePrompt,
     OpenGitBranchPrompt,
+    GitCheckout(String),
     ResolveCompletionItem(lsp_types::CompletionItem),
     OpenPipeToShellPrompt,
     SetLastNonContiguousSelectionMode(Either<SelectionMode, GlobalMode>),
