@@ -2730,35 +2730,33 @@ impl<T: Frontend> App<T> {
         )
     }
 
-    fn git_checkout(&mut self, branch_name: &str) -> anyhow::Result<()> {
-        let repo = git2::Repository::open(self.working_directory().display_absolute())?;
+    fn git_checkout(&mut self, branch: &str) -> anyhow::Result<()> {
+        let output = std::process::Command::new("git")
+            .current_dir(self.working_directory().display_absolute())
+            .args(["checkout", branch])
+            .output()?;
 
-        // Find the local branch
-        let branch = repo.find_branch(branch_name, git2::BranchType::Local)?;
-        let reference = branch.get();
-        let ref_name = reference
-            .name()
-            .ok_or_else(|| anyhow::anyhow!("Invalid ref"))?;
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
 
-        let commit = reference.peel_to_commit()?;
-        let tree = commit.tree()?;
+        let (title, content) = if output.status.success() {
+            (
+                "Git Checkout Success".to_string(),
+                if stdout.is_empty() {
+                    stderr.to_string()
+                } else {
+                    stdout.to_string()
+                },
+            )
+        } else {
+            (
+                "Git Checkout Failed".to_string(),
+                stderr.to_string(), // Git usually puts errors in stderr
+            )
+        };
 
-        let mut opts = git2::build::CheckoutBuilder::new();
-        opts.safe(); // Protects against overwriting uncommitted changes
-
-        // Update files on disk
-        repo.checkout_tree(tree.as_object(), Some(&mut opts))?;
-
-        // Update the HEAD pointer
-        repo.set_head(ref_name)?;
-
-        let info = Info::new(
-            "Git Checkout".to_string(),
-            format!("Switched to branch: {}", branch_name),
-        );
-        self.show_editor_info(info)?;
-
-        Ok(())
+        let info = Info::new(title, content);
+        self.show_editor_info(info)
     }
 
     fn open_keyboard_layout_picker(&mut self) -> anyhow::Result<()> {
