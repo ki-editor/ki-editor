@@ -136,6 +136,11 @@ Git status (against current branch) [^1]
 ### `Git status ^`
 
 Git status (against main/master branch) [^2]
+
+### `Git Branch`
+
+Opens a picker to select and checkout a different Git branch.
+
 [^1]: See more at [Git hunk](./selection-modes/secondary.md#hunkhunk)
 [^2]: This is very useful when you want to get the modified/added files commited into the current branch that you are working on.
 

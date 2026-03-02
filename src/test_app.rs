@@ -3649,6 +3649,28 @@ fn lsp_initialization_should_only_send_relevant_opened_documents() -> anyhow::Re
 }
 
 #[test]
+fn open_git_branch_picker() -> anyhow::Result<()> {
+    execute_test(|_s| {
+        Box::new([
+            Shell(
+                "git",
+                [
+                    "checkout".to_string(),
+                    "-b".to_string(),
+                    "test-branch-picker".to_string(),
+                ]
+                .to_vec(),
+            ),
+            App(OpenGitBranchPrompt),
+            Expect(ExpectKind::ComponentsOrder(vec![
+                ComponentKind::Prompt,
+                ComponentKind::Dropdown,
+            ])),
+        ])
+    })
+}
+
+#[test]
 fn navigate_back_should_skip_files_that_were_renamed_or_deleted() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
