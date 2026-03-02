@@ -2677,21 +2677,21 @@ impl<T: Frontend> App<T> {
 
     fn open_git_branch_picker(&mut self) -> anyhow::Result<()> {
         let repo = git2::Repository::open(self.working_directory().display_absolute())?;
-        let branches = repo.branches(None)?;
 
-        let dropdown_items = branches.into_iter().enumerate().try_fold(
-            Vec::<DropdownItem>::new(),
-            |mut dropdown_items, (index, git_branch)| -> Result<Vec<DropdownItem>, anyhow::Error> {
-                let (branch_name, _branch_type) = git_branch?;
-                let branch_name = branch_name.name()?.unwrap().to_string();
-                dropdown_items.push(
+        let dropdown_items: Vec<DropdownItem> = repo
+            .branches(None)?
+            .filter_map(|res| res.ok()) // Skip branches that error during iteration
+            .enumerate()
+            .filter_map(|(index, (branch, _type))| {
+                // Transform the branch into a DropdownItem if the name is valid
+                branch.name().ok().flatten().map(|name| {
+                    let branch_name = name.to_string();
                     DropdownItem::new(branch_name.clone())
                         .set_rank(Some(Box::from([index].to_vec())))
-                        .set_dispatches(Dispatches::one(Dispatch::GitCheckout(branch_name))),
-                );
-                Ok(dropdown_items)
-            },
-        )?;
+                        .set_dispatches(Dispatches::one(Dispatch::GitCheckout(branch_name)))
+                })
+            })
+            .collect();
 
         self.open_prompt(PromptConfig::new(
             "Git Branch".to_string(),
@@ -2699,26 +2699,6 @@ impl<T: Frontend> App<T> {
                 items: PromptItems::Precomputed(dropdown_items),
             },
         ))
-    }
-
-    fn git_checkout(&mut self, branch: &str) -> anyhow::Result<()> {
-        let repo = git2::Repository::open(self.working_directory().display_absolute())?;
-        let reference_name = if branch.starts_with("refs/heads/") {
-            branch.to_string()
-        } else {
-            format!("refs/heads/{}", branch)
-        };
-        let reference = repo.find_reference(&reference_name)?;
-        let oid = reference
-            .target()
-            .ok_or_else(|| anyhow::anyhow!("Cannot get OID from reference"))?;
-        let object = repo.find_object(oid, None)?;
-        repo.checkout_tree(&object, None)?;
-        let info = Info::new(
-            "Git Checkout".to_string(),
-            format!("Checked out branch: {}", branch),
-        );
-        self.show_editor_info(info)
     }
 
     fn open_theme_picker(&mut self) -> anyhow::Result<()> {
@@ -2748,6 +2728,37 @@ impl<T: Frontend> App<T> {
                 self.context.theme().clone(),
             )))),
         )
+    }
+
+    fn git_checkout(&mut self, branch_name: &str) -> anyhow::Result<()> {
+        let repo = git2::Repository::open(self.working_directory().display_absolute())?;
+
+        // Find the local branch
+        let branch = repo.find_branch(branch_name, git2::BranchType::Local)?;
+        let reference = branch.get();
+        let ref_name = reference
+            .name()
+            .ok_or_else(|| anyhow::anyhow!("Invalid ref"))?;
+
+        let commit = reference.peel_to_commit()?;
+        let tree = commit.tree()?;
+
+        let mut opts = git2::build::CheckoutBuilder::new();
+        opts.safe(); // Protects against overwriting uncommitted changes
+
+        // Update files on disk
+        repo.checkout_tree(tree.as_object(), Some(&mut opts))?;
+
+        // Update the HEAD pointer
+        repo.set_head(ref_name)?;
+
+        let info = Info::new(
+            "Git Checkout".to_string(),
+            format!("Switched to branch: {}", branch_name),
+        );
+        self.show_editor_info(info)?;
+
+        Ok(())
     }
 
     fn open_keyboard_layout_picker(&mut self) -> anyhow::Result<()> {
