@@ -984,12 +984,17 @@ impl Editor {
                 .chain(Some(Keybinding::new(
                     "S",
                     "Symbol (Workspace)".to_string(),
-                    Dispatch::OpenWorkspaceSymbolsPrompt,
+                    Dispatch::OpenWorkspaceSymbolsPicker,
                 )))
                 .chain(Some(Keybinding::new(
                     "a",
                     "Theme".to_string(),
-                    Dispatch::OpenThemePrompt,
+                    Dispatch::OpenThemePicker,
+                )))
+                .chain(Some(Keybinding::new(
+                    "t",
+                    "Quickfix".to_string(),
+                    Dispatch::OpenQuickfixItemsPicker,
                 )))
                 .collect_vec(),
             ),
