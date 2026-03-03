@@ -4,7 +4,11 @@ use lazy_regex::regex;
 use my_proc_macros::{key, keys};
 
 use crate::{
-    app::{Dimension, Dispatch::*, Scope},
+    app::{
+        Dimension,
+        Dispatch::{self, *},
+        Scope,
+    },
     buffer::BufferOwner,
     components::editor::{Direction, DispatchEditor::*, IfCurrentNotFound},
     grid::StyleKey,
@@ -86,7 +90,7 @@ fn typescript_lsp_workspace_symbols() -> Result<(), anyhow::Error> {
             App(HandleKeyEvent(key!("enter"))),
             Editor(SetContent("export function hello() {}".to_string())),
             WaitForAppMessage(lazy_regex::regex!("LspNotification.*Initialized")),
-            App(OpenWorkspaceSymbolsPrompt),
+            App(Dispatch::OpenWorkspaceSymbolsPicker),
             App(HandleKeyEvents(keys!("h e").to_vec())),
             Expect(AppMessageIsReceived {
                 matches: regex!("LspNotification.*WorkspaceSymbols"),
