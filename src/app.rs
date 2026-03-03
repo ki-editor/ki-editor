@@ -78,7 +78,7 @@ use strum::IntoEnumIterator;
 use DispatchEditor::*;
 
 #[cfg(test)]
-use crate::{layout::BufferContentsMap, quickfix_list::QuickfixList, test_app::RunTestOptions};
+use crate::{layout::BufferContentsMap, test_app::RunTestOptions};
 
 // TODO: rename current Context struct to RawContext struct
 // The new Context struct should always be derived, it should contains Hashmap of rectangles, keyed by Component ID
