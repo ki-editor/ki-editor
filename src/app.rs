@@ -78,7 +78,7 @@ use strum::IntoEnumIterator;
 use DispatchEditor::*;
 
 #[cfg(test)]
-use crate::{layout::BufferContentsMap, quickfix_list::QuickfixList, test_app::RunTestOptions};
+use crate::{layout::BufferContentsMap, test_app::RunTestOptions};
 
 // TODO: rename current Context struct to RawContext struct
 // The new Context struct should always be derived, it should contains Hashmap of rectangles, keyed by Component ID
@@ -949,7 +949,6 @@ impl<T: Frontend> App<T> {
                         }
                     }
                 }
-
                 self.lsp_manager().send_message(
                     path.clone(),
                     FromEditor::TextDocumentDidSave { file_path: path },
@@ -1081,7 +1080,7 @@ impl<T: Frontend> App<T> {
             Dispatch::CycleMarkedFile(movement) => self.cycle_marked_file(movement)?,
             Dispatch::OpenAlternateFile => self.open_alternate_file()?,
             Dispatch::PushPromptHistory { key, line } => self.push_history_prompt(key, line),
-            Dispatch::OpenThemePrompt => self.open_theme_picker()?,
+            Dispatch::OpenThemePicker => self.open_theme_picker()?,
             Dispatch::SetLastNonContiguousSelectionMode(selection_mode) => self
                 .context
                 .set_last_non_contiguous_selection_mode(selection_mode),
@@ -1140,7 +1139,7 @@ impl<T: Frontend> App<T> {
             } => {
                 self.show_buffer_save_conflict_prompt(&path, content_editor, content_filesystem)?;
             }
-            Dispatch::OpenWorkspaceSymbolsPrompt => self.open_workspace_symbols_picker()?,
+            Dispatch::OpenWorkspaceSymbolsPicker => self.open_workspace_symbols_picker()?,
             Dispatch::GetAndHandlePromptOnChangeDispatches => {
                 self.get_and_handle_prompt_on_change_dispatches()?;
             }
@@ -1161,6 +1160,7 @@ impl<T: Frontend> App<T> {
             Dispatch::OpenChangeWorkingDirectoryPrompt => {
                 self.open_change_working_directory_prompt()?;
             }
+            Dispatch::OpenQuickfixItemsPicker => self.open_quickfix_item_picker()?,
         }
         Ok(())
     }
@@ -3492,8 +3492,7 @@ Conflict markers will be injected in areas that cannot be merged gracefully."
             .or_insert_with(|| LspManager::new(self.sender.clone(), working_directory))
     }
 
-    #[cfg(test)]
-    pub(crate) fn quickfix_list(&self) -> &QuickfixList {
+    pub fn quickfix_list(&self) -> &crate::quickfix_list::QuickfixList {
         self.context.quickfix_list()
     }
 
@@ -3502,6 +3501,15 @@ Conflict markers will be injected in areas that cannot be merged gracefully."
         Callback::new(Arc::new(move |_| {
             let _ = sender.send(AppMessage::HandleNucleoNotify(source));
         }))
+    }
+
+    fn open_quickfix_item_picker(&mut self) -> Result<(), anyhow::Error> {
+        self.open_prompt(PromptConfig::new(
+            "Quickfix Items".to_string(),
+            PromptOnEnter::SelectsFirstMatchingItem {
+                items: PromptItems::Precomputed(self.quickfix_list().dropdown_items()),
+            },
+        ))
     }
 }
 
@@ -3720,7 +3728,7 @@ pub enum Dispatch {
         key: PromptHistoryKey,
         line: String,
     },
-    OpenThemePrompt,
+    OpenThemePicker,
     ResolveCompletionItem(lsp_types::CompletionItem),
     OpenPipeToShellPrompt,
     SetLastNonContiguousSelectionMode(Either<SelectionMode, GlobalMode>),
@@ -3774,7 +3782,7 @@ pub enum Dispatch {
         query: String,
         path: AbsolutePath,
     },
-    OpenWorkspaceSymbolsPrompt,
+    OpenWorkspaceSymbolsPicker,
     GetAndHandlePromptOnChangeDispatches,
     SetIncrementalSearchConfig {
         config: crate::context::LocalSearchConfig,
@@ -3791,6 +3799,7 @@ pub enum Dispatch {
     ToggleOrOpenPaths,
     ChangeWorkingDirectory(AbsolutePath),
     OpenChangeWorkingDirectoryPrompt,
+    OpenQuickfixItemsPicker,
 }
 
 /// Used to send notify host app about changes

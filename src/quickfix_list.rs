@@ -303,6 +303,10 @@ impl QuickfixList {
     pub(crate) fn current_index(&self) -> usize {
         self.dropdown.current_item_index
     }
+
+    pub fn dropdown_items(&self) -> Vec<DropdownItem> {
+        self.dropdown.items()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
