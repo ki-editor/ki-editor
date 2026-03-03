@@ -50,12 +50,6 @@ pub enum SendResult {
     Succeeed,
     ReceiverDisconnected,
 }
-impl SendResult {
-    pub fn is_receiver_disconnected(&self) -> bool {
-        matches!(self, SendResult::ReceiverDisconnected)
-    }
-}
-
 impl<T> From<Result<(), SendError<T>>> for SendResult {
     fn from(value: Result<(), SendError<T>>) -> Self {
         match value {
