@@ -5,9 +5,9 @@ use crate::{
 };
 use my_proc_macros::hex;
 
-pub fn vscode_dark() -> Theme {
+pub fn very_dark() -> Theme {
     Theme {
-        name: "VS Code (Dark)".to_string(),
+        name: "Very Dark".to_string(),
         syntax: SyntaxStyles::new({
             use HighlightName::*;
             &[
@@ -25,16 +25,16 @@ pub fn vscode_dark() -> Theme {
         }),
         ui: UiStyles {
             global_title: Style::new()
-                .foreground_color(hex!("#ffffff"))
-                .background_color(hex!("#3478c6")),
+                .foreground_color(hex!("#aaaaaa"))
+                .background_color(hex!("#021836")),
             window_title_focused: Style::new()
-                .foreground_color(hex!("#444444"))
-                .background_color(hex!("#ffffff")),
+                .foreground_color(hex!("#999999"))
+                .background_color(hex!("#222222")),
             window_title_unfocused: Style::new()
-                .foreground_color(hex!("#969696"))
-                .background_color(hex!("#444444")),
+                .foreground_color(hex!("#666666"))
+                .background_color(hex!("#000000")),
             focused_tab: Style::new()
-                .foreground_color(hex!("#ffffff"))
+                .foreground_color(hex!("#cccccc"))
                 .background_color(hex!("#444444")),
             parent_lines_background: hex!("#3B3D41"),
             section_divider_background: hex!("#3B3D41"),
@@ -44,7 +44,7 @@ pub fn vscode_dark() -> Theme {
             jump_mark_even: Style::new()
                 .background_color(hex!("#84b701"))
                 .foreground_color(hex!("#ffffff")),
-            background_color: hex!("#1E1E1E"),
+            background_color: hex!("#000000"),
             text_foreground: hex!("#FFFFFF"),
             primary_selection_background: hex!("#304E75"),
             primary_selection_anchor_background: hex!("#304E75"),
