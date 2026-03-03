@@ -1080,7 +1080,7 @@ impl<T: Frontend> App<T> {
             Dispatch::CycleMarkedFile(movement) => self.cycle_marked_file(movement)?,
             Dispatch::OpenAlternateFile => self.open_alternate_file()?,
             Dispatch::PushPromptHistory { key, line } => self.push_history_prompt(key, line),
-            Dispatch::OpenThemePrompt => self.open_theme_picker()?,
+            Dispatch::OpenThemePicker => self.open_theme_picker()?,
             Dispatch::OpenGitBranchPrompt => self.open_git_branch_picker()?,
             Dispatch::GitCheckout(branch) => self.git_checkout(&branch)?,
             Dispatch::SetLastNonContiguousSelectionMode(selection_mode) => self
@@ -3785,7 +3785,7 @@ pub enum Dispatch {
         key: PromptHistoryKey,
         line: String,
     },
-    OpenThemePrompt,
+    OpenThemePicker,
     OpenGitBranchPrompt,
     GitCheckout(String),
     ResolveCompletionItem(lsp_types::CompletionItem),
