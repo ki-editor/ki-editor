@@ -3650,22 +3650,39 @@ fn lsp_initialization_should_only_send_relevant_opened_documents() -> anyhow::Re
 
 #[test]
 fn open_git_branch_picker() -> anyhow::Result<()> {
-    execute_test(|_s| {
+    execute_test(|s| {
+        let temp_dir = s.temp_dir();
         Box::new([
+            Expect(CurrentWorkingDirectory(s.temp_dir())),
             Shell(
                 "git",
-                [
-                    "checkout".to_string(),
-                    "-b".to_string(),
-                    "test-branch-picker".to_string(),
-                ]
-                .to_vec(),
+                ["branch".to_string(), "test-branch-picker".to_string()].to_vec(),
             ),
             App(OpenGitBranchPrompt),
             Expect(ExpectKind::ComponentsOrder(vec![
                 ComponentKind::Prompt,
                 ComponentKind::Dropdown,
             ])),
+            Expect(CompletionDropdownContentString(
+                "main\ntest-branch-picker".to_string(),
+            )),
+            App(HandleKeyEvents(keys!("alt+l alt+x").to_vec())),
+            Expect(CurrentComponentContent("test-branch-picker")),
+            App(HandleKeyEvents(keys!("enter").to_vec())),
+            Expect(ExpectKind::CompletionDropdownIsOpen(false)),
+            ExpectCustom(Box::new({
+                let temp_dir = temp_dir.clone();
+                move || {
+                    let path = temp_dir.to_path_buf();
+                    let output = std::process::Command::new("git")
+                        .current_dir(&path)
+                        .args(["branch", "--show-current"])
+                        .output()
+                        .unwrap();
+                    let branch = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                    assert_eq!(branch, "test-branch-picker");
+                }
+            })),
         ])
     })
 }
