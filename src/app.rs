@@ -261,6 +261,8 @@ impl<T: Frontend> App<T> {
             file_watcher_input_sender,
         };
 
+        app.change_working_directory(working_directory)?;
+
         app.restore_session();
 
         Ok(app)
