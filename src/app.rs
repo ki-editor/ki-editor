@@ -2739,8 +2739,6 @@ impl<T: Frontend> App<T> {
         let title = "Git Checkout Success".to_string();
         let content = output;
 
-        dbg!((&title, &content));
-
         let info = Info::new(title, content);
         self.show_editor_info(info)
     }
