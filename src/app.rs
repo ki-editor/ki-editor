@@ -2684,12 +2684,11 @@ impl<T: Frontend> App<T> {
             .branches(None)?
             .filter_map(|res| res.ok()) // Skip branches that error during iteration
             .enumerate()
-            .filter_map(|(index, (branch, _type))| {
+            .filter_map(|(_, (branch, _type))| {
                 // Transform the branch into a DropdownItem if the name is valid
                 branch.name().ok().flatten().map(|name| {
                     let branch_name = name.to_string();
                     DropdownItem::new(branch_name.clone())
-                        .set_rank(Some(Box::from([index].to_vec())))
                         .set_dispatches(Dispatches::one(Dispatch::GitCheckout(branch_name)))
                 })
             })
