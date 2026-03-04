@@ -61,7 +61,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 #[cfg(test)]
 use shared::language::LanguageId;
-use shared::{absolute_path::AbsolutePath, language::Language};
+use shared::{absolute_path::AbsolutePath, language::Language, process_command::ProcessCommand};
 use std::{
     any::TypeId,
     cell::RefCell,
@@ -2733,29 +2733,13 @@ impl<T: Frontend> App<T> {
     }
 
     fn git_checkout(&mut self, branch: &str) -> anyhow::Result<()> {
-        let output = std::process::Command::new("git")
-            .current_dir(self.working_directory().display_absolute())
-            .args(["checkout", branch])
-            .output()?;
+        let process_command =
+            ProcessCommand::new("git", &["checkout".to_string(), branch.to_string()]);
+        let output = process_command.run()?;
+        let title = "Git Checkout Success".to_string();
+        let content = output;
 
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        let stderr = String::from_utf8_lossy(&output.stderr);
-
-        let (title, content) = if output.status.success() {
-            (
-                "Git Checkout Success".to_string(),
-                if stdout.is_empty() {
-                    stderr.to_string()
-                } else {
-                    stdout.to_string()
-                },
-            )
-        } else {
-            (
-                "Git Checkout Failed".to_string(),
-                stderr.to_string(), // Git usually puts errors in stderr
-            )
-        };
+        dbg!((&title, &content));
 
         let info = Info::new(title, content);
         self.show_editor_info(info)

@@ -3658,13 +3658,24 @@ fn open_git_branch_picker() -> anyhow::Result<()> {
                 "git",
                 ["branch".to_string(), "test-branch-picker".to_string()].to_vec(),
             ),
+            // Commit all files so that we can switch branch later
+            Shell("git", ["add".to_string(), ".".to_string()].to_vec()),
+            Shell(
+                "git",
+                [
+                    "commit".to_string(),
+                    "-m".to_string(),
+                    "add all files".to_string(),
+                ]
+                .to_vec(),
+            ),
             App(OpenGitBranchPrompt),
             Expect(ExpectKind::ComponentsOrder(vec![
                 ComponentKind::Prompt,
                 ComponentKind::Dropdown,
             ])),
             Expect(CompletionDropdownContentString(
-                "main\ntest-branch-picker".to_string(),
+                "master\ntest-branch-picker".to_string(),
             )),
             App(HandleKeyEvents(keys!("alt+l alt+x").to_vec())),
             Expect(CurrentComponentContent("test-branch-picker")),
