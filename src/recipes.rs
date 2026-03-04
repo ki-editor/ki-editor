@@ -1388,7 +1388,7 @@ foo ha"
                 expectations: Box::new([CurrentSelectedTexts(&["(xo)"])]),
                 terminal_height: Some(7),
                 similar_vim_combos: &[],
-                only: true,
+                only: false,
             }]
             .to_vec(),
         },

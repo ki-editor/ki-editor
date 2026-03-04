@@ -3686,7 +3686,7 @@ fn open_git_branch_picker() -> anyhow::Result<()> {
                 move || {
                     let path = temp_dir.to_path_buf();
                     let output = std::process::Command::new("git")
-                        .current_dir(&path)
+                        .current_dir(path)
                         .args(["branch", "--show-current"])
                         .output()
                         .unwrap();
