@@ -96,7 +96,7 @@ impl Layout {
                 .iter()
                 .find(|(_, editor)| editor.borrow().editor().buffer().owner() == BufferOwner::User)
             {
-                self.replace_and_focus_current_suggestive_editor(editor.clone())
+                self.replace_and_focus_current_suggestive_editor(editor.clone());
             } else {
                 self.tree.remove(node.node_id(), true);
             }
@@ -109,7 +109,7 @@ impl Layout {
     }
 
     pub fn cycle_window(&mut self) {
-        self.tree.cycle_component()
+        self.tree.cycle_component();
     }
 
     pub fn close_current_window(&mut self, context: &Context) -> Option<AbsolutePath> {
@@ -146,7 +146,7 @@ impl Layout {
                 component
                     .component()
                     .borrow_mut()
-                    .set_rectangle(rectangle.clone(), context)
+                    .set_rectangle(rectangle.clone(), context);
             });
     }
 
@@ -174,7 +174,7 @@ impl Layout {
 
     pub fn set_terminal_dimension(&mut self, dimension: Dimension, context: &Context) {
         self.terminal_dimension = dimension;
-        self.recalculate_layout(context)
+        self.recalculate_layout(context);
     }
 
     pub fn terminal_dimension(&self) -> Dimension {
@@ -205,7 +205,9 @@ impl Layout {
         context: &Context,
     ) -> anyhow::Result<()> {
         let info_panel = Rc::new(RefCell::new(Editor::from_text(None, "")));
-        info_panel.borrow_mut().show_info(info, context)?;
+        // dropping dispatch as this is a buffer with no path and
+        // show_info dispatches are related to file dirty status
+        let _ = info_panel.borrow_mut().show_info(info, context)?;
         self.tree
             .replace_node_child(node_id, kind, info_panel, false);
         Ok(())
@@ -236,11 +238,11 @@ impl Layout {
                 ))),
             ),
             true,
-        )
+        );
     }
 
     pub fn remain_only_current_component(&mut self) {
-        self.tree.remain_only_current_component()
+        self.tree.remain_only_current_component();
     }
 
     pub fn get_opened_files(&self) -> Vec<AbsolutePath> {
@@ -305,8 +307,14 @@ impl Layout {
         self.background_suggestive_editors.shift_remove(path);
     }
 
-    pub fn refresh_file_explorer(&self, context: &Context) -> anyhow::Result<()> {
-        self.background_file_explorer.borrow_mut().refresh(context)
+    pub fn refresh_file_explorer(&self, context: &Context) -> Result<(), anyhow::Error> {
+        // dropping dispatch as this is a buffer with no path and
+        // refresh dispatches are related to file dirty status
+        let _ = self
+            .background_file_explorer
+            .borrow_mut()
+            .refresh(context)?;
+        Ok(())
     }
 
     pub fn open_file_explorer(&mut self) {
@@ -353,7 +361,11 @@ impl Layout {
             .collect_vec()
     }
 
-    pub fn reload_buffers(&self, affected_paths: Vec<AbsolutePath>) -> anyhow::Result<Dispatches> {
+    pub fn reload_buffers(
+        &self,
+        context: &Context,
+        affected_paths: Vec<AbsolutePath>,
+    ) -> anyhow::Result<Dispatches> {
         self.buffers()
             .into_iter()
             .try_fold(Dispatches::default(), |dispatches, buffer| {
@@ -363,7 +375,7 @@ impl Layout {
                         .iter()
                         .any(|affected_path| affected_path == &path)
                     {
-                        return Ok(dispatches.chain(buffer.reload(true)?));
+                        return Ok(dispatches.chain(buffer.reload(context, true)?));
                     }
                 }
                 Ok(dispatches)
@@ -375,6 +387,7 @@ impl Layout {
         self.current_completion_dropdown().is_some()
     }
 
+    #[cfg(test)]
     pub fn current_completion_dropdown(&self) -> Option<Rc<RefCell<dyn Component>>> {
         self.get_current_node_child_id(ComponentKind::Dropdown)
             .and_then(|node_id| Some(self.tree.get(node_id)?.data().component().clone()))
@@ -453,10 +466,10 @@ impl Layout {
                 .replace_root_node_child(ComponentKind::QuickfixList, editor.clone(), false);
         let dispatches = {
             let mut editor = editor.borrow_mut();
-            editor.set_content(&render.content, context)?;
+            let dispatches = editor.set_content(&render.content, context);
             editor.set_decorations(&render.decorations);
             editor.set_title("Quickfix list".to_string());
-            editor.select_line_at(render.highlight_line_index, context)?
+            dispatches?.chain(editor.select_line_at(render.highlight_line_index, context)?)
         };
 
         // If the QuickfixList is the only component in the layout,
@@ -464,7 +477,7 @@ impl Layout {
         // This can happen when, say, the user executed a global search
         // when no files have been opened yet.
         if self.tree.components().len() == 1 {
-            self.tree.set_focus_component_id(node_id)
+            self.tree.set_focus_component_id(node_id);
         }
 
         let editor = (*editor).clone();
@@ -602,7 +615,7 @@ impl Layout {
     }
 
     pub fn close_current_window_and_focus_parent(&mut self) {
-        self.tree.close_current_and_focus_parent()
+        self.tree.close_current_and_focus_parent();
     }
 
     #[cfg(test)]

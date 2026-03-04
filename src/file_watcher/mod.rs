@@ -103,7 +103,7 @@ pub fn watch_file_changes(
                     match result {
                         Ok(event) => event_handler.handle_event(event, &debounced_handler),
                         Err(error) => {
-                            log::error!("watch_file_changes error: {error:?}")
+                            log::error!("watch_file_changes error: {error:?}");
                         }
                     }
                 }
@@ -114,7 +114,7 @@ pub fn watch_file_changes(
                 match event {
                     FileWatcherInput::SyncOpenedPaths(paths) => state.opened_paths = paths,
                     FileWatcherInput::SyncFileExplorerExpandedFolders(paths) => {
-                        state.expanded_folders = paths
+                        state.expanded_folders = paths;
                     }
                     FileWatcherInput::FileWatcherEvent(file_watcher_event) => {
                         // Only send events for path that are opened
@@ -148,7 +148,7 @@ impl EventHandler {
             EventKind::Modify(ModifyKind::Data(_)) => {
                 if let Ok(path) = AbsolutePath::try_from(path) {
                     if path.is_file() {
-                        callback.call(FileWatcherEvent::ContentModified(path))
+                        callback.call(FileWatcherEvent::ContentModified(path));
                     }
                 }
             }
@@ -158,10 +158,10 @@ impl EventHandler {
                         callback.call(FileWatcherEvent::PathRenamed {
                             source,
                             destination,
-                        })
+                        });
                     }
                 } else {
-                    self.rename_source = Some(path)
+                    self.rename_source = Some(path);
                 }
             }
             EventKind::Create(_) => callback.call(FileWatcherEvent::PathCreated),

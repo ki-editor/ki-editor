@@ -31,7 +31,7 @@ impl PositionBasedSelectionMode for LineFull {
                         if index == CharIndex(0) {
                             return Ok(None);
                         } else {
-                            index = index - 1
+                            index = index - 1;
                         }
                     } else {
                         break index;
@@ -62,7 +62,7 @@ impl PositionBasedSelectionMode for LineFull {
             } else if line_index == 0 {
                 break;
             } else {
-                line_index -= 1
+                line_index -= 1;
             }
         }
         Ok(None)
@@ -89,7 +89,7 @@ impl PositionBasedSelectionMode for LineFull {
                     if index > CharIndex(buffer.len_chars().saturating_sub(1)) {
                         return Ok(None);
                     } else if buffer.char(index)?.is_whitespace() {
-                        index = index + 1
+                        index = index + 1;
                     } else {
                         break index;
                     }
@@ -107,7 +107,7 @@ impl PositionBasedSelectionMode for LineFull {
                         .to_index(params, line_index)?
                         .map(ApplyMovementResult::from_selection));
                 } else {
-                    line_index += 1
+                    line_index += 1;
                 }
             } else {
                 break;

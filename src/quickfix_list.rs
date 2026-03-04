@@ -8,7 +8,9 @@ use crate::{
     buffer::Buffer,
     char_index_range::CharIndexRange,
     components::{
-        dropdown::{Dropdown, DropdownConfig, DropdownItem},
+        dropdown_sync::{
+            DropdownItem, DropdownSync as Dropdown, DropdownSyncConfig as DropdownConfig,
+        },
         editor::Movement,
         suggestive_editor::Info,
     },
@@ -92,6 +94,7 @@ pub struct QuickfixList {
     items: Vec<QuickfixListItem>,
     title: String,
     buffers: HashMap<AbsolutePath, Rc<RefCell<Buffer>>>,
+    kind: Option<crate::context::QuickfixListKind>,
 }
 
 impl QuickfixList {
@@ -103,7 +106,7 @@ impl QuickfixList {
         self.dropdown.items_count()
     }
 
-    pub fn render(&self) -> crate::components::dropdown::DropdownRender {
+    pub fn render(&self) -> crate::components::dropdown_sync::DropdownRender {
         self.dropdown.render()
     }
 
@@ -123,11 +126,12 @@ impl QuickfixList {
     pub(crate) fn default() -> QuickfixList {
         QuickfixList {
             dropdown: Dropdown::new(DropdownConfig {
-                title: Default::default(),
+                title: String::default(),
             }),
-            items: Default::default(),
-            title: Default::default(),
-            buffers: Default::default(),
+            items: Vec::default(),
+            title: String::default(),
+            buffers: HashMap::default(),
+            kind: None,
         }
     }
 
@@ -257,7 +261,7 @@ impl QuickfixList {
                 }
             })
             .collect_vec();
-        self.set_items(items, current_working_directory)
+        self.set_items(items, current_working_directory);
     }
 
     pub(crate) fn title(&self) -> String {
@@ -265,7 +269,7 @@ impl QuickfixList {
     }
 
     pub(crate) fn set_title(&mut self, title: &str) {
-        self.title = title.to_string()
+        self.title = title.to_string();
     }
 
     fn extend_buffers(
@@ -286,6 +290,22 @@ impl QuickfixList {
                     .unwrap_or_else(|| Rc::new(RefCell::new(Buffer::new(None, ""))))
             });
         }
+    }
+
+    pub fn set_kind(&mut self, kind: Option<crate::context::QuickfixListKind>) {
+        self.kind = kind;
+    }
+
+    pub fn kind(&self) -> &Option<crate::context::QuickfixListKind> {
+        &self.kind
+    }
+
+    pub(crate) fn current_index(&self) -> usize {
+        self.dropdown.current_item_index
+    }
+
+    pub fn dropdown_items(&self) -> Vec<DropdownItem> {
+        self.dropdown.items()
     }
 }
 
@@ -505,7 +525,7 @@ mod test_quickfix_list {
             vec![foo.clone(), bar.clone(), spam.clone()],
             &std::env::current_dir().unwrap().try_into().unwrap(),
         );
-        assert_eq!(quickfix_list.items(), &vec![spam, foo, bar])
+        assert_eq!(quickfix_list.items(), &vec![spam, foo, bar]);
     }
 
     #[test]
@@ -547,7 +567,7 @@ mod test_quickfix_list {
                 )),
                 line: None
             }]
-        )
+        );
     }
     #[test]
     fn should_hide_line_number_of_non_first_same_line_entries() -> anyhow::Result<()> {

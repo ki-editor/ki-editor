@@ -20,7 +20,7 @@ pub struct WorkspaceSession {
 impl Default for Root {
     fn default() -> Self {
         Self {
-            workspace_sessions: Default::default(),
+            workspace_sessions: HashMap::default(),
             version: file!().to_string(),
         }
     }

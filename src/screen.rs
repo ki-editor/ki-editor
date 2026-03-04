@@ -152,6 +152,7 @@ mod test_screen {
         grid::{Cell, Grid, PositionedCell},
         position::Position,
         screen::{Screen, Window},
+        style::Style,
     };
 
     #[test]
@@ -173,13 +174,13 @@ mod test_screen {
             .to_vec(),
             Vec::new(),
             None,
-            Default::default(),
+            Style::default(),
         );
         let mut new = Screen::new(
             [Window::new(Grid::from_text(dimension, "bc"), rectangle)].to_vec(),
             Vec::new(),
             None,
-            Default::default(),
+            Style::default(),
         );
         let actual = new.diff(&mut old);
         let expected = [

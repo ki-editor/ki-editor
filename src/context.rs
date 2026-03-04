@@ -49,6 +49,8 @@ pub struct Context {
 
     lsp_progress: String,
     kill_ring: RingHistory<Texts>,
+
+    file_dirty_status: HashMap<AbsolutePath, bool>,
 }
 
 #[derive(Debug)]
@@ -103,7 +105,7 @@ impl Context {
             );
 
             if let Err(error) = persistence.write() {
-                log::error!("Failed to write persistence due to {error:?}")
+                log::error!("Failed to write persistence due to {error:?}");
             }
         }
     }
@@ -193,7 +195,7 @@ impl Context {
     }
 
     pub(crate) fn update_lsp_progress(&mut self, lsp_progress: String) {
-        self.lsp_progress = lsp_progress
+        self.lsp_progress = lsp_progress;
     }
 
     pub(crate) fn lsp_progress(&self) -> String {
@@ -204,6 +206,10 @@ impl Context {
         &self.quickfix_list
     }
 
+    pub fn quickfix_list_mut(&mut self) -> &mut QuickfixList {
+        &mut self.quickfix_list
+    }
+
     pub(crate) fn get_quickfix_list_item(
         &mut self,
         movement: crate::components::editor::Movement,
@@ -211,10 +217,18 @@ impl Context {
         self.quickfix_list.get_item(movement)
     }
 
-    pub(crate) fn set_quickfix_list_items(&mut self, title: &str, items: Vec<QuickfixListItem>) {
-        self.quickfix_list.set_title(title);
+    pub fn set_quickfix_list_items(
+        &mut self,
+        items: Vec<QuickfixListItem>,
+        kind: Option<QuickfixListKind>,
+    ) {
         self.quickfix_list
-            .set_items(items, &self.current_working_directory)
+            .set_items(items, &self.current_working_directory);
+        self.quickfix_list.set_kind(kind);
+    }
+
+    pub fn set_quickfix_list_title(&mut self, title: &str) {
+        self.quickfix_list.set_title(title);
     }
 
     pub(crate) fn quickfix_list_items_count(&self) -> usize {
@@ -225,6 +239,14 @@ impl Context {
         self.quickfix_list
             .extend_items(items, &self.current_working_directory);
     }
+
+    pub(crate) fn get_last_visited_file(&self) -> Option<&Location> {
+        self.location_history_backward.last()
+    }
+}
+
+pub enum QuickfixListKind {
+    Mark,
 }
 
 impl Context {
@@ -287,6 +309,7 @@ impl Context {
             lsp_progress: "".to_string(),
             quickfix_list: QuickfixList::default(),
             kill_ring: RingHistory::new(),
+            file_dirty_status: HashMap::new(),
         }
     }
 
@@ -305,7 +328,7 @@ impl Context {
     }
 
     pub(crate) fn add_kill_ring_entry(&mut self, texts: Texts) {
-        self.kill_ring.add(texts)
+        self.kill_ring.add(texts);
     }
 
     pub fn get_kill_ring_content(&self, history_offset: isize) -> Option<Texts> {
@@ -325,7 +348,7 @@ impl Context {
             match self.clipboard.get_from_system_clipboard() {
                 Ok(copied_texts) => return Some(copied_texts),
                 Err(err) => {
-                    log::error!("Context::get_clipboard_content: cannot access system clipboard due to {err:?}")
+                    log::error!("Context::get_clipboard_content: cannot access system clipboard due to {err:?}");
                 }
             }
         }
@@ -344,7 +367,7 @@ impl Context {
     pub fn set_mode(&mut self, mode: Option<GlobalMode>) {
         self.mode = mode.clone();
         if let Some(mode) = mode {
-            self.last_non_contiguous_selection_mode = Some(Either::Right(mode))
+            self.last_non_contiguous_selection_mode = Some(Either::Right(mode));
         }
     }
 
@@ -353,7 +376,7 @@ impl Context {
     }
 
     pub fn set_theme(&mut self, theme: Theme) {
-        self.theme = theme
+        self.theme = theme;
     }
 
     #[cfg(test)]
@@ -372,6 +395,22 @@ impl Context {
         &self.current_working_directory
     }
 
+    pub fn set_file_dirty_status(&mut self, path: &AbsolutePath, dirty_status: bool) {
+        self.file_dirty_status.insert(path.clone(), dirty_status);
+    }
+
+    pub fn get_file_dirty_status(&self, path: &AbsolutePath) -> Option<&bool> {
+        self.file_dirty_status.get(path)
+    }
+
+    pub fn get_dirty_files(&self) -> Vec<&AbsolutePath> {
+        self.file_dirty_status
+            .iter()
+            .filter(|(_path, dirty_status)| **dirty_status)
+            .map(|(path, _dirty_status)| path)
+            .collect()
+    }
+
     pub fn global_search_config(&self) -> &GlobalSearchConfig {
         &self.global_search_config
     }
@@ -381,7 +420,7 @@ impl Context {
             Scope::Local => &mut self.local_search_config,
             Scope::Global => &mut self.global_search_config.local_config,
         }
-        .update(update)
+        .update(update);
     }
 
     pub fn update_global_search_config(
@@ -433,7 +472,7 @@ impl Context {
         &mut self,
         selection_mode: Either<crate::selection::SelectionMode, GlobalMode>,
     ) {
-        self.last_non_contiguous_selection_mode = Some(selection_mode)
+        self.last_non_contiguous_selection_mode = Some(selection_mode);
     }
 
     pub fn last_non_contiguous_selection_mode(
@@ -447,7 +486,7 @@ impl Context {
     }
 
     pub fn set_keyboard_layout_kind(&mut self, keyboard_layout_kind: KeyboardLayoutKind) {
-        self.keyboard_layout_kind = keyboard_layout_kind
+        self.keyboard_layout_kind = keyboard_layout_kind;
     }
 
     pub fn push_location_history(&mut self, location: Location, backward: bool) {
@@ -557,7 +596,7 @@ impl LocalSearchConfigMode {
 
 impl Default for LocalSearchConfigMode {
     fn default() -> Self {
-        Self::Regex(Default::default())
+        Self::Regex(RegexConfig::default())
     }
 }
 
@@ -591,8 +630,8 @@ impl LocalSearchConfig {
     pub fn new(mode: LocalSearchConfigMode) -> Self {
         Self {
             mode,
-            search: Default::default(),
-            replacement: Default::default(),
+            search: None,
+            replacement: None,
         }
     }
 
@@ -679,7 +718,7 @@ mod test_context {
             context
                 .prompt_histories
                 .insert(PromptHistoryKey::Theme, index_set);
-            context.persist_data()
+            context.persist_data();
         }
 
         // Load data

@@ -33,6 +33,9 @@ pub fn vscode_light() -> Theme {
             window_title_unfocused: Style::new()
                 .foreground_color(hex!("#FFFFFF"))
                 .background_color(hex!("#aaaaaa")),
+            focused_tab: Style::new()
+                .foreground_color(hex!("#2C2C2C"))
+                .background_color(hex!("#FFFFFF")),
             parent_lines_background: hex!("#E6EBF0"),
             section_divider_background: hex!("#E6EBF0"),
             jump_mark_odd: Style::new()

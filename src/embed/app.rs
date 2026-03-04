@@ -293,7 +293,7 @@ impl EmbeddedApp {
             IntegrationEvent::BufferChanged { path, edits } => self.buffer_changed(path, edits)?,
             IntegrationEvent::BufferSaved { path } => self.buffer_saved(path)?,
             IntegrationEvent::ModeChanged { component_id, mode } => {
-                self.mode_changed(component_id, mode)?
+                self.mode_changed(component_id, mode)?;
             }
             IntegrationEvent::SelectionModeChanged {
                 component_id,
@@ -319,7 +319,7 @@ impl EmbeddedApp {
             IntegrationEvent::RequestLspImplementation => self.request_lsp_implementation()?,
             IntegrationEvent::RequestLspTypeDefinition => self.request_lsp_type_definition()?,
             IntegrationEvent::KeyboardLayoutChanged(keyboard_layout) => {
-                self.keyboard_layout_changed(keyboard_layout)?
+                self.keyboard_layout_changed(keyboard_layout)?;
             }
             IntegrationEvent::RequestLspRename => self.request_lsp_rename()?,
             IntegrationEvent::RequestLspCodeAction => self.request_lsp_code_action()?,

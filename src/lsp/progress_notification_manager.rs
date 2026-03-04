@@ -77,7 +77,7 @@ impl ProgressNotificationManager {
                             WorkDoneProgress::Report(work_done_progress_report) => {
                                 if let Some(progress) = state.progresses.get_mut(&token) {
                                     progress.percentage = work_done_progress_report.percentage;
-                                    progress.message = work_done_progress_report.message
+                                    progress.message = work_done_progress_report.message;
                                 }
 
                                 if state.progresses.is_empty() {
@@ -111,15 +111,15 @@ impl ProgressNotificationManager {
                                 .join("/");
                             let char = chars[count % chars.len()];
                             let message = format!("{char} {lsp_command}: {message}");
-                            send_progress.call(message)
+                            send_progress.call(message);
                         } else {
                             interval.pause();
-                            send_progress.call(String::new())
+                            send_progress.call(String::new());
                         }
                     }
                 }
             }
-            interval.cancel()
+            interval.cancel();
         });
         Self { sender }
     }

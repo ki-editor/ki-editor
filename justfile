@@ -75,13 +75,13 @@ test-setup:
 
 test testname="": test-setup
     echo "Running cargo nextest..."
-    cargo nextest run --workspace -- --skip 'doc_assets_' {{testname}}
+    cargo nextest run --workspace --no-fail-fast -- --skip 'doc_assets_' {{testname}}
     
 tree-sitter-quickfix:
     just -f tree_sitter_quickfix/justfile
 
 doc-assets testname="": test-setup
-    cargo nextest run --workspace -- 'doc_assets_' {{testname}}
+    RUST_BACKTRACE=1 cargo nextest run --workspace -- 'doc_assets_' {{testname}}
 
 doc-assets-generate-keymaps:
     cargo test -- doc_assets_export_keymaps_json

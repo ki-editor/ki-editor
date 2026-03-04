@@ -203,7 +203,7 @@ impl GitOperation for AbsolutePath {
 
             Ok(hunks)
         } else {
-            Ok(Default::default())
+            Ok(Vec::default())
         }
     }
 

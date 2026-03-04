@@ -1,7 +1,6 @@
 use super::{
     editor::IfCurrentNotFound,
     editor_keymap::alted,
-    editor_keymap_legend::extend_mode_normal_mode_override,
     file_explorer::file_explorer_normal_mode_override,
     keymap_legend::{Keybinding, Keymap},
     suggestive_editor::completion_item_keymap,
@@ -13,7 +12,7 @@ use crate::{
         editor_keymap::{shifted, QWERTY},
         editor_keymap_legend::{
             buffer_keymap, cut_keymap, delete_keymap, duplicate_keymap, insert_keymap,
-            paste_keymap, swap_keymap,
+            paste_keymap, swap_keymap, NormalModeOverride,
         },
     },
     context::Context,
@@ -255,7 +254,7 @@ impl KeymapPrintSections {
             ),
             KeymapPrintSection::from_keymap(
                 "Normal".to_string(),
-                &Keymap::new(&editor.normal_mode_keymap(Default::default(), None)),
+                &Keymap::new(&editor.normal_mode_keymap(None, None)),
             ),
             KeymapPrintSection::from_keymap(
                 "Movements".to_string(),
@@ -291,7 +290,7 @@ impl KeymapPrintSections {
             ),
             KeymapPrintSection::from_keymap(
                 "Actions".to_string(),
-                &Keymap::new(&editor.keymap_actions(&Default::default(), false, None)),
+                &Keymap::new(&editor.keymap_actions(&NormalModeOverride::default(), false, None)),
             ),
             KeymapPrintSection::from_keymap(
                 "Other Movements".to_string(),
@@ -320,10 +319,6 @@ impl KeymapPrintSections {
                 ),
             ),
             KeymapPrintSection::from_keymap(
-                "Extend".to_string(),
-                &Keymap::new(&editor.keymap_overridable(&extend_mode_normal_mode_override(), true)),
-            ),
-            KeymapPrintSection::from_keymap(
                 "Completion Items".to_string(),
                 &completion_item_keymap(),
             ),
@@ -335,6 +330,7 @@ impl KeymapPrintSections {
                 "Transform".to_string(),
                 &Keymap::new(&editor.keymap_transform()),
             ),
+            KeymapPrintSection::from_keymap("Surround".to_string(), &editor.keymap_surround()),
             KeymapPrintSection::from_keymap("Paste".to_string(), &paste_keymap()),
             KeymapPrintSection::from_keymap("Duplicate".to_string(), &duplicate_keymap()),
             KeymapPrintSection::from_keymap(

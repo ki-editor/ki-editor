@@ -21,7 +21,7 @@ pub struct WorkspaceSession {
 impl Default for Root {
     fn default() -> Self {
         Self {
-            workspace_sessions: Default::default(),
+            workspace_sessions: HashMap::default(),
             version: file!().to_string(),
         }
     }
@@ -48,7 +48,7 @@ impl Migration for Root {
                         path_buf,
                         WorkspaceSession {
                             marked_files: workspace_session.marked_files,
-                            marks: Default::default(),
+                            marks: HashMap::default(),
                         },
                     )
                 })
