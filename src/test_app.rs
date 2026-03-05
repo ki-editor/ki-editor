@@ -2830,7 +2830,7 @@ fn open_search_prompt_with_current_selection() -> anyhow::Result<()> {
                 prior_change: None,
             }),
             Expect(CurrentComponentTitle("Local search".to_string())),
-            Expect(CurrentComponentContent("mod foo;")),
+            Expect(CurrentComponentContent("l/mod foo;")),
         ])
     })
 }

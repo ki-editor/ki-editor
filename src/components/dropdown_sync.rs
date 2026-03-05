@@ -622,12 +622,11 @@ impl DropdownSync {
                         .first()
                         .map(|item| self.item_line_index(item.item_index).saturating_sub(1))
                         .unwrap_or_default();
-                    let pad_left = 3;
                     group
                         .fuzzy_matched_char_indices
                         .iter()
                         .map(move |matched_char_index| {
-                            let column_index = (matched_char_index + pad_left) as usize;
+                            let column_index = *matched_char_index as usize;
                             Decoration::new(
                                 crate::selection_range::SelectionRange::Position(
                                     Position {
@@ -908,13 +907,14 @@ mod test_dropdown_sync {
         assert_eq!(
             dropdown.fuzzy_match_decorations(),
             [
-                // g r o
-                (0, 3),
-                (0, 4),
-                (0, 5),
-                // m y
-                (1, 4),
-                (1, 5)
+                // Group label is not left-padded
+                (0, 0), // g
+                (0, 1), // r
+                (0, 2), // o
+                //
+                // Items label are left-padded by 4 spaces
+                (1, 4), // m
+                (1, 5)  // y
             ]
             .into_iter()
             .map(|(line, column)| {
