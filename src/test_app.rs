@@ -3652,6 +3652,7 @@ fn lsp_initialization_should_only_send_relevant_opened_documents() -> anyhow::Re
 fn open_git_branch_picker() -> anyhow::Result<()> {
     execute_test(|s| {
         let temp_dir = s.temp_dir();
+        std::env::set_current_dir(temp_dir.clone());
         Box::new([
             Expect(CurrentWorkingDirectory(s.temp_dir())),
             Shell(

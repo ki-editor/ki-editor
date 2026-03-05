@@ -261,8 +261,6 @@ impl<T: Frontend> App<T> {
             file_watcher_input_sender,
         };
 
-        app.change_working_directory(working_directory)?;
-
         app.restore_session();
 
         Ok(app)
@@ -2731,13 +2729,18 @@ impl<T: Frontend> App<T> {
     }
 
     fn git_checkout(&mut self, branch: &str) -> anyhow::Result<()> {
-        let process_command =
-            ProcessCommand::new("git", &["checkout".to_string(), branch.to_string()]);
-        let output = process_command.run()?;
-        let title = "Git Checkout Success".to_string();
-        let content = output;
+        let output = std::process::Command::new("git")
+            .args(["checkout", branch])
+            .current_dir(self.context.current_working_directory())
+            .output()?;
 
-        let info = Info::new(title, content);
+        let content = if output.status.success() {
+            String::from_utf8_lossy(&output.stdout).into_owned()
+        } else {
+            String::from_utf8_lossy(&output.stderr).into_owned()
+        };
+
+        let info = Info::new("Git Checkout Success".to_string(), content);
         self.show_editor_info(info)
     }
 

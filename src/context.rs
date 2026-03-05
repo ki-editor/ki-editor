@@ -190,6 +190,7 @@ impl Context {
 
     pub fn change_working_directory(&mut self, path: AbsolutePath) -> Result<(), std::io::Error> {
         self.current_working_directory = path;
+        dbg!(self.current_working_directory.clone());
         std::env::set_current_dir(self.current_working_directory.clone())?;
         Ok(())
     }
