@@ -1384,11 +1384,11 @@ foo ha"
                 content: "foo bar (xo) baz (XO)".trim(),
                 file_extension: "md",
                 prepare_events: &[],
-                events: keys!("n d ( x o enter l j"),
+                events: keys!("n d ( x o ) enter l j"),
                 expectations: Box::new([CurrentSelectedTexts(&["(xo)"])]),
                 terminal_height: Some(7),
                 similar_vim_combos: &[],
-                only: true,
+                only: false,
             }]
             .to_vec(),
         },
@@ -1931,7 +1931,7 @@ pub(crate) fn run(path: Option<CanonicalizedPath>) -> anyhow::Result<()> {
                     file_extension: "md",
                     prepare_events: &[],
                     events: keys!(
-                        "n d r / ^ - space backslash [ space backslash right enter r space release-r j d c release-c v l release-v a p b l release-b ; backspace esc r space release-r l"
+                        "n d r / ^ - space backslash [ space backslash ] enter r space release-r j d c release-c v l release-v a p b l release-b ; backspace esc r space release-r l"
                     ),
                     expectations: Box::new([CurrentComponentContent(r#"# Fake To-Do List
 
