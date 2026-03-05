@@ -61,7 +61,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 #[cfg(test)]
 use shared::language::LanguageId;
-use shared::{absolute_path::AbsolutePath, language::Language, process_command::ProcessCommand};
+use shared::{absolute_path::AbsolutePath, language::Language};
 use std::{
     any::TypeId,
     cell::RefCell,
