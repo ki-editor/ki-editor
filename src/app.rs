@@ -1297,6 +1297,7 @@ impl<T: Frontend> App<T> {
             .borrow()
             .editor()
             .current_primary_selection()?;
+        let current_line = format!("l/{}", current_line.replace("/", r#"\/"#));
         self.open_search_prompt(scope, IfCurrentNotFound::LookForward, Some(current_line))
     }
 
