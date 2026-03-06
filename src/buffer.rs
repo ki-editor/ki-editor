@@ -617,7 +617,10 @@ impl Buffer {
     }
 
     fn flag_as_modified(&mut self) -> Dispatches {
-        let dispatches = Dispatches::one(Dispatch::SetFileDirtyStatus { path: self.path.clone(), dirty_status: true });
+        let dispatches = Dispatches::one(Dispatch::SetFileDirtyStatus {
+            path: self.path.clone(),
+            dirty_status: true,
+        });
         self.owner = BufferOwner::User;
         dispatches
     }
