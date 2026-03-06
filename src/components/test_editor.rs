@@ -5394,6 +5394,39 @@ fn git_hunk_gutter() -> anyhow::Result<()> {
 }
 
 #[test]
+fn delete_empty_line_removed_git_hunk_should_not_crash() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Expect(CurrentComponentContent(
+                "mod foo;
+
+fn main() {
+    foo::foo();
+    println!(\"Hello, world!\");
+}
+",
+            )),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+            Editor(MoveSelection(Down)),
+            Expect(CurrentSelectedTexts(&[""])),
+            Editor(DeleteOne),
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                GitHunk(DiffMode::UnstagedAgainstCurrentBranch),
+            )),
+            Expect(CurrentSelectedTexts(&[""])),
+            Editor(DeleteOne),
+            Expect(ExpectKind::NoError),
+        ])
+    })
+}
+
+#[test]
 fn move_to_hunks_consisting_of_only_a_single_empty_line_and_delete_it() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
