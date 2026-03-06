@@ -1143,7 +1143,8 @@ impl Buffer {
         let end = self
             .line_to_byte_range(visible_line_range.end.saturating_sub(1))?
             .range()
-            .end;
+            .end
+            .max(start);
         debug_assert!(start <= end);
         Ok(start..end)
     }
