@@ -142,6 +142,7 @@ impl Buffer {
             let dispatches = self
                 .update_content(&updated_content, SelectionSet::default(), 0)?
                 .append(Dispatch::SetFileDirtyStatus {
+                    path: self.path.clone(),
                     dirty_status: false,
                 });
             self.last_synced_time = path.last_modified_time().ok();
@@ -616,7 +617,7 @@ impl Buffer {
     }
 
     fn flag_as_modified(&mut self) -> Dispatches {
-        let dispatches = Dispatches::one(Dispatch::SetFileDirtyStatus { dirty_status: true });
+        let dispatches = Dispatches::one(Dispatch::SetFileDirtyStatus { path: self.path.clone(), dirty_status: true });
         self.owner = BufferOwner::User;
         dispatches
     }
@@ -756,6 +757,7 @@ impl Buffer {
 
             Ok((
                 Dispatches::one(Dispatch::SetFileDirtyStatus {
+                    path: self.path.clone(),
                     dirty_status: false,
                 }),
                 Some(path.clone()),

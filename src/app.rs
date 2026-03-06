@@ -1114,8 +1114,8 @@ impl<T: Frontend> App<T> {
             Dispatch::NavigateBack => self.navigate_back()?,
             Dispatch::ToggleSelectionMark => self.toggle_selection_mark()?,
             Dispatch::ToggleFileMark => self.toggle_file_mark()?,
-            Dispatch::SetFileDirtyStatus { dirty_status } => {
-                self.set_file_dirty_status(dirty_status);
+            Dispatch::SetFileDirtyStatus { path, dirty_status } => {
+                self.set_file_dirty_status(path, dirty_status);
             }
             Dispatch::ToHostApp(to_host_app) => self.handle_to_host_app(to_host_app)?,
             Dispatch::FromHostApp(from_host_app) => self.handle_from_host_app(from_host_app)?,
@@ -2937,8 +2937,8 @@ impl<T: Frontend> App<T> {
         Ok(())
     }
 
-    fn set_file_dirty_status(&mut self, dirty_status: bool) {
-        if let Some(path) = self.get_current_file_path() {
+    fn set_file_dirty_status(&mut self, path: Option<AbsolutePath>, dirty_status: bool) {
+        if let Some(path) = path {
             self.context.set_file_dirty_status(&path, dirty_status);
         }
     }
@@ -3795,6 +3795,7 @@ pub enum Dispatch {
     ToggleSelectionMark,
     ToggleFileMark,
     SetFileDirtyStatus {
+        path: Option<AbsolutePath>,
         dirty_status: bool,
     },
     Suspend,

@@ -4192,6 +4192,8 @@ fn global_search_should_not_change_dirty_status() -> anyhow::Result<()> {
             Expect(CurrentGlobalMode(None)),
             Expect(CurrentComponentPath(Some(s.main_rs()))),
             Expect(Not(Box::new(EditorIsDirty()))),
+            App(OpenAlternateFile),
+            Expect(Not(Box::new(EditorIsDirty()))),
         ])
     })
 }
