@@ -22,7 +22,7 @@
 -   [x] Add command to sync documents when out of sync
 -   [x] Published to VS Code marketplace is not the latest version
 -   [x] Ki and VS Code buffer content desync sometimes after, say, auto formatting
--   [x] Cylce cursor not working
+-   [x] Cycle cursor not working
 -   [x] VS Code extension README not updated
 -   [x] Rename Rust code of vscode to "embed"
 -   [x] Should we let VS Code handle Undo/Redo for max safety? (now VS Code undo is not overwritten, so there are two
