@@ -3917,7 +3917,7 @@ fn background_editor_forefront_on_edit() -> anyhow::Result<()> {
             Expect(OpenedFilesCount(0)),
             WaitForAppMessage(regex!("GlobalSearchFinished")),
             Expect(CurrentComponentTitle(markup_focused_tab(
-                " [:] 🦀 main.rs ",
+                " [ ] 🦀 main.rs ",
             ))),
             Editor(EnterInsertMode(Direction::Start)),
             App(HandleKeyEvents(keys!("a a esc").to_vec())),
@@ -3951,7 +3951,7 @@ fn background_editor_closing_no_system_buffer() -> anyhow::Result<()> {
             }),
             App(HandleKeyEvents(keys!("f o o enter").to_vec())),
             WaitForAppMessage(regex!("GlobalSearchFinished")),
-            Expect(CurrentComponentTitle(markup_focused_tab(" [:] 🦀 foo.rs "))),
+            Expect(CurrentComponentTitle(markup_focused_tab(" [ ] 🦀 foo.rs "))),
             Expect(OpenedFilesCount(0)),
             App(CloseCurrentWindow),
             Expect(OpenedFilesCount(0)),
