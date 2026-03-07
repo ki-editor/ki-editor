@@ -260,7 +260,10 @@ impl Component for Editor {
             KillLine(direction) => return self.kill_line(direction, context),
             #[cfg(test)]
             Reset => self.reset(),
-            DeleteWordBackward { short } => return self.delete_word_backward(short, context),
+            DeleteWordBackward { short } => {
+                return self.delete_word(short, context, Direction::Start)
+            }
+            DeleteWord { short, direction } => return self.delete_word(short, context, direction),
             Backspace => return self.backspace(context),
             MoveToLineStart => return self.move_to_line_start(context),
             MoveToLineEnd => return self.move_to_line_end(),
@@ -2567,10 +2570,11 @@ impl Editor {
         self.apply_edit_transaction(edit_transaction, context)
     }
 
-    pub fn delete_word_backward(
+    pub fn delete_word(
         &mut self,
         short: bool,
         context: &Context,
+        direction: Direction,
     ) -> Result<Dispatches, anyhow::Error> {
         let action_groups = self
             .selection_set
@@ -2584,7 +2588,7 @@ impl Editor {
                 let len_chars = self.buffer().rope().len_chars();
                 let start = CharIndex(current_range.start.0.min(len_chars).saturating_sub(1));
 
-                let previous_word = {
+                let other_word = {
                     let get_word = |movement: Movement| {
                         Selection::get_selection_(
                             &self.buffer(),
@@ -2603,15 +2607,19 @@ impl Editor {
                         .map(|option| option.unwrap_or_else(|| current_selection.clone().into()))
                     };
                     let current_word =
-                        get_word(Movement::Current(IfCurrentNotFound::LookBackward))?.selection;
+                        get_word(Movement::Current(direction.to_if_current_not_found()))?.selection;
                     if current_word.extended_range().start <= start {
                         current_word
                     } else {
-                        get_word(Movement::Previous)?.selection
+                        get_word(match direction {
+                            Direction::Start => Movement::Previous,
+                            Direction::End => Movement::Next,
+                        })?
+                        .selection
                     }
                 };
 
-                let previous_word_range = previous_word.extended_range();
+                let previous_word_range = other_word.extended_range();
                 let end = previous_word_range
                     .end
                     .min(current_range.start)
@@ -4753,6 +4761,10 @@ pub enum DispatchEditor {
     Reset,
     DeleteWordBackward {
         short: bool,
+    },
+    DeleteWord {
+        short: bool,
+        direction: Direction,
     },
     #[cfg(test)]
     SetLanguage(Box<shared::language::Language>),
