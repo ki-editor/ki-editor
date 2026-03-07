@@ -53,3 +53,23 @@ may have three files: a controller, a view and a test. You type `widget` into
 the file picker and that narrows down the completions to `widget.js`,
 `widget.html` and `widget_test.js`. Pressing `ctrl+o` will open all three and
 close the file picker.
+
+## Pickers
+
+All pickers available
+
+### 1. Theme
+
+### 2. Non-git-ignored Files
+
+### 3. Git status files (against current branch)
+
+### 4. Git status files (against master/main branch)
+
+### 5. LSP Symbols (current file)
+
+### 6. LSP Symbols (workspace)
+
+### 7. Quickfix List Items
+
+This is useful if you want to search for or jump to quickfix list item that matches a particular query.

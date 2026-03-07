@@ -147,7 +147,7 @@ pub struct SyntaxHighlightRequestBatchId(u8);
 
 impl SyntaxHighlightRequestBatchId {
     pub fn increment(&mut self) {
-        self.0 = self.0.wrapping_add(1)
+        self.0 = self.0.wrapping_add(1);
     }
 }
 
@@ -207,13 +207,13 @@ pub fn start_thread(callback: Sender<AppMessage>) -> Sender<SyntaxHighlightReque
                     });
                 }
                 Err(error) => {
-                    log::info!("syntax_highlight_error = {error:#?}")
+                    log::info!("syntax_highlight_error = {error:#?}");
                 }
             }
         });
 
         while let Ok(request) = receiver.recv() {
-            debounce.put(Event(request))
+            debounce.put(Event(request));
         }
     });
 
@@ -238,7 +238,7 @@ impl HighlightConfigs {
         cancellation_flag: &AtomicUsize,
     ) -> Result<HighlightedSpans, anyhow::Error> {
         let Some(grammar_id) = language.tree_sitter_grammar_id() else {
-            return Ok(Default::default());
+            return Ok(HighlightedSpans::default());
         };
         let config = match self.0.get(&grammar_id) {
             Some(config) => config,
@@ -250,7 +250,7 @@ impl HighlightConfigs {
                     };
                     self.0.get(&grammar_id).ok_or_else(get_error)?
                 } else {
-                    return Ok(Default::default());
+                    return Ok(HighlightedSpans::default());
                 }
             }
         };

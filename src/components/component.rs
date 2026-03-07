@@ -3,7 +3,7 @@ use std::any::Any;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use event::event::Event;
-use shared::canonicalized_path::CanonicalizedPath;
+use shared::absolute_path::AbsolutePath;
 
 use crate::{context::Context, grid::Grid, position::Position, rectangle::Rectangle};
 
@@ -96,7 +96,7 @@ pub trait Component: Any + AnyComponent {
         self.editor_mut().get_grid(context, focused)
     }
 
-    fn path(&self) -> Option<CanonicalizedPath> {
+    fn path(&self) -> Option<AbsolutePath> {
         self.editor().buffer().path()
     }
 
@@ -122,7 +122,7 @@ pub trait Component: Any + AnyComponent {
             Event::Key(event) => self.handle_key_event(context, event)?,
             Event::Paste(content) => self.handle_paste_event(content, context)?,
             Event::Mouse(event) => self.handle_mouse_event(event)?,
-            _ => Default::default(),
+            _ => Dispatches::default(),
         };
         self.post_handle_event(dispatches)
     }
@@ -158,14 +158,14 @@ pub trait Component: Any + AnyComponent {
     }
 
     fn set_rectangle(&mut self, rectangle: Rectangle, context: &Context) {
-        self.editor_mut().set_rectangle(rectangle, context)
+        self.editor_mut().set_rectangle(rectangle, context);
     }
 
     fn rectangle(&self) -> &Rectangle {
         self.editor().rectangle()
     }
 
-    fn set_content(&mut self, str: &str, context: &Context) -> anyhow::Result<()> {
+    fn set_content(&mut self, str: &str, context: &Context) -> anyhow::Result<Dispatches> {
         self.editor_mut().set_content(str, context)
     }
 

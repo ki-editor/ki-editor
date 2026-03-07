@@ -2,7 +2,7 @@ use crate::{
     components::{component::ComponentId, editor::Mode},
     selection::{CharIndex, Selection, SelectionMode},
 };
-use shared::canonicalized_path::CanonicalizedPath;
+use shared::absolute_path::AbsolutePath;
 use std::sync::mpsc::Sender;
 
 /// Events emitted by Ki for external integrations
@@ -10,11 +10,11 @@ use std::sync::mpsc::Sender;
 pub enum IntegrationEvent {
     // Buffer events
     BufferChanged {
-        path: CanonicalizedPath,
+        path: AbsolutePath,
         edits: Vec<ki_protocol_types::DiffEdit>,
     },
     BufferSaved {
-        path: CanonicalizedPath,
+        path: AbsolutePath,
     },
     // Editor state events
     ModeChanged {
@@ -56,7 +56,7 @@ pub enum IntegrationEvent {
     RequestLspCodeAction,
     RequestLspDocumentSymbols,
     SyncBufferRequest {
-        path: CanonicalizedPath,
+        path: AbsolutePath,
     },
     RequestLspWorkspaceSymbols,
 }

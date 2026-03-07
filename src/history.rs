@@ -9,8 +9,8 @@ pub struct History<T: Clone + std::fmt::Debug> {
 impl<T: Eq + Clone + std::fmt::Debug> History<T> {
     pub fn new() -> Self {
         Self {
-            backward_history: Default::default(),
-            forward_history: Default::default(),
+            backward_history: Vec::default(),
+            forward_history: Vec::default(),
         }
     }
     pub fn push(&mut self, item: T) {
@@ -54,8 +54,8 @@ impl<T: Eq + Clone + std::fmt::Debug> History<T> {
 impl<T: Clone + std::fmt::Debug> Default for History<T> {
     fn default() -> Self {
         Self {
-            backward_history: Default::default(),
-            forward_history: Default::default(),
+            backward_history: Vec::default(),
+            forward_history: Vec::default(),
         }
     }
 }

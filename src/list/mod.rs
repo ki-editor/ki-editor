@@ -8,7 +8,7 @@ use globset::Glob;
 use ignore::{WalkBuilder, WalkState};
 use itertools::Itertools;
 use rayon::iter::{ParallelBridge, ParallelIterator};
-use shared::canonicalized_path::CanonicalizedPath;
+use shared::absolute_path::AbsolutePath;
 
 use crate::{
     buffer::Buffer, list::reorder_batches::reorder_batches, quickfix_list::Location,
@@ -104,7 +104,7 @@ impl WalkBuilderConfig {
                         {
                             let path = path.path().into();
                             if let Err(error) = f(path, sender.clone()) {
-                                log::error!("sender.send {error:?}")
+                                log::error!("sender.send {error:?}");
                             }
                         } else if path.path().ends_with(".git") {
                             return WalkState::Skip;
@@ -126,7 +126,7 @@ impl WalkBuilderConfig {
         self,
         enable_tree_sitter: bool,
         on_visit_buffer: Arc<
-            dyn Fn(/*file index (0 = first file)*/ usize, CanonicalizedPath, Buffer) + Send + Sync,
+            dyn Fn(/*file index (0 = first file)*/ usize, AbsolutePath, Buffer) + Send + Sync,
         >,
     ) -> anyhow::Result<()> {
         let build_matcher = |glob: Option<&Glob>| -> anyhow::Result<_> {
@@ -200,7 +200,7 @@ impl WalkBuilderConfig {
                             .is_some_and(|file_type| file_type.is_file())
                         {
                             let path: PathBuf = path.path().into();
-                            on_entry(path)
+                            on_entry(path);
                         } else if path.path().ends_with(".git") {
                             return WalkState::Skip;
                         }

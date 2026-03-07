@@ -1,6 +1,6 @@
 use std::{collections::HashMap, sync::LazyLock};
 
-use super::{from_zed_theme, vscode_dark, vscode_light, Theme};
+use super::{from_zed_theme, very_dark, vscode_dark, vscode_light, Theme};
 use zed_theme::{get_custom_themes, get_zed_themes};
 
 #[derive(Clone, Debug, PartialEq)]
@@ -32,6 +32,7 @@ static THEMES: LazyLock<HashMap<String, Theme>> = LazyLock::new(|| {
     // Non-zed builtin themes
     themes.insert("VS Code (Light)".to_string(), vscode_light());
     themes.insert("VS Code (Dark)".to_string(), vscode_dark());
+    themes.insert("Very Dark".to_string(), very_dark());
 
     // Zed builtin themes
     for (name, theme) in get_zed_themes() {
