@@ -249,7 +249,7 @@ mod test_apply_edit {
     use super::apply_edit;
     #[test]
     fn none_if_edited_range_is_equal() {
-        assert_eq!(apply_edit(10..20, &(10..20), 0), None)
+        assert_eq!(apply_edit(10..20, &(10..20), 0), None);
     }
 
     #[test]
@@ -260,13 +260,13 @@ mod test_apply_edit {
 
     #[test]
     fn unaffected_if_edited_range_comes_after() {
-        assert_eq!(apply_edit(10..20, &(20..30), 0), Some(10..20))
+        assert_eq!(apply_edit(10..20, &(20..30), 0), Some(10..20));
     }
 
     #[test]
     fn adjusted_by_offset_if_edited_range_comes_before() {
         assert_eq!(apply_edit(10..20, &(0..5), 3), Some(13..23));
-        assert_eq!(apply_edit(10..20, &(0..5), -3), Some(7..17))
+        assert_eq!(apply_edit(10..20, &(0..5), -3), Some(7..17));
     }
 
     #[test]

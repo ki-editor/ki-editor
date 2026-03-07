@@ -3,7 +3,7 @@ use std::ops::{Not, Range};
 use itertools::Itertools;
 use lazy_regex::Lazy;
 use lsp_types::DiagnosticSeverity;
-use shared::canonicalized_path::CanonicalizedPath;
+use shared::absolute_path::AbsolutePath;
 
 use crate::{
     app::Dimension,
@@ -151,9 +151,9 @@ impl Editor {
             let wrapped_items = wrap_items(
                 get_formatted_paths(
                     &context.get_marked_files(),
+                    &context.get_dirty_files(),
                     &self.path()?,
                     context.current_working_directory(),
-                    self.buffer().dirty(),
                 ),
                 // Reference: NEED_TO_REDUCE_WIDTH_BY_1
                 dimension.width.saturating_sub(1),
@@ -281,7 +281,7 @@ impl Editor {
     fn get_grid_with_dimension(
         &self,
         theme: &Theme,
-        working_directory: &CanonicalizedPath,
+        working_directory: &AbsolutePath,
         quickfix_list_items: &[QuickfixListItem],
         dimension: Dimension,
         scroll_offset: usize,
@@ -313,12 +313,9 @@ impl Editor {
                 scroll_offset,
             )
             .unwrap_or_default();
-        let visible_lines = rope
-            .lines()
-            .enumerate()
-            .skip(scroll_offset)
-            .take(height)
-            .map(|(line_index, slice)| (line_index, slice.to_string()));
+
+        let visible_lines = (scroll_offset..(scroll_offset + height).min(rope.len_lines()))
+            .map(|line_index| (line_index, rope.line(line_index).to_string()));
 
         let visible_lines_grid: Grid = Grid::new(Dimension { height, width });
 
@@ -395,7 +392,7 @@ impl Editor {
                             RenderContentLineNumber::NoLineNumber
                         },
                         updates,
-                        Default::default(),
+                        Vec::default(),
                         theme,
                         None,
                         hunks,
@@ -451,7 +448,7 @@ impl Editor {
                         })
                     })
                     .collect_vec(),
-                Default::default(),
+                Vec::default(),
                 theme,
                 if focused
                     && protected_range
@@ -516,7 +513,7 @@ impl Editor {
                             .collect()
                     }
                 } else {
-                    Default::default()
+                    Vec::default()
                 };
 
             result.apply_cell_updates(section_divider_cell_updates)
@@ -531,7 +528,7 @@ impl Editor {
     fn get_highlight_spans(
         &self,
         theme: &Theme,
-        working_directory: &CanonicalizedPath,
+        working_directory: &AbsolutePath,
         visible_line_range: &Range<usize>,
         hidden_parent_line_ranges: &[Range<usize>],
         visible_parent_lines: &[Line],
@@ -547,7 +544,7 @@ impl Editor {
         } else {
             Box::new(
                 if self.selection_set.mode().is_contiguous() && self.reveal.is_none() {
-                    Default::default()
+                    Vec::default()
                 } else if self.reveal == Some(Reveal::CurrentSelectionMode) {
                     protected_range
                         .and_then(|protected_range| {
@@ -914,7 +911,7 @@ impl Editor {
     pub fn possible_selections_in_line_number_range(
         &self,
         selection: &Selection,
-        working_directory: &CanonicalizedPath,
+        working_directory: &AbsolutePath,
         line_number_range: &Range<usize>,
         quickfix_list_items: &[QuickfixListItem],
         marks: &[CharIndexRange],
@@ -943,7 +940,7 @@ impl Editor {
     pub fn revealed_selections(
         &self,
         selection: &Selection,
-        working_directory: &CanonicalizedPath,
+        working_directory: &AbsolutePath,
         quickfix_list_items: &[QuickfixListItem],
         marks: &[CharIndexRange],
     ) -> anyhow::Result<Vec<ByteRange>> {
@@ -1230,6 +1227,7 @@ mod test_render_editor {
     use crate::{
         components::{component::Component, editor::Editor},
         context::Context,
+        position::Position,
         rectangle::Rectangle,
     };
 
@@ -1239,7 +1237,7 @@ mod test_render_editor {
             const LINE_NUMBER_UI_WIDTH: u8 = 2;
             const PADDING_FOR_CURSOR_AT_LAST_COLUMN: u8 = 1;
             Self {
-                origin: Default::default(),
+                origin: Position::default(),
                 width: (u8::arbitrary(g) / 10).max(
                     MAX_CHARACTER_WIDTH + LINE_NUMBER_UI_WIDTH + PADDING_FOR_CURSOR_AT_LAST_COLUMN,
                 ) as usize,
@@ -1250,7 +1248,7 @@ mod test_render_editor {
 
     #[quickcheck]
     fn get_grid_cells_should_be_always_within_bound(rectangle: Rectangle, content: String) -> bool {
-        let content = content.replace("\r", "");
+        let content = content.replace("\r", "").replace("\u{200c}", "");
         let mut editor = Editor::from_text(None, &content);
         editor.set_rectangle(rectangle.clone(), &Context::default());
         let grid = editor.get_grid(&Context::default(), false);

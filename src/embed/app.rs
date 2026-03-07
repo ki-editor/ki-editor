@@ -15,7 +15,7 @@ use ki_protocol_types::{
     PromptOpenedParams, ResponseError,
 };
 use log::{debug, error, info, trace};
-use shared::canonicalized_path::CanonicalizedPath;
+use shared::absolute_path::AbsolutePath;
 
 use super::ipc::WebSocketIpc;
 use super::logger::HostLogger;
@@ -32,7 +32,7 @@ pub struct EmbeddedApp {
 }
 
 impl EmbeddedApp {
-    pub fn new(working_directory: Option<CanonicalizedPath>) -> Result<Self> {
+    pub fn new(working_directory: Option<AbsolutePath>) -> Result<Self> {
         let log_level = if std::env::var("KI_DEBUG").is_ok() {
             log::LevelFilter::Debug
         } else {
@@ -78,7 +78,7 @@ impl EmbeddedApp {
             app_message_receiver: real_app_receiver,
             integration_event_receiver,
             ipc_handler,
-            context: Context::new(CanonicalizedPath::try_from(".")?, true, None),
+            context: Context::new(AbsolutePath::try_from(".")?, true, None),
         })
     }
 
@@ -237,7 +237,7 @@ impl EmbeddedApp {
 
     pub fn get_editor_component_by_path(
         &self,
-        path: &CanonicalizedPath,
+        path: &AbsolutePath,
     ) -> Option<std::rc::Rc<std::cell::RefCell<dyn crate::components::component::Component>>> {
         let app_guard = match self.app.try_lock() {
             Ok(guard) => guard,
@@ -293,7 +293,7 @@ impl EmbeddedApp {
             IntegrationEvent::BufferChanged { path, edits } => self.buffer_changed(path, edits)?,
             IntegrationEvent::BufferSaved { path } => self.buffer_saved(path)?,
             IntegrationEvent::ModeChanged { component_id, mode } => {
-                self.mode_changed(component_id, mode)?
+                self.mode_changed(component_id, mode)?;
             }
             IntegrationEvent::SelectionModeChanged {
                 component_id,
@@ -319,7 +319,7 @@ impl EmbeddedApp {
             IntegrationEvent::RequestLspImplementation => self.request_lsp_implementation()?,
             IntegrationEvent::RequestLspTypeDefinition => self.request_lsp_type_definition()?,
             IntegrationEvent::KeyboardLayoutChanged(keyboard_layout) => {
-                self.keyboard_layout_changed(keyboard_layout)?
+                self.keyboard_layout_changed(keyboard_layout)?;
             }
             IntegrationEvent::RequestLspRename => self.request_lsp_rename()?,
             IntegrationEvent::RequestLspCodeAction => self.request_lsp_code_action()?,
@@ -436,7 +436,7 @@ impl EmbeddedApp {
 
     fn buffer_changed(
         &self,
-        path: CanonicalizedPath,
+        path: AbsolutePath,
         edits: Vec<ki_protocol_types::DiffEdit>,
     ) -> anyhow::Result<()> {
         let buffer_id = path.display_absolute();
@@ -450,7 +450,7 @@ impl EmbeddedApp {
         })
     }
 
-    fn buffer_saved(&self, path: CanonicalizedPath) -> anyhow::Result<()> {
+    fn buffer_saved(&self, path: AbsolutePath) -> anyhow::Result<()> {
         let uri = path_to_uri(&path);
         let params = ki_protocol_types::BufferParams { uri };
         self.send_notification(OutputMessageWrapper {
@@ -612,7 +612,7 @@ impl EmbeddedApp {
             }
         };
         for buffer_diagnostics in buffer_diagnosticss {
-            let path = CanonicalizedPath::try_from(buffer_diagnostics.path)?;
+            let path = AbsolutePath::try_from(buffer_diagnostics.path)?;
             let diagnostics = buffer_diagnostics
                 .diagnostics
                 .into_iter()
@@ -787,7 +787,7 @@ impl EmbeddedApp {
         })
     }
 
-    fn request_buffer_content(&self, path: CanonicalizedPath) -> anyhow::Result<()> {
+    fn request_buffer_content(&self, path: AbsolutePath) -> anyhow::Result<()> {
         self.send_notification(OutputMessageWrapper {
             id: 0,
             message: OutputMessage::SyncBufferRequest {
@@ -806,7 +806,7 @@ impl EmbeddedApp {
     }
 }
 
-pub fn run_embedded_ki(working_directory: CanonicalizedPath) -> anyhow::Result<()> {
+pub fn run_embedded_ki(working_directory: AbsolutePath) -> anyhow::Result<()> {
     eprintln!("== Ki running as embedded app ==");
 
     let mut embedded_app = EmbeddedApp::new(Some(working_directory))?;

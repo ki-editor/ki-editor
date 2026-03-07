@@ -1,3 +1,3 @@
 fn main() {
-    ki::main()
+    ki::main();
 }

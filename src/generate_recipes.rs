@@ -85,7 +85,7 @@ fn doc_assets_generate_recipes() -> anyhow::Result<()> {
                                         if index == accum_events_len - 1 {
                                             recipe.expectations.clone()
                                         } else {
-                                            Default::default()
+                                            Box::default()
                                         }
                                         .iter()
                                         .map(|kind| Expect(kind.clone())),

@@ -67,7 +67,7 @@ pub fn parse_search_config(input: &str) -> anyhow::Result<GlobalSearchConfig> {
                 escaped = true;
             } else if c != separator || escaped {
                 escaped = false;
-                result.push(c.to_string())
+                result.push(c.to_string());
             } else {
                 last_index = i;
                 break;
@@ -121,7 +121,7 @@ mod test_parse_search_config {
                 .unwrap()
                 .local_config;
             assert_eq!(actual.mode, expected_mode);
-            assert_eq!(actual.search(), "hello")
+            assert_eq!(actual.search(), "hello");
         }
         run_test("l", Regex(RegexConfig::literal()));
         run_test("c", Regex(RegexConfig::case_sensitive()));
@@ -186,7 +186,7 @@ mod test_parse_search_config {
         let actual = parse_search_config("r hello world").unwrap().local_config;
         assert_eq!(actual.mode, Regex(RegexConfig::regex()));
         assert_eq!(actual.search(), "hello");
-        assert_eq!(actual.replacement(), "world")
+        assert_eq!(actual.replacement(), "world");
     }
 
     #[test]
@@ -196,7 +196,7 @@ mod test_parse_search_config {
             .local_config;
         assert_eq!(actual.mode, Regex(RegexConfig::regex()));
         assert_eq!(actual.search(), "hello world");
-        assert_eq!(actual.replacement(), "bye bye")
+        assert_eq!(actual.replacement(), "bye bye");
     }
 
     #[test]
@@ -206,7 +206,7 @@ mod test_parse_search_config {
             .local_config;
         assert_eq!(actual.mode, Regex(RegexConfig::regex()));
         assert_eq!(actual.search(), r#"hello wor\ld"#);
-        assert_eq!(actual.replacement(), r#"bye by\e"#)
+        assert_eq!(actual.replacement(), r#"bye by\e"#);
     }
 
     #[test]
@@ -214,7 +214,7 @@ mod test_parse_search_config {
         let actual = parse_search_config("hello_world").unwrap().local_config;
         assert_eq!(actual.mode, Regex(RegexConfig::literal()));
         assert_eq!(actual.search(), "hello_world");
-        assert_eq!(actual.replacement(), "")
+        assert_eq!(actual.replacement(), "");
     }
 
     #[test]
@@ -224,7 +224,7 @@ mod test_parse_search_config {
             .local_config;
         assert_eq!(actual.mode, Regex(RegexConfig::literal()));
         assert_eq!(actual.search(), r#"w\hello\world"#);
-        assert_eq!(actual.replacement(), "")
+        assert_eq!(actual.replacement(), "");
     }
 
     #[test]

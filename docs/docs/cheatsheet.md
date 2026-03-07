@@ -20,7 +20,7 @@ sidebar.
 The following binds are non-positional:
 
 | Bind      | Action                        |
-| ----------| ----------------------------- |
+| --------- | ----------------------------- |
 | Backspace | ← Select (previous selection) |
 | Tab       | Select → (next selection)     |
 
@@ -44,13 +44,13 @@ The following binds are non-positional:
 
 <KeymapFallback filename="Transform"/>
 
+### Surround Menu
+
+<KeymapFallback filename="Surround"/>
+
 ### Sub Modes
 
 These modes mirror normal mode except for the changed binds listed.
-
-#### Extend Submode
-
-<KeymapFallback filename="Extend"/>
 
 #### Multi-Cursor Submode
 
@@ -71,4 +71,3 @@ The following binds are non-positional:
 For code completion popups.
 
 <KeymapFallback filename="Completion Items"/>
-

@@ -8,20 +8,22 @@ use crate::{
     buffer::Buffer,
     char_index_range::CharIndexRange,
     components::{
-        dropdown::{Dropdown, DropdownConfig, DropdownItem},
+        dropdown_sync::{
+            DropdownItem, DropdownSync as Dropdown, DropdownSyncConfig as DropdownConfig,
+        },
         editor::Movement,
         suggestive_editor::Info,
     },
     position::Position,
 };
-use shared::canonicalized_path::CanonicalizedPath;
+use shared::absolute_path::AbsolutePath;
 
 impl QuickfixListItem {
     fn into_dropdown_item(
         self: &QuickfixListItem,
-        buffers: &HashMap<CanonicalizedPath, Rc<RefCell<Buffer>>>,
+        buffers: &HashMap<AbsolutePath, Rc<RefCell<Buffer>>>,
         position_range: &Range<Position>,
-        current_working_directory: &CanonicalizedPath,
+        current_working_directory: &AbsolutePath,
         show_line_number: bool,
         max_line_number_digits_count: usize,
         max_column_number_digits_count: usize,
@@ -91,7 +93,8 @@ pub struct QuickfixList {
     dropdown: Dropdown,
     items: Vec<QuickfixListItem>,
     title: String,
-    buffers: HashMap<CanonicalizedPath, Rc<RefCell<Buffer>>>,
+    buffers: HashMap<AbsolutePath, Rc<RefCell<Buffer>>>,
+    kind: Option<crate::context::QuickfixListKind>,
 }
 
 impl QuickfixList {
@@ -103,7 +106,7 @@ impl QuickfixList {
         self.dropdown.items_count()
     }
 
-    pub fn render(&self) -> crate::components::dropdown::DropdownRender {
+    pub fn render(&self) -> crate::components::dropdown_sync::DropdownRender {
         self.dropdown.render()
     }
 
@@ -123,18 +126,19 @@ impl QuickfixList {
     pub(crate) fn default() -> QuickfixList {
         QuickfixList {
             dropdown: Dropdown::new(DropdownConfig {
-                title: Default::default(),
+                title: String::default(),
             }),
-            items: Default::default(),
-            title: Default::default(),
-            buffers: Default::default(),
+            items: Vec::default(),
+            title: String::default(),
+            buffers: HashMap::default(),
+            kind: None,
         }
     }
 
     pub(crate) fn extend_items(
         &mut self,
         items: Vec<QuickfixListItem>,
-        current_working_directory: &CanonicalizedPath,
+        current_working_directory: &AbsolutePath,
     ) {
         self.extend_buffers(&items, current_working_directory);
 
@@ -150,7 +154,7 @@ impl QuickfixList {
     pub(crate) fn set_items(
         &mut self,
         items: Vec<QuickfixListItem>,
-        current_working_directory: &CanonicalizedPath,
+        current_working_directory: &AbsolutePath,
     ) {
         // Clear buffers cache
         self.buffers.clear();
@@ -164,7 +168,7 @@ impl QuickfixList {
     fn convert_items(
         &mut self,
         items: Vec<QuickfixListItem>,
-        current_working_directory: &CanonicalizedPath,
+        current_working_directory: &AbsolutePath,
     ) -> (Vec<QuickfixListItem>, Vec<DropdownItem>) {
         let items = items
             .into_iter()
@@ -240,9 +244,9 @@ impl QuickfixList {
 
     pub(crate) fn handle_applied_edits(
         &mut self,
-        path: &CanonicalizedPath,
+        path: &AbsolutePath,
         edits: &[crate::edit::Edit],
-        current_working_directory: &CanonicalizedPath,
+        current_working_directory: &AbsolutePath,
     ) {
         let items = self
             .items
@@ -257,7 +261,7 @@ impl QuickfixList {
                 }
             })
             .collect_vec();
-        self.set_items(items, current_working_directory)
+        self.set_items(items, current_working_directory);
     }
 
     pub(crate) fn title(&self) -> String {
@@ -265,13 +269,13 @@ impl QuickfixList {
     }
 
     pub(crate) fn set_title(&mut self, title: &str) {
-        self.title = title.to_string()
+        self.title = title.to_string();
     }
 
     fn extend_buffers(
         &mut self,
         items: &[QuickfixListItem],
-        current_working_directory: &CanonicalizedPath,
+        current_working_directory: &AbsolutePath,
     ) {
         // Extend the buffers cache with new paths
         for path in items
@@ -286,6 +290,22 @@ impl QuickfixList {
                     .unwrap_or_else(|| Rc::new(RefCell::new(Buffer::new(None, ""))))
             });
         }
+    }
+
+    pub fn set_kind(&mut self, kind: Option<crate::context::QuickfixListKind>) {
+        self.kind = kind;
+    }
+
+    pub fn kind(&self) -> &Option<crate::context::QuickfixListKind> {
+        &self.kind
+    }
+
+    pub(crate) fn current_index(&self) -> usize {
+        self.dropdown.current_item_index
+    }
+
+    pub fn dropdown_items(&self) -> Vec<DropdownItem> {
+        self.dropdown.items()
     }
 }
 
@@ -350,14 +370,14 @@ impl QuickfixListItem {
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Location {
-    pub path: CanonicalizedPath,
+    pub path: AbsolutePath,
     pub range: CharIndexRange,
 }
 
 impl Location {
     fn read_from_buffers(
         &self,
-        buffers: &HashMap<CanonicalizedPath, Rc<RefCell<Buffer>>>,
+        buffers: &HashMap<AbsolutePath, Rc<RefCell<Buffer>>>,
     ) -> Option<String> {
         buffers.get(&self.path).and_then(|buffer| {
             Some(
@@ -470,12 +490,12 @@ mod test_quickfix_list {
 
     use super::{Location, QuickfixList, QuickfixListItem};
     use pretty_assertions::assert_eq;
-    use shared::canonicalized_path::CanonicalizedPath;
+    use shared::absolute_path::AbsolutePath;
 
     #[test]
     fn should_sort_items() {
-        let git_ignore_path: CanonicalizedPath = ".gitignore".try_into().unwrap();
-        let readme_path: CanonicalizedPath = "README.md".try_into().unwrap();
+        let git_ignore_path: AbsolutePath = ".gitignore".try_into().unwrap();
+        let readme_path: AbsolutePath = "README.md".try_into().unwrap();
         let foo = QuickfixListItem {
             location: Location {
                 path: git_ignore_path.clone(),
@@ -505,12 +525,12 @@ mod test_quickfix_list {
             vec![foo.clone(), bar.clone(), spam.clone()],
             &std::env::current_dir().unwrap().try_into().unwrap(),
         );
-        assert_eq!(quickfix_list.items(), &vec![spam, foo, bar])
+        assert_eq!(quickfix_list.items(), &vec![spam, foo, bar]);
     }
 
     #[test]
     fn should_merge_items_of_same_location() {
-        let readme_path: CanonicalizedPath = "README.md".try_into().unwrap();
+        let readme_path: AbsolutePath = "README.md".try_into().unwrap();
         let items = [
             QuickfixListItem {
                 location: Location {
@@ -547,7 +567,7 @@ mod test_quickfix_list {
                 )),
                 line: None
             }]
-        )
+        );
     }
     #[test]
     fn should_hide_line_number_of_non_first_same_line_entries() -> anyhow::Result<()> {

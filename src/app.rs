@@ -1,10 +1,10 @@
 use crate::{
     buffer::{Buffer, BufferOwner},
     char_index_range::CharIndexRange,
-    clipboard::CopiedTexts,
+    clipboard::Texts,
     components::{
         component::{Component, ComponentId, GetGridResult},
-        dropdown::{DropdownItem, DropdownRender},
+        dropdown_sync::{DropdownItem, DropdownRender},
         editor::{
             Direction, DispatchEditor, Editor, IfCurrentNotFound, Movement, PriorChange, Reveal,
         },
@@ -21,7 +21,8 @@ use crate::{
         },
     },
     context::{
-        Context, GlobalMode, GlobalSearchConfig, LocalSearchConfigMode, QuickfixListSource, Search,
+        Context, GlobalMode, GlobalSearchConfig, LocalSearchConfigMode, QuickfixListKind,
+        QuickfixListSource, Search,
     },
     edit::Edit,
     file_watcher::{FileWatcherEvent, FileWatcherInput},
@@ -60,11 +61,11 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 #[cfg(test)]
 use shared::language::LanguageId;
-use shared::{canonicalized_path::CanonicalizedPath, language::Language};
+use shared::{absolute_path::AbsolutePath, language::Language};
 use std::{
     any::TypeId,
     cell::RefCell,
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     path::{Path, PathBuf},
     rc::Rc,
     sync::{
@@ -77,7 +78,7 @@ use strum::IntoEnumIterator;
 use DispatchEditor::*;
 
 #[cfg(test)]
-use crate::{layout::BufferContentsMap, quickfix_list::QuickfixList, test_app::RunTestOptions};
+use crate::{layout::BufferContentsMap, test_app::RunTestOptions};
 
 // TODO: rename current Context struct to RawContext struct
 // The new Context struct should always be derived, it should contains Hashmap of rectangles, keyed by Component ID
@@ -164,7 +165,7 @@ impl<T: Frontend> App<T> {
     #[cfg(test)]
     pub fn new(
         frontend: Rc<Mutex<T>>,
-        working_directory: CanonicalizedPath,
+        working_directory: AbsolutePath,
         status_lines: Vec<StatusLine>,
         options: RunTestOptions,
     ) -> anyhow::Result<App<T>> {
@@ -194,7 +195,7 @@ impl<T: Frontend> App<T> {
     #[allow(clippy::too_many_arguments)]
     pub fn from_channel(
         frontend: Rc<Mutex<T>>,
-        working_directory: CanonicalizedPath,
+        working_directory: AbsolutePath,
         sender: Sender<AppMessage>,
         receiver: Receiver<AppMessage>,
         syntax_highlight_request_sender: Option<Sender<SyntaxHighlightRequest>>,
@@ -237,7 +238,7 @@ impl<T: Frontend> App<T> {
                         ))) {
                             log::error!(
                                 "Failed to send RequestCompletionDebounced to App due to {err:?}"
-                            )
+                            );
                         }
                     })),
                     Duration::from_millis(300),
@@ -288,7 +289,7 @@ impl<T: Frontend> App<T> {
     }
 
     /// This is the main event loop.
-    pub fn run(mut self, entry_path: Option<CanonicalizedPath>) -> Result<(), anyhow::Error> {
+    pub fn run(mut self, entry_path: Option<AbsolutePath>) -> Result<(), anyhow::Error> {
         self.set_terminal_options()?;
 
         if let Some(entry_path) = entry_path {
@@ -339,8 +340,8 @@ impl<T: Frontend> App<T> {
                 self.handle_dispatch(*dispatch)?;
                 Ok(false)
             }
-            AppMessage::NucleoTickDebounced => {
-                self.handle_nucleo_debounced()?;
+            AppMessage::HandleNucleoNotify(source) => {
+                self.handle_nucleo_notify(source)?;
                 Ok(false)
             }
             AppMessage::FileWatcherEvent(event) => {
@@ -425,7 +426,7 @@ impl<T: Frontend> App<T> {
                 let dispatches = component.borrow_mut().handle_event(&self.context, event);
                 self.handle_dispatches_result(dispatches)
                     .unwrap_or_else(|e| {
-                        self.show_global_info(Info::new("ERROR".to_string(), e.to_string()))
+                        self.show_global_info(Info::new("ERROR".to_string(), e.to_string()));
                     });
             }
         }
@@ -708,7 +709,7 @@ impl<T: Frontend> App<T> {
     }
 
     fn send_integration_event(&self, event: crate::integration_event::IntegrationEvent) {
-        self.integration_event_sender.emit_event(event)
+        self.integration_event_sender.emit_event(event);
     }
 
     pub fn handle_dispatch(&mut self, dispatch: Dispatch) -> Result<(), anyhow::Error> {
@@ -767,7 +768,7 @@ impl<T: Frontend> App<T> {
                             completion_item: Box::new(completion_item),
                             params,
                         },
-                    )?
+                    )?;
                 }
             }
             Dispatch::RequestReferences {
@@ -948,24 +949,23 @@ impl<T: Frontend> App<T> {
                         }
                     }
                 }
-
                 self.lsp_manager().send_message(
                     path.clone(),
                     FromEditor::TextDocumentDidSave { file_path: path },
                 )?;
             }
             Dispatch::SetQuickfixList(r#type) => {
-                self.set_quickfix_list_type(Default::default(), r#type)?;
+                self.set_quickfix_list_type(ResponseContext::default(), r#type)?;
             }
             Dispatch::GotoQuickfixListItem(movement) => self.goto_quickfix_list_item(movement)?,
             Dispatch::ApplyWorkspaceEdit(workspace_edit) => {
                 self.apply_workspace_edit(workspace_edit)?;
             }
             Dispatch::ShowKeymapLegend(keymap_legend_config) => {
-                self.show_keymap_legend(keymap_legend_config, None)
+                self.show_keymap_legend(keymap_legend_config, None);
             }
             Dispatch::ShowKeymapLegendWithReleaseKey(keymap_legend_config, release_key) => {
-                self.show_keymap_legend(keymap_legend_config, Some(release_key))
+                self.show_keymap_legend(keymap_legend_config, Some(release_key));
             }
             #[cfg(test)]
             Dispatch::Custom(_) => unreachable!(),
@@ -973,7 +973,7 @@ impl<T: Frontend> App<T> {
             Dispatch::ToEditor(dispatch_editor) => self.handle_dispatch_editor(dispatch_editor)?,
             Dispatch::GotoLocation(location) => self.go_to_location(&location, true)?,
             Dispatch::OpenMoveToIndexPrompt(prior_change) => {
-                self.open_move_to_index_prompt(prior_change)?
+                self.open_move_to_index_prompt(prior_change)?;
             }
             Dispatch::QuitAll => self.quit_all()?,
             Dispatch::RevealInExplorer(path) => self.reveal_path_in_explorer(&path)?,
@@ -1002,6 +1002,7 @@ impl<T: Frontend> App<T> {
                         frontend.set_clipboard_with_osc52(&contents.to_text())
                     })?;
             }
+            Dispatch::AddKillRingEntry { texts } => self.context.add_kill_ring_entry(texts),
             Dispatch::SetGlobalMode(mode) => self.set_global_mode(mode)?,
             #[cfg(test)]
             Dispatch::HandleKeyEvent(key_event) => {
@@ -1022,7 +1023,7 @@ impl<T: Frontend> App<T> {
                     self.lsp_manager().send_message(
                         params.path.clone(),
                         FromEditor::WorkspaceExecuteCommand { params, command },
-                    )?
+                    )?;
                 };
             }
             Dispatch::UpdateLocalSearchConfig {
@@ -1049,7 +1050,7 @@ impl<T: Frontend> App<T> {
             },
             #[cfg(test)]
             Dispatch::HandleLspNotification(notification) => {
-                self.handle_lsp_notification(notification)?
+                self.handle_lsp_notification(notification)?;
             }
             Dispatch::SetTheme(theme) => {
                 self.context.set_theme(theme.clone());
@@ -1068,30 +1069,35 @@ impl<T: Frontend> App<T> {
                 }
             }
             #[cfg(test)]
-            Dispatch::OpenPrompt { config } => self.open_prompt(config)?,
+            Dispatch::OpenPrompt { config } => {
+                self.open_prompt(config)?;
+            }
             Dispatch::ShowEditorInfo(info) => self.show_editor_info(info)?,
             Dispatch::ReceiveCodeActions(code_actions) => {
                 self.open_code_actions_picker(code_actions)?;
             }
             Dispatch::OtherWindow => self.layout.cycle_window(),
             Dispatch::CycleMarkedFile(movement) => self.cycle_marked_file(movement)?,
+            Dispatch::OpenAlternateFile => self.open_alternate_file()?,
             Dispatch::PushPromptHistory { key, line } => self.push_history_prompt(key, line),
-            Dispatch::OpenThemePrompt => self.open_theme_picker()?,
+            Dispatch::OpenThemePicker => self.open_theme_picker()?,
+            Dispatch::OpenGitBranchPrompt => self.open_git_branch_picker()?,
+            Dispatch::GitCheckout(branch) => self.git_checkout(&branch)?,
             Dispatch::SetLastNonContiguousSelectionMode(selection_mode) => self
                 .context
                 .set_last_non_contiguous_selection_mode(selection_mode),
             Dispatch::UseLastNonContiguousSelectionMode(if_current_not_found) => {
-                self.use_last_non_contiguous_selection_mode(if_current_not_found)?
+                self.use_last_non_contiguous_selection_mode(if_current_not_found)?;
             }
             Dispatch::SetLastActionDescription {
                 long_description: description,
                 short_description,
             } => {
                 self.last_action_description = Some(description);
-                self.last_action_short_description = short_description
+                self.last_action_short_description = short_description;
             }
             Dispatch::OpenFilterSelectionsPrompt { maintain } => {
-                self.open_filter_selections_prompt(maintain)?
+                self.open_filter_selections_prompt(maintain)?;
             }
             Dispatch::MoveToCompletionItem(direction) => self.handle_dispatch_suggestive_editor(
                 DispatchSuggestiveEditor::MoveToCompletionItem(direction),
@@ -1106,8 +1112,11 @@ impl<T: Frontend> App<T> {
             Dispatch::OpenKeyboardLayoutPrompt => self.open_keyboard_layout_picker()?,
             Dispatch::NavigateForward => self.navigate_forward()?,
             Dispatch::NavigateBack => self.navigate_back()?,
-            Dispatch::MarkFileAndToggleMark => self.mark_file_and_toggle_mark()?,
+            Dispatch::ToggleSelectionMark => self.toggle_selection_mark()?,
             Dispatch::ToggleFileMark => self.toggle_file_mark()?,
+            Dispatch::SetFileDirtyStatus { path, dirty_status } => {
+                self.set_file_dirty_status(path, dirty_status);
+            }
             Dispatch::ToHostApp(to_host_app) => self.handle_to_host_app(to_host_app)?,
             Dispatch::FromHostApp(from_host_app) => self.handle_from_host_app(from_host_app)?,
             Dispatch::OpenSurroundXmlPrompt => self.open_surround_xml_prompt()?,
@@ -1116,15 +1125,12 @@ impl<T: Frontend> App<T> {
                 prior_change,
             } => self.open_search_prompt_with_current_selection(scope, prior_change)?,
             Dispatch::ShowGlobalInfo(info) => self.show_global_info(info),
-            Dispatch::DropdownFilterUpdated(filter) => {
-                self.handle_dropdown_filter_updated(filter)?
-            }
             #[cfg(test)]
             Dispatch::SetSystemClipboardHtml { html, alt_text } => {
-                self.set_system_clipboard_html(html, alt_text)?
+                self.set_system_clipboard_html(html, alt_text)?;
             }
             Dispatch::AddQuickfixListEntries(locations) => {
-                self.add_quickfix_list_entries(locations)?
+                self.add_quickfix_list_entries(locations)?;
             }
             Dispatch::AppliedEdits { path, edits } => self.handle_applied_edits(path, edits),
             Dispatch::ExecuteLeaderKey(key) => self.execute_leader_key(key)?,
@@ -1133,18 +1139,18 @@ impl<T: Frontend> App<T> {
                 content_editor,
                 content_filesystem,
             } => {
-                self.show_buffer_save_conflict_prompt(&path, content_editor, content_filesystem)?
+                self.show_buffer_save_conflict_prompt(&path, content_editor, content_filesystem)?;
             }
-            Dispatch::OpenWorkspaceSymbolsPrompt => self.open_workspace_symbols_picker()?,
+            Dispatch::OpenWorkspaceSymbolsPicker => self.open_workspace_symbols_picker()?,
             Dispatch::GetAndHandlePromptOnChangeDispatches => {
-                self.get_and_handle_prompt_on_change_dispatches()?
+                self.get_and_handle_prompt_on_change_dispatches()?;
             }
             Dispatch::SetIncrementalSearchConfig {
                 config,
                 component_id,
             } => self.set_incremental_search_config(config, component_id),
             Dispatch::UpdateCurrentComponentTitle(title) => {
-                self.update_current_component_title(title)
+                self.update_current_component_title(title);
             }
             Dispatch::SaveMarks { path, marks } => self.context.save_marks(path, marks),
             Dispatch::ToSuggestiveEditor(dispatch) => {
@@ -1153,19 +1159,17 @@ impl<T: Frontend> App<T> {
             Dispatch::OpenAndMarkFiles(paths) => self.open_and_mark_files(paths)?,
             Dispatch::ToggleOrOpenPaths => self.toggle_or_open_paths()?,
             Dispatch::ChangeWorkingDirectory(path) => self.change_working_directory(path)?,
-            Dispatch::AddClipboardHistory(copied_texts) => {
-                self.context.add_clipboard_history(copied_texts)
-            }
             Dispatch::OpenChangeWorkingDirectoryPrompt => {
-                self.open_change_working_directory_prompt()?
+                self.open_change_working_directory_prompt()?;
             }
+            Dispatch::OpenQuickfixItemsPicker => self.open_quickfix_item_picker()?,
         }
         Ok(())
     }
 
     pub fn get_editor_by_file_path(
         &self,
-        path: &CanonicalizedPath,
+        path: &AbsolutePath,
     ) -> Option<Rc<RefCell<SuggestiveEditor>>> {
         self.layout.get_existing_editor(path)
     }
@@ -1188,7 +1192,7 @@ impl<T: Frontend> App<T> {
 
     fn unmark_all_others(&mut self) -> anyhow::Result<()> {
         if let Some(current_file_path) = self.get_current_file_path() {
-            let paths_to_unmark: Vec<CanonicalizedPath> = self
+            let paths_to_unmark: Vec<AbsolutePath> = self
                 .context
                 .get_marked_files()
                 .into_iter()
@@ -1252,7 +1256,7 @@ impl<T: Frontend> App<T> {
                 parser: DispatchParser::MoveSelectionByIndex,
                 history_key: PromptHistoryKey::MoveToIndex,
                 current_line: None,
-                suggested_items: Default::default(),
+                suggested_items: Vec::default(),
             },
         ))
     }
@@ -1264,7 +1268,7 @@ impl<T: Frontend> App<T> {
                 parser: DispatchParser::RenameSymbol,
                 history_key: PromptHistoryKey::Rename,
                 current_line: current_name,
-                suggested_items: Default::default(),
+                suggested_items: Vec::default(),
             },
         ))
     }
@@ -1276,7 +1280,7 @@ impl<T: Frontend> App<T> {
                 parser: DispatchParser::SurroundXmlTag,
                 history_key: PromptHistoryKey::SurroundXmlTag,
                 current_line: None,
-                suggested_items: Default::default(),
+                suggested_items: Vec::default(),
             },
         ))
     }
@@ -1295,6 +1299,7 @@ impl<T: Frontend> App<T> {
             .borrow()
             .editor()
             .current_primary_selection()?;
+        let current_line = format!("l/{}", current_line.replace("/", r#"\/"#));
         self.open_search_prompt(scope, IfCurrentNotFound::LookForward, Some(current_line))
     }
 
@@ -1331,7 +1336,7 @@ impl<T: Frontend> App<T> {
         })
     }
 
-    fn get_file_explorer_current_path(&mut self) -> anyhow::Result<Option<CanonicalizedPath>> {
+    fn get_file_explorer_current_path(&mut self) -> anyhow::Result<Option<AbsolutePath>> {
         self.current_component()
             .borrow_mut()
             .as_any_mut()
@@ -1340,7 +1345,7 @@ impl<T: Frontend> App<T> {
             .transpose()
     }
 
-    fn get_file_explorer_selected_paths(&mut self) -> anyhow::Result<Vec<CanonicalizedPath>> {
+    fn get_file_explorer_selected_paths(&mut self) -> anyhow::Result<Vec<AbsolutePath>> {
         self.current_component()
             .borrow_mut()
             .as_any_mut()
@@ -1384,7 +1389,7 @@ impl<T: Frontend> App<T> {
                     parser: DispatchParser::AddPath,
                     history_key: PromptHistoryKey::AddPath,
                     current_line: Some(path.display_absolute()),
-                    suggested_items: Default::default(),
+                    suggested_items: Vec::default(),
                 },
             ))
         } else {
@@ -1421,7 +1426,7 @@ impl<T: Frontend> App<T> {
                     parser: DispatchParser::CopyFile { from: path.clone() },
                     history_key: PromptHistoryKey::CopyFile,
                     current_line: Some(path.display_absolute()),
-                    suggested_items: Default::default(),
+                    suggested_items: Vec::default(),
                 },
             ))
         } else {
@@ -1450,12 +1455,6 @@ impl<T: Frontend> App<T> {
         let items = match kind {
             FilePickerKind::NonGitIgnored => PromptItems::BackgroundTask {
                 task: PromptItemsBackgroundTask::NonGitIgnoredFiles { working_directory },
-                on_nucleo_tick_debounced: {
-                    let sender = self.sender.clone();
-                    Callback::new(Arc::new(move |_| {
-                        let _ = sender.send(AppMessage::NucleoTickDebounced);
-                    }))
-                },
             },
             FilePickerKind::GitStatus(diff_mode) => PromptItems::Precomputed(
                 git::GitRepo::try_from(self.working_directory())?
@@ -1487,7 +1486,7 @@ impl<T: Frontend> App<T> {
 
     fn open_file(
         &mut self,
-        path: &CanonicalizedPath,
+        path: &AbsolutePath,
         owner: BufferOwner,
         store_history: bool,
         focus: bool,
@@ -1521,7 +1520,11 @@ impl<T: Frontend> App<T> {
         let content = buffer.content();
         let batch_id = buffer.batch_id().clone();
         let buffer = Rc::new(RefCell::new(buffer));
-        let editor = SuggestiveEditor::from_buffer(buffer, SuggestiveEditorFilter::CurrentWord);
+        let editor = SuggestiveEditor::from_buffer(
+            buffer,
+            SuggestiveEditorFilter::CurrentWord,
+            self.on_nucleo_notify(NucleoSource::SuggestiveEditor),
+        );
         let component_id = editor.id();
         let component = Rc::new(RefCell::new(editor));
 
@@ -1553,7 +1556,7 @@ impl<T: Frontend> App<T> {
             LspNotification::Definition(context, response) => {
                 match response {
                     GotoDefinitionResponse::Single(location) => {
-                        self.go_to_location(&location, true)?
+                        self.go_to_location(&location, true)?;
                     }
                     GotoDefinitionResponse::Multiple(locations) => {
                         if locations.is_empty() {
@@ -1670,7 +1673,7 @@ impl<T: Frontend> App<T> {
 
     pub fn update_diagnostics(
         &mut self,
-        path: CanonicalizedPath,
+        path: AbsolutePath,
         diagnostics: Vec<lsp_types::Diagnostic>,
     ) -> anyhow::Result<()> {
         let component = self.open_file(&path, BufferOwner::System, false, false)?;
@@ -1692,7 +1695,7 @@ impl<T: Frontend> App<T> {
             self.handle_dispatches(dispatches)?;
             self.render_quickfix_list()?;
         } else {
-            log::info!("No current item found")
+            log::info!("No current item found");
         }
         Ok(())
     }
@@ -1754,19 +1757,11 @@ impl<T: Frontend> App<T> {
         let title = context.description.unwrap_or_default();
         self.context.set_mode(Some(GlobalMode::QuickfixListItem));
 
-        let source = match r#type {
-            QuickfixListType::Diagnostic(severity_range) => {
-                QuickfixListSource::Diagnostic(severity_range)
-            }
-            QuickfixListType::Items(items) => QuickfixListSource::Custom(items),
-            QuickfixListType::Mark => QuickfixListSource::Mark,
-        };
+        let items_length = self.update_quickfix_list_item(r#type);
 
-        let items = self.layout.get_quickfix_list_items(&source, &self.context);
+        self.context.set_quickfix_list_title(&title);
 
-        let go_to_first_quickfix = !items.is_empty();
-
-        self.context.set_quickfix_list_items(&title, items);
+        let go_to_first_quickfix = items_length > 0;
 
         match context.scope {
             None | Some(Scope::Global) => {
@@ -1782,6 +1777,33 @@ impl<T: Frontend> App<T> {
                 SelectionMode::LocalQuickfix { title },
             ))),
         }
+    }
+
+    /// Returns the items length
+    fn update_quickfix_list_item(&mut self, r#type: QuickfixListType) -> usize {
+        let (kind, source) = match r#type {
+            QuickfixListType::Diagnostic(severity_range) => {
+                (None, QuickfixListSource::Diagnostic(severity_range))
+            }
+            QuickfixListType::Items(items) => (None, QuickfixListSource::Custom(items)),
+            QuickfixListType::Mark => (Some(QuickfixListKind::Mark), QuickfixListSource::Mark),
+        };
+
+        let items = self.layout.get_quickfix_list_items(&source, &self.context);
+
+        let length = items.len();
+
+        // We need to store the current item index,
+        // as we need to restore it after resetting the quickfix list items
+        let current_item_index = self.context.quickfix_list().current_index();
+
+        self.context.set_quickfix_list_items(items, kind);
+
+        self.context
+            .quickfix_list_mut()
+            .set_current_item_index(current_item_index);
+
+        length
     }
 
     fn apply_workspace_edit(&mut self, workspace_edit: WorkspaceEdit) -> Result<(), anyhow::Error> {
@@ -1845,9 +1867,9 @@ impl<T: Frontend> App<T> {
         };
         let config = self.context.global_search_config().local_config();
         let (dispatches, affected_paths) =
-            list::grep::replace(walk_builder_config, config.clone())?;
+            list::grep::replace(&self.context, walk_builder_config, config.clone())?;
         self.handle_dispatches(dispatches)?;
-        let dispatches = self.layout.reload_buffers(affected_paths)?;
+        let dispatches = self.layout.reload_buffers(&self.context, affected_paths)?;
         self.handle_dispatches(dispatches)
     }
 
@@ -1940,7 +1962,7 @@ impl<T: Frontend> App<T> {
         }))
     }
 
-    fn delete_paths(&mut self, paths: NonEmpty<CanonicalizedPath>) -> anyhow::Result<()> {
+    fn delete_paths(&mut self, paths: NonEmpty<AbsolutePath>) -> anyhow::Result<()> {
         for path in paths {
             if path.is_dir() {
                 std::fs::remove_dir_all(&path)?;
@@ -1955,7 +1977,7 @@ impl<T: Frontend> App<T> {
 
     fn move_paths(
         &mut self,
-        sources: NonEmpty<CanonicalizedPath>,
+        sources: NonEmpty<AbsolutePath>,
         destinations: NonEmpty<PathBuf>,
     ) -> anyhow::Result<()> {
         if sources.len() != destinations.len() {
@@ -1972,7 +1994,7 @@ impl<T: Frontend> App<T> {
         }
     }
 
-    fn move_path(&mut self, from: CanonicalizedPath, to: PathBuf) -> anyhow::Result<()> {
+    fn move_path(&mut self, from: AbsolutePath, to: PathBuf) -> anyhow::Result<()> {
         use std::fs;
         self.add_path_parent(&to)?;
         fs::rename(from.clone(), to.clone())?;
@@ -1994,7 +2016,7 @@ impl<T: Frontend> App<T> {
         Ok(())
     }
 
-    fn copy_file(&mut self, from: CanonicalizedPath, to: PathBuf) -> anyhow::Result<()> {
+    fn copy_file(&mut self, from: AbsolutePath, to: PathBuf) -> anyhow::Result<()> {
         use std::fs;
         self.add_path_parent(&to)?;
         fs::copy(from.clone(), to.clone())?;
@@ -2028,7 +2050,7 @@ impl<T: Frontend> App<T> {
             std::fs::File::create(&path)?;
         }
         self.layout.refresh_file_explorer(&self.context)?;
-        let path: CanonicalizedPath = path.try_into()?;
+        let path: AbsolutePath = path.try_into()?;
         self.reveal_path_in_explorer(&path)?;
         self.lsp_manager().send_message(
             path.clone(),
@@ -2073,7 +2095,7 @@ impl<T: Frontend> App<T> {
     }
 
     #[cfg(test)]
-    pub fn get_file_content(&self, path: &CanonicalizedPath) -> String {
+    pub fn get_file_content(&self, path: &AbsolutePath) -> String {
         self.layout
             .get_existing_editor(path)
             .unwrap()
@@ -2162,10 +2184,10 @@ impl<T: Frontend> App<T> {
 
     #[cfg(test)]
     fn set_global_title(&mut self, title: String) {
-        self.global_title = Some(title)
+        self.global_title = Some(title);
     }
 
-    pub fn get_current_file_path(&self) -> Option<CanonicalizedPath> {
+    pub fn get_current_file_path(&self) -> Option<AbsolutePath> {
         self.current_component().borrow().path()
     }
 
@@ -2227,9 +2249,19 @@ impl<T: Frontend> App<T> {
             .collect_vec()
     }
 
+    fn open_alternate_file(&mut self) -> anyhow::Result<()> {
+        if let Some(previous_location) = self.context.get_last_visited_file() {
+            let previous_path = previous_location.path.clone();
+            if previous_path.exists() {
+                self.open_file(&previous_path.clone(), BufferOwner::User, true, true)?;
+            }
+        }
+        Ok(())
+    }
+
     fn cycle_marked_file(&mut self, movement: Movement) -> anyhow::Result<()> {
         if let Some(next_file_path) = {
-            let merged_file_paths_map: IndexMap<CanonicalizedPath, bool> = {
+            let merged_file_paths_map: IndexMap<AbsolutePath, bool> = {
                 let marked_file_paths = self.context.get_marked_files();
                 let buffer_file_paths = self.layout.get_opened_files();
 
@@ -2298,7 +2330,7 @@ impl<T: Frontend> App<T> {
 
     fn calculate_next_index(
         &self,
-        merged_file_paths_map: &IndexMap<CanonicalizedPath, bool>,
+        merged_file_paths_map: &IndexMap<AbsolutePath, bool>,
         current_index: usize,
         movement: Movement,
     ) -> usize {
@@ -2393,6 +2425,7 @@ impl<T: Frontend> App<T> {
         self.layout.completion_dropdown_is_open()
     }
 
+    #[cfg(test)]
     pub fn current_completion_dropdown(&self) -> Option<Rc<RefCell<dyn Component>>> {
         self.layout.current_completion_dropdown()
     }
@@ -2419,7 +2452,11 @@ impl<T: Frontend> App<T> {
             .editor_mut()
             .initialize_incremental_search_matches();
 
-        let (prompt, dispatches) = Prompt::new(prompt_config, &self.context);
+        let (prompt, dispatches) = Prompt::new(
+            prompt_config,
+            &self.context,
+            self.on_nucleo_notify(NucleoSource::Prompt),
+        );
 
         self.layout.add_and_focus_prompt(
             ComponentKind::Prompt,
@@ -2434,7 +2471,7 @@ impl<T: Frontend> App<T> {
             PromptOnEnter::ParseCurrentLine {
                 history_key: key, ..
             } => self.context.get_prompt_history(*key),
-            _ => Default::default(),
+            _ => Vec::default(),
         };
 
         let items = prompt_config
@@ -2478,7 +2515,7 @@ impl<T: Frontend> App<T> {
                     key: prompt_history_key,
                     line: entry,
                 }),
-            _ => Default::default(),
+            _ => Dispatches::default(),
         };
         self.handle_dispatches(dispatches)
     }
@@ -2548,7 +2585,7 @@ impl<T: Frontend> App<T> {
         self.layout.global_info_contents()
     }
 
-    fn reveal_path_in_explorer(&mut self, path: &CanonicalizedPath) -> anyhow::Result<()> {
+    fn reveal_path_in_explorer(&mut self, path: &AbsolutePath) -> anyhow::Result<()> {
         let dispatches = self.layout.reveal_path_in_explorer(path, &self.context)?;
         self.send_file_watcher_input(FileWatcherInput::SyncFileExplorerExpandedFolders(
             self.layout
@@ -2607,7 +2644,7 @@ impl<T: Frontend> App<T> {
     }
 
     fn hide_editor_info(&mut self) {
-        self.layout.hide_editor_info()
+        self.layout.hide_editor_info();
     }
 
     #[cfg(test)]
@@ -2630,13 +2667,37 @@ impl<T: Frontend> App<T> {
                 self.show_editor_info(info)?;
             }
         } else {
-            self.hide_editor_info()
+            self.hide_editor_info();
         }
         Ok(())
     }
 
     fn push_history_prompt(&mut self, key: PromptHistoryKey, line: String) {
-        self.context.push_history_prompt(key, line)
+        self.context.push_history_prompt(key, line);
+    }
+
+    fn open_git_branch_picker(&mut self) -> anyhow::Result<()> {
+        let repo = git2::Repository::open(self.working_directory().display_absolute())?;
+
+        let dropdown_items: Vec<DropdownItem> = repo
+            .branches(None)?
+            .filter_map(|res| res.ok()) // Skip branches that error during iteration
+            .filter_map(|(branch, _)| {
+                // Transform the branch into a DropdownItem if the name is valid
+                branch.name().ok().flatten().map(|name| {
+                    let branch_name = name.to_string();
+                    DropdownItem::new(branch_name.clone())
+                        .set_dispatches(Dispatches::one(Dispatch::GitCheckout(branch_name)))
+                })
+            })
+            .collect();
+
+        self.open_prompt(PromptConfig::new(
+            "Git Branch".to_string(),
+            PromptOnEnter::SelectsFirstMatchingItem {
+                items: PromptItems::Precomputed(dropdown_items),
+            },
+        ))
     }
 
     fn open_theme_picker(&mut self) -> anyhow::Result<()> {
@@ -2668,6 +2729,22 @@ impl<T: Frontend> App<T> {
         )
     }
 
+    fn git_checkout(&mut self, branch: &str) -> anyhow::Result<()> {
+        let output = std::process::Command::new("git")
+            .args(["checkout", branch])
+            .current_dir(self.context.current_working_directory())
+            .output()?;
+
+        let content = if output.status.success() {
+            String::from_utf8_lossy(&output.stdout).into_owned()
+        } else {
+            String::from_utf8_lossy(&output.stderr).into_owned()
+        };
+
+        let info = Info::new("Git Checkout Success".to_string(), content);
+        self.show_editor_info(info)
+    }
+
     fn open_keyboard_layout_picker(&mut self) -> anyhow::Result<()> {
         let embedded = self.context.is_running_as_embedded();
         self.open_prompt(PromptConfig::new(
@@ -2677,7 +2754,7 @@ impl<T: Frontend> App<T> {
                     parser: DispatchParser::SetKeyboardLayoutKind,
                     history_key: PromptHistoryKey::KeyboardLayout,
                     current_line: None,
-                    suggested_items: Default::default(),
+                    suggested_items: Vec::default(),
                 }
             } else {
                 PromptOnEnter::SelectsFirstMatchingItem {
@@ -2721,7 +2798,7 @@ impl<T: Frontend> App<T> {
                 parser: DispatchParser::PipeToShell,
                 history_key: PromptHistoryKey::PipeToShell,
                 current_line: None,
-                suggested_items: Default::default(),
+                suggested_items: Vec::default(),
             },
         ))
     }
@@ -2763,7 +2840,7 @@ impl<T: Frontend> App<T> {
                 parser: DispatchParser::FilterSelectionMatchingSearch { maintain },
                 history_key: PromptHistoryKey::FilterSelectionsMatchingSearch { maintain },
                 current_line: None,
-                suggested_items: Default::default(),
+                suggested_items: Vec::default(),
             },
         ))
     }
@@ -2783,7 +2860,7 @@ impl<T: Frontend> App<T> {
         while let Some(location) = self.context.location_next() {
             if location.path.exists() {
                 self.push_current_location_into_navigation_history(true);
-                self.go_to_location(&location, false)?
+                self.go_to_location(&location, false)?;
             }
         }
         Ok(())
@@ -2799,20 +2876,56 @@ impl<T: Frontend> App<T> {
                 .editor()
                 .current_selection_range();
             let location = Location { path, range };
-            self.context.push_location_history(location, backward)
+            self.context.push_location_history(location, backward);
         }
     }
 
-    fn mark_file_and_toggle_mark(&mut self) -> anyhow::Result<()> {
+    fn toggle_selection_mark(&mut self) -> anyhow::Result<()> {
+        // Mark the current file if we are actually marking some selection
         if let Some(path) = self.get_current_file_path() {
-            let _ = self.context.mark_file(path);
+            let marks: HashSet<_> = self
+                .context
+                .get_marks(Some(path.clone()))
+                .into_iter()
+                .collect();
+            let current_selections: HashSet<_> = self
+                .current_component()
+                .borrow()
+                .editor()
+                .selection_set
+                .selections()
+                .iter()
+                .map(|selection| selection.extended_range())
+                .collect();
+
+            // If the set of current selections is the subset of the marks of this file
+            // then this `toggle_selection_mark` action only consists of unmarking action,
+            // and zero marking action.
+            //
+            // We only mark the current file if there are some marking actions
+            if !current_selections.is_subset(&marks) {
+                let _ = self.context.mark_file(path);
+            }
         }
         let dispatches = self
             .current_component()
             .borrow_mut()
             .editor_mut()
             .toggle_marks();
-        let _ = self.handle_dispatches(dispatches);
+
+        self.handle_dispatches(dispatches)?;
+
+        // Refresh the quickfix list if possible
+        // TODO: we need to maintain the last quickfix list index too
+        match (self.context.quickfix_list().kind(), self.context.mode()) {
+            (Some(QuickfixListKind::Mark), Some(GlobalMode::QuickfixListItem)) => {
+                self.update_quickfix_list_item(QuickfixListType::Mark);
+                self.render_quickfix_list()?;
+                self.goto_quickfix_list_item(Movement::Current(IfCurrentNotFound::LookForward))?;
+            }
+            _ => {}
+        }
+
         Ok(())
     }
 
@@ -2823,6 +2936,12 @@ impl<T: Frontend> App<T> {
             }
         }
         Ok(())
+    }
+
+    fn set_file_dirty_status(&mut self, path: Option<AbsolutePath>, dirty_status: bool) {
+        if let Some(path) = path {
+            self.context.set_file_dirty_status(&path, dirty_status);
+        }
     }
 
     fn mode_changed(&self) {
@@ -2914,7 +3033,7 @@ impl<T: Frontend> App<T> {
     fn handle_targeted_event(
         &mut self,
         event: Event,
-        path: Option<CanonicalizedPath>,
+        path: Option<AbsolutePath>,
         content_hash: u32,
     ) -> anyhow::Result<()> {
         // If the current component kind is a not a SuggestiveEditor, we handle the event directly
@@ -2962,7 +3081,7 @@ impl<T: Frontend> App<T> {
             }
             ToHostApp::ModeChanged => self.mode_changed(),
             ToHostApp::SelectionModeChanged(selection_mode) => {
-                self.selection_mode_changed(selection_mode)
+                self.selection_mode_changed(selection_mode);
             }
             ToHostApp::SelectionChanged {
                 component_id,
@@ -3004,38 +3123,36 @@ impl<T: Frontend> App<T> {
     }
 
     #[cfg(test)]
-    pub fn lsp_server_initialized_args(&mut self) -> Option<(LanguageId, Vec<CanonicalizedPath>)> {
+    pub fn lsp_server_initialized_args(&mut self) -> Option<(LanguageId, Vec<AbsolutePath>)> {
         self.lsp_manager().lsp_server_initialized_args()
     }
 
-    fn handle_nucleo_debounced(&mut self) -> Result<(), anyhow::Error> {
+    pub fn handle_nucleo_notify(&mut self, source: NucleoSource) -> Result<(), anyhow::Error> {
         let dispatches = {
             let component = self.layout.get_current_component();
             let mut component_mut = component.borrow_mut();
-            let Some(prompt) = component_mut.as_any_mut().downcast_mut::<Prompt>() else {
-                return Ok(());
-            };
 
-            let viewport_height = self
-                .current_completion_dropdown()
-                .map(|component| component.borrow().rectangle().height)
-                .unwrap_or(10);
+            match source {
+                NucleoSource::Prompt => {
+                    let Some(prompt) = component_mut.as_any_mut().downcast_mut::<Prompt>() else {
+                        return Ok(());
+                    };
 
-            prompt.handle_nucleo_updated(viewport_height)
+                    prompt.handle_nucleo_notify()
+                }
+                NucleoSource::SuggestiveEditor => {
+                    let Some(suggestive_editor) = component_mut
+                        .as_any_mut()
+                        .downcast_mut::<SuggestiveEditor>()
+                    else {
+                        return Ok(());
+                    };
+
+                    suggestive_editor.handle_nucleo_notify()
+                }
+            }
         };
         self.handle_dispatches(dispatches)
-    }
-
-    fn handle_dropdown_filter_updated(&mut self, filter: String) -> anyhow::Result<()> {
-        {
-            let component = self.layout.get_current_component();
-            let mut component_mut = component.borrow_mut();
-            let Some(prompt) = component_mut.as_any_mut().downcast_mut::<Prompt>() else {
-                return Ok(());
-            };
-            prompt.reparse_pattern(&filter);
-        }
-        self.handle_nucleo_debounced()
     }
 
     #[cfg(test)]
@@ -3068,8 +3185,8 @@ impl<T: Frontend> App<T> {
         Ok(())
     }
 
-    fn handle_applied_edits(&mut self, path: CanonicalizedPath, edits: Vec<Edit>) {
-        self.context.handle_applied_edits(path, edits)
+    fn handle_applied_edits(&mut self, path: AbsolutePath, edits: Vec<Edit>) {
+        self.context.handle_applied_edits(path, edits);
     }
 
     #[cfg(test)]
@@ -3137,7 +3254,7 @@ impl<T: Frontend> App<T> {
 
     fn show_buffer_save_conflict_prompt(
         &mut self,
-        path: &CanonicalizedPath,
+        path: &AbsolutePath,
         content_editor: String,
         content_filesystem: String,
     ) -> anyhow::Result<()> {
@@ -3222,7 +3339,7 @@ Conflict markers will be injected in areas that cannot be merged gracefully."
                 self.handle_dispatch_editor(DispatchEditor::PathRenamed {
                     source,
                     destination,
-                })?
+                })?;
             }
         }
         Ok(())
@@ -3231,7 +3348,7 @@ Conflict markers will be injected in areas that cannot be merged gracefully."
     fn send_file_watcher_input(&self, input: FileWatcherInput) {
         if let Some(sender) = self.file_watcher_input_sender.as_ref() {
             if let Err(error) = sender.send(input) {
-                log::error!("[App::send_file_watcher_input] error = {error:?}")
+                log::error!("[App::send_file_watcher_input] error = {error:?}");
             }
         }
     }
@@ -3251,12 +3368,6 @@ Conflict markers will be injected in areas that cannot be merged gracefully."
                 PromptOnEnter::SelectsFirstMatchingItem {
                     items: PromptItems::BackgroundTask {
                         task: PromptItemsBackgroundTask::HandledByMainEventLoop,
-                        on_nucleo_tick_debounced: {
-                            let sender = self.sender.clone();
-                            Callback::new(Arc::new(move |_| {
-                                let _ = sender.send(AppMessage::NucleoTickDebounced);
-                            }))
-                        },
                     },
                 },
             )
@@ -3311,14 +3422,14 @@ Conflict markers will be injected in areas that cannot be merged gracefully."
             return;
         };
         let mut borrow = component.borrow_mut();
-        borrow.editor_mut().set_incremental_search_config(config)
+        borrow.editor_mut().set_incremental_search_config(config);
     }
 
     fn update_current_component_title(&self, title: String) {
         {
             let comp = self.current_component();
             let mut borrow = comp.borrow_mut();
-            borrow.set_title(title)
+            borrow.set_title(title);
         }
     }
 
@@ -3365,12 +3476,12 @@ Conflict markers will be injected in areas that cannot be merged gracefully."
                 // We need to drop `borrow` here, so that we can prevent double borrow
                 // when `DispatchEditor`s are being handled
             };
-            self.handle_script_dispatches(output.dispatches)?
+            self.handle_script_dispatches(output.dispatches)?;
         }
         Ok(())
     }
 
-    fn open_and_mark_files(&mut self, paths: NonEmpty<CanonicalizedPath>) -> anyhow::Result<()> {
+    fn open_and_mark_files(&mut self, paths: NonEmpty<AbsolutePath>) -> anyhow::Result<()> {
         self.open_file(paths.first(), BufferOwner::User, true, true)?;
         self.context.mark_files(paths);
         Ok(())
@@ -3390,7 +3501,7 @@ Conflict markers will be injected in areas that cannot be merged gracefully."
         self.handle_dispatches(dispatches)
     }
 
-    fn change_working_directory(&mut self, path: CanonicalizedPath) -> anyhow::Result<()> {
+    fn change_working_directory(&mut self, path: AbsolutePath) -> anyhow::Result<()> {
         self.context.change_working_directory(path)?;
         self.layout.refresh_file_explorer(&self.context)?;
 
@@ -3404,11 +3515,7 @@ Conflict markers will be injected in areas that cannot be merged gracefully."
                 PromptOnEnter::ParseCurrentLine {
                     parser: DispatchParser::ChangeWorkingDirectory,
                     history_key: PromptHistoryKey::ChangeWorkingDirectory,
-                    current_line: Some(format!(
-                        "{}{}",
-                        self.context.current_working_directory().display_absolute(),
-                        std::path::MAIN_SEPARATOR
-                    )),
+                    current_line: Some(self.context.current_working_directory().display_absolute()),
                     suggested_items: Vec::new(),
                 },
             )
@@ -3418,7 +3525,7 @@ Conflict markers will be injected in areas that cannot be merged gracefully."
         )
     }
 
-    fn working_directory(&self) -> &CanonicalizedPath {
+    fn working_directory(&self) -> &AbsolutePath {
         self.context.current_working_directory()
     }
 
@@ -3429,9 +3536,24 @@ Conflict markers will be injected in areas that cannot be merged gracefully."
             .or_insert_with(|| LspManager::new(self.sender.clone(), working_directory))
     }
 
-    #[cfg(test)]
-    pub(crate) fn quickfix_list(&self) -> &QuickfixList {
+    pub fn quickfix_list(&self) -> &crate::quickfix_list::QuickfixList {
         self.context.quickfix_list()
+    }
+
+    fn on_nucleo_notify(&self, source: NucleoSource) -> Callback<()> {
+        let sender = self.sender.clone();
+        Callback::new(Arc::new(move |_| {
+            let _ = sender.send(AppMessage::HandleNucleoNotify(source));
+        }))
+    }
+
+    fn open_quickfix_item_picker(&mut self) -> Result<(), anyhow::Error> {
+        self.open_prompt(PromptConfig::new(
+            "Quickfix Items".to_string(),
+            PromptOnEnter::SelectsFirstMatchingItem {
+                items: PromptItems::Precomputed(self.quickfix_list().dropdown_items()),
+            },
+        ))
     }
 }
 
@@ -3500,7 +3622,7 @@ impl Dispatches {
     }
 
     pub fn empty() -> Dispatches {
-        Dispatches(Default::default())
+        Dispatches(Vec::default())
     }
 }
 
@@ -3523,7 +3645,7 @@ pub enum Dispatch {
         prior_change: Option<PriorChange>,
     },
     OpenFile {
-        path: CanonicalizedPath,
+        path: AbsolutePath,
         owner: BufferOwner,
         focus: bool,
     },
@@ -3553,12 +3675,12 @@ pub enum Dispatch {
     DocumentDidChange {
         component_id: ComponentId,
         batch_id: SyntaxHighlightRequestBatchId,
-        path: Option<CanonicalizedPath>,
+        path: Option<AbsolutePath>,
         content: String,
         language: Option<Language>,
     },
     DocumentDidSave {
-        path: CanonicalizedPath,
+        path: AbsolutePath,
     },
     SetQuickfixList(QuickfixListType),
     GotoQuickfixListItem(Movement),
@@ -3576,24 +3698,27 @@ pub enum Dispatch {
     GotoLocation(Location),
     OpenMoveToIndexPrompt(Option<PriorChange>),
     QuitAll,
-    RevealInExplorer(CanonicalizedPath),
+    RevealInExplorer(AbsolutePath),
     OpenMovePathsPrompt,
     OpenDuplicateFilePrompt,
     OpenAddPathPrompt,
-    DeletePaths(NonEmpty<CanonicalizedPath>),
+    DeletePaths(NonEmpty<AbsolutePath>),
     Null,
     MovePaths {
-        sources: NonEmpty<CanonicalizedPath>,
+        sources: NonEmpty<AbsolutePath>,
         destinations: NonEmpty<PathBuf>,
     },
     CopyFile {
-        from: CanonicalizedPath,
+        from: AbsolutePath,
         to: PathBuf,
     },
     AddPath(String),
     RefreshFileExplorer,
     SetClipboardContent {
-        copied_texts: CopiedTexts,
+        copied_texts: Texts,
+    },
+    AddKillRingEntry {
+        texts: Texts,
     },
     SetGlobalMode(Option<GlobalMode>),
     #[cfg(test)]
@@ -3642,11 +3767,14 @@ pub enum Dispatch {
     CloseEditorInfo,
     CloseGlobalInfo,
     CycleMarkedFile(Movement),
+    OpenAlternateFile,
     PushPromptHistory {
         key: PromptHistoryKey,
         line: String,
     },
-    OpenThemePrompt,
+    OpenThemePicker,
+    OpenGitBranchPrompt,
+    GitCheckout(String),
     ResolveCompletionItem(lsp_types::CompletionItem),
     OpenPipeToShellPrompt,
     SetLastNonContiguousSelectionMode(Either<SelectionMode, GlobalMode>),
@@ -3665,8 +3793,12 @@ pub enum Dispatch {
     OpenKeyboardLayoutPrompt,
     NavigateForward,
     NavigateBack,
-    MarkFileAndToggleMark,
+    ToggleSelectionMark,
     ToggleFileMark,
+    SetFileDirtyStatus {
+        path: Option<AbsolutePath>,
+        dirty_status: bool,
+    },
     Suspend,
 
     ToHostApp(ToHostApp),
@@ -3677,7 +3809,6 @@ pub enum Dispatch {
         prior_change: Option<PriorChange>,
     },
     ShowGlobalInfo(Info),
-    DropdownFilterUpdated(String),
     #[cfg(test)]
     SetSystemClipboardHtml {
         html: &'static str,
@@ -3686,19 +3817,19 @@ pub enum Dispatch {
     AddQuickfixListEntries(Vec<Match>),
     AppliedEdits {
         edits: Vec<Edit>,
-        path: CanonicalizedPath,
+        path: AbsolutePath,
     },
     ExecuteLeaderKey(String),
     ShowBufferSaveConflictPrompt {
-        path: CanonicalizedPath,
+        path: AbsolutePath,
         content_filesystem: String,
         content_editor: String,
     },
     RequestWorkspaceSymbols {
         query: String,
-        path: CanonicalizedPath,
+        path: AbsolutePath,
     },
-    OpenWorkspaceSymbolsPrompt,
+    OpenWorkspaceSymbolsPicker,
     GetAndHandlePromptOnChangeDispatches,
     SetIncrementalSearchConfig {
         config: crate::context::LocalSearchConfig,
@@ -3706,23 +3837,23 @@ pub enum Dispatch {
     },
     UpdateCurrentComponentTitle(String),
     SaveMarks {
-        path: CanonicalizedPath,
+        path: AbsolutePath,
         marks: Vec<CharIndexRange>,
     },
     ToSuggestiveEditor(DispatchSuggestiveEditor),
     RequestCompletionDebounced,
-    OpenAndMarkFiles(NonEmpty<CanonicalizedPath>),
+    OpenAndMarkFiles(NonEmpty<AbsolutePath>),
     ToggleOrOpenPaths,
-    ChangeWorkingDirectory(CanonicalizedPath),
-    AddClipboardHistory(CopiedTexts),
+    ChangeWorkingDirectory(AbsolutePath),
     OpenChangeWorkingDirectoryPrompt,
+    OpenQuickfixItemsPicker,
 }
 
 /// Used to send notify host app about changes
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ToHostApp {
     BufferEditTransaction {
-        path: CanonicalizedPath,
+        path: AbsolutePath,
         edits: Vec<ki_protocol_types::DiffEdit>,
     },
     ModeChanged,
@@ -3743,7 +3874,7 @@ pub enum ToHostApp {
 pub enum FromHostApp {
     TargetedEvent {
         event: Event,
-        path: Option<CanonicalizedPath>,
+        path: Option<AbsolutePath>,
         content_hash: u32,
     },
 }
@@ -3788,7 +3919,7 @@ impl FilePickerKind {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RequestParams {
-    pub path: CanonicalizedPath,
+    pub path: AbsolutePath,
     pub position: Position,
     pub context: ResponseContext,
 }
@@ -3833,9 +3964,15 @@ pub enum AppMessage {
     // New variant for external dispatches
     NotifyError(std::io::Error),
     ExternalDispatch(Box<Dispatch>),
-    NucleoTickDebounced,
+    HandleNucleoNotify(NucleoSource),
     FileWatcherEvent(FileWatcherEvent),
     GlobalSearchFinished,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum NucleoSource {
+    Prompt,
+    SuggestiveEditor,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -3849,10 +3986,10 @@ pub enum DispatchParser {
     },
     AddPath,
     MovePaths {
-        sources: NonEmpty<CanonicalizedPath>,
+        sources: NonEmpty<AbsolutePath>,
     },
     CopyFile {
-        from: CanonicalizedPath,
+        from: AbsolutePath,
     },
     #[cfg(test)]
     SetContent,
@@ -3957,7 +4094,7 @@ impl DispatchParser {
                 DispatchEditor::Surround(format!("<{text}>"), format!("</{text}>")),
             ))),
             #[cfg(test)]
-            DispatchParser::Null => Ok(Default::default()),
+            DispatchParser::Null => Ok(Dispatches::default()),
             DispatchParser::ChangeWorkingDirectory => Ok(Dispatches::one(
                 Dispatch::ChangeWorkingDirectory(text.try_into()?),
             )),

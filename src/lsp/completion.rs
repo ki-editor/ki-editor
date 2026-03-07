@@ -6,7 +6,7 @@ use shared::icons::get_icon_config;
 
 use crate::{
     app::{Dispatch, Dispatches},
-    components::{dropdown::DropdownItem, editor::DispatchEditor, suggestive_editor::Info},
+    components::{dropdown_sync::DropdownItem, editor::DispatchEditor, suggestive_editor::Info},
     position::Position,
 };
 
@@ -100,7 +100,7 @@ impl CompletionItem {
             sort_text: None,
             edit: None,
             insert_text: None,
-            completion_item: Default::default(),
+            completion_item: lsp_types::CompletionItem::default(),
         }
     }
 

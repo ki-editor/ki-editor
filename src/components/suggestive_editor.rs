@@ -2,6 +2,7 @@ use crate::app::{Dispatch, Dispatches};
 use crate::context::{Context, GlobalMode};
 use crate::grid::StyleKey;
 use crate::selection::SelectionMode;
+use crate::thread::Callback;
 use crossterm::event::KeyEventKind;
 use DispatchEditor::*;
 
@@ -15,13 +16,13 @@ use itertools::Itertools;
 use my_proc_macros::key;
 use std::{cell::RefCell, rc::Rc};
 
-use super::dropdown::{Dropdown, DropdownConfig};
+use super::dropdown_async::{DropdownAsync as Dropdown, DropdownAsyncConfig as DropdownConfig};
 use super::editor::{Direction, DispatchEditor, IfCurrentNotFound};
 use super::editor_keymap::alted;
 use super::keymap_legend::{Keybinding, Keymap};
 use super::{
     component::Component,
-    dropdown::DropdownItem,
+    dropdown_sync::DropdownItem,
     editor::{Editor, Mode},
 };
 
@@ -59,19 +60,12 @@ impl Component for SuggestiveEditor {
         &mut self.editor
     }
 
-    fn handle_dispatch_editor(
+    fn handle_paste_event(
         &mut self,
-        context: &mut Context,
-        dispatch: DispatchEditor,
+        content: String,
+        context: &Context,
     ) -> anyhow::Result<Dispatches> {
-        let dispatches = self
-            .editor_mut()
-            .handle_dispatch_editor(context, dispatch)?;
-        let update_filter_result = self.update_filter();
-        Ok(dispatches.chain(update_filter_result?))
-    }
-
-    fn post_handle_event(&self, dispatches: Dispatches) -> anyhow::Result<Dispatches> {
+        let dispatches = self.editor_mut().handle_paste_event(content, context)?;
         Ok(dispatches.append(Dispatch::ToSuggestiveEditor(
             DispatchSuggestiveEditor::UpdateFilter,
         )))
@@ -126,19 +120,29 @@ impl Component for SuggestiveEditor {
                 .collect_vec()
                 .into(),
                 _ if self.editor.mode == Mode::Insert && event.kind != KeyEventKind::Release => {
-                    vec![Dispatch::RequestCompletion, Dispatch::RequestSignatureHelp].into()
+                    vec![
+                        Dispatch::RequestCompletion,
+                        Dispatch::RequestSignatureHelp,
+                        Dispatch::ToSuggestiveEditor(DispatchSuggestiveEditor::UpdateFilter),
+                    ]
+                    .into()
                 }
-                _ => Default::default(),
+                _ => Dispatches::default(),
             }))
     }
 }
 
 impl SuggestiveEditor {
-    pub fn from_buffer(buffer: Rc<RefCell<Buffer>>, filter: SuggestiveEditorFilter) -> Self {
+    pub fn from_buffer(
+        buffer: Rc<RefCell<Buffer>>,
+        filter: SuggestiveEditorFilter,
+        on_nucleo_notify: Callback<()>,
+    ) -> Self {
         Self {
             editor: Editor::from_buffer(buffer),
             completion_dropdown: Dropdown::new(DropdownConfig {
                 title: "Completion".to_string(),
+                on_nucleo_notify,
             }),
             trigger_characters: vec![],
             filter,
@@ -153,7 +157,7 @@ impl SuggestiveEditor {
             #[cfg(test)]
             DispatchSuggestiveEditor::CompletionFilter(filter) => {
                 self.filter = filter;
-                Ok(Default::default())
+                Ok(Dispatches::default())
             }
             DispatchSuggestiveEditor::Completion(completion) => {
                 if self.editor.mode == Mode::Insert {
@@ -182,11 +186,12 @@ impl SuggestiveEditor {
     }
 
     pub fn completion_dropdown_opened(&self) -> bool {
-        !self.completion_dropdown.items().is_empty()
+        self.completion_dropdown.opened()
     }
 
     pub fn set_completion(&mut self, completion: Completion) {
-        self.completion_dropdown.set_items(completion.items);
+        self.completion_dropdown.inject_items(completion.items);
+        self.completion_dropdown.handle_nucleo_notify();
         self.trigger_characters = completion.trigger_characters;
     }
 
@@ -205,7 +210,7 @@ impl SuggestiveEditor {
                 .current_item()
                 .map(|item| {
                     if item.resolved() {
-                        Default::default()
+                        Dispatches::default()
                     } else {
                         item.on_focused()
                     }
@@ -245,9 +250,9 @@ impl SuggestiveEditor {
         };
 
         self.completion_dropdown.set_filter(&filter);
+        self.completion_dropdown.handle_nucleo_notify();
 
-        let render_completion_dropdown = self.render_completion_dropdown(false);
-        Ok(render_completion_dropdown.append(Dispatch::DropdownFilterUpdated(filter)))
+        Ok(self.render_completion_dropdown(false))
     }
 
     fn update_current_completion_item(&mut self, completion_item: CompletionItem) -> Dispatches {
@@ -263,18 +268,16 @@ impl SuggestiveEditor {
 
     fn next_completion_item(&mut self) -> Result<Dispatches, anyhow::Error> {
         self.completion_dropdown.next_item();
-        let dispatches = self.render_completion_dropdown(false);
-        log::info!("next_compl = {dispatches:?}");
         Ok(self.render_completion_dropdown(false))
     }
 
     fn select_completion_item(&mut self) -> Result<Dispatches, anyhow::Error> {
         let current_item = self.completion_dropdown.current_item();
         if let Some(completion) = current_item {
-            self.completion_dropdown.set_items(Vec::new());
+            self.completion_dropdown.clear();
             Ok(Dispatches::one(Dispatch::CloseDropdown).chain(completion.dispatches))
         } else {
-            Ok(Default::default())
+            Ok(Dispatches::default())
         }
     }
 
@@ -286,8 +289,14 @@ impl SuggestiveEditor {
         self.editor_mut().update_current_line(context, display)
     }
 
-    pub fn update_items(&mut self, items: Vec<DropdownItem>) {
-        self.completion_dropdown.set_items(items)
+    pub fn handle_nucleo_notify(&mut self) -> Dispatches {
+        Dispatches::one(Dispatch::RenderDropdown {
+            render: self.completion_dropdown.handle_nucleo_notify(),
+        })
+    }
+
+    pub fn injector(&mut self) -> Callback<DropdownItem> {
+        self.completion_dropdown.injector()
     }
 }
 
@@ -311,6 +320,7 @@ mod test_suggestive_editor {
     use crate::lsp::documentation::Documentation;
     use crate::position::Position;
     use crate::selection::SelectionMode;
+    use crate::thread::Callback;
     use crate::ui_tree::ComponentKind;
     use crate::{
         app::Dispatch,
@@ -325,7 +335,7 @@ mod test_suggestive_editor {
     use lsp_types::{CompletionItemKind, CompletionTextEdit, TextEdit};
     use my_proc_macros::{key, keys};
     use serial_test::serial;
-    use shared::canonicalized_path::CanonicalizedPath;
+    use shared::absolute_path::AbsolutePath;
     use std::{cell::RefCell, rc::Rc};
     use Dispatch::*;
 
@@ -346,7 +356,11 @@ mod test_suggestive_editor {
     }
 
     fn editor(filter: SuggestiveEditorFilter) -> SuggestiveEditor {
-        SuggestiveEditor::from_buffer(Rc::new(RefCell::new(Buffer::new(None, ""))), filter)
+        SuggestiveEditor::from_buffer(
+            Rc::new(RefCell::new(Buffer::new(None, ""))),
+            filter,
+            Callback::no_op(),
+        )
     }
 
     #[test]
@@ -355,7 +369,7 @@ mod test_suggestive_editor {
 
         let file = tempfile::NamedTempFile::new().unwrap();
 
-        let path: CanonicalizedPath = file.path().to_path_buf().try_into().unwrap();
+        let path: AbsolutePath = file.path().to_path_buf().try_into().unwrap();
 
         editor.editor_mut().buffer_mut().set_path(path);
         // Enter insert mode
@@ -380,7 +394,7 @@ mod test_suggestive_editor {
 
         let file = tempfile::NamedTempFile::new().unwrap();
 
-        let path: CanonicalizedPath = file.path().to_path_buf().try_into().unwrap();
+        let path: AbsolutePath = file.path().to_path_buf().try_into().unwrap();
 
         editor.editor_mut().buffer_mut().set_path(path);
 
@@ -661,7 +675,7 @@ mod test_suggestive_editor {
             insert_text: None,
             kind: None,
             detail: None,
-            completion_item: Default::default(),
+            completion_item: lsp_types::CompletionItem::default(),
         };
         execute_test(|s| {
             Box::new([
@@ -729,7 +743,7 @@ mod test_suggestive_editor {
                         kind: None,
                         detail: None,
                         insert_text: None,
-                        completion_item: Default::default(),
+                        completion_item: lsp_types::CompletionItem::default(),
                     }]
                     .into_iter()
                     .map(|item| item.into())
@@ -768,7 +782,7 @@ mod test_suggestive_editor {
                         kind: None,
                         detail: None,
                         insert_text: None,
-                        completion_item: Default::default(),
+                        completion_item: lsp_types::CompletionItem::default(),
                     }]
                     .into_iter()
                     .map(|item| item.into())
@@ -988,7 +1002,7 @@ mod test_suggestive_editor {
                         insert_text: None,
                         kind: Some(CompletionItemKind::FUNCTION),
                         detail: None,
-                        completion_item: Default::default(),
+                        completion_item: lsp_types::CompletionItem::default(),
                     }]
                     .into_iter()
                     .map(|item| item.into())
@@ -1156,7 +1170,7 @@ impl Decoration {
         Decoration {
             selection_range,
             style_key,
-            adjustments: Default::default(),
+            adjustments: Vec::default(),
         }
     }
 

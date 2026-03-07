@@ -3,12 +3,11 @@ use std::{
     path::{Path, PathBuf},
     rc::Rc,
     sync::Arc,
-    time::Duration,
 };
 
 use itertools::Itertools;
 use my_proc_macros::key;
-use shared::canonicalized_path::CanonicalizedPath;
+use shared::absolute_path::AbsolutePath;
 
 use crate::{
     app::{Dispatch, DispatchParser, Dispatches},
@@ -23,7 +22,7 @@ use crate::{
 
 use super::{
     component::Component,
-    dropdown::DropdownItem,
+    dropdown_sync::DropdownItem,
     editor::{Editor, Mode},
     editor_keymap::alted,
     suggestive_editor::{DispatchSuggestiveEditor, SuggestiveEditor, SuggestiveEditorFilter},
@@ -51,12 +50,11 @@ pub struct Prompt {
     on_enter: PromptOnEnter,
     on_change: Option<PromptOnChangeDispatch>,
     on_cancelled: Option<Dispatches>,
-    matcher: Option<PromptMatcher>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum PromptOnChangeDispatch {
-    RequestWorkspaceSymbol(CanonicalizedPath),
+    RequestWorkspaceSymbol(AbsolutePath),
     SetIncrementalSearchConfig { component_id: ComponentId },
     UpdateSuggestedItemsWithChildPaths,
 }
@@ -96,81 +94,34 @@ impl PromptOnChangeDispatch {
                             DispatchSuggestiveEditor::Completion(Completion {
                                 items: paths
                                     .into_iter()
-                                    .map(|path| {
-                                        DropdownItem::new(format!(
-                                            "{}{}",
-                                            path.display_absolute(),
-                                            std::path::MAIN_SEPARATOR
-                                        ))
-                                    })
+                                    .map(|path| DropdownItem::new(path.display_absolute()))
                                     .collect_vec(),
                                 trigger_characters: Vec::new(),
                             }),
                         ))
                     } else {
-                        Default::default()
+                        Dispatches::default()
                     }
                 } else {
-                    Default::default()
+                    Dispatches::default()
                 }
             }
         }
     }
 }
 
-fn get_child_directories(path: &Path) -> anyhow::Result<Vec<CanonicalizedPath>> {
+fn get_child_directories(path: &Path) -> anyhow::Result<Vec<AbsolutePath>> {
     Ok(std::fs::read_dir(path)?
         .filter_map(|entry| entry.ok())
         .map(|entry| entry.path())
         .filter(|path| path.is_dir())
-        .filter_map(|path| path.try_into().ok())
+        .filter_map(|path| AbsolutePath::try_from(path.canonicalize().ok()?).ok())
         .sorted()
         .collect())
 }
 
 struct PromptContext {
     current_line: String,
-}
-
-struct PromptMatcher {
-    nucleo: nucleo::Nucleo<DropdownItem>,
-}
-impl PromptMatcher {
-    fn reparse(&mut self, filter: &str) {
-        self.nucleo
-            .pattern
-            .reparse(0, filter, Default::default(), Default::default(), false);
-    }
-
-    fn handle_nucleo_updated(&mut self, viewport_height: usize) -> Vec<DropdownItem> {
-        let nucleo = &mut self.nucleo;
-
-        nucleo.tick(10);
-        let snapshot = nucleo.snapshot();
-
-        // TODO: we should pass in the scroll_offset of the completion menu
-        //   we'll leave it as 0 for now since it is already working well
-        let scroll_offset = 0;
-
-        snapshot
-            .matched_items(
-                scroll_offset as u32
-                    ..viewport_height.min(snapshot.matched_item_count() as usize) as u32,
-            )
-            .map(|item| item.data.clone())
-            .collect_vec()
-    }
-
-    fn new(task: PromptItemsBackgroundTask, notify: Callback<()>) -> Self {
-        let nucleo = nucleo::Nucleo::new(
-            nucleo::Config::DEFAULT,
-            Arc::new(move || notify.call(())),
-            None,
-            1,
-        );
-        task.execute(nucleo.injector());
-        PromptMatcher { nucleo }
-    }
 }
 
 #[derive(Clone, PartialEq)]
@@ -188,8 +139,8 @@ impl PromptConfig {
         Self {
             title,
             on_enter,
-            on_cancelled: Default::default(),
-            on_change: Default::default(),
+            on_cancelled: None,
+            on_change: None,
         }
     }
     pub fn items(&self) -> Vec<DropdownItem> {
@@ -199,9 +150,9 @@ impl PromptConfig {
             } => suggested_items.clone(),
             PromptOnEnter::ParseWholeBuffer { .. } => Vec::new(),
             PromptOnEnter::SelectsFirstMatchingItem { items } => match &items {
-                PromptItems::None => Default::default(),
+                PromptItems::None => Vec::default(),
                 PromptItems::Precomputed(dropdown_items) => dropdown_items.clone(),
-                PromptItems::BackgroundTask { .. } => Default::default(),
+                PromptItems::BackgroundTask { .. } => Vec::default(),
             },
         }
     }
@@ -234,19 +185,16 @@ pub enum PromptItems {
     Precomputed(Vec<DropdownItem>),
     BackgroundTask {
         task: PromptItemsBackgroundTask,
-        on_nucleo_tick_debounced: Callback<()>,
     },
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum PromptItemsBackgroundTask {
-    NonGitIgnoredFiles {
-        working_directory: CanonicalizedPath,
-    },
+    NonGitIgnoredFiles { working_directory: AbsolutePath },
     HandledByMainEventLoop,
 }
 impl PromptItemsBackgroundTask {
-    fn execute(self, injector: nucleo::Injector<DropdownItem>) {
+    fn execute(self, injector: Callback<DropdownItem>) {
         match self {
             PromptItemsBackgroundTask::NonGitIgnoredFiles { working_directory } => {
                 std::thread::spawn(move || {
@@ -254,13 +202,9 @@ impl PromptItemsBackgroundTask {
                         working_directory.to_path_buf().clone(),
                         Arc::new(move |path_buf| {
                             let item = DropdownItem::from_path_buf(&working_directory, path_buf);
-                            injector.push(item, |item, columns| {
-                                let group = item.group().clone().unwrap_or_default();
-                                let display = item.display().clone();
-                                columns[0] = format!("{group} {display}").into();
-                            });
+                            injector.call(item);
                         }),
-                    )
+                    );
                 });
             }
             PromptItemsBackgroundTask::HandledByMainEventLoop => {
@@ -299,8 +243,12 @@ pub enum PromptHistoryKey {
 }
 
 impl Prompt {
-    pub fn new(config: PromptConfig, context: &Context) -> (Self, Dispatches) {
-        let (text, leaves_current_line_empty) = match &config.on_enter {
+    pub fn new(
+        config: PromptConfig,
+        context: &Context,
+        on_nucleo_tick_debounced: Callback<()>,
+    ) -> (Self, Dispatches) {
+        let (text, leaves_current_line_empty, has_multiple_lines) = match &config.on_enter {
             PromptOnEnter::ParseCurrentLine {
                 history_key,
                 current_line,
@@ -321,16 +269,17 @@ impl Prompt {
                 } else {
                     history
                 };
-                (text, current_line.is_none())
+                (text, current_line.is_none(), false)
             }
             PromptOnEnter::ParseWholeBuffer { initial_lines, .. } => {
-                (initial_lines.join("\n"), true)
+                (initial_lines.join("\n"), false, true)
             }
-            PromptOnEnter::SelectsFirstMatchingItem { .. } => ("".to_string(), true),
+            PromptOnEnter::SelectsFirstMatchingItem { .. } => ("".to_string(), true, false),
         };
         let mut editor = SuggestiveEditor::from_buffer(
             Rc::new(RefCell::new(Buffer::new(None, &text))),
             SuggestiveEditorFilter::CurrentLine,
+            on_nucleo_tick_debounced,
         );
         let dispatches = if leaves_current_line_empty {
             Dispatches::one(Dispatch::ToEditor(DispatchEditor::MoveToLastChar))
@@ -344,10 +293,15 @@ impl Prompt {
                     Dispatch::ToEditor(DispatchEditor::MoveSelection(
                         super::editor::Movement::Last,
                     )),
-                    Dispatch::ToEditor(DispatchEditor::MoveToLineEnd),
                 ]
                 .to_vec(),
             )
+            .append_some(if has_multiple_lines {
+                Some(Dispatch::ToEditor(DispatchEditor::CursorAddToAllSelections))
+            } else {
+                None
+            })
+            .append(Dispatch::ToEditor(DispatchEditor::MoveToLineEnd))
         };
         // TODO: set cursor to last line
         editor.set_title(config.title.clone());
@@ -357,24 +311,12 @@ impl Prompt {
         });
         let dispatches = dispatches.chain(editor.render_completion_dropdown(true));
 
-        let matcher = if let PromptOnEnter::SelectsFirstMatchingItem {
-            items:
-                PromptItems::BackgroundTask {
-                    task,
-                    on_nucleo_tick_debounced,
-                },
+        if let PromptOnEnter::SelectsFirstMatchingItem {
+            items: PromptItems::BackgroundTask { task },
         } = &config.on_enter
         {
-            let debounce = crate::thread::debounce(
-                on_nucleo_tick_debounced.clone(),
-                Duration::from_millis(1000 / 30), // 30 FPS
-            );
-
-            let matcher = PromptMatcher::new(task.clone(), debounce);
-            Some(matcher)
-        } else {
-            None
-        };
+            task.to_owned().execute(editor.injector());
+        }
 
         (
             Prompt {
@@ -382,7 +324,6 @@ impl Prompt {
                 on_enter: config.on_enter,
                 on_cancelled: config.on_cancelled,
                 on_change: config.on_change,
-                matcher,
             },
             dispatches,
         )
@@ -398,50 +339,22 @@ impl Prompt {
                 let dispatches = self.editor.update_current_line(context, &item.display())?;
                 Ok(dispatches.chain(self.editor_mut().move_to_line_end()?))
             } else {
-                Ok(Default::default())
+                Ok(Dispatches::default())
             }
         } else {
             self.editor_mut().handle_key_event(context, event)
         }
     }
 
-    pub fn render_completion_dropdown(&self) -> Dispatches {
-        self.editor.render_completion_dropdown(true)
-    }
-
-    pub fn handle_nucleo_updated(&mut self, viewport_height: usize) -> Dispatches {
-        let Some(matcher) = self.matcher.as_mut() else {
-            return Default::default();
-        };
-
-        let items = matcher.handle_nucleo_updated(viewport_height);
-
-        self.editor.update_items(items);
-
-        self.render_completion_dropdown()
-    }
-
-    pub fn reparse_pattern(&mut self, filter: &str) {
-        if let Some(matcher) = self.matcher.as_mut() {
-            matcher.reparse(filter);
-        }
+    pub fn handle_nucleo_notify(&mut self) -> Dispatches {
+        self.editor.handle_nucleo_notify()
     }
 
     pub fn clear_and_update_matcher_items(&mut self, items: Vec<DropdownItem>) {
-        let Some(matcher) = self.matcher.as_mut() else {
-            return Default::default();
-        };
-
-        matcher.nucleo.restart(true);
-
-        let injector = matcher.nucleo.injector();
-        for item in items {
-            injector.push(item, |item, columns| {
-                let group = item.group().clone().unwrap_or_default();
-                let display = item.display().clone();
-                columns[0] = format!("{group} {display}").into();
-            });
-        }
+        self.editor.set_completion(Completion {
+            items,
+            trigger_characters: vec![" ".to_string()],
+        });
     }
 
     pub fn get_on_change_dispatches(&self) -> Dispatches {
@@ -916,6 +829,49 @@ mod test_prompt {
                 Editor(MoveSelection(Left)),
                 App(HandleKeyEvent(key!("enter"))),
                 Expect(CurrentSearch(Scope::Local, "foo.")),
+            ])
+        })
+    }
+
+    #[test]
+    fn parse_whole_buffer_auto_add_cursor_to_all_line() -> Result<(), anyhow::Error> {
+        execute_test(|s| {
+            Box::new([
+                App(RevealInExplorer(s.main_rs())),
+                Expect(FileExplorerContent(
+                    "
+ - 📁  .git/ :
+ - 🙈  .gitignore
+ - 🔒  Cargo.lock
+ - 📄  Cargo.toml
+ - 📂  src/ :
+   - 🦀  foo.rs
+   - 📘  hello.ts
+   - 🦀  main.rs
+"
+                    .trim_matches('\n')
+                    .to_string(),
+                )),
+                Editor(MatchLiteral("Cargo.lock".to_owned())),
+                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+                Editor(EnableSelectionExtension),
+                Editor(MoveSelection(Right)),
+                Expect(CurrentSelectedTexts(&[
+                    "- 🔒  Cargo.lock\n - 📄  Cargo.toml",
+                ])),
+                App(OpenMovePathsPrompt),
+                Expect(CurrentMode(Mode::Insert)),
+                Expect(CurrentSelectedTexts(&["", ""])),
+                Editor(EnterNormalMode),
+                Editor(SetSelectionMode(
+                    IfCurrentNotFound::LookForward,
+                    SelectionMode::Line,
+                )),
+                Editor(SwapCursor),
+                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+                Editor(EnableSelectionExtension),
+                Editor(MoveSelection(Left)),
+                Expect(CurrentSelectedTexts(&["Cargo.lock", "Cargo.toml"])),
             ])
         })
     }

@@ -24,7 +24,7 @@ The space menu can be brought up by pressing `space`.
 
 <KeymapFallback filename="Space"/>
 
-## Context Actions (only applicable in the main editor):
+## Context Actions
 
 This are actions that are related to the current selection(s). Similar to the right-click context menu in Windows or Mac OS.
 
@@ -64,7 +64,13 @@ Show the Git Blame of the current line(s).
 
 ### `Go to File`
 
-Go to file under selection.
+Opens the filepath under selection(s). In case of multiple selection, opens and marks the files.
+
+If there is exactly one selection, the file gets opened but not marked: To act like a quick sneak-and-return type of usage.
+
+Suppose the current selection is "./foo.rs", this action will open this file but not mark it.
+
+Suppose the current selection is multicursor selection: "foo.rs" and "main.rs", this action will open both of the files and mark it on the tab bar.
 
 ### `Copy Relative Path`
 
@@ -130,6 +136,11 @@ Git status (against current branch) [^1]
 ### `Git status ^`
 
 Git status (against main/master branch) [^2]
+
+### `Git Branch`
+
+Opens a picker to select and checkout a different Git branch.
+
 [^1]: See more at [Git hunk](./selection-modes/secondary.md#hunkhunk)
 [^2]: This is very useful when you want to get the modified/added files commited into the current branch that you are working on.
 

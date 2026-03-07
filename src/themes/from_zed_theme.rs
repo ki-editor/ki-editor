@@ -63,6 +63,19 @@ pub(super) fn from_theme_content(theme: ThemeContent) -> Theme {
         .text_accent
         .and_then(|hex| from_hex(&hex).ok())
         .unwrap_or(text_color);
+    let window_title_focused_foreground = from_some_hex(theme.style.tab_bar_background);
+    let window_title_focused = Style::new()
+        .set_some_foreground_color(window_title_focused_foreground)
+        .set_some_background_color(Some(text_color));
+    let window_title_unfocused = Style::new()
+        .foreground_color(text_color)
+        .set_some_background_color(from_some_hex(theme.style.tab_inactive_background));
+    let focused_tab = Style::new()
+        .set_some_foreground_color(window_title_focused.background_color)
+        .set_some_background_color(
+            from_some_hex(theme.style.tab_active_background)
+                .or(window_title_focused.foreground_color),
+        );
     Theme {
         name: theme.name,
         syntax: SyntaxStyles::new(&{
@@ -111,12 +124,9 @@ pub(super) fn from_theme_content(theme: ThemeContent) -> Theme {
             global_title: Style::new()
                 .foreground_color(text_color)
                 .set_some_background_color(from_some_hex(theme.style.status_bar_background)),
-            window_title_focused: Style::new()
-                .set_some_foreground_color(from_some_hex(theme.style.tab_bar_background))
-                .set_some_background_color(Some(text_color)),
-            window_title_unfocused: Style::new()
-                .foreground_color(text_color)
-                .set_some_background_color(from_some_hex(theme.style.tab_inactive_background)),
+            window_title_focused,
+            window_title_unfocused,
+            focused_tab,
             parent_lines_background,
             section_divider_background,
             jump_mark_odd: Style::new()
