@@ -141,3 +141,4 @@ lto = true
 dbg_macro = "warn"
 semicolon_if_nothing_returned = "warn"
 default_trait_access = "warn"
+single_match = "allow"

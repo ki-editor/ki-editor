@@ -1009,6 +1009,11 @@ impl Editor {
                     "Quickfix".to_string(),
                     Dispatch::OpenQuickfixItemsPicker,
                 )))
+                .chain(Some(Keybinding::new(
+                    "b",
+                    "Git Branch".to_string(),
+                    Dispatch::OpenGitBranchPrompt,
+                )))
                 .collect_vec(),
             ),
         }

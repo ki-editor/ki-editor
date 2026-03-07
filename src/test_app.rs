@@ -2830,7 +2830,7 @@ fn open_search_prompt_with_current_selection() -> anyhow::Result<()> {
                 prior_change: None,
             }),
             Expect(CurrentComponentTitle("Local search".to_string())),
-            Expect(CurrentComponentContent("mod foo;")),
+            Expect(CurrentComponentContent("l/mod foo;")),
         ])
     })
 }
@@ -3649,6 +3649,57 @@ fn lsp_initialization_should_only_send_relevant_opened_documents() -> anyhow::Re
 }
 
 #[test]
+fn open_git_branch_picker() -> anyhow::Result<()> {
+    execute_test(|s| {
+        let temp_dir = s.temp_dir();
+        let _ = std::env::set_current_dir(temp_dir.clone());
+        Box::new([
+            Expect(CurrentWorkingDirectory(s.temp_dir())),
+            Shell(
+                "git",
+                ["branch".to_string(), "test-branch-picker".to_string()].to_vec(),
+            ),
+            // Commit all files so that we can switch branch later
+            Shell("git", ["add".to_string(), ".".to_string()].to_vec()),
+            Shell(
+                "git",
+                [
+                    "commit".to_string(),
+                    "-m".to_string(),
+                    "add all files".to_string(),
+                ]
+                .to_vec(),
+            ),
+            App(OpenGitBranchPrompt),
+            Expect(ExpectKind::ComponentsOrder(vec![
+                ComponentKind::Prompt,
+                ComponentKind::Dropdown,
+            ])),
+            Expect(CompletionDropdownContentString(
+                "master\ntest-branch-picker".to_string(),
+            )),
+            App(HandleKeyEvents(keys!("alt+l alt+x").to_vec())),
+            Expect(CurrentComponentContent("test-branch-picker")),
+            App(HandleKeyEvents(keys!("enter").to_vec())),
+            Expect(ExpectKind::CompletionDropdownIsOpen(false)),
+            ExpectCustom(Box::new({
+                let temp_dir = temp_dir.clone();
+                move || {
+                    let path = temp_dir.to_path_buf();
+                    let output = std::process::Command::new("git")
+                        .current_dir(path)
+                        .args(["branch", "--show-current"])
+                        .output()
+                        .unwrap();
+                    let branch = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                    assert_eq!(branch, "test-branch-picker");
+                }
+            })),
+        ])
+    })
+}
+
+#[test]
 fn navigate_back_should_skip_files_that_were_renamed_or_deleted() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
@@ -4023,14 +4074,14 @@ fn marking_selections_should_refresh_mark_quickfix() -> Result<(), anyhow::Error
                 owner: BufferOwner::User,
                 focus: true,
             }),
-            Editor(SetContent("foo\nbar\nspam".to_string())),
+            Editor(SetContent("foo\nbar\nspam\nbaz".to_string())),
             Editor(Save),
             Editor(DispatchEditor::SetSelectionMode(
                 IfCurrentNotFound::LookForward,
                 Word,
             )),
             Editor(CursorAddToAllSelections),
-            Expect(CurrentSelectedTexts(&["foo", "bar", "spam"])),
+            Expect(CurrentSelectedTexts(&["foo", "bar", "spam", "baz"])),
             App(ToggleSelectionMark),
             Editor(CursorKeepPrimaryOnly),
             Expect(CurrentSelectedTexts(&["foo"])),
@@ -4041,6 +4092,7 @@ src/foo.rs
     1:1  foo
     2:1  bar
     3:1  spam
+    4:1  baz
     "
                 .trim()
                 .to_string(),
@@ -4050,11 +4102,11 @@ src/foo.rs
             // When we untoggled a mark, we expect the quickfix list to be updated
             App(ToggleSelectionMark),
             Expect(AppGrid(
-                " [÷] 🦀  foo.rs
+                " [-] 🦀  foo.rs
 1│foo
-2│█ar
-3│spam
-
+2│bar
+3│█pam
+4│baz
 
 
 
@@ -4069,7 +4121,8 @@ src/foo.rs
 Quickfix list
 1│src/foo.rs
 2│    1:1  foo
-3│█   3:1  spam"
+3│█   3:1  spam
+4│    4:1  baz"
                     .to_string(),
             )),
             Expect(ExpectKind::QuickfixListContent(
@@ -4077,14 +4130,24 @@ Quickfix list
 src/foo.rs
     1:1  foo
     3:1  spam
+    4:1  baz
     "
                 .trim()
                 .to_string(),
             )),
-            Editor(MoveSelection(Movement::Next)),
-            // Note that it shouldn't select `foo`, because the focused index in the quickfix list
-            // shouldn't be updated
+            // Expect that the editor automatically jumps to the next mark
             Expect(CurrentSelectedTexts(&["spam"])),
+            App(ToggleSelectionMark),
+            Expect(ExpectKind::QuickfixListContent(
+                "
+src/foo.rs
+    1:1  foo
+    4:1  baz
+    "
+                .trim()
+                .to_string(),
+            )),
+            Expect(CurrentSelectedTexts(&["baz"])),
             App(ToggleSelectionMark),
             Expect(ExpectKind::QuickfixListContent(
                 "
@@ -4094,8 +4157,54 @@ src/foo.rs
                 .trim()
                 .to_string(),
             )),
-            Editor(MoveSelection(Movement::Previous)),
             Expect(CurrentSelectedTexts(&["foo"])),
+        ])
+    })
+}
+
+#[test]
+fn global_search_should_not_change_dirty_status() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("fn main() { call_main() }".to_string())),
+            Editor(Save),
+            Expect(Not(Box::new(EditorIsDirty()))),
+            App(OpenFile {
+                path: s.foo_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("fn foo() { call_foo() }".to_string())),
+            Editor(Save),
+            Expect(Not(Box::new(EditorIsDirty()))),
+            App(UpdateLocalSearchConfig {
+                update: LocalSearchConfigUpdate::Search("call_main".to_string()),
+                scope: Scope::Global,
+                if_current_not_found: IfCurrentNotFound::LookForward,
+                run_search_after_config_updated: true,
+                component_id: None,
+            }),
+            WaitForAppMessage(regex!("GlobalSearchFinished")),
+            Expect(CurrentGlobalMode(Some(GlobalMode::QuickfixListItem))),
+            Expect(Quickfixes(Box::new([QuickfixListItem::new(
+                Location {
+                    path: s.main_rs(),
+                    range: (CharIndex(16)..CharIndex(25)).into(),
+                },
+                None,
+                Some("    call_main()\n".to_string()),
+            )]))),
+            App(HandleKeyEvent(key!("esc"))),
+            Expect(CurrentGlobalMode(None)),
+            Expect(CurrentComponentPath(Some(s.main_rs()))),
+            Expect(Not(Box::new(EditorIsDirty()))),
+            App(OpenAlternateFile),
+            Expect(Not(Box::new(EditorIsDirty()))),
         ])
     })
 }
