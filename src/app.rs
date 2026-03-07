@@ -2917,12 +2917,13 @@ impl<T: Frontend> App<T> {
 
         // Refresh the quickfix list if possible
         // TODO: we need to maintain the last quickfix list index too
-        match self.context.quickfix_list().kind() {
-            Some(QuickfixListKind::Mark) => {
+        match (self.context.quickfix_list().kind(), self.context.mode()) {
+            (Some(QuickfixListKind::Mark), Some(GlobalMode::QuickfixListItem)) => {
                 self.update_quickfix_list_item(QuickfixListType::Mark);
                 self.render_quickfix_list()?;
+                self.goto_quickfix_list_item(Movement::Current(IfCurrentNotFound::LookForward))?;
             }
-            None => {}
+            _ => {}
         }
 
         Ok(())

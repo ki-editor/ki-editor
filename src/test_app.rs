@@ -4074,14 +4074,14 @@ fn marking_selections_should_refresh_mark_quickfix() -> Result<(), anyhow::Error
                 owner: BufferOwner::User,
                 focus: true,
             }),
-            Editor(SetContent("foo\nbar\nspam".to_string())),
+            Editor(SetContent("foo\nbar\nspam\nbaz".to_string())),
             Editor(Save),
             Editor(DispatchEditor::SetSelectionMode(
                 IfCurrentNotFound::LookForward,
                 Word,
             )),
             Editor(CursorAddToAllSelections),
-            Expect(CurrentSelectedTexts(&["foo", "bar", "spam"])),
+            Expect(CurrentSelectedTexts(&["foo", "bar", "spam", "baz"])),
             App(ToggleSelectionMark),
             Editor(CursorKeepPrimaryOnly),
             Expect(CurrentSelectedTexts(&["foo"])),
@@ -4092,6 +4092,7 @@ src/foo.rs
     1:1  foo
     2:1  bar
     3:1  spam
+    4:1  baz
     "
                 .trim()
                 .to_string(),
@@ -4103,9 +4104,9 @@ src/foo.rs
             Expect(AppGrid(
                 " [-] 🦀  foo.rs
 1│foo
-2│█ar
-3│spam
-
+2│bar
+3│█pam
+4│baz
 
 
 
@@ -4120,7 +4121,8 @@ src/foo.rs
 Quickfix list
 1│src/foo.rs
 2│    1:1  foo
-3│█   3:1  spam"
+3│█   3:1  spam
+4│    4:1  baz"
                     .to_string(),
             )),
             Expect(ExpectKind::QuickfixListContent(
@@ -4128,14 +4130,24 @@ Quickfix list
 src/foo.rs
     1:1  foo
     3:1  spam
+    4:1  baz
     "
                 .trim()
                 .to_string(),
             )),
-            Editor(MoveSelection(Movement::Next)),
-            // Note that it shouldn't select `foo`, because the focused index in the quickfix list
-            // shouldn't be updated
+            // Expect that the editor automatically jumps to the next mark
             Expect(CurrentSelectedTexts(&["spam"])),
+            App(ToggleSelectionMark),
+            Expect(ExpectKind::QuickfixListContent(
+                "
+src/foo.rs
+    1:1  foo
+    4:1  baz
+    "
+                .trim()
+                .to_string(),
+            )),
+            Expect(CurrentSelectedTexts(&["baz"])),
             App(ToggleSelectionMark),
             Expect(ExpectKind::QuickfixListContent(
                 "
@@ -4145,7 +4157,6 @@ src/foo.rs
                 .trim()
                 .to_string(),
             )),
-            Editor(MoveSelection(Movement::Previous)),
             Expect(CurrentSelectedTexts(&["foo"])),
         ])
     })
