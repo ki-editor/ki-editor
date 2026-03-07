@@ -4208,3 +4208,29 @@ fn global_search_should_not_change_dirty_status() -> anyhow::Result<()> {
         ])
     })
 }
+
+#[test]
+fn release_insert_mol_should_not_close_popups() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("f()".to_string())),
+            Editor(MatchLiteral("f()".to_string())),
+            App(HandleKeyEvents(keys!("f o release-f").to_vec())),
+            Expect(ExpectKind::LspRequestSent(
+                FromEditor::TextDocumentSignatureHelp(RequestParams {
+                    path: s.main_rs(),
+                    position: Position::new(0, 3),
+                    context: ResponseContext::default(),
+                }),
+            )),
+            Expect(ExpectKind::ComponentsOrder(vec![
+                ComponentKind::SuggestiveEditor,
+            ])),
+        ])
+    })
+}
