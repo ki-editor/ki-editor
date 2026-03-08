@@ -76,7 +76,7 @@ nix profile add github:ki-editor/ki-editor
     nixosConfigurations."«hostname»" = nixpkgs.lib.nixosSystem {
       system = "x86_64-linux";
       modules = [
-         { environment.systemPackages = [ ki-editor.packages.x86_64-linux.default ] }
+         { environment.systemPackages = [ ki-editor.packages.x86_64-linux.default ]; }
          ./configuration.nix
       ];
     };
