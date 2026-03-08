@@ -118,7 +118,7 @@ pub fn builtin_layout_map() -> HashMap<String, KeyboardLayout> {
                 name.to_string(),
                 KeyboardLayout {
                     name: name.to_string(),
-                    keys,
+                    keys: *keys,
                 },
             )
         })
