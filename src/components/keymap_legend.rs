@@ -363,7 +363,7 @@ impl Component for KeymapLegend {
                 }
                 key_event => {
                     let key_event = context
-                        .keyboard_layout_kind()
+                        .keyboard_layout()
                         .translate_key_event_to_qwerty(key_event.clone());
                     if let Some(keymap) = self
                         .config

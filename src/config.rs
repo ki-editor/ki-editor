@@ -1,11 +1,12 @@
 use std::borrow::Cow;
 use std::{collections::HashMap, io::Read, path::PathBuf};
 
+use anyhow::Context;
 use itertools::Itertools;
 use regex::Regex;
 
 use crate::app::StatusLine;
-use crate::components::editor_keymap::KeyboardLayoutKind;
+use crate::components::editor_keymap::{builtin_layout_map, KeyboardLayout, KeyboardLayoutKeys};
 use crate::scripting::{Keybinding, Script};
 use crate::themes::Theme;
 use figment::providers;
@@ -18,20 +19,23 @@ use shared::language::{self, Language};
 
 pub struct AppConfig {
     languages: HashMap<String, Language>,
-    keyboard_layout: KeyboardLayoutKind,
+    keyboard_layout: KeyboardLayout,
     theme: ConfigTheme,
     status_lines: Vec<StatusLine>,
     leader_keymap: LeaderKeymap,
+    keyboard_layouts: HashMap<String, KeyboardLayout>,
 }
 
 #[derive(Deserialize, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct RawConfig {
     languages: HashMap<String, Language>,
-    keyboard_layout: KeyboardLayoutKind,
+    keyboard_layout: String,
     theme: ConfigThemeName,
     status_lines: Vec<StatusLine>,
     leader_keymap: LeaderKeymap,
+    #[serde(default)]
+    custom_keyboard_layouts: HashMap<String, KeyboardLayoutKeys>,
 }
 
 const DEFAULT_CONFIG: &str = include_str!("config_default.json");
@@ -49,12 +53,29 @@ impl Default for RawConfig {
 impl TryFrom<RawConfig> for AppConfig {
     type Error = anyhow::Error;
     fn try_from(value: RawConfig) -> Result<Self, Self::Error> {
+        let keyboard_layouts: HashMap<_, _> = builtin_layout_map()
+            .into_iter()
+            .chain(
+                value
+                    .custom_keyboard_layouts
+                    .into_iter()
+                    .map(|(name, keys)| (name.clone(), KeyboardLayout::new(name, keys))),
+            )
+            .collect();
+        let keyboard_layout = keyboard_layouts
+            .get(&value.keyboard_layout)
+            .context(format!(
+                "Unknown keyboard layout {}, possible values are {:?}",
+                value.keyboard_layout,
+                keyboard_layouts.keys().collect::<Vec<_>>()
+            ))?;
         Ok(Self {
             languages: value.languages,
-            keyboard_layout: value.keyboard_layout,
+            keyboard_layout: keyboard_layout.clone(),
             theme: ConfigTheme::try_from(value.theme)?,
             status_lines: value.status_lines,
             leader_keymap: value.leader_keymap,
+            keyboard_layouts,
         })
     }
 }
@@ -189,8 +210,12 @@ impl AppConfig {
         &self.languages
     }
 
-    pub fn keyboard_layout_kind(&self) -> KeyboardLayoutKind {
-        self.keyboard_layout
+    pub fn keyboard_layout(&self) -> &KeyboardLayout {
+        &self.keyboard_layout
+    }
+
+    pub fn keyboard_layouts(&self) -> &HashMap<String, KeyboardLayout> {
+        &self.keyboard_layouts
     }
 
     pub fn theme(&self) -> &Theme {

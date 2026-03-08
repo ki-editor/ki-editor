@@ -1020,7 +1020,7 @@ impl Editor {
 
     fn jump_characters(context: &Context) -> Vec<char> {
         let chars = context
-            .keyboard_layout_kind()
+            .keyboard_layout()
             .get_keyboard_layout()
             .iter()
             .flatten()
@@ -1715,7 +1715,7 @@ impl Editor {
                     )
                 } else {
                     let translated_key_event = context
-                        .keyboard_layout_kind()
+                        .keyboard_layout()
                         .translate_key_event_to_qwerty(key_event.clone());
                     let keymap_legend_config = self.get_current_keymap_legend_config();
 

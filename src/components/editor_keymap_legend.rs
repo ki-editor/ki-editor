@@ -588,7 +588,7 @@ impl Editor {
         event: KeyEvent,
     ) -> anyhow::Result<Dispatches> {
         let translated_event = context
-            .keyboard_layout_kind()
+            .keyboard_layout()
             .translate_key_event_to_qwerty(event.clone());
         if let Some(dispatches) = self
             .insert_mode_keymap(true)

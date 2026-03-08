@@ -8,7 +8,7 @@ use crate::{
         editor::{
             Direction, DispatchEditor, Editor, IfCurrentNotFound, Movement, PriorChange, Reveal,
         },
-        editor_keymap::KeyboardLayoutKind,
+        editor_keymap::KeyboardLayout,
         editor_keymap_printer::KeymapDisplayOption,
         file_explorer::FileExplorer,
         keymap_legend::{Keybinding, Keymap, KeymapLegendConfig, ReleaseKey},
@@ -74,7 +74,6 @@ use std::{
     },
 };
 use std::{sync::Arc, time::Duration};
-use strum::IntoEnumIterator;
 use DispatchEditor::*;
 
 #[cfg(test)]
@@ -445,8 +444,8 @@ impl<T: Frontend> App<T> {
         Ok(())
     }
 
-    fn keyboard_layout_kind(&self) -> &KeyboardLayoutKind {
-        self.context.keyboard_layout_kind()
+    fn keyboard_layout(&self) -> &KeyboardLayout {
+        self.context.keyboard_layout()
     }
 
     pub fn get_screen(&mut self) -> Result<Screen, anyhow::Error> {
@@ -582,14 +581,12 @@ impl<T: Frontend> App<T> {
                             .last()
                             .map(|search| FlexLayoutComponent::Text(format!("{search:?}"))),
                         StatusLineComponent::Help => {
-                            let help_key = self
-                                .context
-                                .keyboard_layout_kind()
-                                .translate_char_to_qwerty('/');
+                            let help_key =
+                                self.context.keyboard_layout().translate_char_to_qwerty('/');
                             Some(FlexLayoutComponent::Text(format!("Help(Space+{help_key})")))
                         }
                         StatusLineComponent::KeyboardLayout => Some(FlexLayoutComponent::Text(
-                            self.keyboard_layout_kind().display().to_string(),
+                            self.keyboard_layout().name().to_string(),
                         )),
                         StatusLineComponent::Reveal => self
                             .current_component()
@@ -1105,8 +1102,8 @@ impl<T: Frontend> App<T> {
             Dispatch::SelectCompletionItem => self.handle_dispatch_suggestive_editor(
                 DispatchSuggestiveEditor::SelectCompletionItem,
             )?,
-            Dispatch::SetKeyboardLayoutKind(keyboard_layout_kind) => {
-                self.context.set_keyboard_layout_kind(keyboard_layout_kind);
+            Dispatch::SetKeyboardLayout(keyboard_layout) => {
+                self.context.set_keyboard_layout(keyboard_layout);
                 self.keyboard_layout_changed();
             }
             Dispatch::OpenKeyboardLayoutPrompt => self.open_keyboard_layout_picker()?,
@@ -2746,33 +2743,20 @@ impl<T: Frontend> App<T> {
     }
 
     fn open_keyboard_layout_picker(&mut self) -> anyhow::Result<()> {
-        let embedded = self.context.is_running_as_embedded();
         self.open_prompt(PromptConfig::new(
             "Keyboard Layout".to_string(),
-            if embedded {
-                PromptOnEnter::ParseCurrentLine {
-                    parser: DispatchParser::SetKeyboardLayoutKind,
-                    history_key: PromptHistoryKey::KeyboardLayout,
-                    current_line: None,
-                    suggested_items: Vec::default(),
-                }
-            } else {
-                PromptOnEnter::SelectsFirstMatchingItem {
-                    items: PromptItems::Precomputed(
-                        KeyboardLayoutKind::iter()
-                            .map(|keyboard_layout| {
-                                DropdownItem::new(keyboard_layout.display().to_string())
-                                    .set_dispatches(if embedded {
-                                        Dispatches::default()
-                                    } else {
-                                        Dispatches::one(Dispatch::SetKeyboardLayoutKind(
-                                            keyboard_layout,
-                                        ))
-                                    })
-                            })
-                            .collect_vec(),
-                    ),
-                }
+            PromptOnEnter::SelectsFirstMatchingItem {
+                items: PromptItems::Precomputed(
+                    self.context
+                        .keyboard_layouts()
+                        .iter()
+                        .map(|(name, keyboard_layout)| {
+                            DropdownItem::new(name.to_string()).set_dispatches(Dispatches::one(
+                                Dispatch::SetKeyboardLayout(keyboard_layout.clone()),
+                            ))
+                        })
+                        .collect_vec(),
+                ),
             },
         ))
     }
@@ -3017,7 +3001,7 @@ impl<T: Frontend> App<T> {
     fn keyboard_layout_changed(&self) {
         self.integration_event_sender.emit_event(
             crate::integration_event::IntegrationEvent::KeyboardLayoutChanged(
-                self.context.keyboard_layout_kind().display(),
+                self.context.keyboard_layout().name().to_string(),
             ),
         );
     }
@@ -3789,7 +3773,7 @@ pub enum Dispatch {
     MoveToCompletionItem(Direction),
     OpenDeletePathsPrompt,
     SelectCompletionItem,
-    SetKeyboardLayoutKind(KeyboardLayoutKind),
+    SetKeyboardLayout(KeyboardLayout),
     OpenKeyboardLayoutPrompt,
     NavigateForward,
     NavigateBack,
@@ -3997,7 +3981,6 @@ pub enum DispatchParser {
     FilterSelectionMatchingSearch {
         maintain: bool,
     },
-    SetKeyboardLayoutKind,
     SurroundXmlTag,
     #[cfg(test)]
     /// For testing only
@@ -4082,14 +4065,6 @@ impl DispatchParser {
                     search: text.to_string(),
                 }),
             )),
-            DispatchParser::SetKeyboardLayoutKind => {
-                let keyboard_layout_kind = KeyboardLayoutKind::iter()
-                    .find(|keyboard_layout| keyboard_layout.display() == text)
-                    .ok_or_else(|| anyhow::anyhow!("No keyboard layout is named {text:?}"))?;
-                Ok(Dispatches::one(Dispatch::SetKeyboardLayoutKind(
-                    keyboard_layout_kind,
-                )))
-            }
             DispatchParser::SurroundXmlTag => Ok(Dispatches::one(Dispatch::ToEditor(
                 DispatchEditor::Surround(format!("<{text}>"), format!("</{text}>")),
             ))),

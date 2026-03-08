@@ -47,7 +47,7 @@ pub enum IntegrationEvent {
     RequestLspDeclaration,
     RequestLspImplementation,
     RequestLspTypeDefinition,
-    KeyboardLayoutChanged(&'static str),
+    KeyboardLayoutChanged(String),
     ShowInfo {
         /// Set to `None` to hide the info
         info: Option<String>,

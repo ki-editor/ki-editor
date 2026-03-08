@@ -10,7 +10,7 @@ use crate::{
     app::{GlobalSearchConfigUpdate, LocalSearchConfigUpdate, Scope},
     char_index_range::CharIndexRange,
     clipboard::{Clipboard, RingHistory, Texts},
-    components::{editor_keymap::KeyboardLayoutKind, prompt::PromptHistoryKey},
+    components::{editor_keymap::KeyboardLayout, prompt::PromptHistoryKey},
     list::grep::RegexConfig,
     persistence::{Persistence, WorkspaceSession},
     quickfix_list::{DiagnosticSeverityRange, Location, QuickfixList, QuickfixListItem},
@@ -31,7 +31,8 @@ pub struct Context {
     quickfix_list: QuickfixList,
     prompt_histories: HashMap<PromptHistoryKey, IndexSet<String>>,
     last_non_contiguous_selection_mode: Option<Either<SelectionMode, GlobalMode>>,
-    keyboard_layout_kind: KeyboardLayoutKind,
+    keyboard_layout: KeyboardLayout,
+    keyboard_layouts: HashMap<String, KeyboardLayout>,
     location_history_backward: Vec<Location>,
     location_history_forward: Vec<Location>,
 
@@ -299,7 +300,12 @@ impl Context {
             global_search_config: GlobalSearchConfig::default(),
             prompt_histories,
             last_non_contiguous_selection_mode: None,
-            keyboard_layout_kind: crate::config::AppConfig::singleton().keyboard_layout_kind(),
+            keyboard_layout: crate::config::AppConfig::singleton()
+                .keyboard_layout()
+                .clone(),
+            keyboard_layouts: crate::config::AppConfig::singleton()
+                .keyboard_layouts()
+                .clone(),
             location_history_backward: Vec::new(),
             location_history_forward: Vec::new(),
             marked_files,
@@ -481,12 +487,16 @@ impl Context {
         self.last_non_contiguous_selection_mode.as_ref()
     }
 
-    pub fn keyboard_layout_kind(&self) -> &KeyboardLayoutKind {
-        &self.keyboard_layout_kind
+    pub fn keyboard_layout(&self) -> &KeyboardLayout {
+        &self.keyboard_layout
     }
 
-    pub fn set_keyboard_layout_kind(&mut self, keyboard_layout_kind: KeyboardLayoutKind) {
-        self.keyboard_layout_kind = keyboard_layout_kind;
+    pub fn set_keyboard_layout(&mut self, keyboard_layout: KeyboardLayout) {
+        self.keyboard_layout = keyboard_layout;
+    }
+
+    pub fn keyboard_layouts(&self) -> &HashMap<String, KeyboardLayout> {
+        &self.keyboard_layouts
     }
 
     pub fn push_location_history(&mut self, location: Location, backward: bool) {

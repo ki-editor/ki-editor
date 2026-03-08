@@ -747,10 +747,10 @@ impl EmbeddedApp {
         })
     }
 
-    fn keyboard_layout_changed(&self, keyboard_layout: &str) -> anyhow::Result<()> {
+    fn keyboard_layout_changed(&self, keyboard_layout: String) -> anyhow::Result<()> {
         self.send_notification(OutputMessageWrapper {
             id: 0,
-            message: OutputMessage::KeyboardLayoutChanged(keyboard_layout.to_string()),
+            message: OutputMessage::KeyboardLayoutChanged(keyboard_layout),
             error: None,
         })
     }

@@ -78,7 +78,7 @@ impl Component for SuggestiveEditor {
     ) -> anyhow::Result<Dispatches> {
         if self.editor.mode == Mode::Insert && self.completion_dropdown_opened() {
             let translated_event = context
-                .keyboard_layout_kind()
+                .keyboard_layout()
                 .translate_key_event_to_qwerty(event.clone());
             if let Some(keymap) = completion_item_keymap().get(&translated_event) {
                 log::info!("dispatches = {:?}", keymap.get_dispatches());
