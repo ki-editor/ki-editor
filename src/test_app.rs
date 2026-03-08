@@ -2919,7 +2919,7 @@ fn doc_assets_export_keymaps_json() {
     #[derive(Serialize, Clone)]
     struct KeyboardLayoutJson {
         name: String,
-        keys: Vec<[&'static str; 10]>,
+        keys: Vec<[char; 10]>,
     }
 
     #[derive(Serialize)]

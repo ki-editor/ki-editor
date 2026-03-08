@@ -9,7 +9,7 @@ use crate::{
     app::Scope,
     components::{
         editor::Editor,
-        editor_keymap::{shifted, QWERTY},
+        editor_keymap::{shifted, QWERTY_STR},
         editor_keymap_legend::{
             buffer_keymap, cut_keymap, delete_keymap, duplicate_keymap, insert_keymap,
             paste_keymap, swap_keymap, NormalModeOverride,
@@ -84,7 +84,7 @@ impl KeymapPrintSection {
     pub fn from_keymap(name: String, keymap: &Keymap) -> Self {
         KeymapPrintSection {
             name,
-            keys: QWERTY
+            keys: QWERTY_STR
                 .iter()
                 .map(|row| {
                     row.iter()
