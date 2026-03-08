@@ -1026,7 +1026,7 @@ impl Editor {
             .flatten()
             .zip(KEYMAP_SCORE.iter().flatten())
             .sorted_by_key(|(_, score)| **score)
-            .map(|(char, _)| char.chars().next().unwrap());
+            .map(|(char, _)| *char);
         chars.clone().chain(chars.map(shifted_char)).collect()
     }
 

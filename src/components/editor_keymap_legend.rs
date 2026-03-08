@@ -9,7 +9,7 @@ use crate::{
     app::{Dispatch, Dispatches, FilePickerKind, Scope},
     components::{
         editor::{Movement, PriorChange},
-        editor_keymap::QWERTY,
+        editor_keymap::QWERTY_STR,
         keymap_legend::{MomentaryLayer, OnSpacebarTapped, OnTap},
     },
     context::{Context, LocalSearchConfigMode, Search},
@@ -1198,7 +1198,7 @@ impl Editor {
             title: "Leader".to_string(),
 
             keymap: Keymap::new(
-                &QWERTY
+                &QWERTY_STR
                     .iter()
                     .flatten()
                     .filter_map(|key| {
