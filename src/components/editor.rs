@@ -1701,8 +1701,12 @@ impl Editor {
         context: &Context,
         key_event: KeyEvent,
     ) -> anyhow::Result<Dispatches> {
-        match self.handle_universal_key(key_event)? {
-            HandleEventResult::Ignored(key_event) => {
+        let translated_key_event = context
+            .keyboard_layout_kind()
+            .translate_key_event_to_qwerty(key_event.clone());
+        match self.handle_universal_key(&translated_key_event)? {
+            Some(dispatches) => Ok(dispatches),
+            None => {
                 if let Some(dispatches) = self.handle_jump_mode(context, &key_event) {
                     dispatches
                 } else if let Mode::Insert = self.mode {
@@ -1728,7 +1732,6 @@ impl Editor {
                     Ok(vec![].into())
                 }
             }
-            HandleEventResult::Handled(dispatches) => Ok(dispatches),
         }
     }
 
@@ -4671,11 +4674,6 @@ pub enum ViewAlignment {
     Top,
     Center,
     Bottom,
-}
-
-pub enum HandleEventResult {
-    Handled(Dispatches),
-    Ignored(KeyEvent),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

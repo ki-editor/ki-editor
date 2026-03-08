@@ -24,10 +24,7 @@ use crate::{
 };
 
 use super::{
-    editor::{
-        Direction, DispatchEditor, Editor, HandleEventResult, IfCurrentNotFound, Reveal,
-        SurroundKind,
-    },
+    editor::{Direction, DispatchEditor, Editor, IfCurrentNotFound, Reveal, SurroundKind},
     keymap_legend::{Keybinding, Keymap, KeymapLegendConfig},
 };
 
@@ -610,11 +607,11 @@ impl Editor {
         }
     }
 
-    pub fn handle_universal_key(&mut self, event: KeyEvent) -> anyhow::Result<HandleEventResult> {
+    pub fn handle_universal_key(&mut self, event: &KeyEvent) -> anyhow::Result<Option<Dispatches>> {
         if let Some(keymap) = Keymap::new(&self.keymap_universal()).get(&event) {
-            Ok(HandleEventResult::Handled(keymap.get_dispatches()))
+            Ok(Some(keymap.get_dispatches()))
         } else {
-            Ok(HandleEventResult::Ignored(event))
+            Ok(None)
         }
     }
 
