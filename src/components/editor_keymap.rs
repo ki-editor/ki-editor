@@ -12,74 +12,80 @@ pub const KEYMAP_SCORE: [[char; 10]; 3] = [
     ['j', 'k', 'l', 'g', 'o', /*|*/ 'o', 'g', 'l', 'k', 'j'], // Bottom row
 ];
 
-pub type KeyboardLayout = [[&'static str; 10]; 3];
+pub type KeyboardLayout = [[char; 10]; 3];
 
 pub const QWERTY: KeyboardLayout = [
+    ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p'],
+    ['a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', ';'],
+    ['z', 'x', 'c', 'v', 'b', 'n', 'm', ',', '.', '/'],
+];
+
+pub const QWERTY_STR: [[&str; 10]; 3] = [
     ["q", "w", "e", "r", "t", "y", "u", "i", "o", "p"],
     ["a", "s", "d", "f", "g", "h", "j", "k", "l", ";"],
     ["z", "x", "c", "v", "b", "n", "m", ",", ".", "/"],
 ];
 
 pub const DVORAK: KeyboardLayout = [
-    ["'", ",", ".", "p", "y", "f", "g", "c", "r", "l"],
-    ["a", "o", "e", "u", "i", "d", "h", "t", "n", "s"],
-    [";", "q", "j", "k", "x", "b", "m", "w", "v", "z"],
+    ['\'', ',', '.', 'p', 'y', 'f', 'g', 'c', 'r', 'l'],
+    ['a', 'o', 'e', 'u', 'i', 'd', 'h', 't', 'n', 's'],
+    [';', 'q', 'j', 'k', 'x', 'b', 'm', 'w', 'v', 'z'],
 ];
 
 /// I and U swapped.
 /// Refer https://www.reddit.com/r/dvorak/comments/tfz53r/have_anyone_tried_swapping_u_with_i/
 pub const DVORAK_IU: KeyboardLayout = [
-    ["'", ",", ".", "p", "y", "f", "g", "c", "r", "l"],
-    ["a", "o", "e", "i", "u", "d", "h", "t", "n", "s"],
-    [";", "q", "j", "k", "x", "b", "m", "w", "v", "z"],
+    ['\'', ',', '.', 'p', 'y', 'f', 'g', 'c', 'r', 'l'],
+    ['a', 'o', 'e', 'i', 'u', 'd', 'h', 't', 'n', 's'],
+    [';', 'q', 'j', 'k', 'x', 'b', 'm', 'w', 'v', 'z'],
 ];
 
 pub const COLEMAK: KeyboardLayout = [
-    ["q", "w", "f", "p", "b", "j", "l", "u", "y", ";"],
-    ["a", "r", "s", "t", "g", "m", "n", "e", "i", "o"],
-    ["z", "x", "c", "d", "v", "k", "h", ",", ".", "/"],
+    ['q', 'w', 'f', 'p', 'b', 'j', 'l', 'u', 'y', ';'],
+    ['a', 'r', 's', 't', 'g', 'm', 'n', 'e', 'i', 'o'],
+    ['z', 'x', 'c', 'd', 'v', 'k', 'h', ',', '.', '/'],
 ];
 
 /// Refer https://colemakmods.github.io/mod-dh/
 pub const COLEMAK_DH: KeyboardLayout = [
-    ["q", "w", "f", "p", "b", "j", "l", "u", "y", ";"],
-    ["a", "r", "s", "t", "g", "m", "n", "e", "i", "o"],
-    ["z", "x", "c", "d", "v", "k", "h", ",", ".", "/"],
+    ['q', 'w', 'f', 'p', 'b', 'j', 'l', 'u', 'y', ';'],
+    ['a', 'r', 's', 't', 'g', 'm', 'n', 'e', 'i', 'o'],
+    ['z', 'x', 'c', 'd', 'v', 'k', 'h', ',', '.', '/'],
 ];
 
 /// Semi-colon and Quote are swapped
 /// Refer https://colemakmods.github.io/mod-dh/
 pub const COLEMAK_DH_SEMI_QUOTE: KeyboardLayout = [
-    ["q", "w", "f", "p", "b", "j", "l", "u", "y", "'"],
-    ["a", "r", "s", "t", "g", "m", "n", "e", "i", "o"],
-    ["z", "x", "c", "d", "v", "k", "h", ",", ".", "/"],
+    ['q', 'w', 'f', 'p', 'b', 'j', 'l', 'u', 'y', '\''],
+    ['a', 'r', 's', 't', 'g', 'm', 'n', 'e', 'i', 'o'],
+    ['z', 'x', 'c', 'd', 'v', 'k', 'h', ',', '.', '/'],
 ];
 
 pub const COLEMAK_ANSI: KeyboardLayout = [
-    ["q", "w", "f", "p", "g", "j", "l", "u", "y", ";"],
-    ["a", "r", "s", "t", "d", "h", "n", "e", "i", "o"],
-    ["z", "x", "c", "v", "b", "k", "m", ",", ".", "/"],
+    ['q', 'w', 'f', 'p', 'g', 'j', 'l', 'u', 'y', ';'],
+    ['a', 'r', 's', 't', 'd', 'h', 'n', 'e', 'i', 'o'],
+    ['z', 'x', 'c', 'v', 'b', 'k', 'm', ',', '.', '/'],
 ];
 
 // https://colemakmods.github.io/mod-dh/keyboards.html#ansi-keyboards
 pub const COLEMAK_ANSI_DH: KeyboardLayout = [
-    ["q", "w", "f", "p", "b", "j", "l", "u", "y", ";"],
-    ["a", "r", "s", "t", "g", "m", "n", "e", "i", "o"],
-    ["x", "c", "d", "v", "z", "k", "h", ",", ".", "/"],
+    ['q', 'w', 'f', 'p', 'b', 'j', 'l', 'u', 'y', ';'],
+    ['a', 'r', 's', 't', 'g', 'm', 'n', 'e', 'i', 'o'],
+    ['x', 'c', 'd', 'v', 'z', 'k', 'h', ',', '.', '/'],
 ];
 
 /// Refer https://workmanlayout.org/
 pub const WORKMAN: KeyboardLayout = [
-    ["q", "d", "r", "w", "b", "j", "f", "u", "p", ";"],
-    ["a", "s", "h", "t", "g", "y", "n", "e", "o", "i"],
-    ["z", "x", "m", "c", "v", "k", "l", ",", ".", "/"],
+    ['q', 'd', 'r', 'w', 'b', 'j', 'f', 'u', 'p', ';'],
+    ['a', 's', 'h', 't', 'g', 'y', 'n', 'e', 'o', 'i'],
+    ['z', 'x', 'm', 'c', 'v', 'k', 'l', ',', '.', '/'],
 ];
 
 /// Refer http://adnw.de/index.php?n=Main.OptimierungF%c3%bcrDieGeradeTastaturMitDaumen-Shift
 pub const PUQ: KeyboardLayout = [
-    ["p", "u", ":", ",", "q", "g", "c", "l", "m", "f"],
-    ["h", "i", "e", "a", "o", "d", "t", "r", "n", "s"],
-    ["k", "y", ".", "'", "x", "j", "v", "w", "b", "z"],
+    ['p', 'u', ':', ',', 'q', 'g', 'c', 'l', 'm', 'f'],
+    ['h', 'i', 'e', 'a', 'o', 'd', 't', 'r', 'n', 's'],
+    ['k', 'y', '.', '\'', 'x', 'j', 'v', 'w', 'b', 'z'],
 ];
 
 #[derive(
@@ -135,10 +141,7 @@ impl KeyboardLayoutKind {
                 .iter()
                 .flatten()
                 .zip(QWERTY.iter().flatten())
-                .map(|(this, qwerty)| {
-                    // Crossterm uses char, so we need to convert
-                    (this.chars().next().unwrap(), qwerty.chars().next().unwrap())
-                })
+                .map(|(a, b)| (*a, *b))
         };
         zipped_chars()
             .chain(zipped_chars().map(|(this, qwerty)| (shifted_char(this), shifted_char(qwerty))))
@@ -162,7 +165,7 @@ impl KeyboardLayoutKind {
     }
 }
 
-pub fn shifted(c: &'static str) -> &'static str {
+pub fn shifted(c: &str) -> &str {
     match c {
         "." => ">",
         "," => "<",
@@ -318,7 +321,7 @@ pub fn shifted_char(c: char) -> char {
     }
 }
 
-pub fn alted(c: &'static str) -> &'static str {
+pub fn alted(c: &str) -> &str {
     match c {
         "." => "alt+.",
         "," => "alt+,",
