@@ -25,7 +25,7 @@ pub struct Theme {
     pub git_gutter: GitGutterStyles,
 }
 
-pub fn from_name(name: &str) -> Result<Theme, String> {
+pub fn from_name(name: &str) -> anyhow::Result<Theme> {
     let descriptors = crate::themes::theme_descriptor::all();
     descriptors
         .iter()
@@ -33,7 +33,7 @@ pub fn from_name(name: &str) -> Result<Theme, String> {
         .map(|descriptor| descriptor.to_theme())
         .ok_or_else(|| {
             let valid_themes: Vec<_> = descriptors.iter().map(|d| d.name()).collect();
-            format!("'{name}' is not a valid theme. Available: {valid_themes:?}")
+            anyhow::anyhow!("'{name}' is not a valid theme. Available: {valid_themes:?}")
         })
 }
 

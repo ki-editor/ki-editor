@@ -2990,7 +2990,7 @@ fn doc_assets_export_keymaps_json() {
 #[test]
 fn doc_assets_export_json_schemas() -> anyhow::Result<()> {
     let path = "docs/static/app_config_json_schema.json".to_string();
-    let schema = schema_for!(crate::config::AppConfig);
+    let schema = schema_for!(crate::config::RawConfig);
     let json = serde_json::to_string_pretty(&schema)?;
     std::fs::write(path, json)?;
 

@@ -16,14 +16,47 @@ use serde::{Deserialize, Serialize};
 use shared::absolute_path::AbsolutePath;
 use shared::language::{self, Language};
 
-#[derive(Deserialize, Serialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
 pub struct AppConfig {
     languages: HashMap<String, Language>,
     keyboard_layout: KeyboardLayoutKind,
     theme: ConfigTheme,
     status_lines: Vec<StatusLine>,
     leader_keymap: LeaderKeymap,
+}
+
+#[derive(Deserialize, Serialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct RawConfig {
+    languages: HashMap<String, Language>,
+    keyboard_layout: KeyboardLayoutKind,
+    theme: ConfigThemeName,
+    status_lines: Vec<StatusLine>,
+    leader_keymap: LeaderKeymap,
+}
+
+const DEFAULT_CONFIG: &str = include_str!("config_default.json");
+
+impl Default for RawConfig {
+    fn default() -> Self {
+        RawConfig {
+            languages: shared::languages::languages(),
+            ..serde_json::from_str(DEFAULT_CONFIG)
+                .expect("Default config doesn't parse, this is a bug!")
+        }
+    }
+}
+
+impl TryFrom<RawConfig> for AppConfig {
+    type Error = anyhow::Error;
+    fn try_from(value: RawConfig) -> Result<Self, Self::Error> {
+        Ok(Self {
+            languages: value.languages,
+            keyboard_layout: value.keyboard_layout,
+            theme: ConfigTheme::try_from(value.theme)?,
+            status_lines: value.status_lines,
+            leader_keymap: value.leader_keymap,
+        })
+    }
 }
 
 /// The leader keymap is a 3x10 matrix representing three rows of 10 columns.
@@ -45,12 +78,11 @@ impl LeaderKeymap {
 #[serde(transparent)]
 struct ConfigThemeName(String);
 
-#[derive(Clone, Deserialize, Serialize, JsonSchema)]
-#[serde(try_from = "ConfigThemeName", into = "ConfigThemeName")]
+#[derive(Clone)]
 struct ConfigTheme(Theme);
 
 impl TryFrom<ConfigThemeName> for ConfigTheme {
-    type Error = String;
+    type Error = anyhow::Error;
 
     fn try_from(value: ConfigThemeName) -> Result<Self, Self::Error> {
         crate::themes::from_name(&value.0).map(Self)
@@ -81,8 +113,6 @@ impl JsonSchema for ConfigThemeName {
         })
     }
 }
-
-const DEFAULT_CONFIG: &str = include_str!("config_default.json");
 
 pub fn ki_workspace_directory() -> anyhow::Result<PathBuf> {
     Ok(std::env::current_dir()?.join(".ki"))
@@ -119,13 +149,9 @@ pub fn load_script(script_name: &str) -> anyhow::Result<Script> {
 
 impl AppConfig {
     fn default() -> Self {
-        let deserializer = &mut serde_json::Deserializer::from_str(DEFAULT_CONFIG);
-        Self {
-            languages: shared::languages::languages(),
-            ..serde_path_to_error::deserialize(deserializer)
-                .map_err(|err| anyhow::anyhow!("{err}\n\nINPUT=\n\n{DEFAULT_CONFIG}"))
-                .unwrap()
-        }
+        RawConfig::default()
+            .try_into()
+            .expect("Default config can't be converted to an AppConfig, this is a bug!")
     }
 
     pub fn load_from_current_directory() -> anyhow::Result<Self> {
@@ -133,8 +159,8 @@ impl AppConfig {
         let workspace_config = |extension: &str| workspace_dir.join(format!("config.{extension}"));
         let global_config =
             |extension: &str| ki_global_directory().join(format!("config.{extension}"));
-        let config: AppConfig =
-            figment::Figment::from(providers::Serialized::defaults(&AppConfig::default()))
+        let config: RawConfig =
+            figment::Figment::from(providers::Serialized::defaults(&RawConfig::default()))
                 .merge(providers::Json::file(global_config("json")))
                 .merge(providers::Yaml::file(global_config("yaml")))
                 .merge(providers::Toml::file(global_config("toml")))
@@ -142,7 +168,7 @@ impl AppConfig {
                 .merge(providers::Yaml::file(workspace_config("yaml")))
                 .merge(providers::Toml::file(workspace_config("toml")))
                 .extract()?;
-        Ok(config)
+        config.try_into()
     }
 
     pub fn singleton() -> &'static AppConfig {
