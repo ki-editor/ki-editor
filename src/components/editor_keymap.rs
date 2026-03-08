@@ -26,6 +26,12 @@ pub const QWERTY_STR: [[&str; 10]; 3] = [
     ["z", "x", "c", "v", "b", "n", "m", ",", ".", "/"],
 ];
 
+pub const ABNT2: KeyboardLayout = [
+    ["q", "w", "e", "r", "t", "y", "u", "i", "o", "p"],
+    ["a", "s", "d", "f", "g", "h", "j", "k", "l", "ç"],
+    ["z", "x", "c", "v", "b", "n", "m", ",", ".", ";"],
+];
+
 pub const DVORAK: KeyboardLayout = [
     ['\'', ',', '.', 'p', 'y', 'f', 'g', 'c', 'r', 'l'],
     ['a', 'o', 'e', 'u', 'i', 'd', 'h', 't', 'n', 's'],
@@ -93,6 +99,7 @@ pub const PUQ: KeyboardLayout = [
 )]
 pub enum KeyboardLayoutKind {
     Qwerty,
+    Abnt2,
     Dvorak,
     DvorakIu,
     Colemak,
@@ -108,6 +115,7 @@ impl KeyboardLayoutKind {
     pub const fn display(&self) -> &'static str {
         match self {
             Self::Qwerty => "QWERTY",
+            Self::Abnt2 => "ABNT2",
             Self::Dvorak => "DVORAK",
             Self::Colemak => "COLEMAK",
             Self::ColemakDh => "COLEMAK-DH",
@@ -123,6 +131,7 @@ impl KeyboardLayoutKind {
     pub fn get_keyboard_layout(&self) -> &KeyboardLayout {
         match self {
             Self::Qwerty => &QWERTY,
+            Self::Abnt2 => &ABNT2,
             Self::Dvorak => &DVORAK,
             Self::Colemak => &COLEMAK,
             Self::ColemakDh => &COLEMAK_DH,
