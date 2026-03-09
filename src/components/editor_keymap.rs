@@ -82,7 +82,7 @@ pub const BUILTIN_KEYBOARD_LAYOUTS: &[(&str, KeyboardLayoutKeys)] = &[
         ],
     ),
     (
-        "COLEMAK (ANSI)",
+        "COLEMAK-DH (ANSI)",
         // https://colemakmods.github.io/mod-dh/keyboards.html#ansi-keyboards
         [
             ['q', 'w', 'f', 'p', 'b', 'j', 'l', 'u', 'y', ';'],
