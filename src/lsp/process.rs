@@ -980,6 +980,11 @@ impl LspServerProcess {
 
                         self.send_reply(request.id, serde_json::Value::Null)?;
                     }
+                    "window/workDoneProgress/create" => {
+                        // This reply is necessary for the Go LSP (gopls) to work
+                        // Null as the response is fine but maybe this should be handled properly
+                        self.send_reply(request.id, serde_json::Value::Null)?;
+                    }
                     "window/logMessage" => {
                         let command = self.lsp_command();
                         let params: <lsp_notification!("window/logMessage") as Notification>::Params =
