@@ -75,7 +75,8 @@
         "Haskell",
         "Hcl",
         "Odin",
-        "CSharp"
+        "CSharp",
+        "Clojure"
       ]
     },
     "Command": {

@@ -24,6 +24,7 @@ schemars.workspace = true
 # Tree sitter grammars
 tree-sitter-bash = "0.25.0"
 tree-sitter-c = "0.24.1"
+tree-sitter-clojure = "0.1.0"
 tree-sitter-cpp = "0.23.4"
 tree-sitter-css = "0.23.2"
 tree-sitter-javascript = "0.23.1"

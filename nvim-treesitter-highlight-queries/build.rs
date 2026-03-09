@@ -2,6 +2,7 @@ const INCLUDED_NVIM_TREESITTER_LANGUAGES: &[&str] = &[
     "bash",
     "c",
     "c_sharp",
+    "clojure",
     "commonlisp",
     "cpp",
     "css",
