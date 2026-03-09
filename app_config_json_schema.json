@@ -3,8 +3,27 @@
   "title": "RawConfig",
   "type": "object",
   "properties": {
+    "custom_keyboard_layouts": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 1,
+            "minLength": 1
+          },
+          "maxItems": 10,
+          "minItems": 10
+        },
+        "maxItems": 3,
+        "minItems": 3
+      },
+      "default": {}
+    },
     "keyboard_layout": {
-      "$ref": "#/$defs/KeyboardLayoutKind"
+      "type": "string"
     },
     "languages": {
       "type": "object",
@@ -173,21 +192,6 @@
       "required": [
         "name",
         "script"
-      ]
-    },
-    "KeyboardLayoutKind": {
-      "type": "string",
-      "enum": [
-        "Qwerty",
-        "Dvorak",
-        "DvorakIu",
-        "Colemak",
-        "ColemakDh",
-        "ColemakDhSemiQuote",
-        "ColemakAnsi",
-        "ColemakAnsiDh",
-        "Workman",
-        "Puq"
       ]
     },
     "Language": {
