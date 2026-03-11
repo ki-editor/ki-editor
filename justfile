@@ -30,7 +30,7 @@ fmt:
 
 build:
     @echo "Running cargo build..."
-    cargo build --workspace --tests
+    cargo build --workspace --tests --locked
 
 watch-build:
     cargo watch --ignore ki-vscode --ignore ki-jetbrains -- cargo build
