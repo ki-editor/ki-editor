@@ -4212,6 +4212,16 @@ fn global_search_should_not_change_dirty_status() -> anyhow::Result<()> {
 #[test]
 fn release_insert_mol_should_not_close_popups() -> anyhow::Result<()> {
     execute_test(|s| {
+        fn signature_help() -> LspNotification {
+            LspNotification::SignatureHelp(Some(crate::lsp::signature_help::SignatureHelp {
+                signatures: [SignatureInformation {
+                    label: "f()".to_string(),
+                    documentation: None,
+                    active_parameter_byte_range: None,
+                }]
+                .to_vec(),
+            }))
+        }
         Box::new([
             App(OpenFile {
                 path: s.main_rs(),
@@ -4220,16 +4230,17 @@ fn release_insert_mol_should_not_close_popups() -> anyhow::Result<()> {
             }),
             Editor(SetContent("f()".to_string())),
             Editor(MatchLiteral("f()".to_string())),
-            App(HandleKeyEvents(keys!("f o release-f").to_vec())),
-            Expect(ExpectKind::LspRequestSent(
-                FromEditor::TextDocumentSignatureHelp(RequestParams {
-                    path: s.main_rs(),
-                    position: Position::new(0, 3),
-                    context: ResponseContext::default(),
-                }),
-            )),
+            App(HandleKeyEvents(keys!("f o release-o").to_vec())),
+            App(HandleLspNotification(signature_help())),
             Expect(ExpectKind::ComponentsOrder(vec![
                 ComponentKind::SuggestiveEditor,
+                ComponentKind::EditorInfo,
+                ComponentKind::KeymapLegend,
+            ])),
+            App(HandleKeyEvents(keys!("release-f").to_vec())),
+            Expect(ExpectKind::ComponentsOrder(vec![
+                ComponentKind::SuggestiveEditor,
+                ComponentKind::EditorInfo,
             ])),
         ])
     })
