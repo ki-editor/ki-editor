@@ -501,7 +501,7 @@ impl Layout {
 
     pub fn show_editor_info(&mut self, info: Info, context: &Context) -> anyhow::Result<()> {
         self.show_info_on(
-            self.tree.focused_component_id(),
+            self.tree.root_id(),
             info,
             ComponentKind::EditorInfo,
             context,

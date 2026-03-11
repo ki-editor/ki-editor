@@ -4230,7 +4230,12 @@ fn release_insert_mol_should_not_close_popups() -> anyhow::Result<()> {
             }),
             Editor(SetContent("f()".to_string())),
             Editor(MatchLiteral("f()".to_string())),
-            App(HandleKeyEvents(keys!("f o release-o").to_vec())),
+            App(HandleKeyEvents(keys!("f").to_vec())),
+            Expect(ExpectKind::ComponentsOrder(vec![
+                ComponentKind::SuggestiveEditor,
+                ComponentKind::KeymapLegend,
+            ])),
+            App(HandleKeyEvents(keys!("o release-o").to_vec())),
             App(HandleLspNotification(signature_help())),
             Expect(ExpectKind::ComponentsOrder(vec![
                 ComponentKind::SuggestiveEditor,
