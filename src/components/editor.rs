@@ -1702,7 +1702,7 @@ impl Editor {
         key_event: KeyEvent,
     ) -> anyhow::Result<Dispatches> {
         let translated_key_event = context
-            .keyboard_layout_kind()
+            .keyboard_layout()
             .translate_key_event_to_qwerty(key_event.clone());
         match self.handle_universal_key(&translated_key_event)? {
             Some(dispatches) => Ok(dispatches),
