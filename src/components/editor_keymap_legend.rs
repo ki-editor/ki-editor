@@ -608,7 +608,7 @@ impl Editor {
     }
 
     pub fn handle_universal_key(&mut self, event: &KeyEvent) -> anyhow::Result<Option<Dispatches>> {
-        if let Some(keymap) = Keymap::new(&self.keymap_universal()).get(&event) {
+        if let Some(keymap) = Keymap::new(&self.keymap_universal()).get(event) {
             Ok(Some(keymap.get_dispatches()))
         } else {
             Ok(None)
