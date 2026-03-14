@@ -574,6 +574,22 @@ impl Editor {
                 } else {
                     Vec::default()
                 })
+                .chain(
+                    [Keybinding::momentary_layer(MomentaryLayer {
+                        key: "alt+e",
+                        description: "≡ Buffer".to_string(),
+                        config: KeymapLegendConfig {
+                            title: "≡ Buffer".to_string(),
+                            keymap: buffer_keymap(),
+                        },
+                        on_tap: Some(OnTap::new(
+                            "Toggle Selection Mark",
+                            Dispatches::one(Dispatch::ToggleSelectionMark),
+                        )),
+                        on_spacebar_tapped: None,
+                    })]
+                    .to_vec(),
+                )
                 .collect_vec(),
             ),
         }
