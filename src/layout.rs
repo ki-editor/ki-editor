@@ -503,10 +503,11 @@ impl Layout {
         // add the editor info as a child of the top level suggestive editor
         // adding as child to the focussed node leads to unexpected closing of info box
         // as keymap-legends in MoLs are in focus but are temporary
+        let root_id = self.tree.root_id();
         let node_id = self
             .tree
-            .get_node_child_id(self.tree.root_id(), ComponentKind::SuggestiveEditor)
-            .ok_or_else(|| anyhow::anyhow!("No SuggestiveEditor component found"))?;
+            .get_node_child_id(root_id, ComponentKind::SuggestiveEditor)
+            .unwrap_or_else(|| root_id);
         self.show_info_on(node_id, info, ComponentKind::EditorInfo, context)
     }
 
