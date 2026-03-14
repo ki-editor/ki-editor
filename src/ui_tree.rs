@@ -268,7 +268,7 @@ impl UiTree {
         )
     }
 
-    fn get_node_child_id(&self, node_id: NodeId, kind: ComponentKind) -> Option<NodeId> {
+    pub fn get_node_child_id(&self, node_id: NodeId, kind: ComponentKind) -> Option<NodeId> {
         Some(
             self.get(node_id)?
                 .traverse_pre_order()

@@ -500,12 +500,14 @@ impl Layout {
     }
 
     pub fn show_editor_info(&mut self, info: Info, context: &Context) -> anyhow::Result<()> {
-        self.show_info_on(
-            self.tree.root_id(),
-            info,
-            ComponentKind::EditorInfo,
-            context,
-        )
+        // add the editor info as a child of the top level suggestive editor
+        // adding as child to the focussed node leads to unexpected closing of info box
+        // as keymap-legends in MoLs are in focus but are temporary
+        let node_id = self
+            .tree
+            .get_node_child_id(self.tree.root_id(), ComponentKind::SuggestiveEditor)
+            .ok_or_else(|| anyhow::anyhow!("No SuggestiveEditor component found"))?;
+        self.show_info_on(node_id, info, ComponentKind::EditorInfo, context)
     }
 
     fn replace_node_child(
