@@ -35,8 +35,8 @@ use crate::{
     transformation::{MyRegex, Transformation},
 };
 use crate::{grid::LINE_NUMBER_VERTICAL_BORDER, selection_mode::PositionBasedSelectionMode};
-use crossterm::event::{KeyCode, KeyEventKind, MouseButton, MouseEventKind};
-use event::KeyEvent;
+use crossterm::event::{KeyCode, MouseButton, MouseEventKind};
+use event::{KeyEvent, KeyEventKind};
 use itertools::{Either, Itertools};
 use my_proc_macros::key;
 use nonempty::NonEmpty;

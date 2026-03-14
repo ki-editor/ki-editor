@@ -3,7 +3,7 @@ use crate::context::{Context, GlobalMode};
 use crate::grid::StyleKey;
 use crate::selection::SelectionMode;
 use crate::thread::Callback;
-use crossterm::event::KeyEventKind;
+use event::KeyEventKind;
 use DispatchEditor::*;
 
 use crate::selection_range::SelectionRange;

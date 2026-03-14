@@ -1,8 +1,8 @@
-use crossterm::event::{KeyCode, KeyEventKind};
+use crossterm::event::KeyCode;
 use SelectionMode::*;
 
 use convert_case::Case;
-use event::KeyEvent;
+use event::{KeyEvent, KeyEventKind};
 use itertools::Itertools;
 
 use crate::{
@@ -590,17 +590,11 @@ impl Editor {
         if let Some(dispatches) = self
             .insert_mode_keymap(true)
             .iter()
-            .find(|keymap| {
-                keymap
-                    .event()
-                    .is_press_or_repeat_equivalent(&translated_event)
-            })
+            .find(|keymap| keymap.event() == &translated_event)
             .map(|keymap| keymap.get_dispatches())
         {
             Ok(dispatches)
-        } else if let (KeyCode::Char(c), KeyEventKind::Press | KeyEventKind::Repeat) =
-            (event.code, event.kind)
-        {
+        } else if let (KeyCode::Char(c), KeyEventKind::Press) = (event.code, event.kind) {
             self.insert(&c.to_string(), context)
         } else {
             Ok(Dispatches::default())
