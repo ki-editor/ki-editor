@@ -161,8 +161,6 @@ enum class EditorMode(val string: String) {
 	Insert("insert"),
 	@SerialName("multiCursor")
 	MultiCursor("multiCursor"),
-	@SerialName("findOneChar")
-	FindOneChar("findOneChar"),
 	@SerialName("swap")
 	Swap("swap"),
 	@SerialName("replace")

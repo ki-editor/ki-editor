@@ -44,6 +44,7 @@ use ropey::Rope;
 use shared::absolute_path::AbsolutePath;
 use std::{
     cell::{Ref, RefCell, RefMut},
+    fmt::Debug,
     ops::{Not, Range},
     path::PathBuf,
     rc::Rc,
@@ -55,7 +56,6 @@ pub enum Mode {
     Normal,
     Insert,
     MultiCursor,
-    FindOneChar(IfCurrentNotFound),
     Swap,
     Replace,
 }
@@ -67,7 +67,7 @@ pub enum PriorChange {
     EnterSwapMode,
 }
 
-#[derive(PartialEq, Clone, Debug)]
+#[derive(PartialEq, Eq, Clone, Debug)]
 pub struct Jump {
     pub character: char,
     pub selection: Selection,
@@ -219,6 +219,9 @@ impl Component for Editor {
                     context,
                     prior_change,
                 );
+            }
+            SetKeymapOverride(keymap_override) => {
+                self.keymap_override = keymap_override;
             }
             FindOneChar(if_current_not_found) => {
                 self.enter_single_character_mode(if_current_not_found);
@@ -431,36 +434,15 @@ pub enum Reveal {
     Mark,
 }
 
-impl Clone for Editor {
-    fn clone(&self) -> Self {
-        Editor {
-            mode: self.mode.clone(),
-            selection_set: self.selection_set.clone(),
-            jumps: None,
-            cursor_direction: self.cursor_direction.clone(),
-            scroll_offset: self.scroll_offset,
-            rectangle: self.rectangle.clone(),
-            buffer: self.buffer.clone(),
-            title: self.title.clone(),
-            id: self.id,
-            current_view_alignment: None,
-            regex_highlight_rules: Vec::new(),
-            copied_text_history_offset: Counter::default(),
-            normal_mode_override: self.normal_mode_override.clone(),
-            reveal: self.reveal.clone(),
-            visible_line_ranges: None,
-            incremental_search_matches: self.incremental_search_matches.clone(),
-        }
-    }
-}
-
+#[derive(Clone)]
 pub struct Editor {
     pub mode: Mode,
     pub regex_highlight_rules: Vec<RegexHighlightRule>,
 
     pub selection_set: SelectionSet,
 
-    pub jumps: Option<Vec<Jump>>,
+    keymap_override: Option<KeymapOverride>,
+
     pub cursor_direction: Direction,
 
     /// This means the number of lines to be skipped from the top during rendering.
@@ -482,7 +464,17 @@ pub struct Editor {
     pub incremental_search_matches: Option<Vec<Range<usize>>>,
 }
 
-#[derive(Default)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum KeymapOverride {
+    Jumps {
+        jumps: Vec<Jump>,
+    },
+    FindOneChar {
+        if_current_not_found: IfCurrentNotFound,
+    },
+}
+
+#[derive(Clone, Default)]
 struct Counter {
     value: isize,
 }
@@ -508,11 +500,13 @@ impl Counter {
     }
 }
 
+#[derive(Clone)]
 pub struct RegexHighlightRule {
     pub regex: regex::Regex,
     pub capture_styles: Vec<RegexHighlightRuleCaptureStyle>,
 }
 
+#[derive(Clone)]
 pub struct RegexHighlightRuleCaptureStyle {
     /// 0 means the entire match.
     /// Refer https://docs.rs/regex/latest/regex/struct.Regex.html#method.captures
@@ -740,7 +734,6 @@ impl Editor {
     pub fn from_text(language: Option<tree_sitter::Language>, text: &str) -> Self {
         Self {
             selection_set: SelectionSet::default(),
-            jumps: None,
             mode: Mode::Normal,
             cursor_direction: Direction::Start,
             scroll_offset: 0,
@@ -752,6 +745,7 @@ impl Editor {
             regex_highlight_rules: Vec::new(),
             copied_text_history_offset: Counter::default(),
 
+            keymap_override: None,
             normal_mode_override: None,
             reveal: None,
             visible_line_ranges: None,
@@ -787,7 +781,6 @@ impl Editor {
 
         Self {
             selection_set,
-            jumps: None,
             mode: Mode::Normal,
             cursor_direction: Direction::Start,
             scroll_offset: 0,
@@ -798,6 +791,7 @@ impl Editor {
             current_view_alignment: None,
             regex_highlight_rules: Vec::new(),
             copied_text_history_offset: Counter::default(),
+            keymap_override: None,
             normal_mode_override: None,
             reveal: None,
             visible_line_ranges: None,
@@ -1058,7 +1052,7 @@ impl Editor {
         selection: &Selection,
         use_current_selection_mode: bool,
         context: &Context,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<Vec<Jump>> {
         let chars = Self::jump_characters(context);
 
         let object = self.get_selection_mode_trait_object(
@@ -1086,9 +1080,11 @@ impl Editor {
             chars,
             line_ranges,
         )?;
-        self.jumps = Some(jumps);
+        self.keymap_override = Some(KeymapOverride::Jumps {
+            jumps: jumps.clone(),
+        });
 
-        Ok(())
+        Ok(jumps)
     }
 
     pub fn show_jumps(
@@ -1098,12 +1094,12 @@ impl Editor {
         prior_change: Option<PriorChange>,
     ) -> anyhow::Result<Dispatches> {
         self.handle_prior_change(prior_change);
-        self.jump_from_selection(
+        let jumps = self.jump_from_selection(
             &self.selection_set.primary_selection().clone(),
             use_current_selection_mode,
             context,
         )?;
-        Ok(Dispatches::one(self.dispatch_jumps_changed()))
+        Ok(Dispatches::one(self.dispatch_jumps_changed(jumps)))
     }
 
     fn delete_with_movement(
@@ -1706,45 +1702,47 @@ impl Editor {
             .translate_key_event_to_qwerty(key_event.clone());
         match self.handle_universal_key(&translated_key_event)? {
             Some(dispatches) => Ok(dispatches),
-            None => {
-                if let Some(dispatches) = self.handle_jump_mode(context, &key_event) {
-                    dispatches
-                } else if let Mode::Insert = self.mode {
-                    self.handle_insert_mode(context, key_event)
-                } else if let Mode::FindOneChar(_) = self.mode {
+            None => match &self.keymap_override {
+                Some(KeymapOverride::Jumps { jumps }) => {
+                    if key_event.kind != KeyEventKind::Press {
+                        return Ok(Dispatches::default());
+                    }
+                    let jumps = jumps.clone();
+                    self.keymap_override = None;
+                    self.handle_jump_mode_impl(context, &key_event, jumps)
+                }
+                Some(KeymapOverride::FindOneChar {
+                    if_current_not_found: _,
+                }) => {
+                    if key_event.kind != KeyEventKind::Press {
+                        return Ok(Dispatches::default());
+                    }
                     self.handle_find_one_char_mode(
                         IfCurrentNotFound::LookForward,
                         key_event,
                         context,
                     )
-                } else {
-                    let translated_key_event = context
-                        .keyboard_layout()
-                        .translate_key_event_to_qwerty(key_event.clone());
-                    let keymap_legend_config = self.get_current_keymap_legend_config();
-
-                    if let Some(keybinding) =
-                        keymap_legend_config.keymap().get(&translated_key_event)
-                    {
-                        return Ok(keybinding.get_dispatches());
-                    }
-                    log::info!("unhandled event: {translated_key_event:?}");
-                    Ok(vec![].into())
                 }
-            }
-        }
-    }
+                None => {
+                    if let Mode::Insert = self.mode {
+                        self.handle_insert_mode(context, key_event)
+                    } else {
+                        let translated_key_event = context
+                            .keyboard_layout()
+                            .translate_key_event_to_qwerty(key_event.clone());
+                        let keymap_legend_config = self.get_current_keymap_legend_config();
 
-    fn handle_jump_mode(
-        &mut self,
-        context: &Context,
-        key_event: &KeyEvent,
-    ) -> Option<anyhow::Result<Dispatches>> {
-        if key_event.kind != KeyEventKind::Press {
-            return None;
+                        if let Some(keybinding) =
+                            keymap_legend_config.keymap().get(&translated_key_event)
+                        {
+                            return Ok(keybinding.get_dispatches());
+                        }
+                        log::info!("unhandled event: {translated_key_event:?}");
+                        Ok(vec![].into())
+                    }
+                }
+            },
         }
-        let jumps = self.jumps.take()?;
-        Some(self.handle_jump_mode_impl(context, key_event, jumps))
     }
 
     fn handle_jump_mode_impl(
@@ -1754,10 +1752,7 @@ impl Editor {
         jumps: Vec<Jump>,
     ) -> anyhow::Result<Dispatches> {
         match key_event {
-            key!("esc") => {
-                self.jumps = None;
-                Ok(Dispatches::default())
-            }
+            key!("esc") => Ok(Dispatches::default()),
             key => {
                 let KeyCode::Char(c) = key.code else {
                     return Ok(Dispatches::default());
@@ -1781,8 +1776,8 @@ impl Editor {
                         }))
                     }
                     Some(_) => {
-                        self.jumps = Some(
-                            matching_jumps
+                        self.keymap_override = Some(KeymapOverride::Jumps {
+                            jumps: matching_jumps
                                 .into_iter()
                                 .zip(Self::jump_characters(context).into_iter().cycle())
                                 .map(|(jump, character)| Jump {
@@ -1790,13 +1785,13 @@ impl Editor {
                                     ..jump.clone()
                                 })
                                 .collect_vec(),
-                        );
+                        });
                         Ok(Dispatches::default())
                     }
                 }
             }
         }
-        .map(|dispatches| dispatches.append(self.dispatch_jumps_changed()))
+        .map(|dispatches| dispatches.append(self.dispatch_jumps_changed(jumps)))
     }
 
     pub fn delete_one(&mut self, context: &Context, cut: bool) -> anyhow::Result<Dispatches> {
@@ -2045,7 +2040,7 @@ impl Editor {
                     context,
                 )
                 .map(|_| Dispatches::default()),
-            Mode::FindOneChar(_) | Mode::Insert => Ok(Dispatches::default()),
+            Mode::Insert => Ok(Dispatches::default()),
         }
     }
 
@@ -2128,17 +2123,14 @@ impl Editor {
 
     #[cfg(test)]
     pub fn jump_chars(&self) -> Vec<char> {
-        self.jumps()
-            .into_iter()
-            .map(|jump| jump.character)
-            .collect_vec()
+        self.jumps().iter().map(|jump| jump.character).collect_vec()
     }
 
-    pub fn jumps(&self) -> Vec<&Jump> {
-        self.jumps
-            .as_ref()
-            .map(|jumps| jumps.iter().collect())
-            .unwrap_or_default()
+    pub fn jumps(&self) -> &[Jump] {
+        match &self.keymap_override {
+            Some(KeymapOverride::Jumps { jumps }) => jumps,
+            _ => &[],
+        }
     }
 
     // TODO: handle mouse click
@@ -2990,10 +2982,12 @@ impl Editor {
     }
 
     pub fn display_mode(&self) -> String {
-        if self.jumps.is_some() {
-            "JUMP".to_string()
-        } else {
-            match &self.mode {
+        match &self.keymap_override {
+            Some(KeymapOverride::Jumps { jumps: _ }) => "JUMP".to_string(),
+            Some(KeymapOverride::FindOneChar {
+                if_current_not_found: _,
+            }) => "ONE".to_string(),
+            None => match &self.mode {
                 Mode::Normal => {
                     let prefix = if self.selection_set.is_extended() {
                         "+"
@@ -3004,10 +2998,9 @@ impl Editor {
                 }
                 Mode::Insert => "INST".to_string(),
                 Mode::MultiCursor => "MULTI".to_string(),
-                Mode::FindOneChar(_) => "ONE".to_string(),
                 Mode::Swap => "SWAP".to_string(),
                 Mode::Replace => "RPLCE".to_string(),
-            }
+            },
         }
     }
 
@@ -3084,7 +3077,9 @@ impl Editor {
     }
 
     fn enter_single_character_mode(&mut self, if_current_not_found: IfCurrentNotFound) {
-        self.mode = Mode::FindOneChar(if_current_not_found);
+        self.keymap_override = Some(KeymapOverride::FindOneChar {
+            if_current_not_found,
+        });
     }
 
     fn handle_find_one_char_mode(
@@ -3092,10 +3087,10 @@ impl Editor {
         if_current_not_found: IfCurrentNotFound,
         key_event: KeyEvent,
         context: &Context,
-    ) -> Result<Dispatches, anyhow::Error> {
+    ) -> anyhow::Result<Dispatches> {
         match key_event.code {
             KeyCode::Char(c) => {
-                self.mode = Mode::Normal;
+                self.keymap_override = None;
                 self.set_selection_mode(
                     if_current_not_found,
                     SelectionMode::Find {
@@ -3113,7 +3108,7 @@ impl Editor {
                 )
             }
             KeyCode::Esc => {
-                self.mode = Mode::Normal;
+                self.keymap_override = None;
                 Ok(Dispatches::default())
             }
             _ => Ok(Dispatches::default()),
@@ -4157,19 +4152,13 @@ impl Editor {
         );
     }
 
-    fn dispatch_jumps_changed(&self) -> Dispatch {
+    fn dispatch_jumps_changed(&self, jumps: Vec<Jump>) -> Dispatch {
         Dispatch::ToHostApp(ToHostApp::JumpsChanged {
             component_id: self.id(),
-            jumps: self
-                .jumps
-                .as_ref()
-                .map(|jumps| {
-                    jumps
-                        .iter()
-                        .map(|jump| (jump.character, jump.selection.range.start))
-                        .collect_vec()
-                })
-                .unwrap_or_default(),
+            jumps: jumps
+                .iter()
+                .map(|jump| (jump.character, jump.selection.range.start))
+                .collect_vec(),
         })
     }
 
@@ -4685,6 +4674,7 @@ pub enum DispatchEditor {
         use_current_selection_mode: bool,
         prior_change: Option<PriorChange>,
     },
+    SetKeymapOverride(Option<KeymapOverride>),
     ScrollPageDown,
     ScrollPageUp,
     #[cfg(test)]

@@ -467,7 +467,6 @@ impl EmbeddedApp {
             Mode::Normal => ki_protocol_types::EditorMode::Normal,
             Mode::Insert => ki_protocol_types::EditorMode::Insert,
             Mode::MultiCursor => ki_protocol_types::EditorMode::MultiCursor,
-            Mode::FindOneChar(_) => ki_protocol_types::EditorMode::FindOneChar,
             Mode::Swap => ki_protocol_types::EditorMode::Swap,
             Mode::Replace => ki_protocol_types::EditorMode::Replace,
         };

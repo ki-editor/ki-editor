@@ -3676,7 +3676,7 @@ fn open_git_branch_picker() -> anyhow::Result<()> {
                 ComponentKind::Dropdown,
             ])),
             Expect(CompletionDropdownContentString(
-                "master\ntest-branch-picker".to_string(),
+                "main\ntest-branch-picker".to_string(),
             )),
             App(HandleKeyEvents(keys!("alt+l alt+x").to_vec())),
             Expect(CurrentComponentContent("test-branch-picker")),
