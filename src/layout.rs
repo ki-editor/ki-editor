@@ -507,7 +507,7 @@ impl Layout {
         let node_id = self
             .tree
             .get_node_child_id(root_id, ComponentKind::SuggestiveEditor)
-            .unwrap_or_else(|| root_id);
+            .unwrap_or(root_id);
         self.show_info_on(node_id, info, ComponentKind::EditorInfo, context)
     }
 
