@@ -86,6 +86,9 @@ impl<'a> Renderer<'a> {
 /// By tracking the current state, we only emit styling commands when
 /// attributes actually differ from the previous cell, rather than redundantly
 /// setting the same styles for every cell.
+///
+/// There is one caveat: on windows, changing styles causes the foreground and
+/// background colors to reset, so we need to reapply them.
 struct TerminalState<'a> {
     renderer: Renderer<'a>,
     position: Position,
@@ -97,54 +100,45 @@ struct TerminalState<'a> {
 }
 
 impl<'a> TerminalState<'a> {
-    fn move_to(&mut self, cell: &PositionedCell) -> anyhow::Result<()> {
+    fn render(&mut self, cell: &PositionedCell) -> anyhow::Result<()> {
+        // On windows, text attributes reset the fg/bg color.
+        let force_color = if cfg!(windows) {
+            self.bold != cell.cell.is_bold
+                || self.underline_color != cell_underline_color(cell)
+                || self.underline_state != cell_underline_state(cell)
+        } else {
+            false
+        };
         if self.position.line == cell.position.line {
             self.renderer.move_to_column(cell)?;
         } else {
             self.renderer.move_to(cell)?;
         };
-        self.position = cell.position;
-        Ok(())
-    }
-
-    fn bold(&mut self, cell: &PositionedCell) -> anyhow::Result<()> {
         if self.bold != cell.cell.is_bold {
             self.renderer.bold(cell)?;
         }
-        self.bold = cell.cell.is_bold;
-        Ok(())
-    }
-
-    fn underline_color(&mut self, cell: &PositionedCell) -> anyhow::Result<()> {
         if self.underline_color != cell_underline_color(cell) {
             self.renderer.underline_color(cell)?;
         }
-        self.underline_color = cell_underline_color(cell);
-        Ok(())
-    }
-
-    fn underline_state(&mut self, cell: &PositionedCell) -> anyhow::Result<()> {
         if self.underline_state != cell_underline_state(cell) {
             self.renderer.underline_state(cell)?;
         }
-        self.underline_state = cell_underline_state(cell);
-        Ok(())
-    }
-
-    fn background_color(&mut self, cell: &PositionedCell) -> anyhow::Result<()> {
-        if self.background_color != cell.cell.background_color {
+        if self.background_color != cell.cell.background_color || force_color {
             self.renderer.background_color(cell)?;
         }
-        self.background_color = cell.cell.background_color;
-        Ok(())
-    }
-
-    fn foreground_color(&mut self, cell: &PositionedCell) -> anyhow::Result<()> {
-        if self.foreground_color != cell.cell.foreground_color {
+        if self.foreground_color != cell.cell.foreground_color || force_color {
             self.renderer.foreground_color(cell)?;
         }
+
+        self.position = cell.position;
+        self.bold = cell.cell.is_bold;
+        self.underline_color = cell_underline_color(cell);
+        self.underline_state = cell_underline_state(cell);
+        self.background_color = cell.cell.background_color;
         self.foreground_color = cell.cell.foreground_color;
-        Ok(())
+
+        // The symbol is always printed, otherwise the attributes aren't applied
+        self.renderer.print(cell)
     }
 }
 
@@ -179,14 +173,7 @@ pub(super) fn render_cells(
     };
 
     for cell in cells {
-        terminal_state.move_to(&cell)?;
-        terminal_state.bold(&cell)?;
-        terminal_state.underline_color(&cell)?;
-        terminal_state.underline_state(&cell)?;
-        terminal_state.background_color(&cell)?;
-        terminal_state.foreground_color(&cell)?;
-        // The symbol is always printed, otherwise the attributes aren't applied
-        terminal_state.renderer.print(&cell)?;
+        terminal_state.render(&cell)?;
     }
     Ok(())
 }
