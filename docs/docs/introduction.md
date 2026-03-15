@@ -36,7 +36,7 @@ This doesn't only work for JSON, it can be used to also delete statements, array
 
 ### 2.2 Duplication
 
-To duplicate an AST node, enter `Syntax Node` selection mode, then execute `Copy`, follwed by `Paste`.
+To duplicate an AST node, enter `Syntax Node` selection mode, then execute `Copy`, followed by `Paste`.
 
 ![duplicate-node](https://github.com/user-attachments/assets/c5d67419-1fe9-473b-954b-58912d40109d)
 

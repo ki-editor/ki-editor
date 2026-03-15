@@ -467,7 +467,6 @@ impl EmbeddedApp {
             Mode::Normal => ki_protocol_types::EditorMode::Normal,
             Mode::Insert => ki_protocol_types::EditorMode::Insert,
             Mode::MultiCursor => ki_protocol_types::EditorMode::MultiCursor,
-            Mode::FindOneChar(_) => ki_protocol_types::EditorMode::FindOneChar,
             Mode::Swap => ki_protocol_types::EditorMode::Swap,
             Mode::Replace => ki_protocol_types::EditorMode::Replace,
         };
@@ -747,10 +746,10 @@ impl EmbeddedApp {
         })
     }
 
-    fn keyboard_layout_changed(&self, keyboard_layout: &str) -> anyhow::Result<()> {
+    fn keyboard_layout_changed(&self, keyboard_layout: String) -> anyhow::Result<()> {
         self.send_notification(OutputMessageWrapper {
             id: 0,
-            message: OutputMessage::KeyboardLayoutChanged(keyboard_layout.to_string()),
+            message: OutputMessage::KeyboardLayoutChanged(keyboard_layout),
             error: None,
         })
     }

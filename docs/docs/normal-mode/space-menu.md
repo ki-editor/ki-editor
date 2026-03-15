@@ -98,7 +98,7 @@ Search terms can be separated by space, which means AND, and their order is unim
 
 For example, the search query `stb 'wild` matches `wild-serbian-bear-tiger` and also `stubbornly_wild`.
 
-Also, you can use the initals to search for a file, for example, `ekl` matches `editor_keymap_legend.rs`.
+Also, you can use the initials to search for a file, for example, `ekl` matches `editor_keymap_legend.rs`.
 
 Because [every component is a buffer/editor](../core-concepts.md#3-every-component-is-a-buffereditor), fuzzy search logic is also used for filtering LSP completions.
 
@@ -142,7 +142,7 @@ Git status (against main/master branch) [^2]
 Opens a picker to select and checkout a different Git branch.
 
 [^1]: See more at [Git hunk](./selection-modes/secondary.md#hunkhunk)
-[^2]: This is very useful when you want to get the modified/added files commited into the current branch that you are working on.
+[^2]: This is very useful when you want to get the modified/added files committed into the current branch that you are working on.
 
 ## `Editor`
 

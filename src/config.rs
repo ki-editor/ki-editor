@@ -1,11 +1,12 @@
 use std::borrow::Cow;
 use std::{collections::HashMap, io::Read, path::PathBuf};
 
+use anyhow::Context;
 use itertools::Itertools;
 use regex::Regex;
 
 use crate::app::StatusLine;
-use crate::components::editor_keymap::KeyboardLayoutKind;
+use crate::components::editor_keymap::{builtin_layout_map, KeyboardLayout, KeyboardLayoutKeys};
 use crate::scripting::{Keybinding, Script};
 use crate::themes::Theme;
 use figment::providers;
@@ -16,14 +17,67 @@ use serde::{Deserialize, Serialize};
 use shared::absolute_path::AbsolutePath;
 use shared::language::{self, Language};
 
-#[derive(Deserialize, Serialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
 pub struct AppConfig {
     languages: HashMap<String, Language>,
-    keyboard_layout: KeyboardLayoutKind,
+    keyboard_layout: KeyboardLayout,
     theme: ConfigTheme,
     status_lines: Vec<StatusLine>,
     leader_keymap: LeaderKeymap,
+    keyboard_layouts: HashMap<String, KeyboardLayout>,
+}
+
+#[derive(Deserialize, Serialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct RawConfig {
+    languages: HashMap<String, Language>,
+    keyboard_layout: String,
+    theme: ConfigThemeName,
+    status_lines: Vec<StatusLine>,
+    leader_keymap: LeaderKeymap,
+    #[serde(default)]
+    custom_keyboard_layouts: HashMap<String, KeyboardLayoutKeys>,
+}
+
+const DEFAULT_CONFIG: &str = include_str!("config_default.json");
+
+impl Default for RawConfig {
+    fn default() -> Self {
+        RawConfig {
+            languages: shared::languages::languages(),
+            ..serde_json::from_str(DEFAULT_CONFIG)
+                .expect("Default config doesn't parse, this is a bug!")
+        }
+    }
+}
+
+impl TryFrom<RawConfig> for AppConfig {
+    type Error = anyhow::Error;
+    fn try_from(value: RawConfig) -> Result<Self, Self::Error> {
+        let keyboard_layouts: HashMap<_, _> = builtin_layout_map()
+            .into_iter()
+            .chain(
+                value
+                    .custom_keyboard_layouts
+                    .into_iter()
+                    .map(|(name, keys)| (name.clone(), KeyboardLayout::new(name, keys))),
+            )
+            .collect();
+        let keyboard_layout = keyboard_layouts
+            .get(&value.keyboard_layout)
+            .context(format!(
+                "Unknown keyboard layout {}, possible values are {:?}",
+                value.keyboard_layout,
+                keyboard_layouts.keys().collect::<Vec<_>>()
+            ))?;
+        Ok(Self {
+            languages: value.languages,
+            keyboard_layout: keyboard_layout.clone(),
+            theme: ConfigTheme::try_from(value.theme)?,
+            status_lines: value.status_lines,
+            leader_keymap: value.leader_keymap,
+            keyboard_layouts,
+        })
+    }
 }
 
 /// The leader keymap is a 3x10 matrix representing three rows of 10 columns.
@@ -45,12 +99,11 @@ impl LeaderKeymap {
 #[serde(transparent)]
 struct ConfigThemeName(String);
 
-#[derive(Clone, Deserialize, Serialize, JsonSchema)]
-#[serde(try_from = "ConfigThemeName", into = "ConfigThemeName")]
+#[derive(Clone)]
 struct ConfigTheme(Theme);
 
 impl TryFrom<ConfigThemeName> for ConfigTheme {
-    type Error = String;
+    type Error = anyhow::Error;
 
     fn try_from(value: ConfigThemeName) -> Result<Self, Self::Error> {
         crate::themes::from_name(&value.0).map(Self)
@@ -81,8 +134,6 @@ impl JsonSchema for ConfigThemeName {
         })
     }
 }
-
-const DEFAULT_CONFIG: &str = include_str!("config_default.json");
 
 pub fn ki_workspace_directory() -> anyhow::Result<PathBuf> {
     Ok(std::env::current_dir()?.join(".ki"))
@@ -119,13 +170,9 @@ pub fn load_script(script_name: &str) -> anyhow::Result<Script> {
 
 impl AppConfig {
     fn default() -> Self {
-        let deserializer = &mut serde_json::Deserializer::from_str(DEFAULT_CONFIG);
-        Self {
-            languages: shared::languages::languages(),
-            ..serde_path_to_error::deserialize(deserializer)
-                .map_err(|err| anyhow::anyhow!("{err}\n\nINPUT=\n\n{DEFAULT_CONFIG}"))
-                .unwrap()
-        }
+        RawConfig::default()
+            .try_into()
+            .expect("Default config can't be converted to an AppConfig, this is a bug!")
     }
 
     pub fn load_from_current_directory() -> anyhow::Result<Self> {
@@ -133,8 +180,8 @@ impl AppConfig {
         let workspace_config = |extension: &str| workspace_dir.join(format!("config.{extension}"));
         let global_config =
             |extension: &str| ki_global_directory().join(format!("config.{extension}"));
-        let config: AppConfig =
-            figment::Figment::from(providers::Serialized::defaults(&AppConfig::default()))
+        let config: RawConfig =
+            figment::Figment::from(providers::Serialized::defaults(&RawConfig::default()))
                 .merge(providers::Json::file(global_config("json")))
                 .merge(providers::Yaml::file(global_config("yaml")))
                 .merge(providers::Toml::file(global_config("toml")))
@@ -142,7 +189,7 @@ impl AppConfig {
                 .merge(providers::Yaml::file(workspace_config("yaml")))
                 .merge(providers::Toml::file(workspace_config("toml")))
                 .extract()?;
-        Ok(config)
+        config.try_into()
     }
 
     pub fn singleton() -> &'static AppConfig {
@@ -163,8 +210,12 @@ impl AppConfig {
         &self.languages
     }
 
-    pub fn keyboard_layout_kind(&self) -> KeyboardLayoutKind {
-        self.keyboard_layout
+    pub fn keyboard_layout(&self) -> &KeyboardLayout {
+        &self.keyboard_layout
+    }
+
+    pub fn keyboard_layouts(&self) -> &HashMap<String, KeyboardLayout> {
+        &self.keyboard_layouts
     }
 
     pub fn theme(&self) -> &Theme {

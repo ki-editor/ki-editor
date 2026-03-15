@@ -763,7 +763,7 @@ impl Editor {
                 is_protected_range_start: false,
             });
 
-        let jumps = self.jumps().into_iter().enumerate().map(|(index, jump)| {
+        let jumps = self.jumps().iter().enumerate().map(|(index, jump)| {
             let style = if index % 2 == 0 {
                 theme.ui.jump_mark_even
             } else {

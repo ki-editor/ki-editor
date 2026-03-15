@@ -18,7 +18,7 @@ Refer to [Space Menu](normal-mode/space-menu.md) to pick and change a theme from
 
 To change your default theme refer to [Configuration](configuration.mdx).
 
-User may refer to [zed-themes.com](https://zed-themes.com) to download their preffered themes.
+User may refer to [zed-themes.com](https://zed-themes.com) to download their preferred themes.
 
 ## Syntax highlighting
 

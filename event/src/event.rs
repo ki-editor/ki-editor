@@ -1,7 +1,5 @@
 use std::{collections::HashSet, fmt};
 
-use crossterm::event::KeyEventKind;
-
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Event {
     Key(KeyEvent),
@@ -25,15 +23,33 @@ impl From<crossterm::event::Event> for Event {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum KeyEventKind {
+    Press,
+    Release,
+}
+
+impl From<crossterm::event::KeyEventKind> for KeyEventKind {
+    fn from(value: crossterm::event::KeyEventKind) -> Self {
+        match value {
+            crossterm::event::KeyEventKind::Press => Self::Press,
+            crossterm::event::KeyEventKind::Repeat => Self::Press,
+            crossterm::event::KeyEventKind::Release => Self::Release,
+        }
+    }
+}
+
 /// This struct is created to enable pattern-matching
 /// on combined modifier keys like Ctrl+Alt+Shift.
 ///
 /// The `crossterm` crate does not support this out of the box.
+///
+/// It also replaces Repeat events with Press events
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct KeyEvent {
     pub code: crossterm::event::KeyCode,
     pub modifiers: KeyModifiers,
-    pub kind: crossterm::event::KeyEventKind,
+    pub kind: KeyEventKind,
 }
 impl fmt::Debug for KeyEvent {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -45,7 +61,7 @@ impl KeyEvent {
         KeyEvent {
             code: key,
             modifiers,
-            kind: crossterm::event::KeyEventKind::Press,
+            kind: KeyEventKind::Press,
         }
     }
 
@@ -53,21 +69,13 @@ impl KeyEvent {
         KeyEvent {
             code: key,
             modifiers,
-            kind: crossterm::event::KeyEventKind::Release,
-        }
-    }
-
-    pub const fn repeated(key: crossterm::event::KeyCode, modifiers: KeyModifiers) -> KeyEvent {
-        KeyEvent {
-            code: key,
-            modifiers,
-            kind: crossterm::event::KeyEventKind::Repeat,
+            kind: KeyEventKind::Release,
         }
     }
 
     pub fn to_rust_code(&self) -> String {
         format!(
-            "event::KeyEvent {{ code: crossterm::event::KeyCode::{:#?}, modifiers: event::KeyModifiers::{:#?}, kind: crossterm::event::KeyEventKind::{:#?} }}",
+            "event::KeyEvent {{ code: crossterm::event::KeyCode::{:#?}, modifiers: event::KeyModifiers::{:#?}, kind: event::KeyEventKind::{:#?} }}",
             self.code, self.modifiers, self.kind
         )
     }
@@ -131,17 +139,6 @@ impl KeyEvent {
     pub fn set_event_kind(self, kind: KeyEventKind) -> KeyEvent {
         Self { kind, ..self }
     }
-
-    #[allow(clippy::match_like_matches_macro)]
-    pub fn is_press_or_repeat_equivalent(&self, event: &KeyEvent) -> bool {
-        match (self.kind, event.kind) {
-            (
-                KeyEventKind::Press | KeyEventKind::Repeat,
-                KeyEventKind::Press | KeyEventKind::Repeat,
-            ) if self.code == event.code && self.modifiers == event.modifiers => true,
-            _ => false,
-        }
-    }
 }
 
 impl From<crossterm::event::KeyEvent> for KeyEvent {
@@ -149,7 +146,7 @@ impl From<crossterm::event::KeyEvent> for KeyEvent {
         Self {
             code: value.code,
             modifiers: value.modifiers.into(),
-            kind: value.kind,
+            kind: value.kind.into(),
         }
     }
 }

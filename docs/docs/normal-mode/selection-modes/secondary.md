@@ -60,7 +60,7 @@ The sets of keybinds under these, are almost identical except:
 
 ### `One`
 
-Find one character, this is simlar to Vim's `f`/`t`.
+Find one character, this is similar to Vim's `f`/`t`.
 
 ### `Last`
 

@@ -102,6 +102,7 @@ pub enum CargoLinkedTreesitterLanguage {
     Hcl,
     Odin,
     CSharp,
+    Clojure,
 }
 
 impl CargoLinkedTreesitterLanguage {
@@ -150,6 +151,7 @@ impl CargoLinkedTreesitterLanguage {
             CargoLinkedTreesitterLanguage::Hcl => tree_sitter_hcl::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::Odin => tree_sitter_odin::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::CSharp => tree_sitter_c_sharp::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::Clojure => tree_sitter_clojure::LANGUAGE.into(),
         }
     }
 
@@ -200,6 +202,7 @@ impl CargoLinkedTreesitterLanguage {
             CargoLinkedTreesitterLanguage::Hcl => None,
             CargoLinkedTreesitterLanguage::Odin => Some(tree_sitter_odin::HIGHLIGHTS_QUERY),
             CargoLinkedTreesitterLanguage::CSharp => None,
+            CargoLinkedTreesitterLanguage::Clojure => None,
         }
     }
 }

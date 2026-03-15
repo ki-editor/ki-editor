@@ -1,4 +1,4 @@
-use event::{parse_key_event, KeyEvent};
+use event::{parse_key_event, KeyEvent, KeyEventKind};
 
 use itertools::Itertools;
 use my_proc_macros::key;
@@ -278,7 +278,7 @@ impl KeymapLegend {
         let release_key = release_key.map(|release_key| ParsedReleaseKey {
             key: release_key.key,
             key_event: KeyEvent {
-                kind: crossterm::event::KeyEventKind::Release,
+                kind: KeyEventKind::Release,
                 ..parse_key_event(release_key.key).unwrap()
             },
             on_tap: release_key.on_tap,
@@ -363,7 +363,7 @@ impl Component for KeymapLegend {
                 }
                 key_event => {
                     let key_event = context
-                        .keyboard_layout_kind()
+                        .keyboard_layout()
                         .translate_key_event_to_qwerty(key_event.clone());
                     if let Some(keymap) = self
                         .config
@@ -431,7 +431,6 @@ mod test_keymap_legend {
         app::Dimension, buffer::BufferOwner, components::editor::DispatchEditor,
         position::Position, test_app::*,
     };
-    use crossterm::event::KeyEventKind;
     use my_proc_macros::keys;
 
     #[test]

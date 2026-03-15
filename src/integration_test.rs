@@ -51,7 +51,12 @@ impl TestRunner {
     }
     fn git_init(path: AbsolutePath) -> anyhow::Result<()> {
         use git2::{Repository, RepositoryInitOptions};
-        let repo = Repository::init_opts(path, RepositoryInitOptions::new().mkdir(false))?;
+        let repo = Repository::init_opts(
+            path,
+            RepositoryInitOptions::new()
+                .initial_head("main")
+                .mkdir(false),
+        )?;
         let mut index = repo.index()?;
         index.add_all(["*"].iter(), git2::IndexAddOption::DEFAULT, None)?;
         let tree_oid = index.write_tree()?;

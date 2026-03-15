@@ -14,7 +14,6 @@ use nonempty::NonEmpty;
 use schemars::schema_for;
 use serde::Serialize;
 use serial_test::serial;
-use strum::IntoEnumIterator;
 
 use std::{
     cell::RefCell,
@@ -31,6 +30,7 @@ pub use SelectionMode::*;
 
 use crate::{
     app::{NucleoSource, StatusLine},
+    components::editor_keymap::BUILTIN_KEYBOARD_LAYOUTS,
     lsp::process::ResponseContext,
     scripting::{ScriptInput, ScriptOutput},
     selection_mode::GetGapMovement,
@@ -54,7 +54,6 @@ use crate::{
         editor::{
             Direction, DispatchEditor, IfCurrentNotFound, Mode, Movement, Reveal, ViewAlignment,
         },
-        editor_keymap::KeyboardLayoutKind,
         editor_keymap_printer::KeymapPrintSections,
         keymap_legend::Keybinding,
         prompt::PromptHistoryKey,
@@ -2919,7 +2918,7 @@ fn doc_assets_export_keymaps_json() {
     #[derive(Serialize, Clone)]
     struct KeyboardLayoutJson {
         name: String,
-        keys: Vec<[&'static str; 10]>,
+        keys: Vec<[char; 10]>,
     }
 
     #[derive(Serialize)]
@@ -2940,10 +2939,11 @@ fn doc_assets_export_keymaps_json() {
     }
 
     let get_path = |name: &str| format!("docs/static/keymaps/{name}.json");
-    let keyboard_layouts = KeyboardLayoutKind::iter()
-        .map(|keyboard_layout| KeyboardLayoutJson {
-            name: keyboard_layout.display().to_string(),
-            keys: keyboard_layout.get_keyboard_layout().to_vec(),
+    let keyboard_layouts = BUILTIN_KEYBOARD_LAYOUTS
+        .iter()
+        .map(|(name, layout)| KeyboardLayoutJson {
+            name: name.to_string(),
+            keys: layout.to_vec(),
         })
         .collect_vec();
     let sections = KeymapPrintSections::new()
@@ -2990,7 +2990,7 @@ fn doc_assets_export_keymaps_json() {
 #[test]
 fn doc_assets_export_json_schemas() -> anyhow::Result<()> {
     let path = "docs/static/app_config_json_schema.json".to_string();
-    let schema = schema_for!(crate::config::AppConfig);
+    let schema = schema_for!(crate::config::RawConfig);
     let json = serde_json::to_string_pretty(&schema)?;
     std::fs::write(path, json)?;
 
@@ -3676,7 +3676,7 @@ fn open_git_branch_picker() -> anyhow::Result<()> {
                 ComponentKind::Dropdown,
             ])),
             Expect(CompletionDropdownContentString(
-                "master\ntest-branch-picker".to_string(),
+                "main\ntest-branch-picker".to_string(),
             )),
             App(HandleKeyEvents(keys!("alt+l alt+x").to_vec())),
             Expect(CurrentComponentContent("test-branch-picker")),

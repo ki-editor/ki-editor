@@ -12,7 +12,7 @@ As mentioned by Rob Pike in [Structural Regular Expression](https://doc.cat-v.or
 
 > The current UNIX® text processing tools are weakened by the built-in concept of a line.
 
-In Ki, all movements must be paired by a pre-selected selection mode.
+In Ki, all movements must be paired by a preselected selection mode.
 
 Consequently, all movements are bound to the same keymaps.
 

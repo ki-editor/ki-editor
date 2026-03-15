@@ -1,15 +1,15 @@
-use crossterm::event::{KeyCode, KeyEventKind};
+use crossterm::event::KeyCode;
 use SelectionMode::*;
 
 use convert_case::Case;
-use event::KeyEvent;
+use event::{KeyEvent, KeyEventKind};
 use itertools::Itertools;
 
 use crate::{
     app::{Dispatch, Dispatches, FilePickerKind, Scope},
     components::{
         editor::{Movement, PriorChange},
-        editor_keymap::QWERTY,
+        editor_keymap::QWERTY_STR,
         keymap_legend::{MomentaryLayer, OnSpacebarTapped, OnTap},
     },
     context::{Context, LocalSearchConfigMode, Search},
@@ -24,10 +24,7 @@ use crate::{
 };
 
 use super::{
-    editor::{
-        Direction, DispatchEditor, Editor, HandleEventResult, IfCurrentNotFound, Reveal,
-        SurroundKind,
-    },
+    editor::{Direction, DispatchEditor, Editor, IfCurrentNotFound, Reveal, SurroundKind},
     keymap_legend::{Keybinding, Keymap, KeymapLegendConfig},
 };
 
@@ -574,46 +571,27 @@ impl Editor {
         event: KeyEvent,
     ) -> anyhow::Result<Dispatches> {
         let translated_event = context
-            .keyboard_layout_kind()
+            .keyboard_layout()
             .translate_key_event_to_qwerty(event.clone());
         if let Some(dispatches) = self
             .insert_mode_keymap(true)
             .iter()
-            .find(|keymap| {
-                keymap
-                    .event()
-                    .is_press_or_repeat_equivalent(&translated_event)
-            })
+            .find(|keymap| keymap.event() == &translated_event)
             .map(|keymap| keymap.get_dispatches())
         {
             Ok(dispatches)
-        } else if let (KeyCode::Char(c), KeyEventKind::Press | KeyEventKind::Repeat) =
-            (event.code, event.kind)
-        {
-            let mut auto_pair = |enclosure: &str| -> anyhow::Result<Dispatches> {
-                Ok(self
-                    .insert(enclosure, context)?
-                    .append(Dispatch::ToEditor(DispatchEditor::MoveCharacterBack)))
-            };
-            match c {
-                '[' => auto_pair("[]"),
-                '{' => auto_pair("{}"),
-                '(' => auto_pair("()"),
-                '\'' => auto_pair("''"),
-                '"' => auto_pair("\"\""),
-                '`' => auto_pair("``"),
-                c => self.insert(&c.to_string(), context),
-            }
+        } else if let (KeyCode::Char(c), KeyEventKind::Press) = (event.code, event.kind) {
+            self.insert(&c.to_string(), context)
         } else {
             Ok(Dispatches::default())
         }
     }
 
-    pub fn handle_universal_key(&mut self, event: KeyEvent) -> anyhow::Result<HandleEventResult> {
-        if let Some(keymap) = Keymap::new(&self.keymap_universal()).get(&event) {
-            Ok(HandleEventResult::Handled(keymap.get_dispatches()))
+    pub fn handle_universal_key(&mut self, event: &KeyEvent) -> anyhow::Result<Option<Dispatches>> {
+        if let Some(keymap) = Keymap::new(&self.keymap_universal()).get(event) {
+            Ok(Some(keymap.get_dispatches()))
         } else {
-            Ok(HandleEventResult::Ignored(event))
+            Ok(None)
         }
     }
 
@@ -1184,7 +1162,7 @@ impl Editor {
             title: "Leader".to_string(),
 
             keymap: Keymap::new(
-                &QWERTY
+                &QWERTY_STR
                     .iter()
                     .flatten()
                     .filter_map(|key| {

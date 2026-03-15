@@ -54,7 +54,6 @@ pub enum EditorMode {
     Normal,
     Insert,
     MultiCursor,
-    FindOneChar,
     Swap,
     Replace,
 }

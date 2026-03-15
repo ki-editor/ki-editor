@@ -71,6 +71,7 @@ pub fn languages() -> HashMap<String, Language> {
         ("xml", xml()),
         ("yaml", yaml()),
         ("zig", zig()),
+        ("clojure", clojure()),
     ]
     .into_iter()
     .map(|(str, language)| (str.to_string(), language))
@@ -1114,6 +1115,17 @@ fn zig() -> Language {
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Zig),
         }),
         line_comment_prefix: Some("//".to_string()),
+        ..Language::new()
+    }
+}
+
+fn clojure() -> Language {
+    Language {
+        extensions: to_vec(&["clj", "cljs"]),
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "clojure".to_string(),
+            kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Clojure),
+        }),
         ..Language::new()
     }
 }
