@@ -345,7 +345,7 @@ impl KeymapPrintSections {
             KeymapPrintSection::from_keymap("Swap".to_string(), &swap_keymap()),
             KeymapPrintSection::from_keymap("Delete".to_string(), &delete_keymap()),
             KeymapPrintSection::from_keymap("Insert".to_string(), &insert_keymap()),
-            KeymapPrintSection::from_keymap("Buffer".to_string(), &buffer_keymap()),
+            KeymapPrintSection::from_keymap("Buffer".to_string(), &buffer_keymap(false)),
         ]
         .to_vec();
 

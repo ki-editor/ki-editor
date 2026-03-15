@@ -329,6 +329,14 @@ pub fn shifted_char(c: char) -> char {
     }
 }
 
+pub fn possibly_alted(c: &str, is_alted: bool) -> &str {
+    if is_alted {
+        alted(c)
+    } else {
+        c
+    }
+}
+
 pub fn alted(c: &str) -> &str {
     match c {
         "." => "alt+.",
