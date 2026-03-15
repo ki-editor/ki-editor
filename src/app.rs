@@ -52,6 +52,7 @@ use crate::{
     thread::{debounce, Callback, SendResult},
     ui_tree::{ComponentKind, KindedComponent},
 };
+use anyhow::ensure;
 use event::event::Event;
 use indexmap::IndexMap;
 use itertools::{Either, Itertools};
@@ -323,7 +324,7 @@ impl<T: Frontend> App<T> {
             AppMessage::LspNotification(notification) => {
                 self.handle_lsp_notification(*notification).map(|_| false)
             }
-            AppMessage::QuitAll => {
+            AppMessage::Quit => {
                 self.quit()?;
                 Ok(true)
             }
@@ -972,7 +973,8 @@ impl<T: Frontend> App<T> {
             Dispatch::OpenMoveToIndexPrompt(prior_change) => {
                 self.open_move_to_index_prompt(prior_change)?;
             }
-            Dispatch::QuitAll => self.quit_all()?,
+            Dispatch::QuitNoSave => self.quit_all()?,
+            Dispatch::SafeQuit => self.safe_quit()?,
             Dispatch::RevealInExplorer(path) => self.reveal_path_in_explorer(&path)?,
             Dispatch::OpenMovePathsPrompt => self.open_move_paths_prompt()?,
             Dispatch::OpenDuplicateFilePrompt => self.open_copy_file_prompt()?,
@@ -1937,8 +1939,23 @@ impl<T: Frontend> App<T> {
         Ok(())
     }
 
-    pub fn quit_all(&self) -> Result<(), anyhow::Error> {
-        Ok(self.sender.send(AppMessage::QuitAll)?)
+    pub fn quit_all(&self) -> anyhow::Result<()> {
+        Ok(self.sender.send(AppMessage::Quit)?)
+    }
+
+    pub fn safe_quit(&self) -> anyhow::Result<()> {
+        let dirty_files = self.context.get_dirty_files();
+        ensure!(
+            dirty_files.is_empty(),
+            "Cannot quit with unsaved files: {:?}",
+            dirty_files
+                .iter()
+                .map(|path| path
+                    .display_relative_to(self.context.current_working_directory())
+                    .unwrap_or(path.display_absolute()))
+                .collect::<Vec<_>>()
+        );
+        Ok(self.sender.send(AppMessage::Quit)?)
     }
 
     pub fn sender(&self) -> Sender<AppMessage> {
@@ -3681,7 +3698,8 @@ pub enum Dispatch {
     RequestDocumentSymbols,
     GotoLocation(Location),
     OpenMoveToIndexPrompt(Option<PriorChange>),
-    QuitAll,
+    SafeQuit,
+    QuitNoSave,
     RevealInExplorer(AbsolutePath),
     OpenMovePathsPrompt,
     OpenDuplicateFilePrompt,
@@ -3939,7 +3957,7 @@ pub enum Scope {
 pub enum AppMessage {
     LspNotification(Box<LspNotification>),
     Event(Event),
-    QuitAll,
+    Quit,
     SyntaxHighlightResponse {
         component_id: ComponentId,
         batch_id: SyntaxHighlightRequestBatchId,

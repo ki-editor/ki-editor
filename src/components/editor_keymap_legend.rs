@@ -1089,7 +1089,8 @@ impl Editor {
                     Dispatch::ToEditor(DispatchEditor::ForceSave),
                 ),
                 Keybinding::new("c", "Save All".to_string(), Dispatch::SaveAll),
-                Keybinding::new("v", "Quit No Save".to_string(), Dispatch::QuitAll),
+                Keybinding::new("q", "Quit No Save".to_string(), Dispatch::QuitNoSave),
+                Keybinding::new("v", "Quit".to_string(), Dispatch::SafeQuit),
                 Keybinding::new(
                     "f",
                     "Change Work Dir".to_string(),

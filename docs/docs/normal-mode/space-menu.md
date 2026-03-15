@@ -148,13 +148,13 @@ Opens a picker to select and checkout a different Git branch.
 
 <KeymapFallback filename="Space Editor"/>
 
+### `Quit`
+
+Quit Ki. If there are unsaved files, this operation fails.
+
 ### `Quit No Save`
 
 Quit Ki without saving any unsaved files.
-
-### `Save All Quit`
-
-Save all files and quit Ki.
 
 ### `Save All`
 
