@@ -463,6 +463,27 @@ fn test_delete_word_short_backward_from_middle_of_file() -> anyhow::Result<()> {
 }
 
 #[test]
+fn test_delete_subward_forward() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("hello_world".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Editor(EnterInsertMode(Direction::Start)),
+            Editor(DeleteWord {
+                short: true,
+                direction: Direction::End,
+            }),
+            Expect(CurrentComponentContent("_world")),
+        ])
+    })
+}
+
+#[test]
 fn test_pipe_to_shell_1() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([

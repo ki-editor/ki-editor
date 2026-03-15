@@ -2580,11 +2580,6 @@ impl Editor {
             .selection_set
             .map(|current_selection| -> anyhow::Result<_> {
                 let current_range = current_selection.extended_range();
-                if current_range.start.0 == 0 && current_range.end.0 == 0 {
-                    // Do nothing if cursor is at the beginning of the file
-                    return Ok(ActionGroup::new(Vec::new()));
-                }
-
                 let len_chars = self.buffer().rope().len_chars();
                 let start = CharIndex(current_range.start.0.min(len_chars).saturating_sub(1));
 
@@ -2619,12 +2614,22 @@ impl Editor {
                     }
                 };
 
-                let previous_word_range = other_word.extended_range();
-                let end = previous_word_range
-                    .end
-                    .min(current_range.start)
-                    .max(start + 1);
-                let start = previous_word_range.start;
+                let other_word_range = other_word.extended_range();
+                let (start, end) = match direction {
+                    Direction::Start => {
+                        let end = other_word_range.end.min(current_range.start).max(start + 1);
+                        let start = other_word_range.start;
+                        (start, end)
+                    }
+                    Direction::End => {
+                        let end = other_word_range.start;
+                        let start = current_range.start.min(other_word_range.start);
+                        (start, end)
+                    }
+                };
+
+                dbg!((start, end));
+
                 Ok(ActionGroup::new(
                     [
                         Action::Edit(Edit::new(
