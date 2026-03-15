@@ -36,9 +36,6 @@ pub struct Context {
     location_history_backward: Vec<Location>,
     location_history_forward: Vec<Location>,
 
-    // We use CanonicalizedPath instead of CanonicalizedPath because these paths
-    // may be deleted during program execution, and CanonicalizedPath
-    // requires the path to exist on the filesystem.
     marked_files: IndexSet<AbsolutePath>,
 
     marks: HashMap<AbsolutePath, Vec<CharIndexRange>>,
