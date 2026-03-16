@@ -1184,19 +1184,19 @@ impl Decoration {
 
 pub fn completion_item_keymap() -> Keymap {
     Keymap::new(&[
-        Keybinding::new_extended(
+        Keybinding::new_descriptive(
             alted("l"),
             Direction::End.format_action("Comp"),
             "Next Completion Item".to_string(),
             Dispatch::MoveToCompletionItem(Direction::End),
         ),
-        Keybinding::new_extended(
+        Keybinding::new_descriptive(
             alted("j"),
             Direction::Start.format_action("Comp"),
             "Previous Completion Item".to_string(),
             Dispatch::MoveToCompletionItem(Direction::Start),
         ),
-        Keybinding::new_extended(
+        Keybinding::new_descriptive(
             alted("x"),
             "Replace Comp".to_string(),
             "Replace Completion Item".to_string(),

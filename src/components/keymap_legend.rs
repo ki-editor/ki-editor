@@ -187,7 +187,7 @@ impl Keybinding {
         }
     }
 
-    pub fn new_extended(
+    pub fn new_descriptive(
         key: &'static str,
         short_description: String,
         description: String,

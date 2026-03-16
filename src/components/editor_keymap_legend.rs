@@ -76,7 +76,7 @@ impl Editor {
                     prior_change,
                 )),
             ),
-            Keybinding::new_extended(
+            Keybinding::new_descriptive(
                 "m",
                 "Jump".to_string(),
                 "Jump".to_string(),
@@ -85,7 +85,7 @@ impl Editor {
                     prior_change,
                 }),
             ),
-            Keybinding::new_extended(
+            Keybinding::new_descriptive(
                 "M",
                 "Index".to_string(),
                 "To Index (1-based)".to_string(),
@@ -105,37 +105,37 @@ impl Editor {
 
     pub fn keymap_other_movements(&self) -> Vec<Keybinding> {
         [
-            Keybinding::new_extended(
+            Keybinding::new_descriptive(
                 "alt+k",
                 "Scroll ↓".to_string(),
                 "Scroll down".to_string(),
                 Dispatch::ToEditor(ScrollPageDown),
             ),
-            Keybinding::new_extended(
+            Keybinding::new_descriptive(
                 "alt+i",
                 "Scroll ↑".to_string(),
                 "Scroll up".to_string(),
                 Dispatch::ToEditor(ScrollPageUp),
             ),
-            Keybinding::new_extended(
+            Keybinding::new_descriptive(
                 "backspace",
                 Direction::Start.format_action("Select"),
                 "Go back".to_string(),
                 Dispatch::ToEditor(GoBack),
             ),
-            Keybinding::new_extended(
+            Keybinding::new_descriptive(
                 "tab",
                 Direction::End.format_action("Select"),
                 "Go forward".to_string(),
                 Dispatch::ToEditor(GoForward),
             ),
-            Keybinding::new_extended(
+            Keybinding::new_descriptive(
                 "alt+y",
                 Direction::Start.format_action("Nav"),
                 "Navigate back".to_string(),
                 Dispatch::NavigateBack,
             ),
-            Keybinding::new_extended(
+            Keybinding::new_descriptive(
                 "alt+p",
                 Direction::End.format_action("Nav"),
                 "Navigate forward".to_string(),
@@ -154,13 +154,13 @@ impl Editor {
                 )),
                 on_spacebar_tapped: None,
             }),
-            Keybinding::new_extended(
+            Keybinding::new_descriptive(
                 "?",
                 "⇋ Anchor".to_string(),
                 "Swap Anchor".to_string(),
                 Dispatch::ToEditor(SwapExtensionAnchor),
             ),
-            Keybinding::new_extended(
+            Keybinding::new_descriptive(
                 "/",
                 "⇋ Curs".to_string(),
                 "Swap cursor".to_string(),
@@ -196,7 +196,7 @@ impl Editor {
         &self,
         prior_change: Option<PriorChange>,
     ) -> Vec<Keybinding> {
-        [Keybinding::new_extended(
+        [Keybinding::new_descriptive(
             "n",
             "⚲ Local".to_string(),
             "Find (Local)".to_string(),
@@ -216,13 +216,13 @@ impl Editor {
         _prior_change: Option<PriorChange>,
     ) -> Vec<Keybinding> {
         [
-            Keybinding::new_extended(
+            Keybinding::new_descriptive(
                 "I",
                 "Join".to_string(),
                 "Join".to_string(),
                 Dispatch::ToEditor(JoinSelection),
             ),
-            Keybinding::new_extended(
+            Keybinding::new_descriptive(
                 "K",
                 "Break".to_string(),
                 "Break".to_string(),
@@ -238,31 +238,31 @@ impl Editor {
                 Direction::End.format_action("Align"),
                 Dispatch::ToEditor(AlignSelections(Direction::End)),
             ),
-            Keybinding::new_extended(
+            Keybinding::new_descriptive(
                 "T",
                 "Raise".to_string(),
                 "Raise".to_string(),
                 Dispatch::ToEditor(Replace(Expand)),
             ),
-            Keybinding::new_extended(
+            Keybinding::new_descriptive(
                 "z",
                 "Undo".to_string(),
                 "Undo".to_string(),
                 Dispatch::ToEditor(Undo),
             ),
-            Keybinding::new_extended(
+            Keybinding::new_descriptive(
                 "Z",
                 "Redo".to_string(),
                 "Redo".to_string(),
                 Dispatch::ToEditor(Redo),
             ),
-            Keybinding::new_extended(
+            Keybinding::new_descriptive(
                 "enter",
                 "save".to_string(),
                 "Save".to_string(),
                 Dispatch::ToEditor(Save),
             ),
-            Keybinding::new_extended(
+            Keybinding::new_descriptive(
                 "G",
                 "Transform".to_string(),
                 "Transform".to_string(),
@@ -273,13 +273,13 @@ impl Editor {
                 Direction::End.format_action("Collapse selection"),
                 Dispatch::ToEditor(DispatchEditor::CollapseSelection(Direction::End)),
             ),
-            Keybinding::new_extended(
+            Keybinding::new_descriptive(
                 "L",
                 "Indent".to_string(),
                 "Indent".to_string(),
                 Dispatch::ToEditor(Indent),
             ),
-            Keybinding::new_extended(
+            Keybinding::new_descriptive(
                 "J",
                 "Dedent".to_string(),
                 "Dedent".to_string(),
@@ -331,14 +331,14 @@ impl Editor {
                 on_spacebar_tapped: None,
             })
             .override_keymap(normal_mode_override.delete.as_ref(), none_if_no_override),
-            Keybinding::new_extended(
+            Keybinding::new_descriptive(
                 "h",
                 Direction::Start.format_action("Insert"),
                 Direction::Start.format_action("Insert"),
                 Dispatch::ToEditor(EnterInsertMode(Direction::Start)),
             )
             .override_keymap(normal_mode_override.insert.as_ref(), none_if_no_override),
-            Keybinding::new_extended(
+            Keybinding::new_descriptive(
                 ";",
                 Direction::End.format_action("Insert"),
                 Direction::End.format_action("Insert"),
@@ -374,7 +374,7 @@ impl Editor {
         let extra = if use_system_clipboard { "+ " } else { "" };
         let format = |description: &str| format!("{extra}{description}");
         [
-            Keybinding::new_extended(
+            Keybinding::new_descriptive(
                 "F",
                 format("Change X"),
                 format!("{}{}", "Change Cut", extra),
@@ -453,13 +453,13 @@ impl Editor {
 
     pub fn keymap_universal(&self) -> Vec<Keybinding> {
         [
-            Keybinding::new_extended(
+            Keybinding::new_descriptive(
                 "alt+;",
                 "⇋ Align View".to_string(),
                 "Switch view alignment".to_string(),
                 Dispatch::ToEditor(SwitchViewAlignment),
             ),
-            Keybinding::new_extended(
+            Keybinding::new_descriptive(
                 "alt+/",
                 "⇋ Window".to_string(),
                 "Switch window".to_string(),
@@ -479,49 +479,49 @@ impl Editor {
             title: "Insert mode keymap".to_string(),
             keymap: Keymap::new(
                 &[
-                    Keybinding::new_extended(
+                    Keybinding::new_descriptive(
                         "left",
                         "Char ←".to_string(),
                         "Move back a character".to_string(),
                         Dispatch::ToEditor(MoveCharacterBack),
                     ),
-                    Keybinding::new_extended(
+                    Keybinding::new_descriptive(
                         "right",
                         "Char →".to_string(),
                         "Move forward a character".to_string(),
                         Dispatch::ToEditor(MoveCharacterForward),
                     ),
-                    Keybinding::new_extended(
+                    Keybinding::new_descriptive(
                         "alt+s",
                         "Line ←".to_string(),
                         "Move to line start".to_string(),
                         Dispatch::ToEditor(MoveToLineStart),
                     ),
-                    Keybinding::new_extended(
+                    Keybinding::new_descriptive(
                         "alt+f",
                         "Line →".to_string(),
                         "Move to line end".to_string(),
                         Dispatch::ToEditor(MoveToLineEnd),
                     ),
-                    Keybinding::new_extended(
+                    Keybinding::new_descriptive(
                         "alt+q",
                         "Kill Line ←".to_string(),
                         Direction::End.format_action("Kill line"),
                         Dispatch::ToEditor(KillLine(Direction::Start)),
                     ),
-                    Keybinding::new_extended(
+                    Keybinding::new_descriptive(
                         "alt+t",
                         "Kill Line →".to_string(),
                         Direction::End.format_action("Kill line"),
                         Dispatch::ToEditor(KillLine(Direction::End)),
                     ),
-                    Keybinding::new_extended(
+                    Keybinding::new_descriptive(
                         "alt+h",
                         "Delete Word ←".to_string(),
                         "Delete word backward".to_string(),
                         Dispatch::ToEditor(DeleteWordBackward { short: false }),
                     ),
-                    Keybinding::new_extended(
+                    Keybinding::new_descriptive(
                         "alt+backspace",
                         "Delete Word ←".to_string(),
                         "Delete word backward".to_string(),
@@ -824,13 +824,13 @@ impl Editor {
                     "Delete Curs".to_string(),
                     Dispatch::ToEditor(DeleteCurrentCursor(Direction::End)),
                 ),
-                Keybinding::new_extended(
+                Keybinding::new_descriptive(
                     "h",
                     Direction::Start.format_action("Curs"),
                     Direction::Start.format_action("Cycle primary selection"),
                     Dispatch::ToEditor(CyclePrimarySelection(Direction::Start)),
                 ),
-                Keybinding::new_extended(
+                Keybinding::new_descriptive(
                     ";",
                     Direction::End.format_action("Curs"),
                     Direction::End.format_action("Cycle primary selection"),
@@ -1216,7 +1216,7 @@ impl Editor {
         if_current_not_found: IfCurrentNotFound,
     ) -> Vec<Keybinding> {
         [
-            Keybinding::new_extended(
+            Keybinding::new_descriptive(
                 "f",
                 "Search This".to_string(),
                 "Search current selection".to_string(),
@@ -1225,7 +1225,7 @@ impl Editor {
                     scope,
                 )),
             ),
-            Keybinding::new_extended(
+            Keybinding::new_descriptive(
                 "F",
                 "Search Clipboard".to_string(),
                 "Search clipboard content".to_string(),
@@ -1407,7 +1407,7 @@ impl Editor {
                     Keybinding::new(key, description.to_string(), dispatch)
                 })
                 .chain([
-                    Keybinding::new_extended(
+                    Keybinding::new_descriptive(
                         "d",
                         Direction::Start.format_action("Search"),
                         Direction::Start.format_action("Search"),
@@ -1428,9 +1428,10 @@ impl Editor {
                             prior_change,
                         },
                     ),
-                    Keybinding::new(
+                    Keybinding::new_descriptive(
                         "y",
                         "One".to_string(),
+                        "Find Character".to_string(),
                         Dispatch::ToEditor(FindOneChar(if_current_not_found)),
                     ),
                     Keybinding::new(
@@ -1449,7 +1450,7 @@ impl Editor {
                 ))
                 .collect_vec(),
             Scope::Global => [
-                Keybinding::new_extended(
+                Keybinding::new_descriptive(
                     "d",
                     "Search".to_string(),
                     "Search".to_string(),
@@ -1723,25 +1724,25 @@ pub fn buffer_keymap(is_alted: bool) -> Keymap {
                     )
                 }),
         )
-        .chain(Some(Keybinding::new_extended(
+        .chain(Some(Keybinding::new_descriptive(
             possibly_alted("k", is_alted),
             "Mark File".to_string(),
             "Toggle File Mark".to_string(),
             Dispatch::ToggleFileMark,
         )))
-        .chain(Some(Keybinding::new_extended(
+        .chain(Some(Keybinding::new_descriptive(
             possibly_alted("n", is_alted),
             "Close".to_string(),
             "Close current window".to_string(),
             Dispatch::CloseCurrentWindow,
         )))
-        .chain(Some(Keybinding::new_extended(
+        .chain(Some(Keybinding::new_descriptive(
             possibly_alted("i", is_alted),
             "Unmark Others".to_string(),
             "Unmark all other buffers".to_string(),
             Dispatch::UnmarkAllOthers,
         )))
-        .chain(Some(Keybinding::new_extended(
+        .chain(Some(Keybinding::new_descriptive(
             possibly_alted("m", is_alted),
             "Alternate".to_string(),
             "Switch to the previous file".to_string(),
