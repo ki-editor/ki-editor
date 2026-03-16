@@ -1,35 +1,43 @@
 mod buffer;
 mod git;
 
+mod alternator;
+mod app;
 pub mod char_index_range;
 mod cli;
 mod clipboard;
 mod components;
+pub mod config;
 mod context;
+mod divide_viewport;
 mod edit;
+mod embed;
+mod env;
+pub mod file_watcher;
+mod format_path_list;
 pub mod frontend;
+#[cfg(test)]
+mod generate_recipes;
 mod grid;
+pub mod history;
 mod integration_event;
 #[cfg(test)]
 mod integration_test;
-mod render_flex_layout;
-mod search;
-
+mod keymap_override;
 mod layout;
 pub mod list;
 mod lsp;
-mod position;
-
-mod app;
-#[cfg(test)]
-mod generate_recipes;
-pub mod history;
 mod non_empty_extensions;
+pub mod persistence;
+mod position;
 mod quickfix_list;
 #[cfg(test)]
 mod recipes;
 mod rectangle;
+mod render_flex_layout;
 mod screen;
+pub mod scripting;
+mod search;
 mod selection;
 pub mod selection_mode;
 pub mod selection_range;
@@ -39,26 +47,15 @@ pub mod surround;
 pub mod syntax_highlight;
 #[cfg(test)]
 mod test_app;
-pub mod themes;
-pub mod transformation;
-pub mod ui_tree;
-mod utils;
-
-mod embed;
-
-mod alternator;
-pub mod config;
-mod divide_viewport;
-mod env;
-pub mod file_watcher;
-mod format_path_list;
-pub mod persistence;
-pub mod scripting;
 #[cfg(test)]
 mod test_lsp;
 #[cfg(test)]
 mod test_search;
+pub mod themes;
 mod thread;
+pub mod transformation;
+pub mod ui_tree;
+mod utils;
 use std::{rc::Rc, sync::Mutex};
 
 use anyhow::Context;

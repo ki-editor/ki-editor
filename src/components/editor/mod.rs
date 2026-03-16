@@ -11,17 +11,15 @@ use crate::{
     buffer::{Buffer, Line},
     char_index_range::{range_intersects, CharIndexRange},
     clipboard::Texts,
-    components::{
-        component::Component,
-        editor::keymap_override::{
-            find_one::FindOneCharKeymapOverride, jump::JumpKeymapOverride, KeymapOverride,
-            KeymapOverrideTrait,
-        },
-    },
+    components::component::Component,
     context::{Context, GlobalMode, LocalSearchConfig, LocalSearchConfigMode},
     edit::{Action, ActionGroup, Edit, EditTransaction},
     git::{hunk::SimpleHunkKind, DiffMode, GitOperation as _, GitRepo},
     grid::LINE_NUMBER_VERTICAL_BORDER,
+    keymap_override::{
+        find_one::FindOneCharKeymapOverride, jump::JumpKeymapOverride, EditorKeymapOverride,
+        KeymapOverrideTrait,
+    },
     list::grep::RegexConfig,
     lsp::{
         completion::{CompletionItemEdit, PositionalEdit},
@@ -42,6 +40,7 @@ use crate::{
 use crossterm::event::{MouseButton, MouseEventKind};
 use event::{KeyEvent, KeyEventKind};
 use itertools::{Either, Itertools};
+use my_proc_macros::NamedVariant;
 use nonempty::NonEmpty;
 use ropey::Rope;
 use shared::absolute_path::AbsolutePath;
@@ -53,8 +52,6 @@ use std::{
     rc::Rc,
 };
 use DispatchEditor::*;
-
-mod keymap_override;
 
 #[derive(PartialEq, Clone, Debug, Eq)]
 pub enum Mode {
@@ -200,6 +197,10 @@ impl Component for Editor {
         context: &mut Context,
         dispatch: DispatchEditor,
     ) -> anyhow::Result<Dispatches> {
+        log::info!(
+            "Editor::handle_dispatch_editor = {}",
+            dispatch.variant_name()
+        );
         let last_visible_line = self.last_visible_line(context);
         match dispatch {
             #[cfg(test)]
@@ -446,7 +447,7 @@ pub struct Editor {
 
     pub selection_set: SelectionSet,
 
-    keymap_override: Option<KeymapOverride>,
+    keymap_override: Option<EditorKeymapOverride>,
 
     pub cursor_direction: Direction,
 
@@ -1007,7 +1008,7 @@ impl Editor {
         }
     }
 
-    fn jump_characters(context: &Context) -> Vec<char> {
+    pub fn jump_characters(context: &Context) -> Vec<char> {
         let chars = context
             .keyboard_layout()
             .get_keyboard_layout()
@@ -1075,7 +1076,7 @@ impl Editor {
             chars,
             line_ranges,
         )?;
-        self.keymap_override = Some(KeymapOverride::Jumps(JumpKeymapOverride {
+        self.keymap_override = Some(EditorKeymapOverride::Jumps(JumpKeymapOverride {
             jumps: jumps.clone(),
         }));
 
@@ -2058,7 +2059,7 @@ impl Editor {
 
     pub fn jumps(&self) -> &[Jump] {
         match &self.keymap_override {
-            Some(KeymapOverride::Jumps(jump_override)) => &jump_override.jumps,
+            Some(EditorKeymapOverride::Jumps(jump_override)) => &jump_override.jumps,
             _ => &[],
         }
     }
@@ -2913,9 +2914,9 @@ impl Editor {
 
     pub fn display_mode(&self) -> String {
         match &self.keymap_override {
-            Some(KeymapOverride::Jumps(_)) => "JUMP".to_string(),
-            Some(KeymapOverride::FindOneChar(_)) => "ONE".to_string(),
-            None => match &self.mode {
+            Some(EditorKeymapOverride::Jumps(_)) => "JUMP".to_string(),
+            Some(EditorKeymapOverride::FindOneChar(_)) => "ONE".to_string(),
+            _ => match &self.mode {
                 Mode::Normal => {
                     let prefix = if self.selection_set.is_extended() {
                         "+"
@@ -3005,9 +3006,11 @@ impl Editor {
     }
 
     fn enter_single_character_mode(&mut self, if_current_not_found: IfCurrentNotFound) {
-        self.keymap_override = Some(KeymapOverride::FindOneChar(FindOneCharKeymapOverride {
-            if_current_not_found,
-        }));
+        self.keymap_override = Some(EditorKeymapOverride::FindOneChar(
+            FindOneCharKeymapOverride {
+                if_current_not_found,
+            },
+        ));
     }
 
     pub fn set_decorations(&mut self, decorations: &[super::suggestive_editor::Decoration]) {
@@ -4565,7 +4568,7 @@ pub enum ViewAlignment {
     Bottom,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, NamedVariant)]
 pub enum DispatchEditor {
     Surround(String, String),
     #[cfg(test)]
@@ -4574,7 +4577,7 @@ pub enum DispatchEditor {
         use_current_selection_mode: bool,
         prior_change: Option<PriorChange>,
     },
-    SetKeymapOverride(Option<KeymapOverride>),
+    SetKeymapOverride(Option<EditorKeymapOverride>),
     ScrollPageDown,
     ScrollPageUp,
     #[cfg(test)]

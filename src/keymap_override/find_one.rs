@@ -3,8 +3,9 @@ use event::KeyEvent;
 
 use crate::{
     app::{Dispatch, Dispatches},
-    components::editor::{keymap_override::KeymapOverrideTrait, DispatchEditor, IfCurrentNotFound},
+    components::editor::{DispatchEditor, IfCurrentNotFound},
     context::{Context, LocalSearchConfigMode, Search},
+    keymap_override::KeymapOverrideTrait,
     list::grep::RegexConfig,
     selection::SelectionMode,
 };

@@ -3,10 +3,9 @@ use itertools::Itertools as _;
 
 use crate::{
     app::{Dispatch, Dispatches},
-    components::editor::{
-        keymap_override::KeymapOverrideTrait, DispatchEditor, Editor, Jump, Movement,
-    },
+    components::editor::{DispatchEditor, Editor, Jump, Movement},
     context::Context,
+    keymap_override::KeymapOverrideTrait,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -10,7 +10,7 @@ use crate::{
     components::{
         editor::{Movement, PriorChange},
         editor_keymap::{possibly_alted, QWERTY_STR},
-        keymap_legend::{MomentaryLayer, OnSpacebarTapped, OnTap},
+        keymap_legend::{MomentaryLayer, OnTap},
     },
     context::{Context, LocalSearchConfigMode, Search},
     git::DiffMode,
@@ -141,7 +141,7 @@ impl Editor {
                 "Navigate forward".to_string(),
                 Dispatch::NavigateForward,
             ),
-            Keybinding::momentary_layer(MomentaryLayer {
+            Keybinding::app_momentary_layer(MomentaryLayer {
                 key: "e",
                 description: "≡ Buffer".to_string(),
                 config: KeymapLegendConfig {
@@ -150,9 +150,8 @@ impl Editor {
                 },
                 on_tap: Some(OnTap::new(
                     "Toggle Selection Mark",
-                    Dispatches::one(Dispatch::ToggleSelectionMark),
+                    Dispatch::ToggleSelectionMark,
                 )),
-                on_spacebar_tapped: None,
             }),
             Keybinding::new_descriptive(
                 "?",
@@ -310,11 +309,7 @@ impl Editor {
                     title: "≡ Insert".to_string(),
                     keymap: insert_keymap(),
                 },
-                on_tap: Some(OnTap::new(
-                    "Change",
-                    Dispatches::one(Dispatch::ToEditor(Change)),
-                )),
-                on_spacebar_tapped: None,
+                on_tap: Some(OnTap::new("Change", Dispatch::ToEditor(Change))),
             })
             .override_keymap(normal_mode_override.change.as_ref(), none_if_no_override),
             Keybinding::momentary_layer(MomentaryLayer {
@@ -326,9 +321,8 @@ impl Editor {
                 },
                 on_tap: Some(OnTap::new(
                     "Delete One",
-                    Dispatches::one(Dispatch::ToEditor(DispatchEditor::DeleteOne)),
+                    Dispatch::ToEditor(DispatchEditor::DeleteOne),
                 )),
-                on_spacebar_tapped: None,
             })
             .override_keymap(normal_mode_override.delete.as_ref(), none_if_no_override),
             Keybinding::new_descriptive(
@@ -387,11 +381,7 @@ impl Editor {
                     title: "≡ Copy".to_string(),
                     keymap: duplicate_keymap(),
                 },
-                on_tap: Some(OnTap::new(
-                    "Copy",
-                    Dispatches::one(Dispatch::ToEditor(Copy)),
-                )),
-                on_spacebar_tapped: None,
+                on_tap: Some(OnTap::new("Copy", Dispatch::ToEditor(Copy))),
             }),
         ]
         .into_iter()
@@ -421,11 +411,8 @@ impl Editor {
                 },
                 on_tap: Some(OnTap::new(
                     "Replace",
-                    Dispatches::one(Dispatch::ToEditor(DispatchEditor::ReplaceWithCopiedText {
-                        cut: false,
-                    })),
+                    Dispatch::ToEditor(DispatchEditor::ReplaceWithCopiedText { cut: false }),
                 )),
-                on_spacebar_tapped: None,
             })
             .override_keymap(
                 normal_mode_override.paste.clone().as_ref(),
@@ -440,9 +427,8 @@ impl Editor {
                 },
                 on_tap: Some(OnTap::new(
                     "Cut One",
-                    Dispatches::one(Dispatch::ToEditor(DispatchEditor::CutOne)),
+                    Dispatch::ToEditor(DispatchEditor::CutOne),
                 )),
-                on_spacebar_tapped: None,
             })
             .override_keymap(normal_mode_override.cut.as_ref(), none_if_no_override),
         ]
@@ -584,9 +570,8 @@ impl Editor {
                         },
                         on_tap: Some(OnTap::new(
                             "Toggle Selection Mark",
-                            Dispatches::one(Dispatch::ToggleSelectionMark),
+                            Dispatch::ToggleSelectionMark,
                         )),
-                        on_spacebar_tapped: None,
                     })]
                     .to_vec(),
                 )
@@ -770,7 +755,6 @@ impl Editor {
                     keymap: swap_keymap(),
                 },
                 on_tap: None,
-                on_spacebar_tapped: None,
             })),
             Some(Keybinding::new(
                 "backslash",
@@ -785,12 +769,6 @@ impl Editor {
                     keymap: self.multicursor_momentary_layer_keymap(),
                 },
                 on_tap: None,
-                on_spacebar_tapped: Some(OnSpacebarTapped::DeactivatesMomentaryLaterAndOpenMenu(
-                    KeymapLegendConfig {
-                        title: "Multi-cursor Menu".to_string(),
-                        keymap: self.multicursor_menu_keymap(),
-                    },
-                )),
             })),
         ]
         .into_iter()
@@ -842,6 +820,14 @@ impl Editor {
                     Dispatch::ToEditor(ShowJumps {
                         use_current_selection_mode: true,
                         prior_change: Some(PriorChange::EnterMultiCursorMode),
+                    }),
+                ),
+                Keybinding::new(
+                    "space",
+                    "Open Multi-cursor Menu".to_string(),
+                    Dispatch::ShowKeymapLegend(KeymapLegendConfig {
+                        title: "Multi-cursor Menu".to_string(),
+                        keymap: self.multicursor_menu_keymap(),
                     }),
                 ),
             ])

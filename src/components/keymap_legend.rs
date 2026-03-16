@@ -1,7 +1,5 @@
 use event::{parse_key_event, KeyEvent, KeyEventKind};
-
 use itertools::Itertools;
-use my_proc_macros::key;
 
 use crate::{
     app::{Dispatch, Dispatches},
@@ -10,11 +8,7 @@ use crate::{
     rectangle::Rectangle,
 };
 
-use super::{
-    component::Component,
-    editor::{Direction, Editor, Mode},
-    editor_keymap_printer::KeymapPrintSection,
-};
+use super::{component::Component, editor::Editor, editor_keymap_printer::KeymapPrintSection};
 
 pub struct KeymapLegend {
     editor: Editor,
@@ -33,68 +27,63 @@ pub struct MomentaryLayer {
     pub description: String,
     pub config: KeymapLegendConfig,
     pub on_tap: Option<OnTap>,
-    pub on_spacebar_tapped: Option<OnSpacebarTapped>,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum OnSpacebarTapped {
-    DeactivatesMomentaryLaterAndOpenMenu(KeymapLegendConfig),
-}
-impl OnSpacebarTapped {
-    fn description(&self) -> String {
-        match self {
-            OnSpacebarTapped::DeactivatesMomentaryLaterAndOpenMenu(keymap_legend_config) => {
-                keymap_legend_config.title.clone()
-            }
-        }
-    }
 }
 
 struct ParsedReleaseKey {
-    key: &'static str,
-    key_event: KeyEvent,
     on_tap: Option<OnTap>,
-    on_spacebar_tapped: Option<OnSpacebarTapped>,
-    other_keys_pressed: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ReleaseKey {
     key: &'static str,
+    key_event: KeyEvent,
     on_tap: Option<OnTap>,
-    on_spacebar_tapped: Option<OnSpacebarTapped>,
-    /// Initial value should be false.
-    /// This field is necessary for implementing `on_tap`.
-    other_keys_pressed: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct OnTap {
     description: &'static str,
-    dispatches: Dispatches,
+    dispatch: Box<Dispatch>,
 }
 
 impl OnTap {
-    pub fn new(description: &'static str, dispatches: Dispatches) -> Self {
+    pub fn new(description: &'static str, dispatch: Dispatch) -> Self {
         Self {
             description,
-            dispatches,
+            dispatch: Box::new(dispatch),
         }
+    }
+
+    pub fn description(&self) -> &'static str {
+        self.description
+    }
+
+    pub fn dispatch(&self) -> &Dispatch {
+        &self.dispatch
     }
 }
 
 impl ReleaseKey {
-    pub fn new(
-        key: &'static str,
-        on_tap: Option<OnTap>,
-        on_spacebar_tapped: Option<OnSpacebarTapped>,
-    ) -> Self {
+    pub fn new(key: &'static str, on_tap: Option<OnTap>) -> Self {
         Self {
             key,
+            key_event: parse_key_event(key)
+                .unwrap()
+                .set_event_kind(KeyEventKind::Release),
             on_tap,
-            other_keys_pressed: false,
-            on_spacebar_tapped,
         }
+    }
+
+    pub fn key(&self) -> &'static str {
+        self.key
+    }
+
+    pub fn key_event(&self) -> &KeyEvent {
+        &self.key_event
+    }
+
+    pub fn on_tap(&self) -> Option<&OnTap> {
+        self.on_tap.as_ref()
     }
 }
 
@@ -130,9 +119,11 @@ impl KeymapLegendConfig {
         let keymap = &self.keymap;
         #[cfg(test)]
         {
+            use itertools::Itertools;
+
             let conflicting_keybindings = keymap
                 .iter()
-                .chunk_by(|keymap| keymap.key)
+                .chunk_by(|keymap| &keymap.key)
                 .into_iter()
                 .map(|(key, keybindings)| (key, keybindings.collect_vec()))
                 .filter(|(_, keybindings)| keybindings.len() > 1)
@@ -166,13 +157,32 @@ impl Keybinding {
         }
     }
 
+    pub fn app_momentary_layer(
+        MomentaryLayer {
+            key,
+            description,
+            config,
+            on_tap,
+        }: MomentaryLayer,
+    ) -> Keybinding {
+        Keybinding {
+            key,
+            short_description: None,
+            description,
+            dispatch: Dispatch::ShowAppKeymapLegendWithReleaseKey(
+                config,
+                ReleaseKey::new(key, on_tap),
+            ),
+            event: parse_key_event(key).unwrap(),
+        }
+    }
+
     pub fn momentary_layer(
         MomentaryLayer {
             key,
             description,
             config,
             on_tap,
-            on_spacebar_tapped,
         }: MomentaryLayer,
     ) -> Keybinding {
         Keybinding {
@@ -181,7 +191,7 @@ impl Keybinding {
             description,
             dispatch: Dispatch::ShowKeymapLegendWithReleaseKey(
                 config,
-                ReleaseKey::new(key, on_tap, on_spacebar_tapped),
+                ReleaseKey::new(key, on_tap),
             ),
             event: parse_key_event(key).unwrap(),
         }
@@ -243,47 +253,12 @@ impl Keybinding {
 }
 
 impl KeymapLegend {
-    pub fn new(
-        config: KeymapLegendConfig,
-        context: &Context,
-        release_key: Option<ReleaseKey>,
-    ) -> KeymapLegend {
-        // Check for duplicate keys
-        let duplicates = config
-            .keymap()
-            .0
-            .into_iter()
-            .duplicates_by(|keymap| keymap.key)
-            .collect_vec();
-
-        if !duplicates.is_empty() {
-            let message = format!(
-                "Duplicate keymap keys for {}: {:#?}",
-                config.title,
-                duplicates
-                    .into_iter()
-                    .map(|duplicate| format!("{}: {}", duplicate.key, duplicate.description))
-                    .collect_vec()
-            );
-            log::info!("{message}");
-            // panic!("{}", message);
-        }
-
+    pub fn new(config: KeymapLegendConfig, release_key: Option<ReleaseKey>) -> KeymapLegend {
         let mut editor = Editor::from_text(None, "");
         editor.set_title(config.title.clone());
-        let _ = editor
-            .enter_insert_mode(Direction::End, context)
-            .unwrap_or_default();
 
         let release_key = release_key.map(|release_key| ParsedReleaseKey {
-            key: release_key.key,
-            key_event: KeyEvent {
-                kind: KeyEventKind::Release,
-                ..parse_key_event(release_key.key).unwrap()
-            },
             on_tap: release_key.on_tap,
-            other_keys_pressed: release_key.other_keys_pressed,
-            on_spacebar_tapped: release_key.on_spacebar_tapped,
         });
 
         KeymapLegend {
@@ -294,7 +269,30 @@ impl KeymapLegend {
     }
 
     fn refresh(&mut self, context: &Context) {
+        // Check for duplicate keys
+        let duplicates = self
+            .config
+            .keymap()
+            .0
+            .into_iter()
+            .duplicates_by(|keymap| keymap.key)
+            .collect_vec();
+
+        if !duplicates.is_empty() {
+            let message = format!(
+                "Duplicate keymap keys for {}: {:#?}",
+                self.config.title,
+                duplicates
+                    .into_iter()
+                    .map(|duplicate| format!("{}: {}", duplicate.key, duplicate.description))
+                    .collect_vec()
+            );
+            log::info!("{message}");
+            // panic!("{}", message);
+        }
+
         let content = self.display();
+
         // dropping dispatch as this is a buffer with no path and
         // set_content dispatches are related to file dirty status
         let _ = self
@@ -311,24 +309,13 @@ impl KeymapLegend {
                 show_shift: true,
             },
         );
-        let content = if let Some((false, on_tap)) =
-            self.release_key.as_ref().and_then(|release_key| {
-                Some((release_key.other_keys_pressed, release_key.on_tap.clone()?))
-            }) {
-            format!("{content}\nRelease hold: {}", on_tap.description)
-        } else {
-            content
-        };
 
-        if let Some((false, on_spacebar_tapped)) =
-            self.release_key.as_ref().and_then(|release_key| {
-                Some((
-                    release_key.other_keys_pressed,
-                    release_key.on_spacebar_tapped.clone()?,
-                ))
-            })
+        if let Some(on_tap) = self
+            .release_key
+            .as_ref()
+            .and_then(|release_key| release_key.on_tap.clone())
         {
-            format!("{content}\nSpace: {}", on_spacebar_tapped.description())
+            format!("{content}\nRelease hold: {}", on_tap.description)
         } else {
             content
         }
@@ -353,74 +340,8 @@ impl Component for KeymapLegend {
         &mut self,
         context: &crate::context::Context,
         event: event::KeyEvent,
-    ) -> Result<Dispatches, anyhow::Error> {
-        let close_current_window = Dispatch::CloseCurrentWindowAndFocusParent;
-        if self.editor.mode == Mode::Insert {
-            match event {
-                key!("esc") => {
-                    self.editor.enter_normal_mode(context)?;
-                    Ok(Dispatches::default())
-                }
-                key_event => {
-                    let key_event = context
-                        .keyboard_layout()
-                        .translate_key_event_to_qwerty(key_event.clone());
-                    if let Some(keymap) = self
-                        .config
-                        .keymap()
-                        .iter()
-                        .find(|keymap| keymap.event == key_event)
-                    {
-                        Ok(Dispatches::one(close_current_window)
-                            .chain(keymap.get_dispatches())
-                            // If release key is enabled, it means that this is a momentary layer,
-                            // so we should keep showing the menu even after some keys are executed.
-                            .append_some(self.release_key.as_ref().map(
-                                |release_key| -> Dispatch {
-                                    Dispatch::ShowKeymapLegendWithReleaseKey(
-                                        self.config.clone(),
-                                        ReleaseKey {
-                                            key: release_key.key,
-                                            on_tap: release_key.on_tap.clone(),
-                                            other_keys_pressed: true,
-                                            on_spacebar_tapped: release_key
-                                                .on_spacebar_tapped
-                                                .clone(),
-                                        },
-                                    )
-                                },
-                            )))
-                    } else if let Some(release_key) = &self.release_key {
-                        if let (Some(on_spacebar_tapped), crossterm::event::KeyCode::Char(' ')) =
-                            (&release_key.on_spacebar_tapped, key_event.code)
-                        {
-                            match on_spacebar_tapped {
-                                OnSpacebarTapped::DeactivatesMomentaryLaterAndOpenMenu(
-                                    keymap_legend_config,
-                                ) => Ok(Dispatches::one(close_current_window).append(
-                                    Dispatch::ShowKeymapLegend(keymap_legend_config.clone()),
-                                )),
-                            }
-                        } else if release_key.key_event == key_event {
-                            let on_tap_dispatches =
-                                match (&release_key.on_tap, release_key.other_keys_pressed) {
-                                    (Some(on_tap), false) => on_tap.dispatches.clone(),
-                                    _ => Dispatches::default(),
-                                };
-                            Ok(Dispatches::one(close_current_window).chain(on_tap_dispatches))
-                        } else {
-                            Ok(vec![].into())
-                        }
-                    } else {
-                        Ok(vec![].into())
-                    }
-                }
-            }
-        } else if self.editor.mode == Mode::Normal && event == key!("esc") {
-            Ok([close_current_window].to_vec().into())
-        } else {
-            self.editor.handle_key_event(context, event)
-        }
+    ) -> anyhow::Result<Dispatches> {
+        self.editor.handle_key_event(context, event)
     }
 }
 
@@ -428,10 +349,10 @@ impl Component for KeymapLegend {
 mod test_keymap_legend {
     use super::*;
     use crate::{
-        app::Dimension, buffer::BufferOwner, components::editor::DispatchEditor,
-        position::Position, test_app::*,
+        buffer::BufferOwner, components::editor::DispatchEditor, position::Position, test_app::*,
     };
-    use my_proc_macros::keys;
+    use event::KeyEventKind;
+    use my_proc_macros::key;
 
     #[test]
     fn test_esc() -> anyhow::Result<()> {
@@ -585,36 +506,6 @@ mod test_keymap_legend {
     }
 
     #[test]
-    fn should_intercept_key_event_defined_in_config() {
-        let mut keymap_legend = KeymapLegend::new(
-            KeymapLegendConfig {
-                title: "Test".to_string(),
-                keymap: Keymap::new(&[Keybinding::new(
-                    "s",
-                    "fifafofum".to_string(),
-                    Dispatch::Custom("Spongebob".to_string()),
-                )]),
-            },
-            &Context::default(),
-            None,
-        );
-
-        let dispatches = keymap_legend.handle_events(keys!("s")).unwrap();
-
-        assert_eq!(
-            dispatches,
-            Dispatches::new(vec![
-                Dispatch::CloseCurrentWindowAndFocusParent,
-                Dispatch::Custom("Spongebob".to_string()),
-                SetLastActionDescription {
-                    long_description: "fifafofum".to_string(),
-                    short_description: None
-                }
-            ])
-        );
-    }
-
-    #[test]
     /// When release key is defined and on tap is defined, display should show the on tap action.
     fn on_tap_display() {
         let mut keymap_legend = KeymapLegend::new(
@@ -622,11 +513,9 @@ mod test_keymap_legend {
                 title: "".to_string(),
                 keymap: Keymap::new(&[]),
             },
-            &Context::default(),
             Some(ReleaseKey::new(
                 "Y",
-                Some(OnTap::new("Conichihuahua", Dispatches::default())),
-                None,
+                Some(OnTap::new("Conichihuahua", Dispatch::Null)),
             )),
         );
 
@@ -679,11 +568,8 @@ Release hold: Conichihuahua
                         "b",
                         Some(OnTap::new(
                             "",
-                            Dispatches::one(Dispatch::ToEditor(SetContent(
-                                "on tapped!".to_string(),
-                            ))),
+                            Dispatch::ToEditor(SetContent("on tapped!".to_string())),
                         )),
-                        None,
                     ),
                 )),
                 // Expect the keymap legend is opened
@@ -719,7 +605,7 @@ Release hold: Conichihuahua
                             Dispatch::ToEditor(Insert("hello".to_string())),
                         )]),
                     },
-                    ReleaseKey::new("b", None, None),
+                    ReleaseKey::new("b", None),
                 )),
                 // Expect the keymap legend is opened
                 Expect(AppGridContains("LEGEND_TITLE")),
@@ -737,50 +623,6 @@ Release hold: Conichihuahua
                 Expect(Not(Box::new(AppGridContains("LEGEND_TITLE")))),
                 // Expect the action defined in the keymap is actually executed
                 Expect(CurrentComponentContent("hello")),
-            ])
-        })
-    }
-
-    #[test]
-    fn on_spacebar_tapped() -> anyhow::Result<()> {
-        execute_test(|s| {
-            Box::new([
-                App(OpenFile {
-                    path: s.main_rs(),
-                    owner: BufferOwner::User,
-                    focus: true,
-                }),
-                Editor(SetContent("".to_string())),
-                App(ShowKeymapLegendWithReleaseKey(
-                    KeymapLegendConfig {
-                        title: "MOL_INIT".to_string(),
-                        keymap: Keymap::new(&[]),
-                    },
-                    ReleaseKey::new(
-                        "b",
-                        None,
-                        Some(OnSpacebarTapped::DeactivatesMomentaryLaterAndOpenMenu(
-                            KeymapLegendConfig {
-                                title: "MOL_SPACE_MENU".to_string(),
-                                keymap: Keymap::new(&[]),
-                            },
-                        )),
-                    ),
-                )),
-                // Expect the keymap legend is opened
-                App(Dispatch::TerminalDimensionChanged(Dimension {
-                    height: 100,
-                    width: 100,
-                })),
-                Expect(AppGridContains("MOL_INIT")),
-                // Expect a legend indicating pressing space will open the MOL_SPACE_MENU,
-                Expect(AppGridContains("MOL_SPACE_MENU")),
-                // Press "space"
-                App(HandleKeyEvent(key!("space"))),
-                // Expect the momentary layer is closed
-                Expect(Not(Box::new(AppGridContains("LEGEND_TITLE")))),
-                // Expect the momentary layer space menu
-                Expect(AppGridContains("MOL_SPACE_MENU")),
             ])
         })
     }
