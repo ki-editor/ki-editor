@@ -22,6 +22,14 @@
       },
       "default": {}
     },
+    "indent_char": {
+      "$ref": "#/$defs/IndentChar"
+    },
+    "indent_width": {
+      "type": "integer",
+      "format": "uint",
+      "minimum": 0
+    },
     "keyboard_layout": {
       "type": "string"
     },
@@ -50,7 +58,9 @@
     "keyboard_layout",
     "theme",
     "status_lines",
-    "leader_keymap"
+    "leader_keymap",
+    "indent_char",
+    "indent_width"
   ],
   "$defs": {
     "CargoLinkedTreesitterLanguage": {
@@ -178,6 +188,13 @@
             "FromSource"
           ]
         }
+      ]
+    },
+    "IndentChar": {
+      "type": "string",
+      "enum": [
+        "space",
+        "tab"
       ]
     },
     "Keybinding": {
