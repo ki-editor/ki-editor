@@ -3571,7 +3571,7 @@ impl Editor {
     }
 
     fn indent(&mut self, context: &Context) -> Result<Dispatches, anyhow::Error> {
-        let indentation: Rope = std::iter::repeat_n(INDENT_CHAR, INDENT_WIDTH)
+        let indentation: Rope = std::iter::repeat_n(context.indent_char(), context.indent_width())
             .collect::<String>()
             .into();
         let edit_transaction = EditTransaction::from_action_groups(
@@ -3606,7 +3606,7 @@ impl Editor {
                         .join("")
                         .into();
                     let select_range = {
-                        let offset: isize = INDENT_WIDTH as isize;
+                        let offset: isize = context.indent_width() as isize;
                         let start = original_range.start.apply_offset(offset);
                         let original_len = original_range.len();
                         let end =
@@ -3642,9 +3642,11 @@ impl Editor {
                         .line_range_to_full_char_index_range(line_range.clone())?;
                     let content = self.buffer().slice(&linewise_range)?;
                     let get_remove_leading_char_count = |line: &str| {
-                        let leading_indent_count =
-                            line.chars().take_while(|c| c == &INDENT_CHAR).count();
-                        leading_indent_count.min(INDENT_WIDTH)
+                        let leading_indent_count = line
+                            .chars()
+                            .take_while(|c| c == &context.indent_char())
+                            .count();
+                        leading_indent_count.min(context.indent_width())
                     };
                     let modified_lines = content
                         .lines()
@@ -4733,6 +4735,3 @@ impl std::fmt::Display for SurroundKind {
         }
     }
 }
-
-const INDENT_CHAR: char = ' ';
-const INDENT_WIDTH: usize = 4;

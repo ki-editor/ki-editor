@@ -38,8 +38,15 @@ pub struct RawConfig {
     leader_keymap: LeaderKeymap,
     #[serde(default)]
     custom_keyboard_layouts: HashMap<String, KeyboardLayoutKeys>,
-    indent_char: char,
+    indent_char: IndentChar,
     indent_width: usize,
+}
+
+#[derive(Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "lowercase")]
+enum IndentChar {
+    Space,
+    Tab,
 }
 
 const DEFAULT_CONFIG: &str = include_str!("config_default.json");
@@ -80,7 +87,10 @@ impl TryFrom<RawConfig> for AppConfig {
             status_lines: value.status_lines,
             leader_keymap: value.leader_keymap,
             keyboard_layouts,
-            indent_char: value.indent_char,
+            indent_char: match value.indent_char {
+                IndentChar::Space => ' ',
+                IndentChar::Tab => '\t',
+            },
             indent_width: value.indent_width,
         })
     }

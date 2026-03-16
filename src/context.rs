@@ -243,6 +243,14 @@ impl Context {
     pub(crate) fn get_last_visited_file(&self) -> Option<&Location> {
         self.location_history_backward.last()
     }
+
+    pub(crate) fn indent_width(&self) -> usize {
+        self.indent_width
+    }
+
+    pub(crate) fn indent_char(&self) -> char {
+        self.indent_char
+    }
 }
 
 pub enum QuickfixListKind {
