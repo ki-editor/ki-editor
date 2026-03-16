@@ -105,7 +105,8 @@
         "Hcl",
         "Odin",
         "CSharp",
-        "Clojure"
+        "Clojure",
+        "Scala"
       ]
     },
     "Command": {

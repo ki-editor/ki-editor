@@ -39,6 +39,7 @@ tree-sitter-python = "0.23.6"
 tree-sitter-quickfix.workspace = true
 tree-sitter-ruby = "0.23.1"
 tree-sitter-rust = "0.24.0"
+tree-sitter-scala = "0.25.0"
 tree-sitter-typescript = "0.23.2"
 tree-sitter-xml = "0.7.0"
 tree-sitter-yaml = "0.7.1"

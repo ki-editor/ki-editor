@@ -72,6 +72,7 @@ pub fn languages() -> HashMap<String, Language> {
         ("yaml", yaml()),
         ("zig", zig()),
         ("clojure", clojure()),
+        ("scala", scala()),
     ]
     .into_iter()
     .map(|(str, language)| (str.to_string(), language))
@@ -1126,6 +1127,25 @@ fn clojure() -> Language {
             id: "clojure".to_string(),
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Clojure),
         }),
+        ..Language::new()
+    }
+}
+
+fn scala() -> Language {
+    Language {
+        extensions: to_vec(&["scala"]),
+        formatter: Some(Command::new("scalafmt", &["--stdin"])),
+        lsp_command: Some(LspCommand {
+            command: Command::new("metals", &[]),
+            ..LspCommand::default()
+        }),
+        lsp_language_id: Some(LanguageId::new("scala")),
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "scala".to_string(),
+            kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Scala),
+        }),
+        line_comment_prefix: Some("//".to_string()),
+        block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
         ..Language::new()
     }
 }
