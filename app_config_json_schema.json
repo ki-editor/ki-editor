@@ -106,6 +106,7 @@
         "Odin",
         "CSharp",
         "Clojure",
+        "FSharp",
         "Scala"
       ]
     },
