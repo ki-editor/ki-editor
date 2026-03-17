@@ -12,7 +12,7 @@ use crate::{
         editor_keymap::{shifted, QWERTY_STR},
         editor_keymap_legend::{
             buffer_keymap, cut_keymap, delete_keymap, duplicate_keymap, insert_keymap,
-            paste_keymap, swap_keymap, NormalModeOverride,
+            navigation_history_keymap, paste_keymap, swap_keymap, NormalModeOverride,
         },
     },
     context::Context,
@@ -346,6 +346,10 @@ impl KeymapPrintSections {
             KeymapPrintSection::from_keymap("Delete".to_string(), &delete_keymap()),
             KeymapPrintSection::from_keymap("Insert".to_string(), &insert_keymap()),
             KeymapPrintSection::from_keymap("Buffer".to_string(), &buffer_keymap(false)),
+            KeymapPrintSection::from_keymap(
+                "Navigation-History".to_string(),
+                &navigation_history_keymap(),
+            ),
         ]
         .to_vec();
 

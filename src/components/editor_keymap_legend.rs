@@ -117,18 +117,16 @@ impl Editor {
                 "Scroll up".to_string(),
                 Dispatch::ToEditor(ScrollPageUp),
             ),
-            Keybinding::new_descriptive(
-                "backspace",
-                Direction::Start.format_action("Select"),
-                "Go back".to_string(),
-                Dispatch::ToEditor(GoBack),
-            ),
-            Keybinding::new_descriptive(
-                "tab",
-                Direction::End.format_action("Select"),
-                "Go forward".to_string(),
-                Dispatch::ToEditor(GoForward),
-            ),
+            Keybinding::momentary_layer(MomentaryLayer {
+                key: "z",
+                description: "≡ Navigation-History".to_string(),
+                config: KeymapLegendConfig {
+                    title: "≡ Navigation-History".to_string(),
+                    keymap: navigation_history_keymap(),
+                },
+                on_tap: None,
+                on_spacebar_tapped: None,
+            }),
             Keybinding::new_descriptive(
                 "alt+y",
                 Direction::Start.format_action("Nav"),
@@ -1749,6 +1747,29 @@ pub fn buffer_keymap(is_alted: bool) -> Keymap {
             Dispatch::OpenAlternateFile,
         )))
         .collect_vec(),
+    )
+}
+
+pub fn navigation_history_keymap() -> Keymap {
+    Keymap::new(
+        &[("j", Movement::Left), ("l", Movement::Right)]
+            .into_iter()
+            .map(|(key, movement)| match key {
+                "j" => Keybinding::new_descriptive(
+                    key,
+                    movement.format_action("Select"),
+                    "Go back".to_string(),
+                    Dispatch::ToEditor(GoBack),
+                ),
+                "l" => Keybinding::new_descriptive(
+                    key,
+                    movement.format_action("Select"),
+                    "Go forward".to_string(),
+                    Dispatch::ToEditor(GoForward),
+                ),
+                _ => Keybinding::new("", "".to_string(), Dispatch::Null),
+            })
+            .collect_vec(),
     )
 }
 
