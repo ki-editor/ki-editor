@@ -10,7 +10,7 @@ use lsp_types::request::{
 };
 use lsp_types::*;
 use my_proc_macros::NamedVariant;
-use shared::canonicalized_path::CanonicalizedPath;
+use shared::absolute_path::AbsolutePath;
 use shared::language::Language;
 use shared::process_command::SpawnCommandResult;
 use std::collections::HashMap;
@@ -44,7 +44,7 @@ struct LspServerProcess {
     stderr: Option<process::ChildStderr>,
 
     server_capabilities: Option<ServerCapabilities>,
-    current_working_directory: CanonicalizedPath,
+    current_working_directory: AbsolutePath,
     next_request_id: RequestId,
     pending_response_requests: HashMap<RequestId, PendingResponseRequest>,
     app_message_sender: Sender<AppMessage>,
@@ -59,7 +59,7 @@ type RequestId = u64;
 struct PendingResponseRequest {
     method: String,
     context: ResponseContext,
-    path: Option<CanonicalizedPath>,
+    path: Option<AbsolutePath>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -115,18 +115,18 @@ pub enum FromEditor {
         include_declaration: bool,
     },
     TextDocumentDidOpen {
-        file_path: CanonicalizedPath,
+        file_path: AbsolutePath,
         language_id: String,
         version: usize,
         content: String,
     },
     TextDocumentDidChange {
-        file_path: CanonicalizedPath,
+        file_path: AbsolutePath,
         version: i32,
         content: String,
     },
     TextDocumentDidSave {
-        file_path: CanonicalizedPath,
+        file_path: AbsolutePath,
     },
     TextDocumentPrepareRename(RequestParams),
     TextDocumentRename {
@@ -147,11 +147,11 @@ pub enum FromEditor {
         context: ResponseContext,
     },
     WorkspaceDidRenameFiles {
-        old: CanonicalizedPath,
-        new: CanonicalizedPath,
+        old: AbsolutePath,
+        new: AbsolutePath,
     },
     WorkspaceDidCreateFiles {
-        file_path: CanonicalizedPath,
+        file_path: AbsolutePath,
     },
     WorkspaceExecuteCommand {
         params: RequestParams,
@@ -179,7 +179,7 @@ impl LspServerProcessChannel {
     pub fn new(
         language: Language,
         screen_message_sender: Sender<AppMessage>,
-        current_working_directory: CanonicalizedPath,
+        current_working_directory: AbsolutePath,
     ) -> Result<Option<LspServerProcessChannel>, anyhow::Error> {
         LspServerProcess::start(language, screen_message_sender, current_working_directory)
     }
@@ -197,10 +197,7 @@ impl LspServerProcessChannel {
             .map_err(|err| anyhow::anyhow!("Unable to send request: {}", err))
     }
 
-    pub fn documents_did_open(
-        &mut self,
-        paths: Vec<CanonicalizedPath>,
-    ) -> Result<(), anyhow::Error> {
+    pub fn documents_did_open(&mut self, paths: Vec<AbsolutePath>) -> Result<(), anyhow::Error> {
         consolidate_errors(
             "[documents_did_open]",
             paths
@@ -210,7 +207,7 @@ impl LspServerProcessChannel {
         )
     }
 
-    pub fn document_did_open(&self, path: CanonicalizedPath) -> Result<(), anyhow::Error> {
+    pub fn document_did_open(&self, path: AbsolutePath) -> Result<(), anyhow::Error> {
         let content = path.read()?;
         let Some(language_id) = self.language.id() else {
             return Ok(());
@@ -230,7 +227,7 @@ impl LspServerProcessChannel {
     }
 
     pub fn initialized(&mut self) {
-        self.is_initialized = true
+        self.is_initialized = true;
     }
 
     pub fn send_from_editor(&self, from_editor: FromEditor) -> Result<(), anyhow::Error> {
@@ -242,7 +239,7 @@ impl LspServerProcess {
     fn start(
         language: Language,
         app_message_sender: Sender<AppMessage>,
-        current_working_directory: CanonicalizedPath,
+        current_working_directory: AbsolutePath,
     ) -> anyhow::Result<Option<LspServerProcessChannel>> {
         let process_command = match language.lsp_process_command() {
             Some(result) => result,
@@ -546,7 +543,7 @@ impl LspServerProcess {
                 .send(LspServerProcessMessage::Throttled(from_editor.clone()))
                 .unwrap_or_else(|error| {
                     log::info!("LspServerProcess::listen::debounce | Error sending throttled message from_editor={from_editor:?}, error={error:?}");
-                })
+                });
             })
         };
 
@@ -572,13 +569,13 @@ impl LspServerProcess {
                     _ => self.handle_from_editor(from_editor),
                 },
                 LspServerProcessMessage::Throttled(from_editor) => {
-                    self.handle_from_editor(from_editor)
+                    self.handle_from_editor(from_editor);
                 }
                 LspServerProcessMessage::Shutdown => {
                     if let Err(err) = self.shutdown() {
                         log::error!(
                             "LspServerProcess::process_messages: failed to shutdown due to {err:?}"
-                        )
+                        );
                     }
                     break;
                 }
@@ -983,6 +980,11 @@ impl LspServerProcess {
 
                         self.send_reply(request.id, serde_json::Value::Null)?;
                     }
+                    "window/workDoneProgress/create" => {
+                        // This reply is necessary for the Go LSP (gopls) to work
+                        // Null as the response is fine but maybe this should be handled properly
+                        self.send_reply(request.id, serde_json::Value::Null)?;
+                    }
                     "window/logMessage" => {
                         let command = self.lsp_command();
                         let params: <lsp_notification!("window/logMessage") as Notification>::Params =
@@ -997,7 +999,7 @@ impl LspServerProcess {
                         log::info!(
                             "LSP(window/logMessage)({command})[{typ}]: '{}'",
                             params.message
-                        )
+                        );
                     }
                     "$/progress" => {
                         let params: <lsp_notification!("$/progress") as Notification>::Params =
@@ -1090,7 +1092,7 @@ impl LspServerProcess {
     fn send_request<R: Request>(
         &mut self,
         context: ResponseContext,
-        path: Option<CanonicalizedPath>,
+        path: Option<AbsolutePath>,
         params: R::Params,
     ) -> anyhow::Result<()>
     where
@@ -1125,7 +1127,7 @@ impl LspServerProcess {
 
     fn text_document_did_open(
         &mut self,
-        file_path: CanonicalizedPath,
+        file_path: AbsolutePath,
         language_id: String,
         version: usize,
         content: String,
@@ -1144,7 +1146,7 @@ impl LspServerProcess {
 
     fn text_document_did_change(
         &mut self,
-        file_path: CanonicalizedPath,
+        file_path: AbsolutePath,
         version: i32,
         content: String,
     ) -> Result<(), anyhow::Error> {
@@ -1163,10 +1165,7 @@ impl LspServerProcess {
         )
     }
 
-    fn text_document_did_save(
-        &mut self,
-        file_path: CanonicalizedPath,
-    ) -> Result<(), anyhow::Error> {
+    fn text_document_did_save(&mut self, file_path: AbsolutePath) -> Result<(), anyhow::Error> {
         self.send_notification::<lsp_notification!("textDocument/didSave")>(
             DidSaveTextDocumentParams {
                 text_document: path_buf_to_text_document_identifier(file_path)?,
@@ -1177,8 +1176,8 @@ impl LspServerProcess {
 
     fn workspace_did_rename_files(
         &mut self,
-        old: CanonicalizedPath,
-        new: CanonicalizedPath,
+        old: AbsolutePath,
+        new: AbsolutePath,
     ) -> Result<(), anyhow::Error> {
         self.send_notification::<lsp_notification!("workspace/didRenameFiles")>(RenameFilesParams {
             files: [FileRename {
@@ -1189,10 +1188,7 @@ impl LspServerProcess {
         })
     }
 
-    fn workspace_did_create_files(
-        &mut self,
-        file_path: CanonicalizedPath,
-    ) -> Result<(), anyhow::Error> {
+    fn workspace_did_create_files(&mut self, file_path: AbsolutePath) -> Result<(), anyhow::Error> {
         self.send_notification::<lsp_notification!("workspace/didCreateFiles")>(CreateFilesParams {
             files: [FileCreate {
                 uri: file_path.display_absolute(),
@@ -1278,12 +1274,12 @@ impl LspServerProcess {
             context,
             Some(path.clone()),
             GotoDefinitionParams {
-                partial_result_params: Default::default(),
+                partial_result_params: PartialResultParams::default(),
                 text_document_position_params: TextDocumentPositionParams {
                     position: position.into(),
                     text_document: path_buf_to_text_document_identifier(path)?,
                 },
-                work_done_progress_params: Default::default(),
+                work_done_progress_params: WorkDoneProgressParams::default(),
             },
         )
     }
@@ -1307,12 +1303,12 @@ impl LspServerProcess {
                 context: ReferenceContext {
                     include_declaration,
                 },
-                partial_result_params: Default::default(),
+                partial_result_params: PartialResultParams::default(),
                 text_document_position: TextDocumentPositionParams {
                     position: position.into(),
                     text_document: path_buf_to_text_document_identifier(path)?,
                 },
-                work_done_progress_params: Default::default(),
+                work_done_progress_params: WorkDoneProgressParams::default(),
             },
         )
     }
@@ -1325,12 +1321,12 @@ impl LspServerProcess {
             params.context,
             Some(params.path.clone()),
             GotoDeclarationParams {
-                partial_result_params: Default::default(),
+                partial_result_params: PartialResultParams::default(),
                 text_document_position_params: TextDocumentPositionParams {
                     position: params.position.into(),
                     text_document: path_buf_to_text_document_identifier(params.path)?,
                 },
-                work_done_progress_params: Default::default(),
+                work_done_progress_params: WorkDoneProgressParams::default(),
             },
         )
     }
@@ -1343,12 +1339,12 @@ impl LspServerProcess {
             params.context,
             Some(params.path.clone()),
             GotoImplementationParams {
-                partial_result_params: Default::default(),
+                partial_result_params: PartialResultParams::default(),
                 text_document_position_params: TextDocumentPositionParams {
                     position: params.position.into(),
                     text_document: path_buf_to_text_document_identifier(params.path)?,
                 },
-                work_done_progress_params: Default::default(),
+                work_done_progress_params: WorkDoneProgressParams::default(),
             },
         )
     }
@@ -1364,12 +1360,12 @@ impl LspServerProcess {
             params.context,
             Some(params.path.clone()),
             GotoTypeDefinitionParams {
-                partial_result_params: Default::default(),
+                partial_result_params: PartialResultParams::default(),
                 text_document_position_params: TextDocumentPositionParams {
                     position: params.position.into(),
                     text_document: path_buf_to_text_document_identifier(params.path)?,
                 },
-                work_done_progress_params: Default::default(),
+                work_done_progress_params: WorkDoneProgressParams::default(),
             },
         )
     }
@@ -1427,13 +1423,13 @@ impl LspServerProcess {
                     trigger_kind: None,
                     only: None,
                 },
-                partial_result_params: Default::default(),
+                partial_result_params: PartialResultParams::default(),
                 range: Range {
                     start: params.position.into(),
                     end: params.position.into(),
                 },
                 text_document: path_buf_to_text_document_identifier(params.path)?,
-                work_done_progress_params: Default::default(),
+                work_done_progress_params: WorkDoneProgressParams::default(),
             },
         )
     }
@@ -1454,7 +1450,7 @@ impl LspServerProcess {
                     position: params.position.into(),
                     text_document: path_buf_to_text_document_identifier(params.path)?,
                 },
-                work_done_progress_params: Default::default(),
+                work_done_progress_params: WorkDoneProgressParams::default(),
             },
         )
     }
@@ -1470,9 +1466,9 @@ impl LspServerProcess {
             params.context,
             Some(params.path.clone()),
             DocumentSymbolParams {
-                partial_result_params: Default::default(),
+                partial_result_params: PartialResultParams::default(),
                 text_document: path_buf_to_text_document_identifier(params.path)?,
-                work_done_progress_params: Default::default(),
+                work_done_progress_params: WorkDoneProgressParams::default(),
             },
         )
     }
@@ -1489,8 +1485,8 @@ impl LspServerProcess {
             context,
             None,
             WorkspaceSymbolParams {
-                partial_result_params: Default::default(),
-                work_done_progress_params: Default::default(),
+                partial_result_params: PartialResultParams::default(),
+                work_done_progress_params: WorkDoneProgressParams::default(),
                 query,
             },
         )
@@ -1628,12 +1624,13 @@ impl LspServerProcess {
     }
 }
 
-fn path_buf_to_url(path: CanonicalizedPath) -> Result<Url, anyhow::Error> {
-    Ok(Url::parse(&format!("file://{}", path.display_absolute()))?)
+fn path_buf_to_url(path: AbsolutePath) -> Result<Url, anyhow::Error> {
+    Url::from_file_path(path.display_absolute())
+        .map_err(|err| anyhow::anyhow!("Failed to convert path to URL: {err:?}"))
 }
 
 fn path_buf_to_text_document_identifier(
-    path: CanonicalizedPath,
+    path: AbsolutePath,
 ) -> Result<TextDocumentIdentifier, anyhow::Error> {
     Ok(TextDocumentIdentifier {
         uri: path_buf_to_url(path)?,
@@ -1712,7 +1709,7 @@ impl ErrorTracker {
     }
 
     fn handle_success(&mut self) {
-        self.consecutive_errors.clear()
+        self.consecutive_errors.clear();
     }
 }
 

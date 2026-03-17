@@ -3,7 +3,7 @@ mod test;
 
 use notify::{event::ModifyKind, Event, EventKind, RecursiveMode, Result, Watcher};
 
-use shared::canonicalized_path::CanonicalizedPath;
+use shared::absolute_path::AbsolutePath;
 use std::{
     path::PathBuf,
     sync::{
@@ -20,15 +20,15 @@ use crate::{
 
 #[derive(Debug)]
 pub enum FileWatcherInput {
-    SyncOpenedPaths(Vec<CanonicalizedPath>),
+    SyncOpenedPaths(Vec<AbsolutePath>),
     FileWatcherEvent(FileWatcherEvent),
-    SyncFileExplorerExpandedFolders(Vec<CanonicalizedPath>),
+    SyncFileExplorerExpandedFolders(Vec<AbsolutePath>),
 }
 
 #[derive(Default)]
 pub struct FileWatcherState {
-    opened_paths: Vec<CanonicalizedPath>,
-    expanded_folders: Vec<CanonicalizedPath>,
+    opened_paths: Vec<AbsolutePath>,
+    expanded_folders: Vec<AbsolutePath>,
 }
 impl FileWatcherState {
     fn contains_path_buf(&self, path_buf: &PathBuf) -> bool {
@@ -61,7 +61,7 @@ impl FileWatcherState {
 }
 
 pub fn watch_file_changes(
-    path: &CanonicalizedPath,
+    path: &AbsolutePath,
     app_message_sender: Sender<AppMessage>,
 ) -> anyhow::Result<Sender<FileWatcherInput>> {
     let (file_watcher_input_sender, file_watcher_input_receiver) =
@@ -103,7 +103,7 @@ pub fn watch_file_changes(
                     match result {
                         Ok(event) => event_handler.handle_event(event, &debounced_handler),
                         Err(error) => {
-                            log::error!("watch_file_changes error: {error:?}")
+                            log::error!("watch_file_changes error: {error:?}");
                         }
                     }
                 }
@@ -114,7 +114,7 @@ pub fn watch_file_changes(
                 match event {
                     FileWatcherInput::SyncOpenedPaths(paths) => state.opened_paths = paths,
                     FileWatcherInput::SyncFileExplorerExpandedFolders(paths) => {
-                        state.expanded_folders = paths
+                        state.expanded_folders = paths;
                     }
                     FileWatcherInput::FileWatcherEvent(file_watcher_event) => {
                         // Only send events for path that are opened
@@ -146,9 +146,9 @@ impl EventHandler {
         let path = path.to_path_buf();
         match event.kind {
             EventKind::Modify(ModifyKind::Data(_)) => {
-                if let Ok(path) = CanonicalizedPath::try_from(path) {
+                if let Ok(path) = AbsolutePath::try_from(path) {
                     if path.is_file() {
-                        callback.call(FileWatcherEvent::ContentModified(path))
+                        callback.call(FileWatcherEvent::ContentModified(path));
                     }
                 }
             }
@@ -158,10 +158,10 @@ impl EventHandler {
                         callback.call(FileWatcherEvent::PathRenamed {
                             source,
                             destination,
-                        })
+                        });
                     }
                 } else {
-                    self.rename_source = Some(path)
+                    self.rename_source = Some(path);
                 }
             }
             EventKind::Create(_) => callback.call(FileWatcherEvent::PathCreated),
@@ -179,13 +179,13 @@ impl EventHandler {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum FileWatcherEvent {
-    ContentModified(CanonicalizedPath),
+    ContentModified(AbsolutePath),
     /// We don't attached the Path so that all PathCreated event can be grouped together
     /// by the debouncer, since we don't really care what files are added.
     PathCreated,
     PathRemoved(PathBuf),
     PathRenamed {
         source: PathBuf,
-        destination: CanonicalizedPath,
+        destination: AbsolutePath,
     },
 }

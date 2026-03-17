@@ -17,7 +17,12 @@ impl<T> Callback<T> {
     }
 
     pub fn call(&self, event: T) {
-        self.0(event)
+        self.0(event);
+    }
+
+    #[cfg(test)]
+    pub fn no_op() -> Callback<T> {
+        Callback::new(Arc::new(|_| {}))
     }
 }
 
@@ -32,7 +37,7 @@ pub fn debounce<T: PartialEq + Eq + Send + Sync + 'static>(
         let debounce = EventDebouncer::new(duration, move |x| callback.call(x));
 
         while let Ok(event) = receiver.recv() {
-            debounce.put(event)
+            debounce.put(event);
         }
     });
 
@@ -45,12 +50,6 @@ pub enum SendResult {
     Succeeed,
     ReceiverDisconnected,
 }
-impl SendResult {
-    pub fn is_receiver_disconnected(&self) -> bool {
-        matches!(self, SendResult::ReceiverDisconnected)
-    }
-}
-
 impl<T> From<Result<(), SendError<T>>> for SendResult {
     fn from(value: Result<(), SendError<T>>) -> Self {
         match value {
@@ -60,13 +59,15 @@ impl<T> From<Result<(), SendError<T>>> for SendResult {
     }
 }
 
+#[derive(Debug)]
 pub enum BatchResult<T> {
     Items(Vec<T>),
     LimitReached,
 }
 
-pub fn batch<T: Send + Sync + 'static>(
+pub fn batch<T: std::fmt::Debug + Send + Sync + 'static>(
     callback: Arc<dyn Fn(BatchResult<T>) -> SendResult + Send + Sync>,
+    on_finish: Callback<()>,
     interval: Duration,
     limit: usize,
 ) -> Arc<dyn Fn(T) -> SendResult + Send + Sync> {
@@ -77,8 +78,13 @@ pub fn batch<T: Send + Sync + 'static>(
         let mut batch = vec![];
         let mut last_sent = Instant::now();
         while let Ok(item) = receiver.recv() {
+            // Send the first item immediatly to allow instant UI feedback
+            if count == 0 {
+                callback(BatchResult::Items(std::iter::once(item).collect()));
+            } else {
+                batch.push(item);
+            };
             count += 1;
-            batch.push(item);
             if Instant::now() - last_sent > interval {
                 callback(BatchResult::Items(std::mem::take(&mut batch)));
                 last_sent = Instant::now();
@@ -88,7 +94,11 @@ pub fn batch<T: Send + Sync + 'static>(
                 break;
             }
         }
-        callback(BatchResult::Items(std::mem::take(&mut batch)))
+
+        // Sending the remaining items
+        callback(BatchResult::Items(std::mem::take(&mut batch)));
+
+        on_finish.call(());
     });
 
     Arc::new(move |item| SendResult::from(sender.send(item)))
@@ -101,15 +111,15 @@ pub struct Interval {
 
 impl Interval {
     pub fn cancel(&self) {
-        self.callback.call(IntervalEvent::Cancel)
+        self.callback.call(IntervalEvent::Cancel);
     }
 
     pub(crate) fn resume(&self) {
-        self.callback.call(IntervalEvent::Resume)
+        self.callback.call(IntervalEvent::Resume);
     }
 
     pub(crate) fn pause(&self) {
-        self.callback.call(IntervalEvent::Pause)
+        self.callback.call(IntervalEvent::Pause);
     }
 }
 

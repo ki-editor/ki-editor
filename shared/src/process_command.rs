@@ -107,6 +107,10 @@ impl ProcessCommand {
 
         Ok(output)
     }
+
+    pub fn run(&self) -> Result<String, anyhow::Error> {
+        self.run_with_input("")
+    }
 }
 
 impl std::fmt::Display for ProcessCommand {

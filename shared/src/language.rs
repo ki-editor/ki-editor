@@ -66,6 +66,7 @@ pub enum CargoLinkedTreesitterLanguage {
     Typescript,
     TSX,
     Python,
+    Perl,
     Julia,
     Scheme,
     OCaml,
@@ -101,6 +102,9 @@ pub enum CargoLinkedTreesitterLanguage {
     Hcl,
     Odin,
     CSharp,
+    Clojure,
+    FSharp,
+    Scala,
 }
 
 impl CargoLinkedTreesitterLanguage {
@@ -111,6 +115,7 @@ impl CargoLinkedTreesitterLanguage {
             }
             CargoLinkedTreesitterLanguage::TSX => tree_sitter_typescript::LANGUAGE_TSX.into(),
             CargoLinkedTreesitterLanguage::Python => tree_sitter_python::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::Perl => tree_sitter_perl_next::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::Julia => tree_sitter_julia::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::Scheme => tree_sitter_scheme::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::OCaml => tree_sitter_ocaml::LANGUAGE_OCAML.into(),
@@ -148,6 +153,9 @@ impl CargoLinkedTreesitterLanguage {
             CargoLinkedTreesitterLanguage::Hcl => tree_sitter_hcl::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::Odin => tree_sitter_odin::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::CSharp => tree_sitter_c_sharp::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::Clojure => tree_sitter_clojure::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::FSharp => tree_sitter_fsharp::LANGUAGE_FSHARP.into(),
+            CargoLinkedTreesitterLanguage::Scala => tree_sitter_scala::LANGUAGE.into(),
         }
     }
 
@@ -158,6 +166,7 @@ impl CargoLinkedTreesitterLanguage {
             }
             CargoLinkedTreesitterLanguage::TSX => Some(tree_sitter_typescript::HIGHLIGHTS_QUERY),
             CargoLinkedTreesitterLanguage::Python => Some(tree_sitter_python::HIGHLIGHTS_QUERY),
+            CargoLinkedTreesitterLanguage::Perl => Some(tree_sitter_perl_next::HIGHLIGHTS_QUERY),
             CargoLinkedTreesitterLanguage::Julia => None,
             CargoLinkedTreesitterLanguage::Scheme => Some(tree_sitter_scheme::HIGHLIGHTS_QUERY),
             CargoLinkedTreesitterLanguage::OCaml => Some(tree_sitter_ocaml::HIGHLIGHTS_QUERY),
@@ -197,6 +206,9 @@ impl CargoLinkedTreesitterLanguage {
             CargoLinkedTreesitterLanguage::Hcl => None,
             CargoLinkedTreesitterLanguage::Odin => Some(tree_sitter_odin::HIGHLIGHTS_QUERY),
             CargoLinkedTreesitterLanguage::CSharp => None,
+            CargoLinkedTreesitterLanguage::Clojure => None,
+            CargoLinkedTreesitterLanguage::FSharp => Some(tree_sitter_fsharp::HIGHLIGHTS_QUERY),
+            CargoLinkedTreesitterLanguage::Scala => Some(tree_sitter_scala::HIGHLIGHTS_QUERY),
         }
     }
 }

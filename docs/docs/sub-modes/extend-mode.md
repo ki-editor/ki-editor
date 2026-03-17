@@ -7,46 +7,6 @@ import {KeymapFallback} from '@site/src/components/KeymapFallback';
 
 # Extend Mode
 
-## Intro
-
-This mode can be entered by pressing `g` (Qwerty), it is a short-lived mode where the next keypress
-leads to one of the following:
-
-1. Surround-related actions
-2. Extending selection
-
-## Surround-related actions
-
-### Keymap
-
-<KeymapFallback filename="Extend"/>
-
-This is a group of actions that is related to "surround" or "enclosures".
-
-| Label             | Action                                                                                                                                                                   |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `Around`          | Select around `<x>`                                                                                                                                                      |
-| `Inside`          | Select inside `<x>`                                                                                                                                                      |
-| `Delete Surround` | Delete surrounding `<x>`                                                                                                                                                 |
-| `Change Surround` | Change surrounding `<x>` to `<y>`                                                                                                                                        |
-| `Surround`        | Surround current selection with `<x>`                                                                                                                                    |
-| `Select All`      | Select the from first until the last selection of the current selection mode (use with [Line](../normal-mode/selection-modes/primary.md#line) to select the whole file). |
-
-`<x>` or `<y>` can be one of the following:
-
-- `()` Parenthesis
-- `{}` Curly Brace
-- `[]` Square Bracket
-- `<>` Angular Bracket
-- `'` Single Quote
-- `"` Double Quote
-- <code>`</code> Backtick
-- `<></>` XML Tag 
-
-<TutorialFallback filename="surround"/>
-
-## Extending selection
-
 This is used for extending the current selection.
 
 For example, selecting multiple words or multiple lines.

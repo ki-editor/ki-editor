@@ -659,7 +659,7 @@ pub trait SelectionModeTrait {
             }
             .ok()??;
             if other.range() == selection.range() {
-                Default::default()
+                None
             } else {
                 let current_range = selection.range();
                 let other_range = other.range();
@@ -881,13 +881,12 @@ pub trait PositionBasedSelectionMode {
         &self,
         params: &SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        let range = params.current_selection.range();
+
+        let next_cursor_char_index = self.next_char_index(params, range)?;
         self.get_current_selection_by_cursor(
             params.buffer,
-            params
-                .current_selection
-                .range()
-                .end
-                .min(CharIndex(params.buffer.len_chars())),
+            next_cursor_char_index.min(CharIndex(params.buffer.len_chars())),
             IfCurrentNotFound::LookForward,
         )?
         .map(|range| {
@@ -994,7 +993,14 @@ pub trait PositionBasedSelectionMode {
         _: &SelectionModeParams,
         range: CharIndexRange,
     ) -> anyhow::Result<CharIndex> {
-        Ok(range.end)
+        let next_char_index = if range.is_empty() {
+            // if the range is empty, we cannot use just `range.end`,
+            // we need to increment it by one to advance the cursor_char_index forward
+            range.end + 1
+        } else {
+            range.end
+        };
+        Ok(next_char_index)
     }
 
     fn expand(&self, params: &SelectionModeParams) -> anyhow::Result<Option<ApplyMovementResult>> {
@@ -1119,7 +1125,7 @@ pub trait PositionBasedSelectionMode {
             if next_cursor_char_index == new_cursor_char_index {
                 break;
             } else {
-                new_cursor_char_index = next_cursor_char_index
+                new_cursor_char_index = next_cursor_char_index;
             }
         }
 
@@ -1178,7 +1184,7 @@ pub trait PositionBasedSelectionMode {
                     cursor_char_index = self.next_char_index(
                         params,
                         buffer.byte_range_to_char_index_range(range.range())?,
-                    )?
+                    )?;
                 }
             } else {
                 return Ok(None);
@@ -1195,7 +1201,7 @@ pub trait PositionBasedSelectionMode {
         _: &Direction,
     ) -> String {
         match (prev_gap, next_gap) {
-            (None, None) => Default::default(),
+            (None, None) => String::default(),
             (None, Some(gap)) | (Some(gap), None) => gap,
             (Some(prev_gap), Some(next_gap)) => {
                 if prev_gap.chars().count() > next_gap.chars().count() {
@@ -1810,7 +1816,7 @@ pub trait IterBasedSelectionMode {
         _: &Direction,
     ) -> String {
         match (prev_gap, next_gap) {
-            (None, None) => Default::default(),
+            (None, None) => String::default(),
             (None, Some(gap)) | (Some(gap), None) => gap,
             (Some(prev_gap), Some(next_gap)) => {
                 if prev_gap.chars().count() > next_gap.chars().count() {
@@ -1940,7 +1946,7 @@ mod test_selection_mode {
     fn to_index() {
         let current = 0..0;
         test(MovementApplicandum::Index(0), current.clone(), 0..6);
-        test(MovementApplicandum::Index(1), current, 1..6)
+        test(MovementApplicandum::Index(1), current, 1..6);
     }
 
     #[test]

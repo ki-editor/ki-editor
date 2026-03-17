@@ -1,10 +1,37 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "AppConfig",
+  "title": "RawConfig",
   "type": "object",
   "properties": {
+    "custom_keyboard_layouts": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 1,
+            "minLength": 1
+          },
+          "maxItems": 10,
+          "minItems": 10
+        },
+        "maxItems": 3,
+        "minItems": 3
+      },
+      "default": {}
+    },
+    "indent_char": {
+      "$ref": "#/$defs/IndentChar"
+    },
+    "indent_width": {
+      "type": "integer",
+      "format": "uint",
+      "minimum": 0
+    },
     "keyboard_layout": {
-      "$ref": "#/$defs/KeyboardLayoutKind"
+      "type": "string"
     },
     "languages": {
       "type": "object",
@@ -22,7 +49,7 @@
       }
     },
     "theme": {
-      "$ref": "#/$defs/ConfigTheme"
+      "$ref": "#/$defs/Theme"
     }
   },
   "additionalProperties": false,
@@ -31,7 +58,9 @@
     "keyboard_layout",
     "theme",
     "status_lines",
-    "leader_keymap"
+    "leader_keymap",
+    "indent_char",
+    "indent_width"
   ],
   "$defs": {
     "CargoLinkedTreesitterLanguage": {
@@ -40,6 +69,7 @@
         "Typescript",
         "TSX",
         "Python",
+        "Perl",
         "Julia",
         "Scheme",
         "OCaml",
@@ -74,7 +104,10 @@
         "Haskell",
         "Hcl",
         "Odin",
-        "CSharp"
+        "CSharp",
+        "Clojure",
+        "FSharp",
+        "Scala"
       ]
     },
     "Command": {
@@ -94,68 +127,6 @@
       "required": [
         "command",
         "arguments"
-      ]
-    },
-    "ConfigTheme": {
-      "type": "string",
-      "enum": [
-        "Alabaster",
-        "Alabaster BG",
-        "Alabaster Dark",
-        "Alabaster Dark Mono",
-        "Alabaster Mono",
-        "Apathy Dark",
-        "Apathy Light",
-        "Ayu Dark",
-        "Ayu Light",
-        "Ayu Mirage",
-        "Catppuccin Frappé",
-        "Catppuccin Latte",
-        "Catppuccin Macchiato",
-        "Catppuccin Mocha",
-        "Dracula",
-        "Dracula Light (Alucard)",
-        "Dracula Solid",
-        "Github Dark",
-        "Github Dark Colorblind",
-        "Github Dark Dimmed",
-        "Github Dark High Contrast",
-        "Github Dark Tritanopia",
-        "Github Light",
-        "Github Light Colorblind",
-        "Github Light High Contrast",
-        "Github Light Tritanopia",
-        "Gruber Darker",
-        "Gruvbox Dark",
-        "Gruvbox Dark Hard",
-        "Gruvbox Dark Soft",
-        "Gruvbox Light",
-        "Gruvbox Light Hard",
-        "Gruvbox Light Soft",
-        "Modus Operandi",
-        "Modus Operandi Deuteranopia",
-        "Modus Operandi Tinted",
-        "Modus Operandi Tritanopia",
-        "Modus Vivendi",
-        "Modus Vivendi Deuteranopia",
-        "Modus Vivendi Tinted",
-        "Modus Vivendi Tritanopia",
-        "Monokai",
-        "Monokai-ST3",
-        "Mqual Blue",
-        "Nord Dark",
-        "Nord Light",
-        "One Dark",
-        "One Light",
-        "Rosé Pine",
-        "Solarized Dark",
-        "Solarized Light",
-        "Tokyo Night",
-        "Tokyo Night Light",
-        "Tokyo Night Moon",
-        "Tokyo Night Storm",
-        "VS Code (Dark)",
-        "VS Code (Light)"
       ]
     },
     "GrammarConfig": {
@@ -221,6 +192,13 @@
         }
       ]
     },
+    "IndentChar": {
+      "type": "string",
+      "enum": [
+        "space",
+        "tab"
+      ]
+    },
     "Keybinding": {
       "type": "object",
       "properties": {
@@ -234,21 +212,6 @@
       "required": [
         "name",
         "script"
-      ]
-    },
-    "KeyboardLayoutKind": {
-      "type": "string",
-      "enum": [
-        "Qwerty",
-        "Dvorak",
-        "DvorakIu",
-        "Colemak",
-        "ColemakDh",
-        "ColemakDhSemiQuote",
-        "ColemakAnsi",
-        "ColemakAnsiDh",
-        "Workman",
-        "Puq"
       ]
     },
     "Language": {
@@ -442,6 +405,69 @@
           "type": "string",
           "const": "Language"
         }
+      ]
+    },
+    "Theme": {
+      "type": "string",
+      "enum": [
+        "Alabaster",
+        "Alabaster BG",
+        "Alabaster Dark",
+        "Alabaster Dark Mono",
+        "Alabaster Mono",
+        "Apathy Dark",
+        "Apathy Light",
+        "Ayu Dark",
+        "Ayu Light",
+        "Ayu Mirage",
+        "Catppuccin Frappé",
+        "Catppuccin Latte",
+        "Catppuccin Macchiato",
+        "Catppuccin Mocha",
+        "Dracula",
+        "Dracula Light (Alucard)",
+        "Dracula Solid",
+        "Github Dark",
+        "Github Dark Colorblind",
+        "Github Dark Dimmed",
+        "Github Dark High Contrast",
+        "Github Dark Tritanopia",
+        "Github Light",
+        "Github Light Colorblind",
+        "Github Light High Contrast",
+        "Github Light Tritanopia",
+        "Gruber Darker",
+        "Gruvbox Dark",
+        "Gruvbox Dark Hard",
+        "Gruvbox Dark Soft",
+        "Gruvbox Light",
+        "Gruvbox Light Hard",
+        "Gruvbox Light Soft",
+        "Modus Operandi",
+        "Modus Operandi Deuteranopia",
+        "Modus Operandi Tinted",
+        "Modus Operandi Tritanopia",
+        "Modus Vivendi",
+        "Modus Vivendi Deuteranopia",
+        "Modus Vivendi Tinted",
+        "Modus Vivendi Tritanopia",
+        "Monokai",
+        "Monokai-ST3",
+        "Mqual Blue",
+        "Nord Dark",
+        "Nord Light",
+        "One Dark",
+        "One Light",
+        "Rosé Pine",
+        "Solarized Dark",
+        "Solarized Light",
+        "Tokyo Night",
+        "Tokyo Night Light",
+        "Tokyo Night Moon",
+        "Tokyo Night Storm",
+        "VS Code (Dark)",
+        "VS Code (Light)",
+        "Very Dark"
       ]
     }
   }

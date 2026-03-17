@@ -31,7 +31,7 @@ impl PositionBasedSelectionMode for LineFull {
                         if index == CharIndex(0) {
                             return Ok(None);
                         } else {
-                            index = index - 1
+                            index = index - 1;
                         }
                     } else {
                         break index;
@@ -42,7 +42,7 @@ impl PositionBasedSelectionMode for LineFull {
             }
         };
         let mut line_index = buffer.char_to_line(start_char_index)?;
-        while let Some(slice) = buffer.get_line_by_line_index(line_index) {
+        while let Ok(slice) = buffer.get_line_by_line_index(line_index) {
             if slice.chars().all(|char| char.is_whitespace()) {
                 return Ok(self
                     .get_current_selection_by_cursor(
@@ -62,7 +62,7 @@ impl PositionBasedSelectionMode for LineFull {
             } else if line_index == 0 {
                 break;
             } else {
-                line_index -= 1
+                line_index -= 1;
             }
         }
         Ok(None)
@@ -89,7 +89,7 @@ impl PositionBasedSelectionMode for LineFull {
                     if index > CharIndex(buffer.len_chars().saturating_sub(1)) {
                         return Ok(None);
                     } else if buffer.char(index)?.is_whitespace() {
-                        index = index + 1
+                        index = index + 1;
                     } else {
                         break index;
                     }
@@ -101,13 +101,13 @@ impl PositionBasedSelectionMode for LineFull {
         let mut line_index = buffer.char_to_line(start_char_index)?;
 
         while line_index < buffer.len_lines() {
-            if let Some(slice) = buffer.get_line_by_line_index(line_index) {
+            if let Ok(slice) = buffer.get_line_by_line_index(line_index) {
                 if slice.chars().all(|char| char.is_whitespace()) {
                     return Ok(self
                         .to_index(params, line_index)?
                         .map(ApplyMovementResult::from_selection));
                 } else {
-                    line_index += 1
+                    line_index += 1;
                 }
             } else {
                 break;
@@ -124,7 +124,7 @@ impl PositionBasedSelectionMode for LineFull {
     ) -> anyhow::Result<Option<super::ByteRange>> {
         let line_index = buffer.char_to_line(cursor_char_index)?;
         let line_start_char_index = buffer.line_to_char(line_index)?;
-        let Some(line) = buffer.get_line_by_line_index(line_index) else {
+        let Ok(line) = buffer.get_line_by_line_index(line_index) else {
             return Ok(None);
         };
         let range = buffer.char_index_range_to_byte_range(

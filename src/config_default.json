@@ -1,6 +1,6 @@
 {
     "theme": "VS Code (Light)",
-    "keyboard_layout": "Qwerty",
+    "keyboard_layout": "QWERTY",
     "status_lines": [
         {
             "components": [
@@ -32,5 +32,7 @@
         [null, null, null, null, null, null, null, null, null, null],
         [null, null, null, null, null, null, null, null, null, null]
     ],
-    "languages": {}
+    "languages": {},
+    "indent_width": 4,
+    "indent_char": "space"
 }

@@ -1,19 +1,48 @@
 import {TutorialFallback} from '@site/src/components/TutorialFallback';
 import {KeymapFallback} from '@site/src/components/KeymapFallback';
 
-# Buffer MoL
+# ≡ Buffer
 
 ## Keymap
 
 <KeymapFallback filename="Buffer"/>
 
-In this MoL, every core movement means:
+In this Momentary Layer (≡), every core movement means:
 
 > change focus to \<movement\> buffer.
+
+Buffers can be either marked or un-marked: each marked file gets its own tab
+on the tab bar, however only one the very rightmost end of the tabs on the tab bar
+show the open buffers.
+
+When using coarse movements like `>>` and `<<` you can only visit navigate to marked files.
+Opened but non-marked files can be navigated-to through fine-movements like `>` and `<`.
+Notably, when doing `<<` on the left-most marked-file, the focus lands "warps" or cycles to
+the rightmost file.
+
+Besides the core movements based actions, a few other common actions are also sheltered in the ≡ Buffer
+these are:
+
+1. Closing the current file.
+2. Unmarking all files except the current one.
+3. Alternating between the current file and previously visited file.
+
+Files on the tab bar have indicators for Marked/Unmarked status of a file and Saved/Unsaved status of a file. A note about the indicators is as follows:
+
+```
+marked  , saved  : [-]
+marked  , unsaved: [÷]
+unmarked, saved  : [ ]
+unmarked, unsaved: [:]
+```
+
+Here the horizontal dash in a symbol represents that the file is marked. The colon symbol represents there are unsaved changes in the buffer. Thus something like the divide symbol combines both the horizontal dash and the colon, correspondingly meaning a file with the divide symbol is marked on the tab bar and has unsaved changes.
 
 ## Examples
 
 <TutorialFallback filename="mark-file"/>
+
+<TutorialFallback filename="open-file"/>
 
 ## Workflow Overview
 
@@ -22,7 +51,7 @@ access to your primary files.
 
 During an editing session, you often work on
 primary files while occasionally referring to other less important files.
-Using Buffer MoL, you can quickly jump back to your main files, enhancing your
+Using ≡ Buffer, you can quickly jump back to your main files, enhancing your
 productivity and focus.
 
 By utilizing file marking, you can efficiently navigate your editing

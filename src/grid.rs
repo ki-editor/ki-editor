@@ -241,7 +241,7 @@ impl Grid {
                         symbol: character,
                         ..Cell::default()
                     }
-                })
+                });
         });
 
         grid
@@ -625,7 +625,7 @@ impl Grid {
     fn set_background_color(mut self, background_color: Color) -> Self {
         for row in self.rows.iter_mut() {
             for cell in row {
-                cell.background_color = background_color
+                cell.background_color = background_color;
             }
         }
         self
@@ -778,7 +778,7 @@ mod test_grid {
                 &[],
             )
             .to_string();
-            assert_eq!(actual, "2│hello")
+            assert_eq!(actual, "2│hello");
         }
 
         #[test]
@@ -808,7 +808,7 @@ mod test_grid {
 12│world
 "
                 .trim()
-            )
+            );
         }
 
         /// Wrapped, no multi-width unicode
@@ -838,7 +838,7 @@ mod test_grid {
 ↪│ tim
 "
                 .trim()
-            )
+            );
         }
 
         #[test]
@@ -875,7 +875,7 @@ mod test_grid {
             assert_eq!(
                 actual.chars().collect_vec(),
                 ['2', '│', crab, ' ', 'c', 'r', cursor, 'b'].to_vec()
-            )
+            );
         }
 
         #[test]
@@ -920,7 +920,7 @@ mod test_grid {
 ↪│crab
 "
                 .trim()
-            )
+            );
         }
 
         #[test]
@@ -945,7 +945,7 @@ mod test_grid {
             .to_string();
             // Expect there's two extra spaces before '2'
             // Because the number of digits of the last line is 3 ('1', '0', '0')
-            assert_eq!(actual, "  2│hello".trim())
+            assert_eq!(actual, "  2│hello".trim());
         }
 
         #[test]
@@ -986,7 +986,7 @@ mod test_grid {
                         column != &1
                     })
                     .collect_vec()
-            )
+            );
         }
 
         #[test]
@@ -1024,7 +1024,7 @@ mod test_grid {
                     .iter()
                     .filter(|cell| cell.cell.background_color == background_color)
                     .count()
-            )
+            );
         }
 
         #[test]
@@ -1040,12 +1040,12 @@ mod test_grid {
                     RenderContentLineNumber::NoLineNumber,
                     Vec::new(),
                     Vec::new(),
-                    &Default::default(),
+                    &Theme::default(),
                     None,
                     &[],
                 )
                 .to_string();
-            assert_eq!("hello", actual)
+            assert_eq!("hello", actual);
         }
 
         #[test]
@@ -1061,7 +1061,7 @@ mod test_grid {
                     RenderContentLineNumber::NoLineNumber,
                     Vec::new(),
                     Vec::new(),
-                    &Default::default(),
+                    &Theme::default(),
                     None,
                     &[],
                 )
@@ -1069,7 +1069,7 @@ mod test_grid {
                 .into_iter()
                 .map(|cell| cell.cell.symbol)
                 .collect_vec();
-            assert_eq!(['\t', ' ', ' ', ' ', 'h', 'e', 'l', ' '].to_vec(), actual)
+            assert_eq!(['\t', ' ', ' ', ' ', 'h', 'e', 'l', ' '].to_vec(), actual);
         }
 
         #[test]
@@ -1096,7 +1096,7 @@ x
                     }]
                     .to_vec(),
                     Vec::new(),
-                    &Default::default(),
+                    &Theme::default(),
                     None,
                     &[],
                 )
@@ -1108,7 +1108,7 @@ long
 x
 "
                 .trim()
-            )
+            );
         }
 
         #[test]
@@ -1129,7 +1129,7 @@ x
                         style: Style::default().foreground_color(color),
                     }]
                     .to_vec(),
-                    &Default::default(),
+                    &Theme::default(),
                     None,
                     &[],
                 )
@@ -1145,13 +1145,13 @@ x
                 },
                 position: Position::default(),
             };
-            assert_eq!(actual, [expected].to_vec())
+            assert_eq!(actual, [expected].to_vec());
         }
     }
 
     #[test]
     fn test_get_string_width() {
-        assert_eq!(get_string_width("\t\t"), 8)
+        assert_eq!(get_string_width("\t\t"), 8);
     }
 }
 
@@ -1198,6 +1198,6 @@ mod test_cell {
                 color: hex!("#ffffff"),
                 style: CellLineStyle::Underline,
             })
-        )
+        );
     }
 }

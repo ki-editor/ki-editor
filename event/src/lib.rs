@@ -2,9 +2,9 @@ pub mod event;
 
 use std::collections::HashSet;
 
-pub use crate::event::{KeyEvent, KeyModifiers};
+pub use crate::event::{KeyEvent, KeyEventKind, KeyModifiers};
 
-use crossterm::event::{KeyCode, KeyEventKind};
+use crossterm::event::KeyCode;
 
 #[derive(Debug, PartialEq)]
 struct Token(String);
@@ -29,7 +29,6 @@ impl Token {
         ) -> KeyEvent {
             match event_kind {
                 KeyEventKind::Press => KeyEvent::pressed(key_code, modifiers),
-                KeyEventKind::Repeat => KeyEvent::repeated(key_code, modifiers),
                 KeyEventKind::Release => KeyEvent::released(key_code, modifiers),
             }
         }
@@ -44,7 +43,7 @@ impl Token {
             if token.0.starts_with("repeat-") {
                 return to_key_event(
                     &Token(token.0.trim_start_matches("repeat-").to_string()),
-                    KeyEventKind::Repeat,
+                    KeyEventKind::Press,
                 );
             }
             match token.0.split('+').collect::<Vec<_>>().split_last() {

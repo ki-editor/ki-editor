@@ -19,7 +19,7 @@ impl<T: Clone + std::fmt::Debug + PartialEq + Eq> Alternator<T> {
     }
 
     pub fn copy_primary_to_secondary(&mut self) {
-        self.secondary = Some(self.primary.clone())
+        self.secondary = Some(self.primary.clone());
     }
 
     pub fn primary(&self) -> &T {

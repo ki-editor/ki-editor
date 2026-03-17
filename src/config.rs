@@ -1,11 +1,12 @@
 use std::borrow::Cow;
 use std::{collections::HashMap, io::Read, path::PathBuf};
 
+use anyhow::Context;
 use itertools::Itertools;
 use regex::Regex;
 
 use crate::app::StatusLine;
-use crate::components::editor_keymap::KeyboardLayoutKind;
+use crate::components::editor_keymap::{builtin_layout_map, KeyboardLayout, KeyboardLayoutKeys};
 use crate::scripting::{Keybinding, Script};
 use crate::themes::Theme;
 use figment::providers;
@@ -13,17 +14,86 @@ use figment::providers::Format;
 use once_cell::sync::OnceCell;
 use schemars::{JsonSchema, Schema, SchemaGenerator};
 use serde::{Deserialize, Serialize};
-use shared::canonicalized_path::CanonicalizedPath;
+use shared::absolute_path::AbsolutePath;
 use shared::language::{self, Language};
 
-#[derive(Deserialize, Serialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
 pub struct AppConfig {
     languages: HashMap<String, Language>,
-    keyboard_layout: KeyboardLayoutKind,
+    keyboard_layout: KeyboardLayout,
     theme: ConfigTheme,
     status_lines: Vec<StatusLine>,
     leader_keymap: LeaderKeymap,
+    keyboard_layouts: HashMap<String, KeyboardLayout>,
+    indent_char: char,
+    indent_width: usize,
+}
+
+#[derive(Deserialize, Serialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct RawConfig {
+    languages: HashMap<String, Language>,
+    keyboard_layout: String,
+    theme: ConfigThemeName,
+    status_lines: Vec<StatusLine>,
+    leader_keymap: LeaderKeymap,
+    #[serde(default)]
+    custom_keyboard_layouts: HashMap<String, KeyboardLayoutKeys>,
+    indent_char: IndentChar,
+    indent_width: usize,
+}
+
+#[derive(Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "lowercase")]
+enum IndentChar {
+    Space,
+    Tab,
+}
+
+const DEFAULT_CONFIG: &str = include_str!("config_default.json");
+
+impl Default for RawConfig {
+    fn default() -> Self {
+        RawConfig {
+            languages: shared::languages::languages(),
+            ..serde_json::from_str(DEFAULT_CONFIG)
+                .expect("Default config doesn't parse, this is a bug!")
+        }
+    }
+}
+
+impl TryFrom<RawConfig> for AppConfig {
+    type Error = anyhow::Error;
+    fn try_from(value: RawConfig) -> Result<Self, Self::Error> {
+        let keyboard_layouts: HashMap<_, _> = builtin_layout_map()
+            .into_iter()
+            .chain(
+                value
+                    .custom_keyboard_layouts
+                    .into_iter()
+                    .map(|(name, keys)| (name.clone(), KeyboardLayout::new(name, keys))),
+            )
+            .collect();
+        let keyboard_layout = keyboard_layouts
+            .get(&value.keyboard_layout)
+            .context(format!(
+                "Unknown keyboard layout {}, possible values are {:?}",
+                value.keyboard_layout,
+                keyboard_layouts.keys().collect::<Vec<_>>()
+            ))?;
+        Ok(Self {
+            languages: value.languages,
+            keyboard_layout: keyboard_layout.clone(),
+            theme: ConfigTheme::try_from(value.theme)?,
+            status_lines: value.status_lines,
+            leader_keymap: value.leader_keymap,
+            keyboard_layouts,
+            indent_char: match value.indent_char {
+                IndentChar::Space => ' ',
+                IndentChar::Tab => '\t',
+            },
+            indent_width: value.indent_width,
+        })
+    }
 }
 
 /// The leader keymap is a 3x10 matrix representing three rows of 10 columns.
@@ -45,12 +115,11 @@ impl LeaderKeymap {
 #[serde(transparent)]
 struct ConfigThemeName(String);
 
-#[derive(Clone, Deserialize, Serialize, JsonSchema)]
-#[serde(try_from = "ConfigThemeName", into = "ConfigThemeName")]
+#[derive(Clone)]
 struct ConfigTheme(Theme);
 
 impl TryFrom<ConfigThemeName> for ConfigTheme {
-    type Error = String;
+    type Error = anyhow::Error;
 
     fn try_from(value: ConfigThemeName) -> Result<Self, Self::Error> {
         crate::themes::from_name(&value.0).map(Self)
@@ -82,8 +151,6 @@ impl JsonSchema for ConfigThemeName {
     }
 }
 
-const DEFAULT_CONFIG: &str = include_str!("config_default.json");
-
 pub fn ki_workspace_directory() -> anyhow::Result<PathBuf> {
     Ok(std::env::current_dir()?.join(".ki"))
 }
@@ -96,16 +163,16 @@ pub fn load_script(script_name: &str) -> anyhow::Result<Script> {
     // Trying reading from workspace directory first
     let workspace_path = ki_workspace_directory()?.join("scripts").join(script_name);
     let global_path = ki_global_directory().join("scripts").join(script_name);
-    if let Ok(path) = CanonicalizedPath::try_from(workspace_path.clone()) {
+    if workspace_path.exists() {
         Ok(Script {
-            path,
+            path: workspace_path.try_into().unwrap(),
             name: script_name.to_string(),
         })
     }
     // Then try reading from global directory
-    else if let Ok(path) = CanonicalizedPath::try_from(global_path.clone()) {
+    else if global_path.exists() {
         Ok(Script {
-            path,
+            path: global_path.try_into().unwrap(),
             name: script_name.to_string(),
         })
     } else {
@@ -119,13 +186,9 @@ pub fn load_script(script_name: &str) -> anyhow::Result<Script> {
 
 impl AppConfig {
     fn default() -> Self {
-        let deserializer = &mut serde_json::Deserializer::from_str(DEFAULT_CONFIG);
-        Self {
-            languages: shared::languages::languages(),
-            ..serde_path_to_error::deserialize(deserializer)
-                .map_err(|err| anyhow::anyhow!("{err}\n\nINPUT=\n\n{DEFAULT_CONFIG}"))
-                .unwrap()
-        }
+        RawConfig::default()
+            .try_into()
+            .expect("Default config can't be converted to an AppConfig, this is a bug!")
     }
 
     pub fn load_from_current_directory() -> anyhow::Result<Self> {
@@ -133,8 +196,8 @@ impl AppConfig {
         let workspace_config = |extension: &str| workspace_dir.join(format!("config.{extension}"));
         let global_config =
             |extension: &str| ki_global_directory().join(format!("config.{extension}"));
-        let config: AppConfig =
-            figment::Figment::from(providers::Serialized::defaults(&AppConfig::default()))
+        let config: RawConfig =
+            figment::Figment::from(providers::Serialized::defaults(&RawConfig::default()))
                 .merge(providers::Json::file(global_config("json")))
                 .merge(providers::Yaml::file(global_config("yaml")))
                 .merge(providers::Toml::file(global_config("toml")))
@@ -142,7 +205,7 @@ impl AppConfig {
                 .merge(providers::Yaml::file(workspace_config("yaml")))
                 .merge(providers::Toml::file(workspace_config("toml")))
                 .extract()?;
-        Ok(config)
+        config.try_into()
     }
 
     pub fn singleton() -> &'static AppConfig {
@@ -163,8 +226,12 @@ impl AppConfig {
         &self.languages
     }
 
-    pub fn keyboard_layout_kind(&self) -> KeyboardLayoutKind {
-        self.keyboard_layout
+    pub fn keyboard_layout(&self) -> &KeyboardLayout {
+        &self.keyboard_layout
+    }
+
+    pub fn keyboard_layouts(&self) -> &HashMap<String, KeyboardLayout> {
+        &self.keyboard_layouts
     }
 
     pub fn theme(&self) -> &Theme {
@@ -178,9 +245,17 @@ impl AppConfig {
     pub fn leader_keymap(&self) -> &LeaderKeymap {
         &self.leader_keymap
     }
+
+    pub fn indent_width(&self) -> usize {
+        self.indent_width
+    }
+
+    pub fn indent_char(&self) -> char {
+        self.indent_char
+    }
 }
 
-pub fn from_path(path: &CanonicalizedPath) -> Option<Language> {
+pub fn from_path(path: &AbsolutePath) -> Option<Language> {
     path.extension()
         .and_then(from_extension)
         .or_else(|| from_filename(path))
@@ -194,7 +269,7 @@ pub fn from_extension(extension: &str) -> Option<Language> {
         .map(|(_, language)| (*language).clone())
 }
 
-pub fn from_filename(path: &CanonicalizedPath) -> Option<Language> {
+pub fn from_filename(path: &AbsolutePath) -> Option<Language> {
     let file_name = path.file_name()?;
     AppConfig::singleton()
         .languages()
@@ -293,6 +368,6 @@ mod test_config {
     #[test]
     fn doc_assets_default_config_json() {
         let path = "docs/static/config_default.json";
-        std::fs::write(path, super::DEFAULT_CONFIG).unwrap()
+        std::fs::write(path, super::DEFAULT_CONFIG).unwrap();
     }
 }

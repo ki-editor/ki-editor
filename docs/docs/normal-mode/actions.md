@@ -65,15 +65,15 @@ For example:
 
 ### `Insert`
 
-Activates the [Insert MoL](../momentary-layers/insert-mol.mdx).
+Activates the [≡ Insert](../momentary-layers/insert-mol.mdx).
 
 ### `Delete`
 
-Activates the [Delete MoL](../momentary-layers/delete-mol.mdx).
+Activates the [≡ Delete](../momentary-layers/delete-mol.mdx).
 
 ### `Cut`
 
-Activates the [Cut MoL](../momentary-layers/cut-mol.mdx).
+Activates the [≡ Cut](../momentary-layers/cut-mol.mdx).
 
 ### `Replace #`
 
@@ -152,7 +152,7 @@ File unmarking has two behaviors:
 1. When the current file is the only marked file: File remains unmarked and focused.
 2. When the current file is NOT the only marked file: File is unmarked and focus shifts to the next marked file, similar to closing a tab.
 
-To move between marked files, see [Buffer MoL](../momentary-layers/buffer-mol).
+To move between marked files, see [≡ Buffer](../momentary-layers/buffer-mol).
 
 ### `Undo`/`Redo`
 
@@ -196,9 +196,11 @@ Copy behaves differently depending on the number of cursors.
 When there is more than one cursor, the selected texts of each cursor will be
 copied to the cursor-specific clipboard.
 
+Hold to activate the [≡ Copy](../momentary-layers/duplicate-mol.mdx)
+
 ### `Paste`
 
-Activates the [Paste MoL](../momentary-layers/paste-mol.mdx).
+Activates the [≡ Paste](../momentary-layers/paste-mol.mdx).
 
 ### `Change X`
 
@@ -215,3 +217,31 @@ Keybinding: `*`
 This has a special keybinding that is non-positional so that the keyboard layout can be switched easily.
 
 [^directionality]: Actions can have Directionality which can be changed using [`⇋ Curs`](../normal-mode/other-movements/#-curs). Directionality means, that the result of that action can be applied in two opposite directions. For example, deleting backward and deleting forward, both are the same action only directionally opposite. To change the direction of the action make sure to first swap the cursor using [`⇋ Curs`](../normal-mode/other-movements/#-curs) before applying the action.
+
+### `Surround`
+
+Opens the Surround menu.
+
+This is a group of actions that is related to "surround" or "enclosures".
+
+| Label             | Action                                                                                                                                                    |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Around`          | Select around `<x>`                                                                                                                                       |
+| `Inside`          | Select inside `<x>`                                                                                                                                       |
+| `Delete Surround` | Delete surrounding `<x>`                                                                                                                                  |
+| `Change Surround` | Change surrounding `<x>` to `<y>`                                                                                                                         |
+| `Surround`        | Surround current selection with `<x>`                                                                                                                     |
+| `Select All`      | Select the from first until the last selection of the current selection mode (use with [Line](selection-modes/primary.md#line) to select the whole file). |
+
+`<x>` or `<y>` can be one of the following:
+
+- `()` Parenthesis
+- `{}` Curly Brace
+- `[]` Square Bracket
+- `<>` Angular Bracket
+- `'` Single Quote
+- `"` Double Quote
+- <code>`</code> Backtick
+- `<></>` XML Tag
+
+<TutorialFallback filename="surround"/>

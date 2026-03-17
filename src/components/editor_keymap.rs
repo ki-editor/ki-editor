@@ -1,7 +1,7 @@
+use std::collections::HashMap;
+
 use crossterm::event::KeyCode;
 use event::KeyEvent;
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
 
 pub const KEYMAP_SCORE: [[char; 10]; 3] = [
     // a = Easiest to access
@@ -12,121 +12,135 @@ pub const KEYMAP_SCORE: [[char; 10]; 3] = [
     ['j', 'k', 'l', 'g', 'o', /*|*/ 'o', 'g', 'l', 'k', 'j'], // Bottom row
 ];
 
-pub type KeyboardLayout = [[&'static str; 10]; 3];
+pub type KeyboardLayoutKeys = [[char; 10]; 3];
 
-pub const QWERTY: KeyboardLayout = [
+pub const QWERTY: KeyboardLayoutKeys = [
+    ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p'],
+    ['a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', ';'],
+    ['z', 'x', 'c', 'v', 'b', 'n', 'm', ',', '.', '/'],
+];
+
+pub const QWERTY_STR: [[&str; 10]; 3] = [
     ["q", "w", "e", "r", "t", "y", "u", "i", "o", "p"],
     ["a", "s", "d", "f", "g", "h", "j", "k", "l", ";"],
     ["z", "x", "c", "v", "b", "n", "m", ",", ".", "/"],
 ];
 
-pub const DVORAK: KeyboardLayout = [
-    ["'", ",", ".", "p", "y", "f", "g", "c", "r", "l"],
-    ["a", "o", "e", "u", "i", "d", "h", "t", "n", "s"],
-    [";", "q", "j", "k", "x", "b", "m", "w", "v", "z"],
+pub const BUILTIN_KEYBOARD_LAYOUTS: &[(&str, KeyboardLayoutKeys)] = &[
+    ("QWERTY", QWERTY),
+    (
+        "DVORAK",
+        [
+            ['\'', ',', '.', 'p', 'y', 'f', 'g', 'c', 'r', 'l'],
+            ['a', 'o', 'e', 'u', 'i', 'd', 'h', 't', 'n', 's'],
+            [';', 'q', 'j', 'k', 'x', 'b', 'm', 'w', 'v', 'z'],
+        ],
+    ),
+    (
+        "DVORAK-IU",
+        // I and U swapped.
+        // Refer https://www.reddit.com/r/dvorak/comments/tfz53r/have_anyone_tried_swapping_u_with_i/
+        [
+            ['\'', ',', '.', 'p', 'y', 'f', 'g', 'c', 'r', 'l'],
+            ['a', 'o', 'e', 'i', 'u', 'd', 'h', 't', 'n', 's'],
+            [';', 'q', 'j', 'k', 'x', 'b', 'm', 'w', 'v', 'z'],
+        ],
+    ),
+    (
+        "COLEMAK",
+        [
+            ['q', 'w', 'f', 'p', 'b', 'j', 'l', 'u', 'y', ';'],
+            ['a', 'r', 's', 't', 'g', 'm', 'n', 'e', 'i', 'o'],
+            ['z', 'x', 'c', 'd', 'v', 'k', 'h', ',', '.', '/'],
+        ],
+    ),
+    (
+        "COLEMAK-DH",
+        // Refer https://colemakmods.github.io/mod-dh/
+        [
+            ['q', 'w', 'f', 'p', 'b', 'j', 'l', 'u', 'y', ';'],
+            ['a', 'r', 's', 't', 'g', 'm', 'n', 'e', 'i', 'o'],
+            ['z', 'x', 'c', 'd', 'v', 'k', 'h', ',', '.', '/'],
+        ],
+    ),
+    (
+        "COLEMAK-DH;",
+        // Semi-colon and Quote are swapped
+        // Refer https://colemakmods.github.io/mod-dh/
+        [
+            ['q', 'w', 'f', 'p', 'b', 'j', 'l', 'u', 'y', '\''],
+            ['a', 'r', 's', 't', 'g', 'm', 'n', 'e', 'i', 'o'],
+            ['z', 'x', 'c', 'd', 'v', 'k', 'h', ',', '.', '/'],
+        ],
+    ),
+    (
+        "COLEMAK (ANSI)",
+        [
+            ['q', 'w', 'f', 'p', 'g', 'j', 'l', 'u', 'y', ';'],
+            ['a', 'r', 's', 't', 'd', 'h', 'n', 'e', 'i', 'o'],
+            ['z', 'x', 'c', 'v', 'b', 'k', 'm', ',', '.', '/'],
+        ],
+    ),
+    (
+        "COLEMAK-DH (ANSI)",
+        // https://colemakmods.github.io/mod-dh/keyboards.html#ansi-keyboards
+        [
+            ['q', 'w', 'f', 'p', 'b', 'j', 'l', 'u', 'y', ';'],
+            ['a', 'r', 's', 't', 'g', 'm', 'n', 'e', 'i', 'o'],
+            ['x', 'c', 'd', 'v', 'z', 'k', 'h', ',', '.', '/'],
+        ],
+    ),
+    (
+        "WORKMAN",
+        // Refer https://workmanlayout.org/
+        [
+            ['q', 'd', 'r', 'w', 'b', 'j', 'f', 'u', 'p', ';'],
+            ['a', 's', 'h', 't', 'g', 'y', 'n', 'e', 'o', 'i'],
+            ['z', 'x', 'm', 'c', 'v', 'k', 'l', ',', '.', '/'],
+        ],
+    ),
+    (
+        "PUQ",
+        // Refer http://adnw.de/index.php?n=Main.OptimierungF%c3%bcrDieGeradeTastaturMitDaumen-Shift
+        [
+            ['p', 'u', ':', ',', 'q', 'g', 'c', 'l', 'm', 'f'],
+            ['h', 'i', 'e', 'a', 'o', 'd', 't', 'r', 'n', 's'],
+            ['k', 'y', '.', '\'', 'x', 'j', 'v', 'w', 'b', 'z'],
+        ],
+    ),
 ];
 
-/// I and U swapped.
-/// Refer https://www.reddit.com/r/dvorak/comments/tfz53r/have_anyone_tried_swapping_u_with_i/
-pub const DVORAK_IU: KeyboardLayout = [
-    ["'", ",", ".", "p", "y", "f", "g", "c", "r", "l"],
-    ["a", "o", "e", "i", "u", "d", "h", "t", "n", "s"],
-    [";", "q", "j", "k", "x", "b", "m", "w", "v", "z"],
-];
-
-pub const COLEMAK: KeyboardLayout = [
-    ["q", "w", "f", "p", "b", "j", "l", "u", "y", ";"],
-    ["a", "r", "s", "t", "g", "m", "n", "e", "i", "o"],
-    ["z", "x", "c", "d", "v", "k", "h", ",", ".", "/"],
-];
-
-/// Refer https://colemakmods.github.io/mod-dh/
-pub const COLEMAK_DH: KeyboardLayout = [
-    ["q", "w", "f", "p", "b", "j", "l", "u", "y", ";"],
-    ["a", "r", "s", "t", "g", "m", "n", "e", "i", "o"],
-    ["z", "x", "c", "d", "v", "k", "h", ",", ".", "/"],
-];
-
-/// Semi-colon and Quote are swapped
-/// Refer https://colemakmods.github.io/mod-dh/
-pub const COLEMAK_DH_SEMI_QUOTE: KeyboardLayout = [
-    ["q", "w", "f", "p", "b", "j", "l", "u", "y", "'"],
-    ["a", "r", "s", "t", "g", "m", "n", "e", "i", "o"],
-    ["z", "x", "c", "d", "v", "k", "h", ",", ".", "/"],
-];
-
-pub const COLEMAK_ANSI: KeyboardLayout = [
-    ["q", "w", "f", "p", "g", "j", "l", "u", "y", ";"],
-    ["a", "r", "s", "t", "d", "h", "n", "e", "i", "o"],
-    ["z", "x", "c", "v", "b", "k", "m", ",", ".", "/"],
-];
-
-// https://colemakmods.github.io/mod-dh/keyboards.html#ansi-keyboards
-pub const COLEMAK_ANSI_DH: KeyboardLayout = [
-    ["q", "w", "f", "p", "b", "j", "l", "u", "y", ";"],
-    ["a", "r", "s", "t", "g", "m", "n", "e", "i", "o"],
-    ["x", "c", "d", "v", "z", "k", "h", ",", ".", "/"],
-];
-
-/// Refer https://workmanlayout.org/
-pub const WORKMAN: KeyboardLayout = [
-    ["q", "d", "r", "w", "b", "j", "f", "u", "p", ";"],
-    ["a", "s", "h", "t", "g", "y", "n", "e", "o", "i"],
-    ["z", "x", "m", "c", "v", "k", "l", ",", ".", "/"],
-];
-
-/// Refer http://adnw.de/index.php?n=Main.OptimierungF%c3%bcrDieGeradeTastaturMitDaumen-Shift
-pub const PUQ: KeyboardLayout = [
-    ["p", "u", ":", ",", "q", "g", "c", "l", "m", "f"],
-    ["h", "i", "e", "a", "o", "d", "t", "r", "n", "s"],
-    ["k", "y", ".", "'", "x", "j", "v", "w", "b", "z"],
-];
-
-#[derive(
-    Debug, Clone, strum_macros::EnumIter, PartialEq, Eq, Serialize, Deserialize, JsonSchema, Copy,
-)]
-pub enum KeyboardLayoutKind {
-    Qwerty,
-    Dvorak,
-    DvorakIu,
-    Colemak,
-    ColemakDh,
-    ColemakDhSemiQuote,
-    ColemakAnsi,
-    ColemakAnsiDh,
-    Workman,
-    Puq,
+pub fn builtin_layout_map() -> HashMap<String, KeyboardLayout> {
+    BUILTIN_KEYBOARD_LAYOUTS
+        .iter()
+        .map(|(name, keys)| {
+            (
+                name.to_string(),
+                KeyboardLayout {
+                    name: name.to_string(),
+                    keys: *keys,
+                },
+            )
+        })
+        .collect()
 }
 
-impl KeyboardLayoutKind {
-    pub const fn display(&self) -> &'static str {
-        match self {
-            Self::Qwerty => "QWERTY",
-            Self::Dvorak => "DVORAK",
-            Self::Colemak => "COLEMAK",
-            Self::ColemakDh => "COLEMAK-DH",
-            Self::ColemakDhSemiQuote => "COLEMAK-DH;",
-            Self::ColemakAnsi => "COLEMAK (ANSI)",
-            Self::ColemakAnsiDh => "COLEMAK-DH (ANSI)",
-            Self::DvorakIu => "DVORAK-IU",
-            Self::Workman => "WORKMAN",
-            Self::Puq => "PUQ",
-        }
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct KeyboardLayout {
+    name: String,
+    keys: KeyboardLayoutKeys,
+}
+
+impl KeyboardLayout {
+    pub fn new(name: String, keys: KeyboardLayoutKeys) -> Self {
+        Self { name, keys }
+    }
+    pub fn name(&self) -> &str {
+        &self.name
     }
 
-    pub fn get_keyboard_layout(&self) -> &KeyboardLayout {
-        match self {
-            Self::Qwerty => &QWERTY,
-            Self::Dvorak => &DVORAK,
-            Self::Colemak => &COLEMAK,
-            Self::ColemakDh => &COLEMAK_DH,
-            Self::ColemakDhSemiQuote => &COLEMAK_DH_SEMI_QUOTE,
-            Self::ColemakAnsi => &COLEMAK_ANSI,
-            Self::ColemakAnsiDh => &COLEMAK_ANSI_DH,
-            Self::DvorakIu => &DVORAK_IU,
-            Self::Workman => &WORKMAN,
-            Self::Puq => &PUQ,
-        }
+    pub fn get_keyboard_layout(&self) -> &KeyboardLayoutKeys {
+        &self.keys
     }
 
     pub fn translate_char_to_qwerty(&self, char_to_translate: char) -> char {
@@ -135,10 +149,7 @@ impl KeyboardLayoutKind {
                 .iter()
                 .flatten()
                 .zip(QWERTY.iter().flatten())
-                .map(|(this, qwerty)| {
-                    // Crossterm uses char, so we need to convert
-                    (this.chars().next().unwrap(), qwerty.chars().next().unwrap())
-                })
+                .map(|(a, b)| (*a, *b))
         };
         zipped_chars()
             .chain(zipped_chars().map(|(this, qwerty)| (shifted_char(this), shifted_char(qwerty))))
@@ -162,7 +173,7 @@ impl KeyboardLayoutKind {
     }
 }
 
-pub fn shifted(c: &'static str) -> &'static str {
+pub fn shifted(c: &str) -> &str {
     match c {
         "." => ">",
         "," => "<",
@@ -318,7 +329,15 @@ pub fn shifted_char(c: char) -> char {
     }
 }
 
-pub fn alted(c: &'static str) -> &'static str {
+pub fn possibly_alted(c: &str, is_alted: bool) -> &str {
+    if is_alted {
+        alted(c)
+    } else {
+        c
+    }
+}
+
+pub fn alted(c: &str) -> &str {
     match c {
         "." => "alt+.",
         "," => "alt+,",

@@ -112,7 +112,6 @@ export enum EditorMode {
 	Normal = "normal",
 	Insert = "insert",
 	MultiCursor = "multiCursor",
-	FindOneChar = "findOneChar",
 	Swap = "swap",
 	Replace = "replace",
 }

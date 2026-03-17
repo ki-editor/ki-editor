@@ -24,11 +24,15 @@ The space menu can be brought up by pressing `space`.
 
 <KeymapFallback filename="Space"/>
 
-## Context Actions (only applicable in the main editor):
+## Context Actions
 
 This are actions that are related to the current selection(s). Similar to the right-click context menu in Windows or Mac OS.
 
 <KeymapFallback filename="Space Context"/>
+
+### `Pipe`
+
+Open a prompt which takes a shell command that treats the current selections as STDIN, and replace the current selections with the STDOUT of the command.
 
 ### `Code Actions`
 
@@ -60,7 +64,13 @@ Show the Git Blame of the current line(s).
 
 ### `Go to File`
 
-Go to file under selection.
+Opens the filepath under selection(s). In case of multiple selection, opens and marks the files.
+
+If there is exactly one selection, the file gets opened but not marked: To act like a quick sneak-and-return type of usage.
+
+Suppose the current selection is "./foo.rs", this action will open this file but not mark it.
+
+Suppose the current selection is multicursor selection: "foo.rs" and "main.rs", this action will open both of the files and mark it on the tab bar.
 
 ### `Copy Relative Path`
 
@@ -88,7 +98,7 @@ Search terms can be separated by space, which means AND, and their order is unim
 
 For example, the search query `stb 'wild` matches `wild-serbian-bear-tiger` and also `stubbornly_wild`.
 
-Also, you can use the initals to search for a file, for example, `ekl` matches `editor_keymap_legend.rs`.
+Also, you can use the initials to search for a file, for example, `ekl` matches `editor_keymap_legend.rs`.
 
 Because [every component is a buffer/editor](../core-concepts.md#3-every-component-is-a-buffereditor), fuzzy search logic is also used for filtering LSP completions.
 
@@ -126,20 +136,25 @@ Git status (against current branch) [^1]
 ### `Git status ^`
 
 Git status (against main/master branch) [^2]
+
+### `Git Branch`
+
+Opens a picker to select and checkout a different Git branch.
+
 [^1]: See more at [Git hunk](./selection-modes/secondary.md#hunkhunk)
-[^2]: This is very useful when you want to get the modified/added files commited into the current branch that you are working on.
+[^2]: This is very useful when you want to get the modified/added files committed into the current branch that you are working on.
 
 ## `Editor`
 
 <KeymapFallback filename="Space Editor"/>
 
+### `Quit`
+
+Quit Ki. If there are unsaved files, this operation fails.
+
 ### `Quit No Save`
 
 Quit Ki without saving any unsaved files.
-
-### `Save All Quit`
-
-Save all files and quit Ki.
 
 ### `Save All`
 
@@ -150,10 +165,6 @@ Save all files.
 Reload the current file. A prompt will be shown if there are conflicts.
 
 Save all files.
-
-### `Pipe`
-
-Open a prompt which takes a shell command that treats the current selections as STDIN, and replace the current selections with the STDOUT of the command.
 
 ### `Replace all`
 

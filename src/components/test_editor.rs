@@ -1,7 +1,8 @@
 use crate::app::{Dimension, LocalSearchConfigUpdate, Scope};
 use crate::buffer::BufferOwner;
 use crate::char_index_range::CharIndexRange;
-use crate::clipboard::CopiedTexts;
+use crate::clipboard::Texts;
+use crate::components::editor::Reveal;
 use crate::components::editor::{
     DispatchEditor::{self, *},
     Movement::*,
@@ -220,16 +221,16 @@ fn toggle_untoggle_mark() -> anyhow::Result<()> {
             }),
             Editor(SetContent("foo bar spam".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Subword)),
-            App(MarkFileAndToggleMark),
+            App(ToggleSelectionMark),
             Editor(MoveSelection(Right)),
             Editor(MoveSelection(Right)),
-            App(MarkFileAndToggleMark),
+            App(ToggleSelectionMark),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Mark)),
             Editor(CursorAddToAllSelections),
             Expect(CurrentSelectedTexts(&["foo", "spam"])),
             Editor(CursorKeepPrimaryOnly),
             Expect(CurrentSelectedTexts(&["spam"])),
-            App(MarkFileAndToggleMark),
+            App(ToggleSelectionMark),
             Editor(MoveSelection(Current(IfCurrentNotFound::LookForward))),
             Editor(CursorAddToAllSelections),
             Expect(CurrentSelectedTexts(&["foo"])),
@@ -584,7 +585,7 @@ fn update_mark_position() -> anyhow::Result<()> {
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Subword)),
             Editor(MoveSelection(Right)),
             Editor(MoveSelection(Right)),
-            App(MarkFileAndToggleMark),
+            App(ToggleSelectionMark),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Mark)),
             Expect(CurrentSelectedTexts(&["spim"])),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Subword)),
@@ -994,7 +995,7 @@ fn paste_in_insert_mode_1() -> anyhow::Result<()> {
             }),
             Editor(SetContent("foo bar spam".to_string())),
             App(SetClipboardContent {
-                copied_texts: CopiedTexts::one("haha".to_string()),
+                copied_texts: Texts::one("haha".to_string()),
             }),
             Editor(MatchLiteral("bar".to_string())),
             Editor(EnterInsertMode(Direction::End)),
@@ -1041,7 +1042,7 @@ fn paste_after() -> anyhow::Result<()> {
             }),
             Editor(SetContent("foo bar spam".to_string())),
             App(SetClipboardContent {
-                copied_texts: CopiedTexts::one("haha".to_string()),
+                copied_texts: Texts::one("haha".to_string()),
             }),
             Editor(MatchLiteral("bar".to_string())),
             Editor(PasteWithMovement(GetGapMovement::Right)),
@@ -1097,7 +1098,7 @@ fn smart_paste_forward() -> anyhow::Result<()> {
             }),
             Editor(SetContent("fn main(a:A, b:B) {}".to_string())),
             App(SetClipboardContent {
-                copied_texts: CopiedTexts::one("c:C".to_string()),
+                copied_texts: Texts::one("c:C".to_string()),
             }),
             Editor(MatchLiteral("a:A".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
@@ -1140,7 +1141,7 @@ fn smart_paste_backward() -> anyhow::Result<()> {
             }),
             Editor(SetContent("fn main(a:A, b:B) {}".to_string())),
             App(SetClipboardContent {
-                copied_texts: CopiedTexts::one("c:C".to_string()),
+                copied_texts: Texts::one("c:C".to_string()),
             }),
             Editor(MatchLiteral("a:A".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
@@ -1164,7 +1165,7 @@ fn paste_before() -> anyhow::Result<()> {
             }),
             Editor(SetContent("foo bar spam".to_string())),
             App(SetClipboardContent {
-                copied_texts: CopiedTexts::one("haha".to_string()),
+                copied_texts: Texts::one("haha".to_string()),
             }),
             Editor(MatchLiteral("bar".to_string())),
             Editor(PasteWithMovement(GetGapMovement::Left)),
@@ -1188,7 +1189,7 @@ fn replace_from_clipboard() -> anyhow::Result<()> {
                 "fn f(){ let x = S(a); let y = S(b); }".to_string(),
             )),
             App(SetClipboardContent {
-                copied_texts: CopiedTexts::one("let z = S(c);".to_string()),
+                copied_texts: Texts::one("let z = S(c);".to_string()),
             }),
             Editor(SetSelectionMode(
                 IfCurrentNotFound::LookForward,
@@ -1448,7 +1449,7 @@ fn scroll_offset() -> anyhow::Result<()> {
             })),
             Editor(MatchLiteral("gamma".to_string())),
             Editor(SetScrollOffset(2)),
-            Expect(EditorGrid("🦀  main.rs [*]\n3│█amma\n4│lok")),
+            Expect(EditorGrid("[:] 🦀  main.rs\n3│█amma\n4│lok")),
         ])
     })
 }
@@ -1525,7 +1526,7 @@ fn main() {
             // The "long" of "too long" is not shown, because it exceeded the view width
             Expect(EditorGrid(
                 "
-🦀  main.rs [*]
+ [:] 🦀  main.rs
 1│fn main() {
 3│  █eta()
 4│}
@@ -1693,7 +1694,7 @@ fn main() {
             // because it is amongst the parent lines of the current selection
             Expect(EditorGrid(
                 "
-🦀  main.rs [*]
+ [:] 🦀  main.rs
 2│fn main() {
 4│  let y = 2; //
 ↪│too long, wrapped
@@ -1705,7 +1706,7 @@ fn main() {
             )),
             // Bookmart "z"
             Editor(MatchLiteral("z".to_string())),
-            App(MarkFileAndToggleMark),
+            App(ToggleSelectionMark),
             // Expect the parent lines of the current selections are highlighted with parent_lines_background,
             // regardless of whether the parent lines are inbound or outbound
             ExpectMulti(
@@ -1739,13 +1740,13 @@ fn main() {
             ),
             // Mark the "fn" word
             Editor(MatchLiteral("fn".to_string())),
-            App(MarkFileAndToggleMark),
+            App(ToggleSelectionMark),
             // Go to "print()" and skip the first 3 lines for rendering
             Editor(MatchLiteral("print()".to_string())),
             Editor(SetScrollOffset(3)),
             Expect(EditorGrid(
                 "
-# 🦀  main.rs [*]
+[÷] 🦀  main.rs
 2│fn main() {
 4│  let y = 2; //
 ↪│too long, wrapped
@@ -1809,7 +1810,7 @@ fn test_wrapped_lines() -> anyhow::Result<()> {
             Editor(EnterInsertMode(Direction::End)),
             Expect(EditorGrid(
                 "
-🦀  main.rs [*]
+[:] 🦀  main.rs
 1│// hellohello
 ↪│world█orld
 2│ heyhey"
@@ -2022,7 +2023,7 @@ fn main() { // too long
             // The "long" of "too long" is not shown, because it exceeded the view width
             Expect(EditorGrid(
                 "
-🦀  main.rs [*]
+[:] 🦀  main.rs
 1│fn main() { // too
 3│  let █ar = baba;
 ↪│let wrapped = coco
@@ -2081,14 +2082,14 @@ fn main() { // too long
             ),
             // Expect decorations overrides syntax highlighting
             Editor(MatchLiteral("fn".to_string())),
-            App(MarkFileAndToggleMark),
+            App(ToggleSelectionMark),
             // Move cursor to next line, so that "fn" is not selected,
             //  so that we can test the style applied to "fn" ,
             // otherwise the style of primary selection anchors will override the mark style
             Editor(MatchLiteral("let".to_string())),
             Expect(EditorGrid(
                 "
-# 🦀  main.rs [*]
+[÷] 🦀  main.rs
 1│fn main() { // too
 ↪│ long
 2│  █et foo = 1;
@@ -2122,7 +2123,7 @@ fn empty_content_should_have_one_line() -> anyhow::Result<()> {
             Editor(SetContent("".to_string())),
             Expect(EditorGrid(
                 "
-🦀  main.rs [*]
+[:] 🦀  main.rs
 1│█
 "
                 .trim(),
@@ -2144,7 +2145,7 @@ fn update_mark_position_with_undo_and_redo() -> anyhow::Result<()> {
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Subword)),
             Editor(MoveSelection(Right)),
             Editor(MoveSelection(Right)),
-            App(MarkFileAndToggleMark),
+            App(ToggleSelectionMark),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Mark)),
             Expect(CurrentSelectedTexts(&["spim"])),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Subword)),
@@ -2185,7 +2186,7 @@ fn saving_should_not_destroy_mark_if_selections_not_modified() -> anyhow::Result
                 crate::config::from_extension("rs").unwrap(),
             ))),
             Editor(MatchLiteral("bar".to_string())),
-            App(MarkFileAndToggleMark),
+            App(ToggleSelectionMark),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Mark)),
             Editor(ForceSave),
             // Expect the content is formatted (second line dedented)
@@ -2210,7 +2211,7 @@ fn surround() -> anyhow::Result<()> {
             }),
             Editor(SetContent("fn main() { x.y() }".to_string())),
             Editor(MatchLiteral("x.y()".to_string())),
-            App(HandleKeyEvents(keys!("g , j").to_vec())),
+            App(HandleKeyEvents(keys!(", s m").to_vec())),
             Expect(CurrentComponentContent("fn main() { (x.y()) }")),
             Expect(SelectionExtensionEnabled(false)),
         ])
@@ -2236,7 +2237,7 @@ fn swap_cursor_with_anchor() -> anyhow::Result<()> {
             Editor(SwapCursor),
             Expect(EditorGrid(
                 "
-🦀  main.rs [*]
+[:] 🦀  main.rs
 1│fn main() { x.y
 ↪│() █  // hello
 "
@@ -2271,7 +2272,7 @@ fn consider_unicode_width() -> anyhow::Result<()> {
             // Expect the cursor is on the letter 'a'
             // Expect an extra space is added between 'a' and the emoji
             // because, the unicode width of the emoji is 2
-            Expect(EditorGrid("🦀  main.rs [*]\n1│👩  █bc\n\n\n\n\n\n\n")),
+            Expect(EditorGrid("[:] 🦀  main.rs\n1│👩  █bc\n\n\n\n\n\n\n")),
         ])
     })
 }
@@ -2387,12 +2388,14 @@ fn modifying_editor_causes_dirty_state() -> anyhow::Result<()> {
                 focus: true,
             }),
             Expect(Not(Box::new(EditorIsDirty()))),
-            Expect(CurrentComponentTitle(markup_focused_tab(" 🦀 main.rs "))),
+            Expect(CurrentComponentTitle(markup_focused_tab(
+                " [ ] 🦀 main.rs ",
+            ))),
             Editor(EnterInsertMode(Direction::Start)),
             App(HandleKeyEvents(keys!("a a esc").to_vec())),
             Expect(EditorIsDirty()),
             Expect(CurrentComponentTitle(markup_focused_tab(
-                " 🦀 main.rs [*] ",
+                " [:] 🦀 main.rs ",
             ))),
         ])
     })
@@ -2412,11 +2415,13 @@ fn saving_editor_clears_dirty_state() -> anyhow::Result<()> {
             App(HandleKeyEvents(keys!("a a esc").to_vec())),
             Expect(EditorIsDirty()),
             Expect(CurrentComponentTitle(markup_focused_tab(
-                " 🦀 main.rs [*] ",
+                " [:] 🦀 main.rs ",
             ))),
             Editor(Save),
             Expect(Not(Box::new(EditorIsDirty()))),
-            Expect(CurrentComponentTitle(markup_focused_tab(" 🦀 main.rs "))),
+            Expect(CurrentComponentTitle(markup_focused_tab(
+                " [ ] 🦀 main.rs ",
+            ))),
         ])
     })
 }
@@ -2495,7 +2500,7 @@ fn undo_till_empty_should_not_crash_in_insert_mode() -> anyhow::Result<()> {
             }),
             Editor(SetContent("".to_string())),
             App(SetClipboardContent {
-                copied_texts: CopiedTexts::one("foo".to_string()),
+                copied_texts: Texts::one("foo".to_string()),
             }),
             Editor(EnterInsertMode(Direction::Start)),
             Editor(PasteWithMovement(GetGapMovement::Right)),
@@ -2559,7 +2564,7 @@ fn select_surround_inside() -> Result<(), anyhow::Error> {
             }),
             Editor(SetContent("(hello (world))".to_string())),
             Editor(MatchLiteral("rl".to_string())),
-            App(HandleKeyEvents(keys!("g h j").to_vec())),
+            App(HandleKeyEvents(keys!(", d m").to_vec())),
             Expect(CurrentSelectedTexts(&["world"])),
             Expect(CurrentSelectionMode(SelectionMode::Custom)),
         ])
@@ -2577,7 +2582,7 @@ fn select_surround_around() -> Result<(), anyhow::Error> {
             }),
             Editor(SetContent("(hello (world))".to_string())),
             Editor(MatchLiteral("rl".to_string())),
-            App(HandleKeyEvents(keys!("g ; j").to_vec())),
+            App(HandleKeyEvents(keys!(", e m").to_vec())),
             Expect(CurrentSelectedTexts(&["(world)"])),
             Expect(CurrentSelectionMode(SelectionMode::Custom)),
         ])
@@ -2613,7 +2618,7 @@ fn delete_surround() -> Result<(), anyhow::Error> {
             }),
             Editor(SetContent("(hello (world))".to_string())),
             Editor(MatchLiteral("rl".to_string())),
-            App(HandleKeyEvents(keys!("g v j").to_vec())),
+            App(HandleKeyEvents(keys!(", v m").to_vec())),
             Expect(CurrentSelectedTexts(&["world"])),
             Expect(CurrentSelectionMode(SelectionMode::Custom)),
             Expect(CurrentComponentContent("(hello world)")),
@@ -2632,7 +2637,7 @@ fn change_surround_selection_not_on_enclosure() -> Result<(), anyhow::Error> {
             }),
             Editor(SetContent("(hello (world))".to_string())),
             Editor(MatchLiteral("rl".to_string())),
-            App(HandleKeyEvents(keys!("g f j l").to_vec())),
+            App(HandleKeyEvents(keys!(", f m .").to_vec())),
             Expect(CurrentSelectedTexts(&["{world}"])),
             Expect(CurrentSelectionMode(SelectionMode::Custom)),
             Expect(CurrentComponentContent("(hello {world})")),
@@ -2651,7 +2656,7 @@ fn change_surround_selection_on_enclosure() -> Result<(), anyhow::Error> {
             }),
             Editor(SetContent("(hello)".to_string())),
             Editor(MatchLiteral("(hello)".to_string())),
-            App(HandleKeyEvents(keys!("g f j l").to_vec())),
+            App(HandleKeyEvents(keys!(", f m .").to_vec())),
             Expect(CurrentSelectedTexts(&["{hello}"])),
         ])
     })
@@ -2747,7 +2752,7 @@ fn replace_extended_selection_should_not_derail_selection_range() -> Result<(), 
                 }),
                 Editor(SetContent("foo bar spam".to_string())),
                 App(SetClipboardContent {
-                    copied_texts: CopiedTexts::one("x".to_string()),
+                    copied_texts: Texts::one("x".to_string()),
                 }),
                 Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
                 Editor(EnableSelectionExtension),
@@ -2906,9 +2911,9 @@ fn movement_current_look_forward_backward() -> Result<(), anyhow::Error> {
                 }),
                 Editor(SetContent("hello world is good".to_string())),
                 Editor(MatchLiteral("hello".to_string())),
-                App(MarkFileAndToggleMark),
+                App(ToggleSelectionMark),
                 Editor(MatchLiteral("good".to_string())),
-                App(MarkFileAndToggleMark),
+                App(ToggleSelectionMark),
                 Editor(MatchLiteral("world".to_string())),
                 Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Mark)),
                 Expect(CurrentSelectedTexts(&["good"])),
@@ -3035,7 +3040,7 @@ fn last_contiguous_selection_mode() -> Result<(), anyhow::Error> {
                 }),
                 Editor(SetContent("who lives in a".to_string())),
                 Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
-                App(MarkFileAndToggleMark),
+                App(ToggleSelectionMark),
                 Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Mark)),
                 Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
                 Expect(CurrentSelectedTexts(&["who"])),
@@ -3910,8 +3915,10 @@ fn background_editor_forefront_on_edit() -> anyhow::Result<()> {
                 keys!("space d f o o : : f o o enter").to_vec(),
             )),
             Expect(OpenedFilesCount(0)),
-            WaitForAppMessage(regex!("AddQuickfixListEntries")),
-            Expect(CurrentComponentTitle(markup_focused_tab(" 🦀 main.rs "))),
+            WaitForAppMessage(regex!("GlobalSearchFinished")),
+            Expect(CurrentComponentTitle(markup_focused_tab(
+                " [ ] 🦀 main.rs ",
+            ))),
             Editor(EnterInsertMode(Direction::Start)),
             App(HandleKeyEvents(keys!("a a esc").to_vec())),
             Expect(OpenedFilesCount(1)),
@@ -3926,7 +3933,9 @@ fn background_editor_user_from_explorer() -> anyhow::Result<()> {
             App(HandleKeyEvents(
                 keys!("space ; n d s r c enter enter n d m a i n . r s enter enter").to_vec(),
             )),
-            Expect(CurrentComponentTitle(markup_focused_tab(" 🦀 main.rs "))),
+            Expect(CurrentComponentTitle(markup_focused_tab(
+                " [ ] 🦀 main.rs ",
+            ))),
             Expect(OpenedFilesCount(1)),
         ])
     })
@@ -3941,8 +3950,8 @@ fn background_editor_closing_no_system_buffer() -> anyhow::Result<()> {
                 if_current_not_found: IfCurrentNotFound::LookForward,
             }),
             App(HandleKeyEvents(keys!("f o o enter").to_vec())),
-            WaitForAppMessage(regex!("AddQuickfixListEntries")),
-            Expect(CurrentComponentTitle(markup_focused_tab(" 🦀 foo.rs "))),
+            WaitForAppMessage(regex!("GlobalSearchFinished")),
+            Expect(CurrentComponentTitle(markup_focused_tab(" [ ] 🦀 foo.rs "))),
             Expect(OpenedFilesCount(0)),
             App(CloseCurrentWindow),
             Expect(OpenedFilesCount(0)),
@@ -4088,7 +4097,7 @@ fn main() {
             Expect(CurrentSelectedTexts(&["bar"])),
             Expect(EditorGrid(
                 "
-🦀  main.rs [*]
+[:] 🦀  main.rs
 1│fn main() {
 3│        █ar();
 "
@@ -4117,7 +4126,7 @@ fn should_prioritize_wrapped_selection_if_no_space_left() -> anyhow::Result<()> 
             Expect(CurrentSelectedTexts(&["bar"])),
             Expect(EditorGrid(
                 "
-🦀  main.rs [*]
+[:] 🦀  main.rs
 ↪│█arbarbar"
                     .trim(),
             )),
@@ -4154,7 +4163,7 @@ fn foo() {
             )),
             Editor(MatchLiteral("yyy".to_string())),
             Expect(EditorGrid(
-                "🦀  main.rs [*]
+                "[:] 🦀  main.rs
 1│fn foo() {
 2│  fn bar() {
 5│        █yy();
@@ -4178,7 +4187,7 @@ fn surround_extended_selection() -> anyhow::Result<()> {
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
             Editor(EnableSelectionExtension),
             Editor(MoveSelection(Right)),
-            App(HandleKeyEvents(keys!("g , j").to_vec())),
+            App(HandleKeyEvents(keys!(", s m").to_vec())),
             Expect(CurrentComponentContent("(foo bar)")),
         ])
     })
@@ -4291,7 +4300,7 @@ fn multicursor_intersected_edits() -> anyhow::Result<()> {
             Editor(DeleteWithMovement(Right)),
             // Expect the primary cursor is still there
             // And the Deletion of `foo()` is ignored
-            Expect(AppGrid(" 🦀  main.rs [*]\n1│fn main█)".to_string())),
+            Expect(AppGrid(" [:] 🦀  main.rs\n1│fn main█)".to_string())),
         ])
     })
 }
@@ -4880,7 +4889,7 @@ fn main() {
             )),
             Editor(SwapCursor),
             Expect(AppGrid(
-                " 🦀  main.rs [*]
+                " [:] 🦀  main.rs
 2│fn main() {
 5│  t();
 6│█
@@ -4948,7 +4957,7 @@ fn escaping_quicfix_list_mode_should_not_change_selection() -> anyhow::Result<()
                 if_current_not_found: IfCurrentNotFound::LookForward,
             }),
             App(HandleKeyEvents(keys!("m o r i enter").to_vec())),
-            WaitForAppMessage(regex!("AddQuickfixListEntries")),
+            WaitForAppMessage(regex!("GlobalSearchFinished")),
             Expect(CurrentGlobalMode(Some(GlobalMode::QuickfixListItem))),
             Expect(CurrentSelectedTexts(&["mori"])),
             App(HandleKeyEvents(keys!("esc").to_vec())),
@@ -5005,7 +5014,7 @@ fn main() {
             Editor(MatchLiteral("foo".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
             Expect(AppGrid(
-                " 🦀  main.rs [*]
+                " [:] 🦀  main.rs
  6│fn main() {
  9│  // padding y
 10│  // padding z
@@ -5018,7 +5027,7 @@ fn main() {
             )),
             Editor(AlignViewTop),
             Expect(AppGrid(
-                " 🦀  main.rs [*]
+                " [:] 🦀  main.rs
  6│fn main() {
 11│  █oo { // this line should be at top
 12│    x: 2
@@ -5076,7 +5085,7 @@ fn main() {
     run_test(
         300,
         9,
-        " 🦀  main.rs [*]
+        " [:] 🦀  main.rs
  4│// padding 3
  5│
  6│fn main() {
@@ -5091,7 +5100,7 @@ fn main() {
     run_test(
         30,
         7,
-        " 🦀  main.rs [*]
+        " [:] 🦀  main.rs
  6│fn main() {
  8│  █oo {
  9│    x: 2
@@ -5146,7 +5155,7 @@ fn main() {
     run_test(
         300,
         9,
-        " 🦀  main.rs [*]
+        " [:] 🦀  main.rs
  6│fn main() {
  7│  this_is_a_long_line_for_testing_wrapping();
  8│  █oo {
@@ -5161,7 +5170,7 @@ fn main() {
     run_test(
         30,
         7,
-        " 🦀  main.rs [*]
+        " [:] 🦀  main.rs
  6│fn main() {
  8│  █oo {
  9│    x: 2 // this line
@@ -5176,7 +5185,7 @@ fn main() {
     run_test(
         300,
         5,
-        " 🦀  main.rs [*]
+        " [:] 🦀  main.rs
  6│fn main() {
  8│  █oo {
  9│    x: 2 // this line should be at center
@@ -5228,7 +5237,7 @@ zzz
     }
     run_test(
         AlignViewTop,
-        " 🦀  main.rs [*]
+        " [:] 🦀  main.rs
  6│xxx
  7│yyy
  8│█zz
@@ -5239,7 +5248,7 @@ zzz
     )?;
     run_test(
         AlignViewCenter,
-        " 🦀  main.rs [*]
+        " [:] 🦀  main.rs
  5│
  6│xxx
  7│yyy
@@ -5250,7 +5259,7 @@ zzz
     )?;
     run_test(
         AlignViewBottom,
-        " 🦀  main.rs [*]
+        " [:] 🦀  main.rs
  2│// padding 1
  3│// padding 2
  4│// padding 3
@@ -5356,7 +5365,7 @@ fn git_hunk_gutter() -> anyhow::Result<()> {
                 width: 20,
             })),
             Expect(EditorGrid(
-                r#"🦀  main.rs [*]
+                r#"[:] 🦀  main.rs
 1│mod foo;
 2│alpha
 3│
@@ -5380,6 +5389,39 @@ fn git_hunk_gutter() -> anyhow::Result<()> {
                 1,
                 GitGutterStyles::default().deletion,
             )),
+        ])
+    })
+}
+
+#[test]
+fn delete_empty_line_removed_git_hunk_should_not_crash() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Expect(CurrentComponentContent(
+                "mod foo;
+
+fn main() {
+    foo::foo();
+    println!(\"Hello, world!\");
+}
+",
+            )),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+            Editor(MoveSelection(Down)),
+            Expect(CurrentSelectedTexts(&[""])),
+            Editor(DeleteOne),
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                GitHunk(DiffMode::UnstagedAgainstCurrentBranch),
+            )),
+            Expect(CurrentSelectedTexts(&[""])),
+            Editor(DeleteOne),
+            Expect(ExpectKind::NoError),
         ])
     })
 }
@@ -5671,7 +5713,7 @@ fn last_wrapped_line_with_trailing_newline_char() -> anyhow::Result<()> {
             })),
             // Expect Line 2 is present due to the trailing newline char
             Expect(AppGrid(
-                " 🦀  main.rs [*]
+                " [:] 🦀  main.rs
 1│█oo bar spam baz
 2│"
                 .to_string(),
@@ -5682,7 +5724,7 @@ fn last_wrapped_line_with_trailing_newline_char() -> anyhow::Result<()> {
                 width: 17,
             })),
             Expect(AppGrid(
-                " 🦀  main.rs [*]
+                " [:] 🦀  main.rs
 1│█oo bar spam
 ↪│baz
 2│"
@@ -5726,7 +5768,7 @@ fn main() {
             Editor(AlignViewTop),
             // Expect the cursor is not gone
             Expect(AppGrid(
-                " 🦀  main.rs [*]
+                " [:] 🦀  main.rs
  2│fn main() {
 10│█ // last line
 11│"
@@ -5755,7 +5797,7 @@ fn files_longer_than_65535_lines() -> anyhow::Result<()> {
             })),
             Editor(MoveSelection(Last)),
             Expect(AppGrid(
-                " 🙈  .gitignore [*]
+                " [:] 🙈  .gitignore
 65535│Line 65535
 65536│█ine 65536"
                     .to_string(),
@@ -5955,7 +5997,7 @@ fn test_paste_mol() -> anyhow::Result<()> {
             Editor(SetContent("foo bar spam".to_string())),
             Editor(MatchLiteral("bar".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
-            App(HandleKeyEvents(keys!("c b l release-b").to_vec())),
+            App(HandleKeyEvents(keys!("c release-c b l release-b").to_vec())),
             Expect(CurrentSelectedTexts(&["bar"])),
             Expect(CurrentComponentContent("foo bar bar spam")),
         ])
@@ -6059,6 +6101,7 @@ fn x() {
                 Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
                 Editor(PasteVertically(direction.clone())),
                 Expect(CurrentComponentContent(expected)),
+                Expect(CurrentSelectedTexts(&["foo"])),
             ])
         })
     }
@@ -6086,4 +6129,81 @@ fn x() {
 }
 ",
     )
+}
+
+#[test]
+fn specific_actions_should_populate_kill_ring() -> anyhow::Result<()> {
+    fn test(action: DispatchEditor) -> Result<(), anyhow::Error> {
+        execute_test(move |s| {
+            Box::new([
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                Editor(SetContent("foo bar spam".to_string())),
+                Editor(MatchLiteral("foo".to_owned())),
+                Editor(action.clone()),
+                Editor(EnterNormalMode),
+                Editor(ReplaceWithPreviousCopiedText),
+                Expect(CurrentSelectedTexts(&["foo"])),
+            ])
+        })
+    }
+    test(DispatchEditor::DeleteOne)?;
+    test(DispatchEditor::Change)?;
+    test(DispatchEditor::DeleteWithMovement(Right))?;
+    Ok(())
+}
+
+#[test]
+fn copy_should_populate_kill_ring() -> anyhow::Result<()> {
+    execute_test(move |s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("foo bar spam".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Expect(CurrentSelectedTexts(&["foo"])),
+            Editor(Copy),
+            Editor(MoveSelection(Right)),
+            Expect(CurrentSelectedTexts(&["bar"])),
+            Editor(ReplaceWithPreviousCopiedText),
+            Expect(CurrentComponentContent("foo foo spam")),
+            Expect(CurrentSelectedTexts(&["foo"])),
+        ])
+    })
+}
+
+#[test]
+fn add_cursor_to_all_selections_should_not_toggle_reveal_if_all_cursors_are_within_view(
+) -> anyhow::Result<()> {
+    fn run_test(height: usize, expected_reveal: Option<Reveal>) -> anyhow::Result<()> {
+        execute_test(move |s| {
+            Box::new([
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                Editor(SetContent(
+                    ["foo", "bar spam", "", "", "chan", "bar zam"].join("\n"),
+                )),
+                Editor(SetRectangle(Rectangle {
+                    origin: Position::new(0, 0),
+                    width: 20,
+                    height,
+                })),
+                Editor(MatchLiteral("bar".to_string())),
+                Editor(CursorAddToAllSelections),
+                Expect(CurrentReveal(expected_reveal.clone())),
+            ])
+        })
+    }
+    run_test(5, None)?;
+    run_test(4, Some(Reveal::Cursor))?;
+    Ok(())
 }

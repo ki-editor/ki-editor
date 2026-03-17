@@ -56,6 +56,7 @@ pub fn languages() -> HashMap<String, Language> {
         ("odin", odin()),
         ("dune", dune()),
         ("python", python()),
+        ("perl", perl()),
         ("rescript", rescript()),
         ("roc", roc()),
         ("ruby", ruby()),
@@ -70,6 +71,8 @@ pub fn languages() -> HashMap<String, Language> {
         ("xml", xml()),
         ("yaml", yaml()),
         ("zig", zig()),
+        ("clojure", clojure()),
+        ("scala", scala()),
     ]
     .into_iter()
     .map(|(str, language)| (str.to_string(), language))
@@ -310,11 +313,7 @@ fn fsharp() -> Language {
         lsp_language_id: Some(LanguageId::new("fsharp")),
         tree_sitter_grammar_config: Some(GrammarConfig {
             id: "fsharp".to_string(),
-            kind: GrammarConfigKind::FromSource {
-                url: "https://github.com/ionide/tree-sitter-fsharp.git".to_string(),
-                commit: "main".to_string(),
-                subpath: Some("fsharp".to_string()),
-            },
+            kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::FSharp),
         }),
         line_comment_prefix: Some("//".to_string()),
         block_comment_affixes: Some(("(*".to_string(), "*)".to_string())),
@@ -828,6 +827,27 @@ fn python() -> Language {
     }
 }
 
+fn perl() -> Language {
+    Language {
+        extensions: to_vec(&[
+            "pl", "pm", "t", "psgi", "raku", "rakumod", "rakutest", "rakudoc", "nqp", "p6", "pl6",
+            "pm6",
+        ]),
+        //formatter: Some(Command::new("pertidy"])),
+        lsp_command: Some(LspCommand {
+            command: Command::new("perlnavigator", &[]),
+            ..LspCommand::default()
+        }),
+        lsp_language_id: Some(LanguageId::new("perl")),
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "perl".to_string(),
+            kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Perl),
+        }),
+        line_comment_prefix: Some("#".to_string()),
+        ..Language::new()
+    }
+}
+
 fn rescript() -> Language {
     Language {
         extensions: to_vec(&["res"]),
@@ -1097,6 +1117,36 @@ fn zig() -> Language {
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Zig),
         }),
         line_comment_prefix: Some("//".to_string()),
+        ..Language::new()
+    }
+}
+
+fn clojure() -> Language {
+    Language {
+        extensions: to_vec(&["clj", "cljs"]),
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "clojure".to_string(),
+            kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Clojure),
+        }),
+        ..Language::new()
+    }
+}
+
+fn scala() -> Language {
+    Language {
+        extensions: to_vec(&["scala"]),
+        formatter: Some(Command::new("scalafmt", &["--stdin"])),
+        lsp_command: Some(LspCommand {
+            command: Command::new("metals", &[]),
+            ..LspCommand::default()
+        }),
+        lsp_language_id: Some(LanguageId::new("scala")),
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "scala".to_string(),
+            kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Scala),
+        }),
+        line_comment_prefix: Some("//".to_string()),
+        block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
         ..Language::new()
     }
 }
