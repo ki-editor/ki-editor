@@ -2052,6 +2052,11 @@ impl Editor {
 
         self.mode = Mode::Normal;
         self.selection_set.unset_initial_range();
+
+        let _ = std::process::Command::new("/opt/homebrew/bin/im-select")
+            .arg("com.apple.keylayout.ABC")
+            .status();
+
         Ok(())
     }
 
