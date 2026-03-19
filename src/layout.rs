@@ -224,20 +224,24 @@ impl Layout {
 
     pub fn show_keymap_legend(
         &mut self,
+        on_root: bool,
         keymap_legend_config: KeymapLegendConfig,
-        context: &Context,
         release_key: Option<ReleaseKey>,
     ) {
-        self.tree.append_component_to_current(
+        self.tree.append_component(
+            if on_root {
+                self.tree.root_id()
+            } else {
+                self.tree.focused_component_id()
+            },
             KindedComponent::new(
                 ComponentKind::KeymapLegend,
                 Rc::new(RefCell::new(KeymapLegend::new(
                     keymap_legend_config,
-                    context,
                     release_key,
                 ))),
             ),
-            true,
+            false,
         );
     }
 
@@ -419,6 +423,15 @@ impl Layout {
         self.tree.remove_current_child(ComponentKind::EditorInfo);
     }
 
+    pub fn close_keymap_legend(&mut self) {
+        self.tree.remove_current_child(ComponentKind::KeymapLegend);
+    }
+
+    pub fn close_app_keymap_legend(&mut self) {
+        self.tree
+            .remove_node_child(self.tree.root_id(), ComponentKind::KeymapLegend);
+    }
+
     fn get_current_node_child_id(&self, kind: ComponentKind) -> Option<NodeId> {
         self.tree.get_current_node_child_id(kind)
     }
@@ -500,12 +513,15 @@ impl Layout {
     }
 
     pub fn show_editor_info(&mut self, info: Info, context: &Context) -> anyhow::Result<()> {
-        self.show_info_on(
-            self.tree.focused_component_id(),
-            info,
-            ComponentKind::EditorInfo,
-            context,
-        )
+        // add the editor info as a child of the top level suggestive editor
+        // adding as child to the focussed node leads to unexpected closing of info box
+        // as keymap-legends in MoLs are in focus but are temporary
+        let root_id = self.tree.root_id();
+        let node_id = self
+            .tree
+            .get_node_child_id(root_id, ComponentKind::SuggestiveEditor)
+            .unwrap_or(root_id);
+        self.show_info_on(node_id, info, ComponentKind::EditorInfo, context)
     }
 
     fn replace_node_child(

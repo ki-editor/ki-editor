@@ -4208,3 +4208,45 @@ fn global_search_should_not_change_dirty_status() -> anyhow::Result<()> {
         ])
     })
 }
+
+#[test]
+fn release_insert_mol_should_not_close_popups() -> anyhow::Result<()> {
+    execute_test(|s| {
+        fn signature_help() -> LspNotification {
+            LspNotification::SignatureHelp(Some(crate::lsp::signature_help::SignatureHelp {
+                signatures: [SignatureInformation {
+                    label: "f()".to_string(),
+                    documentation: None,
+                    active_parameter_byte_range: None,
+                }]
+                .to_vec(),
+            }))
+        }
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("f()".to_string())),
+            Editor(MatchLiteral("f()".to_string())),
+            App(HandleKeyEvents(keys!("f").to_vec())),
+            Expect(ExpectKind::ComponentsOrder(vec![
+                ComponentKind::SuggestiveEditor,
+                ComponentKind::KeymapLegend,
+            ])),
+            App(HandleKeyEvents(keys!("o release-o").to_vec())),
+            App(HandleLspNotification(signature_help())),
+            Expect(ExpectKind::ComponentsOrder(vec![
+                ComponentKind::SuggestiveEditor,
+                ComponentKind::EditorInfo,
+                ComponentKind::KeymapLegend,
+            ])),
+            App(HandleKeyEvents(keys!("release-f").to_vec())),
+            Expect(ExpectKind::ComponentsOrder(vec![
+                ComponentKind::SuggestiveEditor,
+                ComponentKind::EditorInfo,
+            ])),
+        ])
+    })
+}

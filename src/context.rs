@@ -36,9 +36,6 @@ pub struct Context {
     location_history_backward: Vec<Location>,
     location_history_forward: Vec<Location>,
 
-    // We use CanonicalizedPath instead of CanonicalizedPath because these paths
-    // may be deleted during program execution, and CanonicalizedPath
-    // requires the path to exist on the filesystem.
     marked_files: IndexSet<AbsolutePath>,
 
     marks: HashMap<AbsolutePath, Vec<CharIndexRange>>,
@@ -52,6 +49,8 @@ pub struct Context {
     kill_ring: RingHistory<Texts>,
 
     file_dirty_status: HashMap<AbsolutePath, bool>,
+    indent_char: char,
+    indent_width: usize,
 }
 
 #[derive(Debug)]
@@ -244,6 +243,14 @@ impl Context {
     pub(crate) fn get_last_visited_file(&self) -> Option<&Location> {
         self.location_history_backward.last()
     }
+
+    pub(crate) fn indent_width(&self) -> usize {
+        self.indent_width
+    }
+
+    pub(crate) fn indent_char(&self) -> char {
+        self.indent_char
+    }
 }
 
 pub enum QuickfixListKind {
@@ -288,10 +295,10 @@ impl Context {
                 persistence.get_prompt_histories(current_working_directory.to_path_buf())
             })
             .unwrap_or_default();
-
+        let app_config = crate::config::AppConfig::singleton();
         Self {
             clipboard: Clipboard::new(),
-            theme: crate::config::AppConfig::singleton().theme().clone(),
+            theme: app_config.theme().clone(),
             mode: None,
             #[cfg(test)]
             highlight_configs: crate::syntax_highlight::HighlightConfigs::new(),
@@ -300,12 +307,8 @@ impl Context {
             global_search_config: GlobalSearchConfig::default(),
             prompt_histories,
             last_non_contiguous_selection_mode: None,
-            keyboard_layout: crate::config::AppConfig::singleton()
-                .keyboard_layout()
-                .clone(),
-            keyboard_layouts: crate::config::AppConfig::singleton()
-                .keyboard_layouts()
-                .clone(),
+            keyboard_layout: app_config.keyboard_layout().clone(),
+            keyboard_layouts: app_config.keyboard_layouts().clone(),
             location_history_backward: Vec::new(),
             location_history_forward: Vec::new(),
             marked_files,
@@ -316,6 +319,8 @@ impl Context {
             quickfix_list: QuickfixList::default(),
             kill_ring: RingHistory::new(),
             file_dirty_status: HashMap::new(),
+            indent_char: app_config.indent_char(),
+            indent_width: app_config.indent_width(),
         }
     }
 

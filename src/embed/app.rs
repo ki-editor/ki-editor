@@ -171,7 +171,7 @@ impl EmbeddedApp {
                     received_message = true;
                     trace!("Received message for core App: {app_message:?}");
 
-                    if let AppMessage::QuitAll = &app_message {
+                    if let AppMessage::Quit = &app_message {
                         info!("Core App requested quit. Exiting.");
                         break;
                     }

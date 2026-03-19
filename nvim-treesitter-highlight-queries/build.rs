@@ -48,6 +48,7 @@ const INCLUDED_NVIM_TREESITTER_LANGUAGES: &[&str] = &[
     "roc",
     "ruby",
     "rust",
+    "scala",
     "scheme",
     "sql",
     "svelte",

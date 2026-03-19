@@ -7,38 +7,40 @@ use super::{
     suggestive_editor::{Decoration, Info},
 };
 use crate::{
-    app::{Dimension, Dispatch, ToHostApp},
-    buffer::Buffer,
-    char_index_range::range_intersects,
+    app::{Dimension, Dispatch, Dispatches, RequestParams, Scope, ToHostApp},
+    buffer::{Buffer, Line},
+    char_index_range::{range_intersects, CharIndexRange},
+    clipboard::Texts,
     components::component::Component,
-    context::LocalSearchConfig,
+    context::{Context, GlobalMode, LocalSearchConfig, LocalSearchConfigMode},
     edit::{Action, ActionGroup, Edit, EditTransaction},
     git::{hunk::SimpleHunkKind, DiffMode, GitOperation as _, GitRepo},
+    grid::LINE_NUMBER_VERTICAL_BORDER,
+    keymap_override::{
+        find_one::FindOneCharKeymapOverride, jump::JumpKeymapOverride, EditorKeymapOverride,
+        KeymapOverrideTrait,
+    },
     list::grep::RegexConfig,
-    lsp::completion::PositionalEdit,
+    lsp::{
+        completion::{CompletionItemEdit, PositionalEdit},
+        process::ResponseContext,
+    },
     position::Position,
     quickfix_list::QuickfixListItem,
     rectangle::Rectangle,
     search::parse_search_config,
     selection::{CharIndex, Selection, SelectionMode, SelectionSet},
-    selection_mode::{ast_grep, GetGapMovement, NamingConventionAgnostic},
-};
-use crate::{
-    app::{Dispatches, RequestParams, Scope},
-    buffer::Line,
-    char_index_range::CharIndexRange,
-    clipboard::Texts,
-    context::{Context, GlobalMode, LocalSearchConfigMode, Search},
-    lsp::{completion::CompletionItemEdit, process::ResponseContext},
-    selection_mode::{self, regex::get_regex},
+    selection_mode::{
+        self, ast_grep, regex::get_regex, GetGapMovement, NamingConventionAgnostic,
+        PositionBasedSelectionMode,
+    },
     surround::EnclosureKind,
     transformation::{MyRegex, Transformation},
 };
-use crate::{grid::LINE_NUMBER_VERTICAL_BORDER, selection_mode::PositionBasedSelectionMode};
-use crossterm::event::{KeyCode, MouseButton, MouseEventKind};
+use crossterm::event::{MouseButton, MouseEventKind};
 use event::{KeyEvent, KeyEventKind};
 use itertools::{Either, Itertools};
-use my_proc_macros::key;
+use my_proc_macros::NamedVariant;
 use nonempty::NonEmpty;
 use ropey::Rope;
 use shared::absolute_path::AbsolutePath;
@@ -195,6 +197,10 @@ impl Component for Editor {
         context: &mut Context,
         dispatch: DispatchEditor,
     ) -> anyhow::Result<Dispatches> {
+        log::info!(
+            "Editor::handle_dispatch_editor = {}",
+            dispatch.variant_name()
+        );
         let last_visible_line = self.last_visible_line(context);
         match dispatch {
             #[cfg(test)]
@@ -444,7 +450,7 @@ pub struct Editor {
 
     pub selection_set: SelectionSet,
 
-    keymap_override: Option<KeymapOverride>,
+    keymap_override: Option<EditorKeymapOverride>,
 
     pub cursor_direction: Direction,
 
@@ -465,16 +471,6 @@ pub struct Editor {
     visible_line_ranges: Option<Vec<Range<usize>>>,
 
     pub incremental_search_matches: Option<Vec<Range<usize>>>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum KeymapOverride {
-    Jumps {
-        jumps: Vec<Jump>,
-    },
-    FindOneChar {
-        if_current_not_found: IfCurrentNotFound,
-    },
 }
 
 #[derive(Clone, Default)]
@@ -1015,7 +1011,7 @@ impl Editor {
         }
     }
 
-    fn jump_characters(context: &Context) -> Vec<char> {
+    pub fn jump_characters(context: &Context) -> Vec<char> {
         let chars = context
             .keyboard_layout()
             .get_keyboard_layout()
@@ -1055,7 +1051,7 @@ impl Editor {
         selection: &Selection,
         use_current_selection_mode: bool,
         context: &Context,
-    ) -> anyhow::Result<Vec<Jump>> {
+    ) -> anyhow::Result<()> {
         let chars = Self::jump_characters(context);
 
         let object = self.get_selection_mode_trait_object(
@@ -1083,11 +1079,11 @@ impl Editor {
             chars,
             line_ranges,
         )?;
-        self.keymap_override = Some(KeymapOverride::Jumps {
+        self.keymap_override = Some(EditorKeymapOverride::Jumps(JumpKeymapOverride {
             jumps: jumps.clone(),
-        });
+        }));
 
-        Ok(jumps)
+        Ok(())
     }
 
     pub fn show_jumps(
@@ -1097,12 +1093,12 @@ impl Editor {
         prior_change: Option<PriorChange>,
     ) -> anyhow::Result<Dispatches> {
         self.handle_prior_change(prior_change);
-        let jumps = self.jump_from_selection(
+        self.jump_from_selection(
             &self.selection_set.primary_selection().clone(),
             use_current_selection_mode,
             context,
         )?;
-        Ok(Dispatches::one(self.dispatch_jumps_changed(jumps)))
+        Ok(Dispatches::one(self.dispatch_jumps_changed()))
     }
 
     fn delete_with_movement(
@@ -1705,27 +1701,11 @@ impl Editor {
             .translate_key_event_to_qwerty(key_event.clone());
         match self.handle_universal_key(&translated_key_event)? {
             Some(dispatches) => Ok(dispatches),
-            None => match &self.keymap_override {
-                Some(KeymapOverride::Jumps { jumps }) => {
-                    if key_event.kind != KeyEventKind::Press {
-                        return Ok(Dispatches::default());
-                    }
-                    let jumps = jumps.clone();
-                    self.keymap_override = None;
-                    self.handle_jump_mode_impl(context, &key_event, jumps)
-                }
-                Some(KeymapOverride::FindOneChar {
-                    if_current_not_found: _,
-                }) => {
-                    if key_event.kind != KeyEventKind::Press {
-                        return Ok(Dispatches::default());
-                    }
-                    self.handle_find_one_char_mode(
-                        IfCurrentNotFound::LookForward,
-                        key_event,
-                        context,
-                    )
-                }
+            None => match &mut self.keymap_override {
+                Some(keymap_override) => match key_event.kind {
+                    KeyEventKind::Press => keymap_override.handle_press(context, key_event),
+                    KeyEventKind::Release => keymap_override.handle_release(context, key_event),
+                },
                 None => {
                     if let Mode::Insert = self.mode {
                         self.handle_insert_mode(context, key_event)
@@ -1746,55 +1726,6 @@ impl Editor {
                 }
             },
         }
-    }
-
-    fn handle_jump_mode_impl(
-        &mut self,
-        context: &Context,
-        key_event: &KeyEvent,
-        jumps: Vec<Jump>,
-    ) -> anyhow::Result<Dispatches> {
-        match key_event {
-            key!("esc") => Ok(Dispatches::default()),
-            key => {
-                let KeyCode::Char(c) = key.code else {
-                    return Ok(Dispatches::default());
-                };
-                let matching_jumps = jumps
-                    .iter()
-                    .filter(|jump| c == jump.character)
-                    .collect_vec();
-                match matching_jumps.split_first() {
-                    None => Ok(Dispatches::default()),
-                    Some((jump, [])) => {
-                        let dispatches =
-                            self.handle_movement(context, Movement::Jump(jump.selection.range()))?;
-                        self.mode = Mode::Normal;
-                        Ok(dispatches.append_some(if context.is_running_as_embedded() {
-                            // We need to manually send a SelectionChanged dispatch here
-                            // because although SelectionChanged is dispatched automatically in most cases, it is not for this case.
-                            Some(self.dispatch_selection_changed())
-                        } else {
-                            None
-                        }))
-                    }
-                    Some(_) => {
-                        self.keymap_override = Some(KeymapOverride::Jumps {
-                            jumps: matching_jumps
-                                .into_iter()
-                                .zip(Self::jump_characters(context).into_iter().cycle())
-                                .map(|(jump, character)| Jump {
-                                    character,
-                                    ..jump.clone()
-                                })
-                                .collect_vec(),
-                        });
-                        Ok(Dispatches::default())
-                    }
-                }
-            }
-        }
-        .map(|dispatches| dispatches.append(self.dispatch_jumps_changed(jumps)))
     }
 
     pub fn delete_one(&mut self, context: &Context, cut: bool) -> anyhow::Result<Dispatches> {
@@ -2131,7 +2062,7 @@ impl Editor {
 
     pub fn jumps(&self) -> &[Jump] {
         match &self.keymap_override {
-            Some(KeymapOverride::Jumps { jumps }) => jumps,
+            Some(EditorKeymapOverride::Jumps(jump_override)) => &jump_override.jumps,
             _ => &[],
         }
     }
@@ -2996,11 +2927,9 @@ impl Editor {
 
     pub fn display_mode(&self) -> String {
         match &self.keymap_override {
-            Some(KeymapOverride::Jumps { jumps: _ }) => "JUMP".to_string(),
-            Some(KeymapOverride::FindOneChar {
-                if_current_not_found: _,
-            }) => "ONE".to_string(),
-            None => match &self.mode {
+            Some(EditorKeymapOverride::Jumps(_)) => "JUMP".to_string(),
+            Some(EditorKeymapOverride::FindOneChar(_)) => "ONE".to_string(),
+            _ => match &self.mode {
                 Mode::Normal => {
                     let prefix = if self.selection_set.is_extended() {
                         "+"
@@ -3090,42 +3019,11 @@ impl Editor {
     }
 
     fn enter_single_character_mode(&mut self, if_current_not_found: IfCurrentNotFound) {
-        self.keymap_override = Some(KeymapOverride::FindOneChar {
-            if_current_not_found,
-        });
-    }
-
-    fn handle_find_one_char_mode(
-        &mut self,
-        if_current_not_found: IfCurrentNotFound,
-        key_event: KeyEvent,
-        context: &Context,
-    ) -> anyhow::Result<Dispatches> {
-        match key_event.code {
-            KeyCode::Char(c) => {
-                self.keymap_override = None;
-                self.set_selection_mode(
-                    if_current_not_found,
-                    SelectionMode::Find {
-                        search: Search {
-                            search: c.to_string(),
-                            mode: LocalSearchConfigMode::Regex(crate::list::grep::RegexConfig {
-                                escaped: true,
-                                case_sensitive: true,
-                                match_whole_word: false,
-                            }),
-                        },
-                    },
-                    context,
-                    None,
-                )
-            }
-            KeyCode::Esc => {
-                self.keymap_override = None;
-                Ok(Dispatches::default())
-            }
-            _ => Ok(Dispatches::default()),
-        }
+        self.keymap_override = Some(EditorKeymapOverride::FindOneChar(
+            FindOneCharKeymapOverride {
+                if_current_not_found,
+            },
+        ));
     }
 
     pub fn set_decorations(&mut self, decorations: &[super::suggestive_editor::Decoration]) {
@@ -3147,6 +3045,8 @@ impl Editor {
 
     #[cfg(test)]
     pub fn match_literal(&mut self, search: &str, context: &Context) -> anyhow::Result<Dispatches> {
+        use crate::context::Search;
+
         self.set_selection_mode(
             IfCurrentNotFound::LookForward,
             SelectionMode::Find {
@@ -3687,7 +3587,7 @@ impl Editor {
     }
 
     fn indent(&mut self, context: &Context) -> Result<Dispatches, anyhow::Error> {
-        let indentation: Rope = std::iter::repeat_n(INDENT_CHAR, INDENT_WIDTH)
+        let indentation: Rope = std::iter::repeat_n(context.indent_char(), context.indent_width())
             .collect::<String>()
             .into();
         let edit_transaction = EditTransaction::from_action_groups(
@@ -3722,7 +3622,7 @@ impl Editor {
                         .join("")
                         .into();
                     let select_range = {
-                        let offset: isize = INDENT_WIDTH as isize;
+                        let offset: isize = context.indent_width() as isize;
                         let start = original_range.start.apply_offset(offset);
                         let original_len = original_range.len();
                         let end =
@@ -3758,9 +3658,11 @@ impl Editor {
                         .line_range_to_full_char_index_range(line_range.clone())?;
                     let content = self.buffer().slice(&linewise_range)?;
                     let get_remove_leading_char_count = |line: &str| {
-                        let leading_indent_count =
-                            line.chars().take_while(|c| c == &INDENT_CHAR).count();
-                        leading_indent_count.min(INDENT_WIDTH)
+                        let leading_indent_count = line
+                            .chars()
+                            .take_while(|c| c == &context.indent_char())
+                            .count();
+                        leading_indent_count.min(context.indent_width())
                     };
                     let modified_lines = content
                         .lines()
@@ -4165,10 +4067,11 @@ impl Editor {
         );
     }
 
-    fn dispatch_jumps_changed(&self, jumps: Vec<Jump>) -> Dispatch {
+    fn dispatch_jumps_changed(&self) -> Dispatch {
         Dispatch::ToHostApp(ToHostApp::JumpsChanged {
             component_id: self.id(),
-            jumps: jumps
+            jumps: self
+                .jumps()
                 .iter()
                 .map(|jump| (jump.character, jump.selection.range.start))
                 .collect_vec(),
@@ -4678,7 +4581,7 @@ pub enum ViewAlignment {
     Bottom,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, NamedVariant)]
 pub enum DispatchEditor {
     Surround(String, String),
     #[cfg(test)]
@@ -4687,7 +4590,7 @@ pub enum DispatchEditor {
         use_current_selection_mode: bool,
         prior_change: Option<PriorChange>,
     },
-    SetKeymapOverride(Option<KeymapOverride>),
+    SetKeymapOverride(Option<EditorKeymapOverride>),
     ScrollPageDown,
     ScrollPageUp,
     #[cfg(test)]
@@ -4852,6 +4755,3 @@ impl std::fmt::Display for SurroundKind {
         }
     }
 }
-
-const INDENT_CHAR: char = ' ';
-const INDENT_WIDTH: usize = 4;

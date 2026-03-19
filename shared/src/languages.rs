@@ -72,6 +72,7 @@ pub fn languages() -> HashMap<String, Language> {
         ("yaml", yaml()),
         ("zig", zig()),
         ("clojure", clojure()),
+        ("scala", scala()),
     ]
     .into_iter()
     .map(|(str, language)| (str.to_string(), language))
@@ -312,11 +313,7 @@ fn fsharp() -> Language {
         lsp_language_id: Some(LanguageId::new("fsharp")),
         tree_sitter_grammar_config: Some(GrammarConfig {
             id: "fsharp".to_string(),
-            kind: GrammarConfigKind::FromSource {
-                url: "https://github.com/ionide/tree-sitter-fsharp.git".to_string(),
-                commit: "main".to_string(),
-                subpath: Some("fsharp".to_string()),
-            },
+            kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::FSharp),
         }),
         line_comment_prefix: Some("//".to_string()),
         block_comment_affixes: Some(("(*".to_string(), "*)".to_string())),
@@ -790,6 +787,11 @@ fn odin() -> Language {
         }),
         line_comment_prefix: Some("//".to_string()),
         block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
+        lsp_language_id: Some(LanguageId::new("odin")),
+        lsp_command: Some(LspCommand {
+            command: Command::new("ols", &[]),
+            ..LspCommand::default()
+        }),
         ..Language::new()
     }
 }
@@ -1126,6 +1128,25 @@ fn clojure() -> Language {
             id: "clojure".to_string(),
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Clojure),
         }),
+        ..Language::new()
+    }
+}
+
+fn scala() -> Language {
+    Language {
+        extensions: to_vec(&["scala"]),
+        formatter: Some(Command::new("scalafmt", &["--stdin"])),
+        lsp_command: Some(LspCommand {
+            command: Command::new("metals", &[]),
+            ..LspCommand::default()
+        }),
+        lsp_language_id: Some(LanguageId::new("scala")),
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "scala".to_string(),
+            kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Scala),
+        }),
+        line_comment_prefix: Some("//".to_string()),
+        block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
         ..Language::new()
     }
 }

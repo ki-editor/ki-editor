@@ -163,9 +163,7 @@ impl KeyboardLayout {
                 .iter()
                 .flatten()
                 .zip(QWERTY.iter().flatten())
-                .map(|(this, qwerty)| {
-                    (this.chars().next().unwrap(), qwerty.chars().next().unwrap())
-                })
+                .map(|(char, qwerty)| (*char, *qwerty))
         };
         zipped_chars()
             .chain(zipped_chars().map(|(this, qwerty)| (shifted_char(this), shifted_char(qwerty))))
@@ -342,6 +340,14 @@ pub fn shifted_char(c: char) -> char {
         'Y' => 'Y',
         'Z' => 'Z',
         c => c, // return unchanged if no shift mapping exists
+    }
+}
+
+pub fn possibly_alted(c: &str, is_alted: bool) -> &str {
+    if is_alted {
+        alted(c)
+    } else {
+        c
     }
 }
 
