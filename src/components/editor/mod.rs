@@ -2509,52 +2509,81 @@ impl Editor {
                 let len_chars = self.buffer().rope().len_chars();
                 let start = CharIndex(current_range.start.0.min(len_chars).saturating_sub(1));
 
+                let get_word = |range: CharIndexRange, movement: Movement| {
+                    Selection::get_selection_(
+                        &self.buffer(),
+                        &current_selection.clone().set_range(range),
+                        &if short {
+                            SelectionMode::Subword
+                        } else {
+                            SelectionMode::Word
+                        },
+                        &movement
+                            .into_movement_applicandum(self.selection_set.sticky_column_index()),
+                        &self.cursor_direction,
+                        context,
+                    )
+                    .map(|option| option.map(|result| result.selection))
+                };
+
+                let Some(current_word) = get_word(
+                    (start..start).into(),
+                    Movement::Current(direction.to_if_current_not_found()),
+                )?
+                else {
+                    return Ok(ActionGroup::new(
+                        [Action::Select(current_selection.clone())].to_vec(),
+                    ));
+                };
+
                 let other_word = {
-                    let get_word = |movement: Movement| {
-                        Selection::get_selection_(
-                            &self.buffer(),
-                            &current_selection.clone().set_range((start..start).into()),
-                            &if short {
-                                SelectionMode::Subword
-                            } else {
-                                SelectionMode::Word
-                            },
-                            &movement.into_movement_applicandum(
-                                self.selection_set.sticky_column_index(),
-                            ),
-                            &self.cursor_direction,
-                            context,
-                        )
-                        .map(|option| option.unwrap_or_else(|| current_selection.clone().into()))
-                    };
-                    let current_word =
-                        get_word(Movement::Current(direction.to_if_current_not_found()))?.selection;
-                    if current_word.extended_range().start <= start {
-                        current_word
-                    } else {
-                        get_word(match direction {
+                    get_word(
+                        current_word.range(),
+                        match direction {
                             Direction::Start => Movement::Previous,
                             Direction::End => Movement::Next,
-                        })?
-                        .selection
-                    }
+                        },
+                    )?
                 };
 
-                let other_word_range = other_word.extended_range();
-                let (start, end) = match direction {
+                let delete_range = if let Some(other_word) = other_word {
+                    let other_word_range = other_word.extended_range();
+
+                    if other_word_range == current_word.range() {
+                        current_word.range()
+                    } else {
+                        CharIndexRange::from(match direction {
+                            Direction::Start => {
+                                let start = other_word_range.end;
+                                let end = current_range.start.max(other_word_range.end);
+                                start..end
+                            }
+                            Direction::End => {
+                                let end = other_word_range.start;
+                                let start = current_range.start.min(other_word_range.start);
+                                start..end
+                            }
+                        })
+                    }
+                } else {
+                    current_word.range()
+                };
+
+                let delete_range: CharIndexRange = match direction {
                     Direction::Start => {
-                        let end = other_word_range.end.min(current_range.start).max(start + 1);
-                        let start = other_word_range.start;
-                        (start, end)
+                        let start = delete_range.start.min(current_range.start);
+                        let end = delete_range.end.min(current_range.start);
+                        (start..end).into()
                     }
                     Direction::End => {
-                        let end = other_word_range.start;
-                        let start = current_range.start.min(other_word_range.start);
-                        (start, end)
+                        let start = delete_range.start.max(current_range.start);
+                        let end = delete_range.end.max(current_range.start);
+                        (start..end).into()
                     }
                 };
 
-                dbg!((start, end));
+                let start = delete_range.start;
+                let end = delete_range.end;
 
                 Ok(ActionGroup::new(
                     [

@@ -41,6 +41,8 @@ The following keybindings only work when the completion dropdown is opened.
 | `Kill Line →`      | Kill line forward       |
 | `← Delete Word`    | Delete word backward    |
 | `← Delete Subword` | Delete subword backward |
+| `Delete Word →`    | Delete word forward     |
+| `Delete Subword →` | Delete subword forward  |
 
 ## Other
 
