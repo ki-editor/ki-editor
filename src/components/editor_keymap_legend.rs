@@ -490,38 +490,10 @@ impl Editor {
                         Dispatch::ToEditor(MoveToLineEnd),
                     ),
                     Keybinding::new_descriptive(
-                        "alt+q",
-                        "Kill Line ←".to_string(),
-                        Direction::End.format_action("Kill line"),
-                        Dispatch::ToEditor(KillLine(Direction::Start)),
-                    ),
-                    Keybinding::new_descriptive(
-                        "alt+t",
-                        "Kill Line →".to_string(),
-                        Direction::End.format_action("Kill line"),
-                        Dispatch::ToEditor(KillLine(Direction::End)),
-                    ),
-                    Keybinding::new_descriptive(
-                        "alt+h",
-                        "Delete Word ←".to_string(),
-                        "Delete word backward".to_string(),
-                        Dispatch::ToEditor(DeleteWordBackward { short: false }),
-                    ),
-                    Keybinding::new_descriptive(
                         "alt+backspace",
                         "Delete Word ←".to_string(),
                         "Delete word backward".to_string(),
                         Dispatch::ToEditor(DeleteWordBackward { short: true }),
-                    ),
-                    Keybinding::new(
-                        "left",
-                        "Move back a character".to_string(),
-                        Dispatch::ToEditor(MoveCharacterBack),
-                    ),
-                    Keybinding::new(
-                        "right",
-                        "Move forward a character".to_string(),
-                        Dispatch::ToEditor(MoveCharacterForward),
                     ),
                     Keybinding::new(
                         "esc",

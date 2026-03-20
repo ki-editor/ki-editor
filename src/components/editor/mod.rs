@@ -2506,8 +2506,16 @@ impl Editor {
             .selection_set
             .map(|current_selection| -> anyhow::Result<_> {
                 let current_range = current_selection.extended_range();
+
                 let len_chars = self.buffer().rope().len_chars();
-                let start = CharIndex(current_range.start.0.min(len_chars).saturating_sub(1));
+
+                let cursor_char_index = {
+                    let index = CharIndex(current_range.start.0.min(len_chars));
+                    match direction {
+                        Direction::Start => index - 1,
+                        Direction::End => index,
+                    }
+                };
 
                 let get_word = |range: CharIndexRange, movement: Movement| {
                     Selection::get_selection_(
@@ -2527,7 +2535,7 @@ impl Editor {
                 };
 
                 let Some(current_word) = get_word(
-                    (start..start).into(),
+                    (cursor_char_index..cursor_char_index).into(),
                     Movement::Current(direction.to_if_current_not_found()),
                 )?
                 else {
@@ -2555,12 +2563,12 @@ impl Editor {
                         CharIndexRange::from(match direction {
                             Direction::Start => {
                                 let start = other_word_range.end;
-                                let end = current_range.start.max(other_word_range.end);
+                                let end = current_word.range().end;
                                 start..end
                             }
                             Direction::End => {
+                                let start = current_word.range().start;
                                 let end = other_word_range.start;
-                                let start = current_range.start.min(other_word_range.start);
                                 start..end
                             }
                         })
@@ -2571,14 +2579,19 @@ impl Editor {
 
                 let delete_range: CharIndexRange = match direction {
                     Direction::Start => {
-                        let start = delete_range.start.min(current_range.start);
-                        let end = delete_range.end.min(current_range.start);
-                        (start..end).into()
+                        if cursor_char_index == CharIndex(0) {
+                            (CharIndex(0)..CharIndex(0)).into()
+                        } else {
+                            delete_range
+                        }
                     }
                     Direction::End => {
-                        let start = delete_range.start.max(current_range.start);
-                        let end = delete_range.end.max(current_range.start);
-                        (start..end).into()
+                        let max_cursor_char_index = CharIndex(self.buffer().len_chars());
+                        if cursor_char_index == max_cursor_char_index {
+                            (max_cursor_char_index..max_cursor_char_index).into()
+                        } else {
+                            delete_range
+                        }
                     }
                 };
 

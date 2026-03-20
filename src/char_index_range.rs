@@ -3,21 +3,17 @@ use std::ops::Range;
 use crate::{components::editor::Direction, edit::Edit, selection::CharIndex};
 
 #[derive(
-    PartialEq,
-    Clone,
-    Debug,
-    Eq,
-    Hash,
-    Default,
-    Copy,
-    PartialOrd,
-    Ord,
-    serde::Serialize,
-    serde::Deserialize,
+    PartialEq, Clone, Eq, Hash, Default, Copy, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
 pub struct CharIndexRange {
     pub start: CharIndex,
     pub end: CharIndex,
+}
+
+impl std::fmt::Debug for CharIndexRange {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&format!("CharIndexRange({}..{})", self.start.0, self.end.0))
+    }
 }
 
 impl std::ops::Sub<usize> for CharIndexRange {

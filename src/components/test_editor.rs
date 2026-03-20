@@ -276,14 +276,14 @@ fn test_delete_word_long() -> anyhow::Result<()> {
                 owner: BufferOwner::User,
                 focus: true,
             }),
-            Editor(SetContent("hello_world . itsMe".to_string())),
+            Editor(SetContent("a_b . c".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
             // Go to the end of the file
             Editor(EnterInsertMode(Direction::End)),
             Editor(DeleteWordBackward { short: false }),
-            Expect(CurrentComponentContent("hello_world .")),
+            Expect(CurrentComponentContent("a_b .")),
             Editor(DeleteWordBackward { short: false }),
-            Expect(CurrentComponentContent("hello_world")),
+            Expect(CurrentComponentContent("a_b")),
             Editor(DeleteWordBackward { short: false }),
             Expect(CurrentComponentContent("")),
         ])
@@ -481,6 +481,16 @@ fn test_delete_subword_forward() -> anyhow::Result<()> {
                 direction: Direction::End,
             }),
             Expect(CurrentComponentContent("_world")),
+            Editor(DeleteWord {
+                short: true,
+                direction: Direction::End,
+            }),
+            Expect(CurrentComponentContent("world")),
+            Editor(DeleteWord {
+                short: true,
+                direction: Direction::End,
+            }),
+            Expect(CurrentComponentContent("")),
         ])
     })
 }
@@ -495,20 +505,20 @@ fn test_delete_subword_forward_from_middle_of_file() -> anyhow::Result<()> {
                 focus: true,
             }),
             Editor(SetContent("hello_world yes".to_string())),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Subword)),
             Editor(MoveSelection(Right)),
-            Expect(CurrentSelectedTexts(&["yes"])),
+            Expect(CurrentSelectedTexts(&["world"])),
             Editor(EnterInsertMode(Direction::Start)),
             Editor(DeleteWord {
                 short: true,
                 direction: Direction::End,
             }),
-            Expect(CurrentComponentContent("hello_world ")),
+            Expect(CurrentComponentContent("hello_yes")),
             Editor(DeleteWord {
                 short: true,
                 direction: Direction::End,
             }),
-            Expect(CurrentComponentContent("hello_world ")),
+            Expect(CurrentComponentContent("hello_")),
         ])
     })
 }
