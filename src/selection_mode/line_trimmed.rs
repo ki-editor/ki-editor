@@ -17,21 +17,8 @@ impl PositionBasedSelectionMode for LineTrimmed {
         cursor_char_index: crate::selection::CharIndex,
         if_current_not_found: crate::components::editor::IfCurrentNotFound,
     ) -> anyhow::Result<Option<super::ByteRange>> {
-        if cursor_char_index >= CharIndex(buffer.len_chars()) {
+        if cursor_char_index > CharIndex(buffer.len_chars()) {
             return Ok(None);
-        }
-
-        // Handle special case where this newline char is the last character
-        // of the file.
-        // We need this special case to allow user to navigate to the last empty line.
-        if cursor_char_index == CharIndex(buffer.len_chars()) - 1
-            && buffer.char(cursor_char_index)? == '\n'
-        {
-            return Ok(Some(ByteRange::new(
-                buffer.char_index_range_to_byte_range(
-                    (cursor_char_index + 1..cursor_char_index + 1).into(),
-                )?,
-            )));
         }
 
         let line_index = buffer.char_to_line(cursor_char_index)?;
