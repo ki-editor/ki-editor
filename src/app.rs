@@ -129,6 +129,9 @@ pub struct App<T: Frontend> {
     /// Used for debouncing LSP Completion request, so that we don't overwhelm
     /// the server with too many requests, and also Ki with too many incoming Completion responses
     debounce_lsp_request_completion: Callback<()>,
+
+    /// Global word index for word-based completion (fallback when LSP is not available)
+    word_index: crate::word_index::WordIndex,
 }
 
 #[derive(Clone, Serialize, Deserialize, JsonSchema)]
@@ -265,6 +268,7 @@ impl<T: Frontend> App<T> {
             last_prompt_config: None,
             queued_events: Vec::new(),
             file_watcher_input_sender,
+            word_index: crate::word_index::WordIndex::new(),
         };
 
         app.restore_session();
@@ -769,10 +773,19 @@ impl<T: Frontend> App<T> {
             Dispatch::RequestCompletion => self.debounce_lsp_request_completion.call(()),
             Dispatch::RequestCompletionDebounced => {
                 if let Some(params) = self.get_request_params() {
-                    self.lsp_manager().send_message(
-                        params.path.clone(),
-                        FromEditor::TextDocumentCompletion(params),
-                    )?;
+                    // Check if there's an LSP configured for this file
+                    let has_lsp = crate::config::from_path(&params.path).is_some();
+
+                    if has_lsp && self.enable_lsp {
+                        // Send to LSP
+                        self.lsp_manager().send_message(
+                            params.path.clone(),
+                            FromEditor::TextDocumentCompletion(params),
+                        )?;
+                    } else {
+                        // Fallback to word-based completion
+                        self.provide_word_completion()?;
+                    }
                 }
             }
             Dispatch::ResolveCompletionItem(completion_item) => {
@@ -784,6 +797,15 @@ impl<T: Frontend> App<T> {
                             params,
                         },
                     )?;
+                }
+            }
+            Dispatch::UpdateWordIndex => {
+                // Update word index from current buffer content when exiting insert mode
+                let component = self.layout.get_current_component();
+                let component_ref = component.borrow();
+                let buffer = component_ref.editor().buffer();
+                if buffer.owner() == BufferOwner::User {
+                    self.word_index.update_from_buffer(&buffer.content());
                 }
             }
             Dispatch::RequestReferences {
@@ -1583,6 +1605,12 @@ impl<T: Frontend> App<T> {
             self.layout
                 .replace_and_focus_current_suggestive_editor(component.clone());
         }
+
+        // Update word index for word-based completion (only for user-owned buffers)
+        if owner == BufferOwner::User {
+            self.word_index.update_from_buffer(&content);
+        }
+
         if let Some(language) = language {
             self.request_syntax_highlight(component_id, batch_id, language, content)?;
         }
@@ -1633,9 +1661,14 @@ impl<T: Frontend> App<T> {
                 ),
             ),
             LspNotification::Completion(_context, completion) => {
-                self.handle_dispatch_suggestive_editor(DispatchSuggestiveEditor::Completion(
-                    completion,
-                ))?;
+                // If LSP returned empty results, fallback to word-based completion
+                if completion.items.is_empty() {
+                    self.provide_word_completion()?;
+                } else {
+                    self.handle_dispatch_suggestive_editor(DispatchSuggestiveEditor::Completion(
+                        completion,
+                    ))?;
+                }
 
                 Ok(())
             }
@@ -2839,6 +2872,49 @@ impl<T: Frontend> App<T> {
         )
     }
 
+    /// Provide word-based completion when LSP is not available
+    fn provide_word_completion(&mut self) -> anyhow::Result<()> {
+        // Get current word prefix from the editor
+        let current_component = self.layout.get_current_component();
+        let current_word = current_component
+            .borrow()
+            .editor()
+            .get_current_word()?;
+
+        if current_word.is_empty() {
+            return Ok(());
+        }
+
+        // Get completion suggestions from word index
+        let words = self.word_index.complete(&current_word, 50);
+
+        if words.is_empty() {
+            return Ok(());
+        }
+
+        // Convert words to CompletionItems
+        let completion_items: Vec<DropdownItem> = words
+            .into_iter()
+            .map(|word| {
+                let lsp_item = lsp_types::CompletionItem {
+                    label: word.clone(),
+                    ..Default::default()
+                };
+                let completion_item = CompletionItem::from(lsp_item);
+                DropdownItem::new(format!("  {}", word))
+                    .set_dispatches(completion_item.dispatches())
+            })
+            .collect();
+
+        // Send completion to SuggestiveEditor
+        let completion = crate::lsp::completion::Completion {
+            items: completion_items,
+            trigger_characters: Vec::new(),
+        };
+
+        self.handle_dispatch_suggestive_editor(DispatchSuggestiveEditor::Completion(completion))
+    }
+
     #[cfg(test)]
     pub fn lsp_request_sent(&mut self, from_editor: &FromEditor) -> bool {
         self.lsp_manager().lsp_request_sent(from_editor)
@@ -3899,6 +3975,8 @@ pub enum Dispatch {
     },
     ToSuggestiveEditor(DispatchSuggestiveEditor),
     RequestCompletionDebounced,
+    /// Update word index from current buffer content (used when exiting insert mode)
+    UpdateWordIndex,
     OpenAndMarkFiles(NonEmpty<AbsolutePath>),
     ToggleOrOpenPaths,
     ChangeWorkingDirectory(AbsolutePath),

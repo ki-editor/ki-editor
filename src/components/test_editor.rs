@@ -2374,7 +2374,7 @@ fn tree_sitter_should_not_reparse_in_insert_mode() -> anyhow::Result<()> {
     assert_eq!(current_range, new_range);
 
     // Entering normal mode should reparse the tree
-    editor.enter_normal_mode(&context)?;
+    let _ = editor.enter_normal_mode(&context)?;
     let new_range = editor.buffer().tree().unwrap().root_node().range();
     assert_ne!(current_range, new_range);
 

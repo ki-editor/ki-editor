@@ -248,7 +248,7 @@ impl Component for Editor {
             Insert(string) => return self.insert(&string, context),
             #[cfg(test)]
             MatchLiteral(literal) => return self.match_literal(&literal, context),
-            EnterNormalMode => self.enter_normal_mode(context)?,
+            EnterNormalMode => return self.enter_normal_mode(context),
             CursorAddToAllSelections => self.add_cursor_to_all_selections(context)?,
             CursorKeepPrimaryOnly => self.cursor_keep_primary_only(),
             EnterSwapMode => self.enter_swap_mode(),
@@ -1775,7 +1775,7 @@ impl Editor {
                 .collect(),
         );
 
-        let _ = self.enter_normal_mode(context);
+        let _ = self.enter_normal_mode(context); // Ignore dispatches on save
 
         Ok(initial_dispatches.chain(self.apply_edit_transaction(edit_transaction, context)?))
     }
@@ -2022,8 +2022,10 @@ impl Editor {
         Ok(Dispatches::one(Dispatch::RequestSignatureHelp))
     }
 
-    pub fn enter_normal_mode(&mut self, context: &Context) -> anyhow::Result<()> {
-        if self.mode == Mode::Insert {
+    pub fn enter_normal_mode(&mut self, context: &Context) -> anyhow::Result<Dispatches> {
+        let was_insert_mode = self.mode == Mode::Insert;
+
+        if was_insert_mode {
             // This is necessary for cursor to not overflow after exiting insert mode
             self.set_selection_set(
                 self.selection_set
@@ -2057,7 +2059,12 @@ impl Editor {
             .arg("com.apple.keylayout.ABC")
             .status();
 
-        Ok(())
+        // Return dispatch to update word index when exiting insert mode
+        if was_insert_mode {
+            Ok(Dispatches::one(Dispatch::UpdateWordIndex))
+        } else {
+            Ok(Dispatches::default())
+        }
     }
 
     #[cfg(test)]
@@ -2870,12 +2877,13 @@ impl Editor {
 
         self.clamp(context)?;
         self.cursor_keep_primary_only();
-        self.enter_normal_mode(context)?;
+        let enter_normal_dispatches = self.enter_normal_mode(context)?;
         Ok(Dispatches::one(Dispatch::RemainOnlyCurrentComponent)
             .append(Dispatch::DocumentDidSave { path })
             .chain(self.get_document_did_change_dispatch())
             .append(Dispatch::RemainOnlyCurrentComponent)
             .chain(dispatches)
+            .chain(enter_normal_dispatches)
             .append_some(if self.selection_set.mode().is_contiguous() {
                 Some(Dispatch::ToEditor(MoveSelection(Movement::Current(
                     IfCurrentNotFound::LookForward,

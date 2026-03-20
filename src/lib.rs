@@ -2,6 +2,7 @@ mod buffer;
 mod git;
 
 mod alternator;
+mod word_index;
 mod app;
 pub mod char_index_range;
 mod cli;
