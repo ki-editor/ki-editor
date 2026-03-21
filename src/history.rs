@@ -22,6 +22,22 @@ impl<T: Eq + Clone + std::fmt::Debug> History<T> {
         self.forward_history.clear();
     }
 
+    /// Jumps to the very first state in the history.
+    pub fn go_to_first(&self) -> Option<T> {
+        self.backward_history.first().cloned()
+    }
+
+    /// Jumps to the very last (most recent) state in the forward history.
+    pub fn go_to_last(&self) -> Option<T> {
+        if self.forward_history.is_empty() {
+            // We are already at the "present," so the last state is the current one
+            self.backward_history.last().cloned()
+        } else {
+            // The most "recent" future state is at the end of the forward stack
+            self.forward_history.last().cloned()
+        }
+    }
+
     pub fn undo(&mut self) -> Option<T> {
         let item = self.backward_history.pop();
         if let Some(item) = &item {

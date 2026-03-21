@@ -118,27 +118,15 @@ impl Editor {
                 Dispatch::ToEditor(ScrollPageUp),
             ),
             Keybinding::momentary_layer(MomentaryLayer {
-                key: "z",
+                key: "q",
                 description: "≡ Navigation-History".to_string(),
                 config: KeymapLegendConfig {
                     title: "≡ Navigation-History".to_string(),
-                    keymap: navigation_history_keymap(),
+                    keymap: navigation_history_keymap(false),
                 },
                 on_tap: None,
                 on_spacebar_tapped: None,
             }),
-            Keybinding::new_descriptive(
-                "alt+y",
-                Direction::Start.format_action("Nav"),
-                "Navigate back".to_string(),
-                Dispatch::NavigateBack,
-            ),
-            Keybinding::new_descriptive(
-                "alt+p",
-                Direction::End.format_action("Nav"),
-                "Navigate forward".to_string(),
-                Dispatch::NavigateForward,
-            ),
             Keybinding::momentary_layer(MomentaryLayer {
                 key: "e",
                 description: "≡ Buffer".to_string(),
@@ -1698,13 +1686,13 @@ pub fn cut_keymap() -> Keymap {
 pub fn buffer_keymap(is_alted: bool) -> Keymap {
     Keymap::new(
         &[
-            ("j", Movement::Left),
-            ("l", Movement::Right),
-            ("y", Movement::First),
-            ("p", Movement::Last),
+            (Movement::Left, "j"),
+            (Movement::Right, "l"),
+            (Movement::First, "y"),
+            (Movement::Last, "p"),
         ]
         .into_iter()
-        .map(|(key, movement)| {
+        .map(|(movement, key)| {
             Keybinding::new(
                 possibly_alted(key, is_alted),
                 movement.format_action("Marked File"),
@@ -1750,26 +1738,25 @@ pub fn buffer_keymap(is_alted: bool) -> Keymap {
     )
 }
 
-pub fn navigation_history_keymap() -> Keymap {
+pub fn navigation_history_keymap(is_alted: bool) -> Keymap {
     Keymap::new(
-        &[("j", Movement::Left), ("l", Movement::Right)]
-            .into_iter()
-            .map(|(key, movement)| match key {
-                "j" => Keybinding::new_descriptive(
-                    key,
-                    movement.format_action("Select"),
-                    "Go back".to_string(),
-                    Dispatch::ToEditor(GoBack),
-                ),
-                "l" => Keybinding::new_descriptive(
-                    key,
-                    movement.format_action("Select"),
-                    "Go forward".to_string(),
-                    Dispatch::ToEditor(GoForward),
-                ),
-                _ => Keybinding::new("", "".to_string(), Dispatch::Null),
-            })
-            .collect_vec(),
+        &[
+            (Movement::Left, "j"),
+            (Movement::Right, "l"),
+            (Movement::Previous, "u"),
+            (Movement::Next, "o"),
+            (Movement::First, "y"),
+            (Movement::Last, "p"),
+        ]
+        .into_iter()
+        .map(|(movement, key)| {
+            Keybinding::new(
+                possibly_alted(key, is_alted),
+                movement.format_action("Nav History"),
+                Dispatch::NavigationHistory(movement),
+            )
+        })
+        .collect_vec(),
     )
 }
 
@@ -1876,7 +1863,7 @@ fn primary_selection_modes() -> Vec<(&'static str, SelectionMode)> {
         ("s", Word),
         ("S", BigWord),
         ("w", Subword),
-        ("q", Character),
+        ("Q", Character),
     ]
     .to_vec()
 }

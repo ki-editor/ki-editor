@@ -318,8 +318,7 @@ impl Component for Editor {
             }
             Open(get_gap_movement) => return self.open(context, get_gap_movement),
             OpenVertically(direction) => return self.open_vertically(context, direction),
-            GoBack => self.go_back(context),
-            GoForward => self.go_forward(context),
+            NavigationHistory(movement) => self.navigation_history(context, &movement),
             SelectSurround { enclosure, kind } => {
                 return self.select_surround(enclosure, kind, context)
             }
@@ -3305,6 +3304,30 @@ impl Editor {
         self.regex_highlight_rules = regex_highlight_rules;
     }
 
+    fn navigation_history(&mut self, context: &Context, movement: &Movement) {
+        match movement {
+            Movement::Previous => self.go_back(context),
+            Movement::Next => self.go_forward(context),
+            Movement::First => self.go_to_beginning(context),
+            Movement::Last => self.go_to_end(context),
+            _ => {}
+        }
+    }
+
+    fn go_to_beginning(&mut self, context: &Context) {
+        let selection_set = self.buffer_mut().first_selection_set();
+        if let Some(selection_set) = selection_set {
+            self.set_selection_set(selection_set, context);
+        }
+    }
+
+    fn go_to_end(&mut self, context: &Context) {
+        let selection_set = self.buffer_mut().last_selection_set();
+        if let Some(selection_set) = selection_set {
+            self.set_selection_set(selection_set, context);
+        }
+    }
+
     fn go_back(&mut self, context: &Context) {
         let selection_set = self.buffer_mut().previous_selection_set();
         if let Some(selection_set) = selection_set {
@@ -4594,8 +4617,7 @@ pub enum DispatchEditor {
     MoveSelectionWithPriorChange(Movement, Option<PriorChange>),
     SwitchViewAlignment,
     Copy,
-    GoBack,
-    GoForward,
+    NavigationHistory(Movement),
     SelectAll,
     SetContent(String),
     SetDecorations(Vec<Decoration>),

@@ -1123,6 +1123,14 @@ impl Buffer {
         self.selection_set_history.push(selection_set.clone());
     }
 
+    pub fn first_selection_set(&mut self) -> Option<SelectionSet> {
+        self.selection_set_history.go_to_first()
+    }
+
+    pub fn last_selection_set(&mut self) -> Option<SelectionSet> {
+        self.selection_set_history.go_to_last()
+    }
+
     pub fn previous_selection_set(&mut self) -> Option<SelectionSet> {
         self.selection_set_history.undo()
     }

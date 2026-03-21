@@ -1109,8 +1109,7 @@ impl<T: Frontend> App<T> {
                 self.keyboard_layout_changed();
             }
             Dispatch::OpenKeyboardLayoutPrompt => self.open_keyboard_layout_picker()?,
-            Dispatch::NavigateForward => self.navigate_forward()?,
-            Dispatch::NavigateBack => self.navigate_back()?,
+            Dispatch::NavigationHistory(movement) => self.navigation_history(&movement)?,
             Dispatch::ToggleSelectionMark => self.toggle_selection_mark()?,
             Dispatch::ToggleFileMark => self.toggle_file_mark()?,
             Dispatch::SetFileDirtyStatus { path, dirty_status } => {
@@ -2846,6 +2845,21 @@ impl<T: Frontend> App<T> {
         ))
     }
 
+    fn navigation_history(&mut self, movement: &Movement) -> anyhow::Result<()> {
+        match movement {
+            Movement::Left => self.navigate_back()?,
+            Movement::Right => self.navigate_forward()?,
+            Movement::Previous | Movement::Next | Movement::First | Movement::Last => {
+                self.handle_dispatch_editor_custom(
+                    DispatchEditor::NavigationHistory(*movement),
+                    self.current_component(),
+                )?;
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
     fn navigate_back(&mut self) -> anyhow::Result<()> {
         while let Some(location) = self.context.location_previous() {
             if location.path.exists() {
@@ -3793,8 +3807,7 @@ pub enum Dispatch {
     SelectCompletionItem,
     SetKeyboardLayout(KeyboardLayout),
     OpenKeyboardLayoutPrompt,
-    NavigateForward,
-    NavigateBack,
+    NavigationHistory(Movement),
     ToggleSelectionMark,
     ToggleFileMark,
     SetFileDirtyStatus {

@@ -348,7 +348,7 @@ impl KeymapPrintSections {
             KeymapPrintSection::from_keymap("Buffer".to_string(), &buffer_keymap(false)),
             KeymapPrintSection::from_keymap(
                 "Navigation-History".to_string(),
-                &navigation_history_keymap(),
+                &navigation_history_keymap(false),
             ),
         ]
         .to_vec();
