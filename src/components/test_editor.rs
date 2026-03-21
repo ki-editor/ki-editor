@@ -634,6 +634,41 @@ fn multi_swap_sibling() -> anyhow::Result<()> {
 }
 
 #[test]
+fn multicursor_swap_with_different_movements() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent(
+                "&[(\"j\", Movement::Left), (\"l\", Movement::Right)]".to_string(),
+            )),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
+            Expect(CurrentSelectedTexts(&[
+                "&[(\"j\", Movement::Left), (\"l\", Movement::Right)]",
+            ])),
+            Editor(MoveSelection(Down)),
+            Editor(MoveSelection(Down)),
+            Editor(CursorAddToAllSelections),
+            Expect(CurrentSelectedTexts(&[
+                "(\"j\", Movement::Left)",
+                "(\"l\", Movement::Right)",
+            ])),
+            Editor(MoveSelection(Down)),
+            Expect(CurrentSelectedTexts(&["\"j\"", "\"l\""])),
+            Editor(SwapExtensionAnchor),
+            Editor(EnterSwapMode),
+            Editor(MoveSelection(Right)),
+            Expect(CurrentComponentContent(
+                "&[(Movement::Left, \"j\"), (Movement::Right, \"l\")]",
+            )),
+        ])
+    })
+}
+
+#[test]
 fn update_mark_position() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
