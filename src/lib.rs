@@ -60,7 +60,6 @@ use std::{rc::Rc, sync::Mutex};
 
 use anyhow::Context;
 use frontend::crossterm::Crossterm;
-use log::LevelFilter;
 use shared::absolute_path::AbsolutePath;
 
 use app::App;
