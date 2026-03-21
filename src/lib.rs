@@ -77,9 +77,35 @@ pub struct RunConfig {
     pub working_directory: Option<AbsolutePath>,
 }
 
+fn init_logger() -> anyhow::Result<()> {
+    use tracing_subscriber::prelude::*;
+
+    use std::fs::File;
+
+    tracing_log::LogTracer::init()?;
+
+    tracing_subscriber::registry()
+        .with(
+            tracing_subscriber::fmt::layer()
+                .with_writer(File::create(grammar::default_log_file())?)
+                .with_line_number(true),
+        )
+        .with(
+            tracing_subscriber::fmt::layer()
+                .with_writer(File::create(grammar::default_log_lsp_file())?)
+                .with_line_number(true)
+                .with_filter(tracing_subscriber::filter::filter_fn(|metadata| {
+                    metadata.target().starts_with("ki::lsp")
+                })),
+        )
+        .try_init()?;
+
+    Ok(())
+}
+
 pub fn run(config: RunConfig) -> anyhow::Result<()> {
+    let _ = init_logger();
     std::fs::create_dir_all(grammar::cache_dir()).context("Failed to create cache_dir")?;
-    simple_logging::log_to_file(grammar::default_log_file(), LevelFilter::Info)?;
     let (sender, receiver) = std::sync::mpsc::channel();
     let syntax_highlighter_sender = syntax_highlight::start_thread(sender.clone());
 

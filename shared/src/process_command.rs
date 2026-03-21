@@ -115,7 +115,11 @@ impl ProcessCommand {
 
 impl std::fmt::Display for ProcessCommand {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{} {}", self.command, self.args.join(" "))
+        if self.args.is_empty() {
+            write!(f, "{}", self.command)
+        } else {
+            write!(f, "{} {}", self.command, self.args.join(" "))
+        }
     }
 }
 
