@@ -985,7 +985,8 @@ impl<T: Frontend> App<T> {
                         keymap_legend_config.clone(),
                     )),
                 )))?;
-                self.show_keymap_legend(false, keymap_legend_config, None);
+                let layout = (*self.keyboard_layout()).clone();
+                self.show_keymap_legend(false, keymap_legend_config, None, Some(&layout));
             }
             Dispatch::ShowKeymapLegendWithReleaseKey(keymap_legend_config, release_key) => {
                 self.handle_dispatch_editor(DispatchEditor::SetKeymapOverride(Some(
@@ -995,7 +996,13 @@ impl<T: Frontend> App<T> {
                         release_key.clone(),
                     )),
                 )))?;
-                self.show_keymap_legend(false, keymap_legend_config, Some(release_key));
+                let layout = (*self.keyboard_layout()).clone();
+                self.show_keymap_legend(
+                    false,
+                    keymap_legend_config,
+                    Some(release_key),
+                    Some(&layout),
+                );
             }
             Dispatch::ShowAppKeymapLegendWithReleaseKey(keymap_legend_config, release_key) => {
                 self.keymap_override = Some(AppKeymapOverride::MomentaryLayer(
@@ -1005,7 +1012,13 @@ impl<T: Frontend> App<T> {
                         release_key.clone(),
                     ),
                 ));
-                self.show_keymap_legend(true, keymap_legend_config, Some(release_key));
+                let layout = (*self.keyboard_layout()).clone();
+                self.show_keymap_legend(
+                    true,
+                    keymap_legend_config,
+                    Some(release_key),
+                    Some(&layout),
+                );
             }
             #[cfg(test)]
             Dispatch::Custom(_) => unreachable!(),
@@ -1887,6 +1900,7 @@ impl<T: Frontend> App<T> {
         on_root: bool,
         keymap_legend_config: KeymapLegendConfig,
         release_key: Option<ReleaseKey>,
+        keyboard_layout: Option<&KeyboardLayout>,
     ) {
         if self.is_running_as_embedded() {
             let title = keymap_legend_config.title.clone();
@@ -1896,6 +1910,7 @@ impl<T: Frontend> App<T> {
                     show_alt: false,
                     show_shift: true,
                 },
+                keyboard_layout,
             );
             self.integration_event_sender
                 .emit_event(IntegrationEvent::ShowInfo {
