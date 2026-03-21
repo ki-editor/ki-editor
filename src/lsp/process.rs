@@ -1064,11 +1064,15 @@ impl LspServerProcess {
         /// Refer https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#responseMessage
         #[derive(serde::Serialize)]
         struct ResponseMessage {
+            jsonrpc: &'static str,
             id: Option<json_rpc_types::Id>,
             result: serde_json::Value,
         }
-        let request = ResponseMessage { id, result };
-
+        let request = ResponseMessage {
+            jsonrpc: "2.0",
+            id,
+            result,
+        };
         self.send_json(&request)?;
 
         Ok(())
