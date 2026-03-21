@@ -2013,8 +2013,9 @@ impl<T: Frontend> App<T> {
         self.sender.clone()
     }
 
-    fn save_all(&self) -> anyhow::Result<()> {
-        self.layout.save_all(&self.context)
+    fn save_all(&mut self) -> anyhow::Result<()> {
+        let dispatches = self.layout.save_all(&self.context)?;
+        self.handle_dispatches(dispatches)
     }
 
     fn open_yes_no_prompt(&mut self, prompt: YesNoPrompt) -> anyhow::Result<()> {

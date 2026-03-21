@@ -270,12 +270,13 @@ impl Layout {
             .collect()
     }
 
-    pub fn save_all(&self, context: &Context) -> Result<(), anyhow::Error> {
+    pub fn save_all(&self, context: &Context) -> anyhow::Result<Dispatches> {
         self.background_suggestive_editors
             .iter()
             .map(|(_, editor)| editor.borrow_mut().editor_mut().save(context))
-            .collect::<Result<Vec<_>, _>>()?;
-        Ok(())
+            .try_fold(Dispatches::empty(), |dispatches, x| {
+                x.map(|other_dispatches| dispatches.chain(other_dispatches))
+            })
     }
 
     pub fn reveal_path_in_explorer(
