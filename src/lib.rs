@@ -79,20 +79,25 @@ pub struct RunConfig {
 fn init_logger() -> anyhow::Result<()> {
     use tracing_subscriber::prelude::*;
 
-    use std::fs::File;
+    fn open_log_file(path: impl AsRef<std::path::Path>) -> anyhow::Result<std::fs::File> {
+        Ok(std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path)?)
+    }
 
     tracing_log::LogTracer::init()?;
 
     tracing_subscriber::registry()
         .with(
             tracing_subscriber::fmt::layer()
-                .with_writer(File::create(grammar::default_log_file())?)
+                .with_writer(open_log_file(grammar::default_log_file())?)
                 .with_line_number(true)
                 .with_ansi(false),
         )
         .with(
             tracing_subscriber::fmt::layer()
-                .with_writer(File::create(grammar::default_log_lsp_file())?)
+                .with_writer(open_log_file(grammar::default_log_lsp_file())?)
                 .with_line_number(true)
                 .with_ansi(false)
                 .with_filter(tracing_subscriber::filter::filter_fn(|metadata| {
