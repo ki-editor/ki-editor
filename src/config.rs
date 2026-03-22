@@ -159,6 +159,26 @@ pub fn ki_global_directory() -> PathBuf {
     ::grammar::config_dir()
 }
 
+fn current_theme_file_path() -> PathBuf {
+    ki_global_directory().join(".current_theme")
+}
+
+pub(crate) fn save_current_theme(name: &str) -> anyhow::Result<()> {
+    std::fs::write(current_theme_file_path(), name)?;
+    Ok(())
+}
+
+fn load_validated_theme_name() -> Option<String> {
+    let path = current_theme_file_path();
+    let name = std::fs::read_to_string(&path).ok()?.trim().to_string();
+    if name.is_empty() {
+        return None;
+    }
+    // Verify the theme still exists
+    crate::themes::from_name(&name).ok()?;
+    Some(name)
+}
+
 pub fn load_script(script_name: &str) -> anyhow::Result<Script> {
     // Trying reading from workspace directory first
     let workspace_path = ki_workspace_directory()?.join("scripts").join(script_name);
@@ -196,7 +216,7 @@ impl AppConfig {
         let workspace_config = |extension: &str| workspace_dir.join(format!("config.{extension}"));
         let global_config =
             |extension: &str| ki_global_directory().join(format!("config.{extension}"));
-        let config: RawConfig =
+        let mut config: RawConfig =
             figment::Figment::from(providers::Serialized::defaults(&RawConfig::default()))
                 .merge(providers::Json::file(global_config("json")))
                 .merge(providers::Yaml::file(global_config("yaml")))
@@ -205,6 +225,10 @@ impl AppConfig {
                 .merge(providers::Yaml::file(workspace_config("yaml")))
                 .merge(providers::Toml::file(workspace_config("toml")))
                 .extract()?;
+        // Override theme with saved preference if available
+        if let Some(saved) = load_validated_theme_name() {
+            config.theme = ConfigThemeName(saved);
+        }
         config.try_into()
     }
 
@@ -369,5 +393,20 @@ mod test_config {
     fn doc_assets_default_config_json() {
         let path = "docs/static/config_default.json";
         std::fs::write(path, super::DEFAULT_CONFIG).unwrap();
+    }
+
+    #[test]
+    fn test_theme_name_validation() {
+        // Verify that themes::from_name works as validation
+        // Valid themes should not error
+        let result = crate::themes::from_name("Monokai");
+        assert!(result.is_ok(), "Monokai should be a valid theme");
+
+        let result = crate::themes::from_name("VS Code (Dark)");
+        assert!(result.is_ok(), "VS Code (Dark) should be a valid theme");
+
+        // Invalid theme should error
+        let result = crate::themes::from_name("NonExistentTheme");
+        assert!(result.is_err(), "NonExistentTheme should be invalid");
     }
 }

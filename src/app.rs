@@ -2,6 +2,7 @@ use crate::{
     buffer::{Buffer, BufferOwner},
     char_index_range::CharIndexRange,
     clipboard::Texts,
+    config::save_current_theme,
     components::{
         component::{Component, ComponentId, GetGridResult},
         dropdown_sync::{DropdownItem, DropdownRender},
@@ -1117,9 +1118,11 @@ impl<T: Frontend> App<T> {
             }
             Dispatch::SetTheme(theme) => {
                 self.context.set_theme(theme.clone());
+                let _ = save_current_theme(&theme.name);
             }
             Dispatch::SetThemeFromDescriptor(theme_descriptor) => {
                 self.context.set_theme(theme_descriptor.to_theme());
+                let _ = save_current_theme(theme_descriptor.name());
             }
             #[cfg(test)]
             Dispatch::HandleKeyEvents(key_events) => self.handle_key_events(key_events)?,
