@@ -41,6 +41,8 @@ itertools = "~0.13.0"
 tree-sitter-quickfix = { path = "tree_sitter_quickfix" }
 miniz_oxide = "0.8.9"
 schemars = "1.1.0"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-log = "0.2"
 
 [features]
 default = ["wayland"]
@@ -61,7 +63,6 @@ fancy-regex.workspace = true
 lsp-types.workspace = true
 log.workspace = true
 ropey = "1.6.1"
-simple-logging = "2.0.2"
 once_cell.workspace = true
 serde_json.workspace = true
 serde.workspace = true
@@ -116,6 +117,9 @@ nucleo = "0.5.0"
 notify = "8.2.0"
 schemars.workspace = true
 serde_path_to_error = "0.1.20"
+
+tracing-subscriber.workspace = true
+tracing-log.workspace = true
 
 [dev-dependencies]
 serial_test = "~3.2.0"

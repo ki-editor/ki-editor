@@ -35,6 +35,17 @@ use super::symbols::Symbols;
 use super::workspace_edit::WorkspaceEdit;
 use crate::quickfix_list::Location;
 
+macro_rules! lsp_info {
+    ($command:expr, $($arg:tt)*) => {
+        log::info!("{{{}}} {}", $command, format_args!($($arg)*))
+    };
+}
+
+macro_rules! lsp_error {
+    ($command:expr, $($arg:tt)*) => {
+        log::error!("{{{}}} {}", $command, format_args!($($arg)*))
+    };
+}
 struct LspServerProcess {
     language: Language,
     stdin: process::ChildStdin,
@@ -455,9 +466,15 @@ impl LspServerProcess {
         );
 
         // Start the message processor loop in the main thread
-        log::info!("[LspServerProcess] Listening for messages from LSP server");
+        lsp_info!(
+            self.lsp_command(),
+            "[LspServerProcess] Listening for messages from LSP server"
+        );
         self.process_messages(receiver);
-        log::info!("LspServerProcess::listen | Stopped listening for messages from LSP server");
+        lsp_info!(
+            self.lsp_command(),
+            "LspServerProcess::listen | Stopped listening for messages from LSP server"
+        );
 
         stdout_handle
     }
@@ -474,14 +491,17 @@ impl LspServerProcess {
         lsp_command: String,
     ) -> JoinHandle<()> {
         thread::spawn(move || {
-            let mut error_tracker = ErrorTracker::new();
+            let mut error_tracker = ErrorTracker::new(lsp_command.clone());
 
             // The stdout reader loop
             loop {
                 match Self::read_response(&mut stdout_reader, &sender) {
                     Ok(()) => error_tracker.handle_success(),
                     Err(error) => {
-                        log::error!("[LspServerProcess] read_response error = {error:?}");
+                        lsp_error!(
+                            lsp_command,
+                            "[LspServerProcess] read_response error = {error:?}"
+                        );
                         if !error_tracker.handle_error(error, &mut stderr_reader, &sender) {
                             let formatted_errors = error_tracker
                                 .consecutive_errors
@@ -501,14 +521,16 @@ impl LspServerProcess {
                                     LspNotification::Error(error),
                                 )))
                                 .unwrap_or_else(|error| {
-                                    log::error!(
+                                    lsp_error!(
+                                        lsp_command,
                                         "[LspServerProcess] Error sending error to app: {error:?}"
                                     );
                                 });
                             sender
                             .send(LspServerProcessMessage::Shutdown)
                             .unwrap_or_else(|error| {
-                                log::error!(
+                                lsp_error!(
+                                    lsp_command,
                                     "[LspServerProcess] Error sending Shutdown to the loop outside: {error:?}"
                                 );
                             });
@@ -553,8 +575,8 @@ impl LspServerProcess {
                 LspServerProcessMessage::FromLspServer(json_value) => {
                     self.handle_reply(json_value.clone())
                     .unwrap_or_else(|error| {
-                        log::info!(
-                            "LspServerProcess::listen | Error handling reply from LSP server, json={json_value:?}, error={error:?}"
+                        lsp_info!(
+                            self.lsp_command(),"LspServerProcess::listen | Error handling reply from LSP server, json={json_value:?}, error={error:?}"
                         );
                     });
                 }
@@ -573,7 +595,8 @@ impl LspServerProcess {
                 }
                 LspServerProcessMessage::Shutdown => {
                     if let Err(err) = self.shutdown() {
-                        log::error!(
+                        lsp_error!(
+                            self.lsp_command(),
                             "LspServerProcess::process_messages: failed to shutdown due to {err:?}"
                         );
                     }
@@ -636,7 +659,10 @@ impl LspServerProcess {
         sender
             .send(LspServerProcessMessage::FromLspServer(reply))
             .unwrap_or_else(|error| {
-                log::error!("[LspServerProcess] Error sending reply: {error:?}");
+                lsp_error!(
+                    "{unknown LSP command}",
+                    "[LspServerProcess] Error sending reply: {error:?}"
+                );
             });
 
         Ok(())
@@ -690,11 +716,15 @@ impl LspServerProcess {
                     path,
                 } = pending_response_request;
 
-                log::info!("LspServerProcess::handle_reply: {}", method.as_str());
+                lsp_info!(
+                    self.lsp_command(),
+                    "LspServerProcess::handle_reply: {}",
+                    method.as_str()
+                );
 
                 match method.as_str() {
                     "initialize" => {
-                        log::info!("Initialize response: {response:?}");
+                        lsp_info!(self.lsp_command(), "Initialize response: {response:?}");
                         let payload: <lsp_request!("initialize") as Request>::Result =
                             serde_json::from_value(response)?;
 
@@ -930,7 +960,7 @@ impl LspServerProcess {
                         }
                     }
                     _ => {
-                        log::info!("Unknown method: {method:#?}");
+                        lsp_info!(self.lsp_command(), "Unknown method: {method:#?}");
                     }
                 }
             }
@@ -951,7 +981,11 @@ impl LspServerProcess {
                 let method = request.method;
                 // Parse the reply as Notification
                 if method.as_str() != "$/progress" {
-                    log::info!("LspServerProcess::handle_notification: {}", method.as_str());
+                    lsp_info!(
+                        self.lsp_command(),
+                        "LspServerProcess::handle_notification: {}",
+                        method.as_str()
+                    );
                 }
                 match method.as_str() {
                     "textDocument/publishDiagnostics" => {
@@ -986,7 +1020,6 @@ impl LspServerProcess {
                         self.send_reply(request.id, serde_json::Value::Null)?;
                     }
                     "window/logMessage" => {
-                        let command = self.lsp_command();
                         let params: <lsp_notification!("window/logMessage") as Notification>::Params =
                             serde_json::from_value(request.params.ok_or_else(|| anyhow::anyhow!("Missing params"))?)?;
                         let typ = match params.typ {
@@ -996,8 +1029,9 @@ impl LspServerProcess {
                             MessageType::INFO => "INFO".to_string(),
                             _ => format!("[Unknown message type {:?}]", params.typ),
                         };
-                        log::info!(
-                            "LSP(window/logMessage)({command})[{typ}]: '{}'",
+                        lsp_info!(
+                            self.lsp_command(),
+                            "LSP(window/logMessage)[{typ}]: '{}'",
                             params.message
                         );
                     }
@@ -1011,7 +1045,10 @@ impl LspServerProcess {
                         self.handle_progress_notification(params);
                     }
 
-                    _ => log::info!("unhandled Incoming Notification: {method}"),
+                    _ => lsp_info!(
+                        self.lsp_command(),
+                        "unhandled Incoming Notification: {method}"
+                    ),
                 }
             }
         }
@@ -1044,7 +1081,8 @@ impl LspServerProcess {
             params: Some(params),
         };
 
-        log::info!(
+        lsp_info!(
+            self.lsp_command(),
             "Sending notification: {:?} {:?}",
             self.language.id(),
             N::METHOD
@@ -1538,7 +1576,8 @@ impl LspServerProcess {
     }
 
     fn handle_from_editor(&mut self, from_editor: &FromEditor) {
-        log::info!(
+        lsp_info!(
+            self.lsp_command(),
             "LspServerProcess::handle_from_editor = {}",
             from_editor.variant_name()
         );
@@ -1603,7 +1642,10 @@ impl LspServerProcess {
             } => self.completion_item_resolve(params, *completion_item),
         }
         .unwrap_or_else(|error| {
-            log::info!("LspServerProcess::handle_from_editor | error={error:?}");
+            lsp_info!(
+                self.lsp_command(),
+                "LspServerProcess::handle_from_editor | error={error:?}"
+            );
         });
     }
 
@@ -1650,6 +1692,7 @@ fn path_buf_to_text_document_identifier(
 /// and allowing recovery if errors stop for a configured timeout period. If errors
 /// continue beyond the maximum threshold, it breaks the connection to prevent resource waste.
 struct ErrorTracker {
+    lsp_command: String,
     consecutive_errors: Vec<String>,
     last_error_time: Instant,
     max_consecutive_errors: usize,
@@ -1660,8 +1703,9 @@ impl ErrorTracker {
     const MAX_CONSECUTIVE_ERRORS: usize = 5;
     const ERROR_RESET_TIMEOUT: Duration = Duration::from_secs(30);
 
-    fn new() -> Self {
+    fn new(lsp_command: String) -> Self {
         Self {
+            lsp_command,
             consecutive_errors: Vec::new(),
             last_error_time: Instant::now(),
             max_consecutive_errors: Self::MAX_CONSECUTIVE_ERRORS,
@@ -1678,9 +1722,12 @@ impl ErrorTracker {
     ) -> bool {
         let mut stderr = String::new();
 
-        let _ = stderr_reader
-            .read_to_string(&mut stderr)
-            .map_err(|err| log::error!("LspServerResponse::listen failed to read stderr = {err}"));
+        let _ = stderr_reader.read_to_string(&mut stderr).map_err(|err| {
+            lsp_error!(
+                self.lsp_command,
+                "LspServerResponse::listen failed to read stderr = {err}"
+            );
+        });
 
         if self.last_error_time.elapsed() > self.error_reset_timeout {
             self.consecutive_errors = Vec::new();
