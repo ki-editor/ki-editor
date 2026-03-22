@@ -197,16 +197,16 @@ impl KeymapPrintSection {
             let mut cols: Vec<Cell> = cells
                 .enumerate()
                 .map(|(col_index, key)| {
-                    let mut display = key.display(&option);
-
-                    if let Some(value) = layout.and_then(|layout| {
+                    let display = if let Some(value) = layout.and_then(|layout| {
                         layout
                             .get_keyboard_layout()
                             .get(row_index)
                             .and_then(|row| row.get(col_index))
                     }) {
-                        display = format!("{}\n{}", value, display);
-                    }
+                        format!("{}\n{}", value, key.display(&option))
+                    } else {
+                        key.display(&option)
+                    };
 
                     Cell::new(display).set_alignment(CellAlignment::Center)
                 })
