@@ -41,7 +41,6 @@ itertools = "~0.13.0"
 tree-sitter-quickfix = { path = "tree_sitter_quickfix" }
 miniz_oxide = "0.8.9"
 schemars = "1.1.0"
-tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tracing-log = "0.2"
 
@@ -119,7 +118,6 @@ notify = "8.2.0"
 schemars.workspace = true
 serde_path_to_error = "0.1.20"
 
-tracing.workspace = true
 tracing-subscriber.workspace = true
 tracing-log.workspace = true
 
