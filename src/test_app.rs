@@ -4250,3 +4250,26 @@ fn release_insert_mol_should_not_close_popups() -> anyhow::Result<()> {
         ])
     })
 }
+#[test]
+fn save_all_sets_dirty_status() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("main".to_string())),
+            App(OpenFile {
+                path: s.foo_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("foo".to_string())),
+            App(SaveAll),
+            Expect(Not(Box::new(EditorIsDirty()))),
+            App(OpenAlternateFile),
+            Expect(Not(Box::new(EditorIsDirty()))),
+        ])
+    })
+}
