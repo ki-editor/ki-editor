@@ -1213,7 +1213,7 @@ impl<T: Frontend> App<T> {
             }
             Dispatch::OpenQuickfixItemsPicker => self.open_quickfix_item_picker()?,
             Dispatch::RaiseFormatterNotExist(formatter_error) => {
-                self.raise_formatter_error(formatter_error)?
+                self.raise_formatter_error(formatter_error)?;
             }
         }
         Ok(())

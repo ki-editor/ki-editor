@@ -730,9 +730,7 @@ impl Buffer {
             .and_then(|language| language.formatter())?;
 
         match formatter.format(&self.rope.to_string()) {
-            Ok(content) => {
-                return Some(Ok(content));
-            }
+            Ok(content) => Some(Ok(content)),
             Err(error) => {
                 log::info!("Error formatting: {error}");
                 Some(Err(error))

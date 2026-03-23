@@ -1720,7 +1720,7 @@ impl ErrorTracker {
             lsp_error!(
                 self.lsp_command,
                 "LspServerResponse::listen failed to read stderr = {err}"
-            )
+            );
         });
 
         if self.last_error_time.elapsed() > self.error_reset_timeout {

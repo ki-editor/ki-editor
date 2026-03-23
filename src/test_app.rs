@@ -4317,7 +4317,7 @@ fn formatter_error_should_be_reported() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile {
-                path: s.main_rs().try_into().unwrap(),
+                path: s.main_rs(),
                 owner: BufferOwner::User,
                 focus: true,
             }),
