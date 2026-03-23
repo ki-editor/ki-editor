@@ -2016,12 +2016,16 @@ fn quickfix_list_basic() -> Result<(), anyhow::Error> {
                 component_id: None,
             }
         };
+        let path_1: AbsolutePath = s.new_path("a.txt").try_into().unwrap();
+        let path_2: AbsolutePath = s.new_path("b.txt").try_into().unwrap();
         Box::new([
-            App(OpenFile { path: s.foo_rs(), owner: BufferOwner::User, focus: true }),
+            Shell("touch", [path_1.display_absolute()].to_vec()),
+            Shell("touch", [path_2.display_absolute()].to_vec()),
+            App(OpenFile { path: path_1.clone(), owner: BufferOwner::User, focus: true }),
             Editor(SetContent(
                 "
 hello
-foo balatuga // Line 2 (this line is purposely made longer than Line 10 to test sorting)
+deva balatuga // Line 2 (this line is purposely made longer than Line 10 to test sorting)
 
 
 
@@ -2029,57 +2033,57 @@ foo balatuga // Line 2 (this line is purposely made longer than Line 10 to test 
 
 
 
-foo a // Line 10
+deva a // Line 10
 "
                 .trim()
                 .to_string(),
             )),
-            App(OpenFile { path: s.main_rs(), owner: BufferOwner::User, focus: true }),
-            Editor(SetContent("foo d\nfoo c".to_string())),
+            App(OpenFile { path: path_2.clone(), owner: BufferOwner::User, focus: true }),
+            Editor(SetContent("deva d\ndeva c".to_string())),
             App(SaveAll),
             App(new_dispatch(LocalSearchConfigUpdate::Search(
-                "foo".to_string(),
+                "deva".to_string(),
             ))),
             WaitForAppMessage(regex!("GlobalSearchFinished")),
             Expect(QuickfixListContent(
                 // Line 10 should be placed below Line 2 (sorted numerically, not lexicograhically)
                 "
-src/foo.rs
-     2:1  foo balatuga // Line 2 (this line is purposely made longer than Line 10 to test sorting)
-    10:1  foo a // Line 10
+a.txt
+     2:1  deva balatuga // Line 2 (this line is purposely made longer than Line 10 to test sorting)
+    10:1  deva a // Line 10
 
-src/main.rs
-     1:1  foo d
-     2:1  foo c
+b.txt
+     1:1  deva d
+     2:1  deva c
                ".to_string()
                 .trim()
                 .to_string(),
             )),
-            Expect(QuickfixListCurrentLine("     2:1  foo balatuga // Line 2 (this line is purposely made longer than Line 10 to test sorting)")),
-            Expect(CurrentPath(s.foo_rs())),
-            Expect(CurrentLine("foo balatuga // Line 2 (this line is purposely made longer than Line 10 to test sorting)")),
-            Expect(CurrentSelectedTexts(&["foo"])),
+            Expect(QuickfixListCurrentLine("     2:1  deva balatuga // Line 2 (this line is purposely made longer than Line 10 to test sorting)")),
+            Expect(CurrentPath(path_1)),
+            Expect(CurrentLine("deva balatuga // Line 2 (this line is purposely made longer than Line 10 to test sorting)")),
+            Expect(CurrentSelectedTexts(&["deva"])),
             Expect(ComponentCount(2)),
             Editor(MoveSelection(Right)),
             Expect(ComponentCount(2)),
-            Expect(QuickfixListCurrentLine("    10:1  foo a // Line 10")),
-            Expect(CurrentLine("foo a // Line 10")),
-            Expect(CurrentSelectedTexts(&["foo"])),
+            Expect(QuickfixListCurrentLine("    10:1  deva a // Line 10")),
+            Expect(CurrentLine("deva a // Line 10")),
+            Expect(CurrentSelectedTexts(&["deva"])),
             Editor(MoveSelection(Right)),
-            Expect(CurrentLine("foo d")),
-            Expect(CurrentSelectedTexts(&["foo"])),
+            Expect(CurrentLine("deva d")),
+            Expect(CurrentSelectedTexts(&["deva"])),
             Editor(MoveSelection(Right)),
-            Expect(CurrentLine("foo c")),
-            Expect(CurrentSelectedTexts(&["foo"])),
+            Expect(CurrentLine("deva c")),
+            Expect(CurrentSelectedTexts(&["deva"])),
             Editor(MoveSelection(Left)),
-            Expect(CurrentLine("foo d")),
-            Expect(CurrentSelectedTexts(&["foo"])),
+            Expect(CurrentLine("deva d")),
+            Expect(CurrentSelectedTexts(&["deva"])),
             Editor(MoveSelection(Left)),
-            Expect(CurrentLine("foo a // Line 10")),
-            Expect(CurrentSelectedTexts(&["foo"])),
+            Expect(CurrentLine("deva a // Line 10")),
+            Expect(CurrentSelectedTexts(&["deva"])),
             Editor(MoveSelection(Left)),
-            Expect(CurrentLine("foo balatuga // Line 2 (this line is purposely made longer than Line 10 to test sorting)")),
-            Expect(CurrentSelectedTexts(&["foo"])),
+            Expect(CurrentLine("deva balatuga // Line 2 (this line is purposely made longer than Line 10 to test sorting)")),
+            Expect(CurrentSelectedTexts(&["deva"])),
         ])
     })
 }
@@ -2573,52 +2577,50 @@ fn esc_in_normal_mode_in_suggestive_editor_should_close_all_other_windows() -> a
 #[test]
 fn saving_in_insert_mode_in_suggestive_editor_should_close_all_other_windows() -> anyhow::Result<()>
 {
-    {
-        let completion_item = |label: &str, documentation: Option<&str>| CompletionItem {
-            label: label.to_string(),
-            edit: Some(CompletionItemEdit::PositionalEdit(PositionalEdit {
-                range: Position::new(0, 0)..Position::new(0, 6),
-                new_text: label.to_string(),
+    let completion_item = |label: &str, documentation: Option<&str>| CompletionItem {
+        label: label.to_string(),
+        edit: Some(CompletionItemEdit::PositionalEdit(PositionalEdit {
+            range: Position::new(0, 0)..Position::new(0, 6),
+            new_text: label.to_string(),
+        })),
+        documentation: documentation.map(Documentation::new),
+        sort_text: None,
+        kind: None,
+        detail: None,
+        insert_text: None,
+        completion_item: lsp_types::CompletionItem::default(),
+    };
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.gitignore(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("".to_string())),
+            Editor(EnterInsertMode(Direction::Start)),
+            SuggestiveEditor(DispatchSuggestiveEditor::CompletionFilter(
+                SuggestiveEditorFilter::CurrentWord,
+            )),
+            // Pretend that the LSP server returned a completion
+            SuggestiveEditor(DispatchSuggestiveEditor::Completion(Completion {
+                trigger_characters: vec![".".to_string()],
+                items: Some(completion_item(
+                    "Spongebob squarepants",
+                    Some("krabby patty maker"),
+                ))
+                .into_iter()
+                .map(|item| item.into())
+                .collect(),
             })),
-            documentation: documentation.map(Documentation::new),
-            sort_text: None,
-            kind: None,
-            detail: None,
-            insert_text: None,
-            completion_item: lsp_types::CompletionItem::default(),
-        };
-        execute_test(|s| {
-            Box::new([
-                App(OpenFile {
-                    path: s.main_rs(),
-                    owner: BufferOwner::User,
-                    focus: true,
-                }),
-                Editor(SetContent("".to_string())),
-                Editor(EnterInsertMode(Direction::Start)),
-                SuggestiveEditor(DispatchSuggestiveEditor::CompletionFilter(
-                    SuggestiveEditorFilter::CurrentWord,
-                )),
-                // Pretend that the LSP server returned a completion
-                SuggestiveEditor(DispatchSuggestiveEditor::Completion(Completion {
-                    trigger_characters: vec![".".to_string()],
-                    items: Some(completion_item(
-                        "Spongebob squarepants",
-                        Some("krabby patty maker"),
-                    ))
-                    .into_iter()
-                    .map(|item| item.into())
-                    .collect(),
-                })),
-                Expect(ComponentCount(3)),
-                Editor(EnterInsertMode(Direction::Start)),
-                Editor(Insert("hello".to_string())),
-                Editor(Save),
-                Expect(ComponentCount(1)),
-                Expect(CurrentComponentPath(Some(s.main_rs()))),
-            ])
-        })
-    }
+            Expect(ComponentCount(3)),
+            Editor(EnterInsertMode(Direction::Start)),
+            Editor(Insert("hello".to_string())),
+            Editor(Save),
+            Expect(ComponentCount(1)),
+            Expect(CurrentComponentPath(Some(s.gitignore()))),
+        ])
+    })
 }
 
 #[test]
@@ -4070,7 +4072,7 @@ fn marking_selections_should_refresh_mark_quickfix() -> Result<(), anyhow::Error
     execute_test(|s| {
         Box::new([
             App(OpenFile {
-                path: s.foo_rs(),
+                path: s.gitignore(),
                 owner: BufferOwner::User,
                 focus: true,
             }),
@@ -4088,7 +4090,7 @@ fn marking_selections_should_refresh_mark_quickfix() -> Result<(), anyhow::Error
             App(SetQuickfixList(QuickfixListType::Mark)),
             Expect(ExpectKind::QuickfixListContent(
                 "
-src/foo.rs
+.gitignore
     1:1  foo
     2:1  bar
     3:1  spam
@@ -4102,7 +4104,7 @@ src/foo.rs
             // When we untoggled a mark, we expect the quickfix list to be updated
             App(ToggleSelectionMark),
             Expect(AppGrid(
-                " [-] 🦀  foo.rs
+                " [-] 🙈  .gitignore
 1│foo
 2│bar
 3│█pam
@@ -4119,7 +4121,7 @@ src/foo.rs
 
 
 Quickfix list
-1│src/foo.rs
+1│.gitignore
 2│    1:1  foo
 3│█   3:1  spam
 4│    4:1  baz"
@@ -4127,7 +4129,7 @@ Quickfix list
             )),
             Expect(ExpectKind::QuickfixListContent(
                 "
-src/foo.rs
+.gitignore
     1:1  foo
     3:1  spam
     4:1  baz
@@ -4140,7 +4142,7 @@ src/foo.rs
             App(ToggleSelectionMark),
             Expect(ExpectKind::QuickfixListContent(
                 "
-src/foo.rs
+.gitignore
     1:1  foo
     4:1  baz
     "
@@ -4151,7 +4153,7 @@ src/foo.rs
             App(ToggleSelectionMark),
             Expect(ExpectKind::QuickfixListContent(
                 "
-src/foo.rs
+.gitignore
     1:1  foo
     "
                 .trim()
