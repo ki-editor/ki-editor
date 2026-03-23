@@ -4276,3 +4276,70 @@ fn save_all_sets_dirty_status() -> anyhow::Result<()> {
         ])
     })
 }
+
+#[test]
+fn should_specially_handle_formatter_not_exist_errors() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            // Using C#
+            Shell(
+                "touch",
+                [s.new_path("main.cs").to_string_lossy().to_string()].to_vec(),
+            ),
+            App(OpenFile {
+                path: s.clone().new_path("main.cs").try_into().unwrap(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("// hello".to_owned())),
+            Editor(Save),
+            Expect(GlobalInfo(
+                "The formatter `csharpier` failed to run because it does not exist.
+Please consider installing it.
+(Note: this error will not be shown again in this Ki session.)"
+                    .to_string(),
+            )),
+            App(CloseGlobalInfo),
+            // Change the content and save again
+            Expect(ComponentCount(1)),
+            Editor(SetContent("// bye".to_owned())),
+            Editor(Save),
+            // Expect the error to not be shown again,
+            // as formatter-not-exist error should only shown once per session
+            // for each formatter.
+            Expect(ComponentCount(1)),
+        ])
+    })
+}
+
+#[test]
+fn formatter_error_should_be_reported() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs().try_into().unwrap(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("fn main() { let x = ".to_owned())),
+            Editor(Save),
+            Expect(GlobalInfo(
+                // rustfmt exits with error when it encounters a syntax error
+                "[[STDERR]]:
+error: this file contains an unclosed delimiter
+ --> <stdin>:1:21
+  |
+1 | fn main() { let x = 
+  |           -         ^
+  |           |
+  |           unclosed delimiter
+
+
+
+[[STDOUT]]:
+"
+                .to_string(),
+            )),
+        ])
+    })
+}

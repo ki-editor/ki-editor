@@ -12,7 +12,6 @@ use lsp_types::*;
 use my_proc_macros::NamedVariant;
 use shared::absolute_path::AbsolutePath;
 use shared::language::Language;
-use shared::process_command::SpawnCommandResult;
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Read, Write};
 
@@ -257,12 +256,7 @@ impl LspServerProcess {
             None => return Ok(None),
         };
 
-        let mut process = match process_command.spawn() {
-            SpawnCommandResult::Spawned(result) => result?,
-            SpawnCommandResult::CommandNotFound { .. } => {
-                return Ok(None);
-            }
-        };
+        let mut process = process_command.spawn()?;
         let stdin = process
             .stdin
             .take()
@@ -1726,7 +1720,7 @@ impl ErrorTracker {
             lsp_error!(
                 self.lsp_command,
                 "LspServerResponse::listen failed to read stderr = {err}"
-            );
+            )
         });
 
         if self.last_error_time.elapsed() > self.error_reset_timeout {

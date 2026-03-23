@@ -51,7 +51,13 @@ pub struct Context {
     file_dirty_status: HashMap<AbsolutePath, bool>,
     indent_char: char,
     indent_width: usize,
+
+    /// This is used to prevent the same non-existent formatter error from being reported more than once.
+    non_existent_formatter_commands: Vec<FormatterCommand>,
 }
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct FormatterCommand(pub String);
 
 #[derive(Debug)]
 pub enum QuickfixListSource {
@@ -251,6 +257,23 @@ impl Context {
     pub(crate) fn indent_char(&self) -> char {
         self.indent_char
     }
+
+    /// Returns `true` if the given `formatter_command` is not seen before.
+    pub(crate) fn add_formatter_not_exist_error(
+        &mut self,
+        formatter_command: &FormatterCommand,
+    ) -> bool {
+        if self
+            .non_existent_formatter_commands
+            .contains(formatter_command)
+        {
+            false
+        } else {
+            self.non_existent_formatter_commands
+                .push(formatter_command.clone());
+            true
+        }
+    }
 }
 
 pub enum QuickfixListKind {
@@ -321,6 +344,7 @@ impl Context {
             file_dirty_status: HashMap::new(),
             indent_char: app_config.indent_char(),
             indent_width: app_config.indent_width(),
+            non_existent_formatter_commands: Vec::new(),
         }
     }
 
