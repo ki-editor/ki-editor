@@ -25,21 +25,30 @@ The following keybindings only work when the completion dropdown is opened.
 
 <KeymapFallback filename="Completion Items"/>
 
-| Label          | Meaning                                     |
-| -------------- | ------------------------------------------- |
-| `Comp →`       | Next completion item                        |
-| `← Comp`       | Previous completion item                    |
+| Label          | Meaning                         |
+| -------------- | ------------------------------- |
+| `Comp →`       | Next completion item            |
+| `← Comp`       | Previous completion item        |
 | `Replace Comp` | Replace current completion item |
+
+## Insert Mode Delete MoL
+
+<KeymapFallback filename="Insert Mode Delete MoL"/>
+
+| Label/Keybinding   | Meaning                 |
+| ------------------ | ----------------------- |
+| `← Kill Line`      | Kill line backward      |
+| `Kill Line →`      | Kill line forward       |
+| `← Delete Word`    | Delete word backward    |
+| `← Delete Subword` | Delete subword backward |
+| `Delete Word →`    | Delete word forward     |
+| `Delete Subword →` | Delete subword forward  |
 
 ## Other
 
 <KeymapFallback filename="Insert"/>
 
-| Label/Keybinding | Meaning                 |
-| ---------------- | ----------------------- |
-| `Line ←`         | Move to line start      |
-| `Line →`         | Move to line end        |
-| `Kill Line ←`    | Kill line backward      |
-| `Kill Line →`    | Kill line forward       |
-| `Delete Word ←`  | Delete word backward    |
-| `alt+backspace`  | Delete subword backward |
+| Label/Keybinding | Meaning            |
+| ---------------- | ------------------ |
+| `← Line`         | Move to line start |
+| `Line →`         | Move to line end   |

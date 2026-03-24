@@ -10,7 +10,7 @@ use crate::{
     components::{
         editor::{Movement, PriorChange},
         editor_keymap::{possibly_alted, QWERTY_STR},
-        keymap_legend::{MomentaryLayer, OnSpacebarTapped, OnTap},
+        keymap_legend::{MomentaryLayer, OnTap},
     },
     context::{Context, LocalSearchConfigMode, Search},
     git::DiffMode,
@@ -125,7 +125,6 @@ impl Editor {
                     keymap: navigation_history_keymap(false),
                 },
                 on_tap: None,
-                on_spacebar_tapped: None,
             }),
             Keybinding::momentary_layer(MomentaryLayer {
                 key: "e",
@@ -136,9 +135,8 @@ impl Editor {
                 },
                 on_tap: Some(OnTap::new(
                     "Toggle Selection Mark",
-                    Dispatches::one(Dispatch::ToggleSelectionMark),
+                    Dispatch::ToggleSelectionMark,
                 )),
-                on_spacebar_tapped: None,
             }),
             Keybinding::new_descriptive(
                 "?",
@@ -296,11 +294,7 @@ impl Editor {
                     title: "≡ Insert".to_string(),
                     keymap: insert_keymap(),
                 },
-                on_tap: Some(OnTap::new(
-                    "Change",
-                    Dispatches::one(Dispatch::ToEditor(Change)),
-                )),
-                on_spacebar_tapped: None,
+                on_tap: Some(OnTap::new("Change", Dispatch::ToEditor(Change))),
             })
             .override_keymap(normal_mode_override.change.as_ref(), none_if_no_override),
             Keybinding::momentary_layer(MomentaryLayer {
@@ -312,9 +306,8 @@ impl Editor {
                 },
                 on_tap: Some(OnTap::new(
                     "Delete One",
-                    Dispatches::one(Dispatch::ToEditor(DispatchEditor::DeleteOne)),
+                    Dispatch::ToEditor(DispatchEditor::DeleteOne),
                 )),
-                on_spacebar_tapped: None,
             })
             .override_keymap(normal_mode_override.delete.as_ref(), none_if_no_override),
             Keybinding::new_descriptive(
@@ -373,11 +366,7 @@ impl Editor {
                     title: "≡ Copy".to_string(),
                     keymap: duplicate_keymap(),
                 },
-                on_tap: Some(OnTap::new(
-                    "Copy",
-                    Dispatches::one(Dispatch::ToEditor(Copy)),
-                )),
-                on_spacebar_tapped: None,
+                on_tap: Some(OnTap::new("Copy", Dispatch::ToEditor(Copy))),
             }),
         ]
         .into_iter()
@@ -407,11 +396,8 @@ impl Editor {
                 },
                 on_tap: Some(OnTap::new(
                     "Replace",
-                    Dispatches::one(Dispatch::ToEditor(DispatchEditor::ReplaceWithCopiedText {
-                        cut: false,
-                    })),
+                    Dispatch::ToEditor(DispatchEditor::ReplaceWithCopiedText { cut: false }),
                 )),
-                on_spacebar_tapped: None,
             })
             .override_keymap(
                 normal_mode_override.paste.clone().as_ref(),
@@ -426,9 +412,8 @@ impl Editor {
                 },
                 on_tap: Some(OnTap::new(
                     "Cut One",
-                    Dispatches::one(Dispatch::ToEditor(DispatchEditor::CutOne)),
+                    Dispatch::ToEditor(DispatchEditor::CutOne),
                 )),
-                on_spacebar_tapped: None,
             })
             .override_keymap(normal_mode_override.cut.as_ref(), none_if_no_override),
         ]
@@ -478,50 +463,22 @@ impl Editor {
                         Dispatch::ToEditor(MoveCharacterForward),
                     ),
                     Keybinding::new_descriptive(
-                        "alt+s",
+                        "alt+y",
                         "Line ←".to_string(),
                         "Move to line start".to_string(),
                         Dispatch::ToEditor(MoveToLineStart),
                     ),
                     Keybinding::new_descriptive(
-                        "alt+f",
+                        "alt+p",
                         "Line →".to_string(),
                         "Move to line end".to_string(),
                         Dispatch::ToEditor(MoveToLineEnd),
-                    ),
-                    Keybinding::new_descriptive(
-                        "alt+q",
-                        "Kill Line ←".to_string(),
-                        Direction::End.format_action("Kill line"),
-                        Dispatch::ToEditor(KillLine(Direction::Start)),
-                    ),
-                    Keybinding::new_descriptive(
-                        "alt+t",
-                        "Kill Line →".to_string(),
-                        Direction::End.format_action("Kill line"),
-                        Dispatch::ToEditor(KillLine(Direction::End)),
-                    ),
-                    Keybinding::new_descriptive(
-                        "alt+h",
-                        "Delete Word ←".to_string(),
-                        "Delete word backward".to_string(),
-                        Dispatch::ToEditor(DeleteWordBackward { short: false }),
                     ),
                     Keybinding::new_descriptive(
                         "alt+backspace",
                         "Delete Word ←".to_string(),
                         "Delete word backward".to_string(),
                         Dispatch::ToEditor(DeleteWordBackward { short: true }),
-                    ),
-                    Keybinding::new(
-                        "left",
-                        "Move back a character".to_string(),
-                        Dispatch::ToEditor(MoveCharacterBack),
-                    ),
-                    Keybinding::new(
-                        "right",
-                        "Move forward a character".to_string(),
-                        Dispatch::ToEditor(MoveCharacterForward),
                     ),
                     Keybinding::new(
                         "esc",
@@ -560,6 +517,15 @@ impl Editor {
                 } else {
                     Vec::default()
                 })
+                .chain([Keybinding::momentary_layer(MomentaryLayer {
+                    key: "alt+v",
+                    description: "Delete".to_string(),
+                    config: KeymapLegendConfig {
+                        title: "Delete".to_string(),
+                        keymap: insert_mode_delete_keymap(),
+                    },
+                    on_tap: None,
+                })])
                 .chain(
                     [Keybinding::momentary_layer(MomentaryLayer {
                         key: "alt+e",
@@ -570,9 +536,8 @@ impl Editor {
                         },
                         on_tap: Some(OnTap::new(
                             "Toggle Selection Mark",
-                            Dispatches::one(Dispatch::ToggleSelectionMark),
+                            Dispatch::ToggleSelectionMark,
                         )),
-                        on_spacebar_tapped: None,
                     })]
                     .to_vec(),
                 )
@@ -756,7 +721,6 @@ impl Editor {
                     keymap: swap_keymap(),
                 },
                 on_tap: None,
-                on_spacebar_tapped: None,
             })),
             Some(Keybinding::new(
                 "backslash",
@@ -771,12 +735,6 @@ impl Editor {
                     keymap: self.multicursor_momentary_layer_keymap(),
                 },
                 on_tap: None,
-                on_spacebar_tapped: Some(OnSpacebarTapped::DeactivatesMomentaryLaterAndOpenMenu(
-                    KeymapLegendConfig {
-                        title: "Multi-cursor Menu".to_string(),
-                        keymap: self.multicursor_menu_keymap(),
-                    },
-                )),
             })),
         ]
         .into_iter()
@@ -828,6 +786,14 @@ impl Editor {
                     Dispatch::ToEditor(ShowJumps {
                         use_current_selection_mode: true,
                         prior_change: Some(PriorChange::EnterMultiCursorMode),
+                    }),
+                ),
+                Keybinding::new(
+                    "space",
+                    "Open Multi-cursor Menu".to_string(),
+                    Dispatch::ShowKeymapLegend(KeymapLegendConfig {
+                        title: "Multi-cursor Menu".to_string(),
+                        keymap: self.multicursor_menu_keymap(),
                     }),
                 ),
             ])
@@ -1602,6 +1568,58 @@ pub fn paste_keymap() -> Keymap {
                 "k",
                 Movement::Down.format_action("Paste"),
                 Dispatch::ToEditor(PasteVertically(Direction::End)),
+            ),
+        ]
+        .as_ref(),
+    )
+}
+
+pub fn insert_mode_delete_keymap() -> Keymap {
+    Keymap::new(
+        [
+            Keybinding::new_descriptive(
+                "alt+y",
+                "Kill Line ←".to_string(),
+                Direction::End.format_action("Kill line"),
+                Dispatch::ToEditor(KillLine(Direction::Start)),
+            ),
+            Keybinding::new_descriptive(
+                "alt+p",
+                "Kill Line →".to_string(),
+                Direction::End.format_action("Kill line"),
+                Dispatch::ToEditor(KillLine(Direction::End)),
+            ),
+            Keybinding::new(
+                "alt+j",
+                Direction::Start.format_action("Delete Word"),
+                Dispatch::ToEditor(DeleteWord {
+                    short: false,
+                    direction: Direction::Start,
+                }),
+            ),
+            Keybinding::new(
+                "alt+l",
+                Direction::End.format_action("Delete Word"),
+                Dispatch::ToEditor(DeleteWord {
+                    short: false,
+                    direction: Direction::End,
+                }),
+            ),
+            Keybinding::new(
+                "alt+u",
+                Direction::Start.format_action("Delete Subword"),
+                Dispatch::ToEditor(DeleteWord {
+                    short: true,
+                    direction: Direction::Start,
+                }),
+            ),
+            Keybinding::new(
+                "alt+o",
+                Direction::End.format_action("Delete Subword"),
+                Dispatch::ToEditor(DeleteWord {
+                    short: true,
+                    direction: Direction::End,
+                }),
             ),
         ]
         .as_ref(),

@@ -21,8 +21,8 @@ use crate::{
         },
     },
     context::{
-        Context, GlobalMode, GlobalSearchConfig, LocalSearchConfigMode, QuickfixListKind,
-        QuickfixListSource, Search,
+        Context, FormatterCommand, GlobalMode, GlobalSearchConfig, LocalSearchConfigMode,
+        QuickfixListKind, QuickfixListSource, Search,
     },
     edit::Edit,
     file_watcher::{FileWatcherEvent, FileWatcherInput},
@@ -30,6 +30,10 @@ use crate::{
     git::{self},
     grid::{Grid, LineUpdate},
     integration_event::{IntegrationEvent, IntegrationEventEmitter},
+    keymap_override::{
+        menu::MenuKeymapOverride, momentary_layer::MomentaryLayerKeymapOverride, AppKeymapOverride,
+        EditorKeymapOverride, KeymapOverrideScope, KeymapOverrideTrait,
+    },
     layout::Layout,
     list::{self, Match, WalkBuilderConfig},
     lsp::{
@@ -53,7 +57,7 @@ use crate::{
     ui_tree::{ComponentKind, KindedComponent},
 };
 use anyhow::ensure;
-use event::event::Event;
+use event::{event::Event, KeyEventKind};
 use indexmap::IndexMap;
 use itertools::{Either, Itertools};
 use my_proc_macros::NamedVariant;
@@ -105,6 +109,7 @@ pub struct App<T: Frontend> {
 
     global_title: Option<String>,
 
+    keymap_override: Option<AppKeymapOverride>,
     layout: Layout,
 
     frontend: Rc<Mutex<T>>,
@@ -245,6 +250,7 @@ impl<T: Frontend> App<T> {
                 )
             },
             sender,
+            keymap_override: None,
             layout: Layout::new(
                 dimension.decrement_height(status_lines.len()),
                 &working_directory,
@@ -423,7 +429,18 @@ impl<T: Frontend> App<T> {
                 });
             }
             event => {
-                let dispatches = component.borrow_mut().handle_event(&self.context, event);
+                let dispatches = match (event, &mut self.keymap_override) {
+                    (Event::Key(key_event), Some(keymap_override)) => match key_event.kind {
+                        KeyEventKind::Press => {
+                            keymap_override.handle_press(&self.context, key_event)
+                        }
+                        KeyEventKind::Release => {
+                            keymap_override.handle_release(&self.context, key_event)
+                        }
+                    },
+                    (event, _) => component.borrow_mut().handle_event(&self.context, event),
+                };
+
                 self.handle_dispatches_result(dispatches)
                     .unwrap_or_else(|e| {
                         self.show_global_info(Info::new("ERROR".to_string(), e.to_string()));
@@ -960,10 +977,35 @@ impl<T: Frontend> App<T> {
                 self.apply_workspace_edit(workspace_edit)?;
             }
             Dispatch::ShowKeymapLegend(keymap_legend_config) => {
-                self.show_keymap_legend(keymap_legend_config, None);
+                // HACK: Close keymap legend if present
+                // Only used for multicursor menu atm
+                self.layout.close_keymap_legend();
+                self.handle_dispatch_editor(DispatchEditor::SetKeymapOverride(Some(
+                    EditorKeymapOverride::Menu(MenuKeymapOverride::new(
+                        keymap_legend_config.clone(),
+                    )),
+                )))?;
+                self.show_keymap_legend(false, keymap_legend_config, None);
             }
             Dispatch::ShowKeymapLegendWithReleaseKey(keymap_legend_config, release_key) => {
-                self.show_keymap_legend(keymap_legend_config, Some(release_key));
+                self.handle_dispatch_editor(DispatchEditor::SetKeymapOverride(Some(
+                    EditorKeymapOverride::MomentaryLayer(MomentaryLayerKeymapOverride::new(
+                        KeymapOverrideScope::Editor,
+                        keymap_legend_config.clone(),
+                        release_key.clone(),
+                    )),
+                )))?;
+                self.show_keymap_legend(false, keymap_legend_config, Some(release_key));
+            }
+            Dispatch::ShowAppKeymapLegendWithReleaseKey(keymap_legend_config, release_key) => {
+                self.keymap_override = Some(AppKeymapOverride::MomentaryLayer(
+                    MomentaryLayerKeymapOverride::new(
+                        KeymapOverrideScope::App,
+                        keymap_legend_config.clone(),
+                        release_key.clone(),
+                    ),
+                ));
+                self.show_keymap_legend(true, keymap_legend_config, Some(release_key));
             }
             #[cfg(test)]
             Dispatch::Custom(_) => unreachable!(),
@@ -1062,6 +1104,14 @@ impl<T: Frontend> App<T> {
             Dispatch::CloseDropdown => self.layout.close_dropdown(),
             Dispatch::CloseEditorInfo => self.layout.close_editor_info(),
             Dispatch::CloseGlobalInfo => self.layout.close_global_info(),
+            Dispatch::CloseKeymapLegend => {
+                self.handle_dispatch_editor(DispatchEditor::SetKeymapOverride(None))?;
+                self.layout.close_keymap_legend();
+            }
+            Dispatch::CloseAppKeymapLegend => {
+                self.keymap_override = None;
+                self.layout.close_app_keymap_legend();
+            }
             Dispatch::RenderDropdown { render } => {
                 if let Some(dropdown) = self.layout.open_dropdown(&self.context) {
                     self.render_dropdown(dropdown, render)?;
@@ -1161,6 +1211,9 @@ impl<T: Frontend> App<T> {
                 self.open_change_working_directory_prompt()?;
             }
             Dispatch::OpenQuickfixItemsPicker => self.open_quickfix_item_picker()?,
+            Dispatch::RaiseFormatterNotExist(formatter_error) => {
+                self.raise_formatter_error(formatter_error)?;
+            }
         }
         Ok(())
     }
@@ -1833,6 +1886,7 @@ impl<T: Frontend> App<T> {
 
     fn show_keymap_legend(
         &mut self,
+        on_root: bool,
         keymap_legend_config: KeymapLegendConfig,
         release_key: Option<ReleaseKey>,
     ) {
@@ -1851,7 +1905,7 @@ impl<T: Frontend> App<T> {
                 });
         }
         self.layout
-            .show_keymap_legend(keymap_legend_config, &self.context, release_key);
+            .show_keymap_legend(on_root, keymap_legend_config, release_key);
         self.layout.recalculate_layout(&self.context);
     }
 
@@ -1961,8 +2015,9 @@ impl<T: Frontend> App<T> {
         self.sender.clone()
     }
 
-    fn save_all(&self) -> anyhow::Result<()> {
-        self.layout.save_all(&self.context)
+    fn save_all(&mut self) -> anyhow::Result<()> {
+        let dispatches = self.layout.save_all(&self.context)?;
+        self.handle_dispatches(dispatches)
     }
 
     fn open_yes_no_prompt(&mut self, prompt: YesNoPrompt) -> anyhow::Result<()> {
@@ -3570,6 +3625,25 @@ Conflict markers will be injected in areas that cannot be merged gracefully."
             },
         ))
     }
+
+    fn raise_formatter_error(&mut self, formatter_command: FormatterCommand) -> anyhow::Result<()> {
+        if self
+            .context
+            .add_formatter_not_exist_error(&formatter_command)
+        {
+            self.show_global_info(Info::new(
+                "Formatting error".to_string(),
+                format!(
+                    "The formatter `{}` failed to run because it does not exist.\n\
+Please consider installing it.\n\
+(Note: this error will not be shown again in this Ki session.)",
+                    formatter_command.0
+                ),
+            ));
+        }
+
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -3703,6 +3777,7 @@ pub enum Dispatch {
     ShowKeymapLegend(KeymapLegendConfig),
     /// This means showing a momentary layer.
     ShowKeymapLegendWithReleaseKey(KeymapLegendConfig, ReleaseKey),
+    ShowAppKeymapLegendWithReleaseKey(KeymapLegendConfig, ReleaseKey),
     RemainOnlyCurrentComponent,
 
     #[cfg(test)]
@@ -3782,6 +3857,8 @@ pub enum Dispatch {
     CloseCurrentWindowAndFocusParent,
     CloseEditorInfo,
     CloseGlobalInfo,
+    CloseKeymapLegend,
+    CloseAppKeymapLegend,
     CycleMarkedFile(Movement),
     OpenAlternateFile,
     PushPromptHistory {
@@ -3862,6 +3939,7 @@ pub enum Dispatch {
     ChangeWorkingDirectory(AbsolutePath),
     OpenChangeWorkingDirectoryPrompt,
     OpenQuickfixItemsPicker,
+    RaiseFormatterNotExist(FormatterCommand),
 }
 
 /// Used to send notify host app about changes

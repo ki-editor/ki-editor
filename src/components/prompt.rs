@@ -677,9 +677,13 @@ mod test_prompt {
                 }),
                 App(HandleKeyEvents(keys!("f o o _").to_vec())),
                 Expect(EditorInfoContents(&["foo_bar"])),
-                App(HandleKeyEvents(keys!("alt+q z a m").to_vec())),
+                App(HandleKeyEvents(
+                    keys!("alt+v alt+y release-alt+v z a m").to_vec(),
+                )),
                 Expect(EditorInfoContents(&["zazam"])),
-                App(HandleKeyEvents(keys!("alt+q q").to_vec())),
+                App(HandleKeyEvents(
+                    keys!("alt+v alt+y release-alt+v q").to_vec(),
+                )),
                 Expect(EditorInfoContents(&["boque"])),
                 App(HandleKeyEvents(keys!("esc esc").to_vec())),
                 Expect(EditorInfoContents(&["back to square one"])),
@@ -719,7 +723,7 @@ mod test_prompt {
     }
 
     #[test]
-    fn suggestion_should_update_with_alt_q_and_alt_t() -> Result<(), anyhow::Error> {
+    fn suggestion_should_update_with_kill_line() -> Result<(), anyhow::Error> {
         execute_test(|s| {
             Box::new([
                 App(OpenFile {
@@ -749,16 +753,18 @@ mod test_prompt {
                 App(HandleKeyEvents(keys!("p a").to_vec())),
                 // Expect only 'Patrick' remains in the completion dropdown
                 Expect(CompletionDropdownContent("Patrick")),
-                // Clear 'pa' using alt+a
-                App(HandleKeyEvent(key!("alt+q"))),
+                // Clear 'pa' using kill line forward
+                App(HandleKeyEvents(keys!("alt+v alt+y release-alt+v").to_vec())),
                 // Expect all items are shown again
                 Expect(CompletionDropdownContent("Patrick\nSpongebob\nSquidward")),
                 //
                 //
-                // Perform the same test for alt+g
+                // Perform the same test for kill line backward
                 App(HandleKeyEvents(keys!("p a").to_vec())),
                 Expect(CompletionDropdownContent("Patrick")),
-                App(HandleKeyEvents(keys!("alt+s alt+t").to_vec())),
+                App(HandleKeyEvents(
+                    keys!("alt+y alt+v alt+p release-alt+v").to_vec(),
+                )),
                 Expect(CompletionDropdownContent("Patrick\nSpongebob\nSquidward")),
             ])
         })

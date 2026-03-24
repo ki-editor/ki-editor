@@ -11,17 +11,15 @@ use crate::{
     buffer::{Buffer, Line},
     char_index_range::{range_intersects, CharIndexRange},
     clipboard::Texts,
-    components::{
-        component::Component,
-        editor::keymap_override::{
-            find_one::FindOneCharKeymapOverride, jump::JumpKeymapOverride, KeymapOverride,
-            KeymapOverrideTrait,
-        },
-    },
+    components::component::Component,
     context::{Context, GlobalMode, LocalSearchConfig, LocalSearchConfigMode},
     edit::{Action, ActionGroup, Edit, EditTransaction},
     git::{hunk::SimpleHunkKind, DiffMode, GitOperation as _, GitRepo},
     grid::LINE_NUMBER_VERTICAL_BORDER,
+    keymap_override::{
+        find_one::FindOneCharKeymapOverride, jump::JumpKeymapOverride, EditorKeymapOverride,
+        KeymapOverrideTrait,
+    },
     list::grep::RegexConfig,
     lsp::{
         completion::{CompletionItemEdit, PositionalEdit},
@@ -42,6 +40,7 @@ use crate::{
 use crossterm::event::{MouseButton, MouseEventKind};
 use event::{KeyEvent, KeyEventKind};
 use itertools::{Either, Itertools};
+use my_proc_macros::NamedVariant;
 use nonempty::NonEmpty;
 use ropey::Rope;
 use shared::absolute_path::AbsolutePath;
@@ -53,8 +52,6 @@ use std::{
     rc::Rc,
 };
 use DispatchEditor::*;
-
-mod keymap_override;
 
 #[derive(PartialEq, Clone, Debug, Eq)]
 pub enum Mode {
@@ -200,6 +197,10 @@ impl Component for Editor {
         context: &mut Context,
         dispatch: DispatchEditor,
     ) -> anyhow::Result<Dispatches> {
+        log::info!(
+            "Editor::handle_dispatch_editor = {}",
+            dispatch.variant_name()
+        );
         let last_visible_line = self.last_visible_line(context);
         match dispatch {
             #[cfg(test)]
@@ -268,7 +269,10 @@ impl Component for Editor {
             KillLine(direction) => return self.kill_line(direction, context),
             #[cfg(test)]
             Reset => self.reset(),
-            DeleteWordBackward { short } => return self.delete_word_backward(short, context),
+            DeleteWordBackward { short } => {
+                return self.delete_word(short, context, Direction::Start)
+            }
+            DeleteWord { short, direction } => return self.delete_word(short, context, direction),
             Backspace => return self.backspace(context),
             MoveToLineStart => return self.move_to_line_start(context),
             MoveToLineEnd => return self.move_to_line_end(),
@@ -445,7 +449,7 @@ pub struct Editor {
 
     pub selection_set: SelectionSet,
 
-    keymap_override: Option<KeymapOverride>,
+    keymap_override: Option<EditorKeymapOverride>,
 
     pub cursor_direction: Direction,
 
@@ -1006,7 +1010,7 @@ impl Editor {
         }
     }
 
-    fn jump_characters(context: &Context) -> Vec<char> {
+    pub fn jump_characters(context: &Context) -> Vec<char> {
         let chars = context
             .keyboard_layout()
             .get_keyboard_layout()
@@ -1074,7 +1078,7 @@ impl Editor {
             chars,
             line_ranges,
         )?;
-        self.keymap_override = Some(KeymapOverride::Jumps(JumpKeymapOverride {
+        self.keymap_override = Some(EditorKeymapOverride::Jumps(JumpKeymapOverride {
             jumps: jumps.clone(),
         }));
 
@@ -2057,7 +2061,7 @@ impl Editor {
 
     pub fn jumps(&self) -> &[Jump] {
         match &self.keymap_override {
-            Some(KeymapOverride::Jumps(jump_override)) => &jump_override.jumps,
+            Some(EditorKeymapOverride::Jumps(jump_override)) => &jump_override.jumps,
             _ => &[],
         }
     }
@@ -2491,56 +2495,108 @@ impl Editor {
         self.apply_edit_transaction(edit_transaction, context)
     }
 
-    pub fn delete_word_backward(
+    pub fn delete_word(
         &mut self,
         short: bool,
         context: &Context,
+        direction: Direction,
     ) -> Result<Dispatches, anyhow::Error> {
         let action_groups = self
             .selection_set
             .map(|current_selection| -> anyhow::Result<_> {
                 let current_range = current_selection.extended_range();
-                if current_range.start.0 == 0 && current_range.end.0 == 0 {
-                    // Do nothing if cursor is at the beginning of the file
-                    return Ok(ActionGroup::new(Vec::new()));
-                }
 
                 let len_chars = self.buffer().rope().len_chars();
-                let start = CharIndex(current_range.start.0.min(len_chars).saturating_sub(1));
 
-                let previous_word = {
-                    let get_word = |movement: Movement| {
-                        Selection::get_selection_(
-                            &self.buffer(),
-                            &current_selection.clone().set_range((start..start).into()),
-                            &if short {
-                                SelectionMode::Subword
-                            } else {
-                                SelectionMode::Word
-                            },
-                            &movement.into_movement_applicandum(
-                                self.selection_set.sticky_column_index(),
-                            ),
-                            &self.cursor_direction,
-                            context,
-                        )
-                        .map(|option| option.unwrap_or_else(|| current_selection.clone().into()))
-                    };
-                    let current_word =
-                        get_word(Movement::Current(IfCurrentNotFound::LookBackward))?.selection;
-                    if current_word.extended_range().start <= start {
-                        current_word
-                    } else {
-                        get_word(Movement::Previous)?.selection
+                let cursor_char_index = {
+                    let index = CharIndex(current_range.start.0.min(len_chars));
+                    match direction {
+                        Direction::Start => index - 1,
+                        Direction::End => index,
                     }
                 };
 
-                let previous_word_range = previous_word.extended_range();
-                let end = previous_word_range
-                    .end
-                    .min(current_range.start)
-                    .max(start + 1);
-                let start = previous_word_range.start;
+                let get_word = |range: CharIndexRange, movement: Movement| {
+                    Selection::get_selection_(
+                        &self.buffer(),
+                        &current_selection.clone().set_range(range),
+                        &if short {
+                            SelectionMode::Subword
+                        } else {
+                            SelectionMode::Word
+                        },
+                        &movement
+                            .into_movement_applicandum(self.selection_set.sticky_column_index()),
+                        &self.cursor_direction,
+                        context,
+                    )
+                    .map(|option| option.map(|result| result.selection))
+                };
+
+                let Some(current_word) = get_word(
+                    (cursor_char_index..cursor_char_index).into(),
+                    Movement::Current(direction.to_if_current_not_found()),
+                )?
+                else {
+                    return Ok(ActionGroup::new(
+                        [Action::Select(current_selection.clone())].to_vec(),
+                    ));
+                };
+
+                let other_word = {
+                    get_word(
+                        current_word.range(),
+                        match direction {
+                            Direction::Start => Movement::Previous,
+                            Direction::End => Movement::Next,
+                        },
+                    )?
+                };
+
+                let delete_range = if let Some(other_word) = other_word {
+                    let other_word_range = other_word.extended_range();
+
+                    if other_word_range == current_word.range() {
+                        current_word.range()
+                    } else {
+                        CharIndexRange::from(match direction {
+                            Direction::Start => {
+                                let start = other_word_range.end;
+                                let end = current_word.range().end;
+                                start..end
+                            }
+                            Direction::End => {
+                                let start = current_word.range().start;
+                                let end = other_word_range.start;
+                                start..end
+                            }
+                        })
+                    }
+                } else {
+                    current_word.range()
+                };
+
+                let delete_range: CharIndexRange = match direction {
+                    Direction::Start => {
+                        if cursor_char_index == CharIndex(0) {
+                            (CharIndex(0)..CharIndex(0)).into()
+                        } else {
+                            delete_range
+                        }
+                    }
+                    Direction::End => {
+                        let max_cursor_char_index = CharIndex(self.buffer().len_chars());
+                        if cursor_char_index == max_cursor_char_index {
+                            (max_cursor_char_index..max_cursor_char_index).into()
+                        } else {
+                            delete_range
+                        }
+                    }
+                };
+
+                let start = delete_range.start;
+                let end = delete_range.end;
+
                 Ok(ActionGroup::new(
                     [
                         Action::Edit(Edit::new(
@@ -2912,9 +2968,9 @@ impl Editor {
 
     pub fn display_mode(&self) -> String {
         match &self.keymap_override {
-            Some(KeymapOverride::Jumps(_)) => "JUMP".to_string(),
-            Some(KeymapOverride::FindOneChar(_)) => "ONE".to_string(),
-            None => match &self.mode {
+            Some(EditorKeymapOverride::Jumps(_)) => "JUMP".to_string(),
+            Some(EditorKeymapOverride::FindOneChar(_)) => "ONE".to_string(),
+            _ => match &self.mode {
                 Mode::Normal => {
                     let prefix = if self.selection_set.is_extended() {
                         "+"
@@ -3004,9 +3060,11 @@ impl Editor {
     }
 
     fn enter_single_character_mode(&mut self, if_current_not_found: IfCurrentNotFound) {
-        self.keymap_override = Some(KeymapOverride::FindOneChar(FindOneCharKeymapOverride {
-            if_current_not_found,
-        }));
+        self.keymap_override = Some(EditorKeymapOverride::FindOneChar(
+            FindOneCharKeymapOverride {
+                if_current_not_found,
+            },
+        ));
     }
 
     pub fn set_decorations(&mut self, decorations: &[super::suggestive_editor::Decoration]) {
@@ -4588,7 +4646,7 @@ pub enum ViewAlignment {
     Bottom,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, NamedVariant)]
 pub enum DispatchEditor {
     Surround(String, String),
     #[cfg(test)]
@@ -4597,7 +4655,7 @@ pub enum DispatchEditor {
         use_current_selection_mode: bool,
         prior_change: Option<PriorChange>,
     },
-    SetKeymapOverride(Option<KeymapOverride>),
+    SetKeymapOverride(Option<EditorKeymapOverride>),
     ScrollPageDown,
     ScrollPageUp,
     #[cfg(test)]
@@ -4663,6 +4721,10 @@ pub enum DispatchEditor {
     Reset,
     DeleteWordBackward {
         short: bool,
+    },
+    DeleteWord {
+        short: bool,
+        direction: Direction,
     },
     #[cfg(test)]
     SetLanguage(Box<shared::language::Language>),

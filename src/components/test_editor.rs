@@ -258,11 +258,11 @@ fn test_delete_word_short_backward_from_end_of_file() -> anyhow::Result<()> {
                 "fn snake_case(camelCase: String) {",
             )),
             Editor(DeleteWordBackward { short: true }),
-            Expect(CurrentComponentContent("fn snake_case(camelCase: String) ")),
+            Expect(CurrentComponentContent("fn snake_case(camelCase: String)")),
             Editor(DeleteWordBackward { short: true }),
             Expect(CurrentComponentContent("fn snake_case(camelCase: String")),
             Editor(DeleteWordBackward { short: true }),
-            Expect(CurrentComponentContent("fn snake_case(camelCase: ")),
+            Expect(CurrentComponentContent("fn snake_case(camelCase:")),
         ])
     })
 }
@@ -276,12 +276,14 @@ fn test_delete_word_long() -> anyhow::Result<()> {
                 owner: BufferOwner::User,
                 focus: true,
             }),
-            Editor(SetContent("hello_world itsMe".to_string())),
+            Editor(SetContent("a_b . c".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
             // Go to the end of the file
             Editor(EnterInsertMode(Direction::End)),
             Editor(DeleteWordBackward { short: false }),
-            Expect(CurrentComponentContent("hello_world ")),
+            Expect(CurrentComponentContent("a_b .")),
+            Editor(DeleteWordBackward { short: false }),
+            Expect(CurrentComponentContent("a_b")),
             Editor(DeleteWordBackward { short: false }),
             Expect(CurrentComponentContent("")),
         ])
@@ -453,11 +455,70 @@ fn test_delete_word_short_backward_from_middle_of_file() -> anyhow::Result<()> {
             Editor(DeleteWordBackward { short: true }),
             Expect(CurrentComponentContent("fn snake: String) {}")),
             Editor(DeleteWordBackward { short: true }),
-            Expect(CurrentComponentContent("fn : String) {}")),
+            Expect(CurrentComponentContent("fn: String) {}")),
             Editor(DeleteWordBackward { short: true }),
             Expect(CurrentComponentContent(": String) {}")),
             Editor(DeleteWordBackward { short: true }),
             Expect(CurrentComponentContent(": String) {}")),
+        ])
+    })
+}
+
+#[test]
+fn test_delete_subword_forward() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("hello_world".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Editor(EnterInsertMode(Direction::Start)),
+            Editor(DeleteWord {
+                short: true,
+                direction: Direction::End,
+            }),
+            Expect(CurrentComponentContent("_world")),
+            Editor(DeleteWord {
+                short: true,
+                direction: Direction::End,
+            }),
+            Expect(CurrentComponentContent("world")),
+            Editor(DeleteWord {
+                short: true,
+                direction: Direction::End,
+            }),
+            Expect(CurrentComponentContent("")),
+        ])
+    })
+}
+
+#[test]
+fn test_delete_subword_forward_from_middle_of_file() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("hello_world yes".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Subword)),
+            Editor(MoveSelection(Right)),
+            Expect(CurrentSelectedTexts(&["world"])),
+            Editor(EnterInsertMode(Direction::Start)),
+            Editor(DeleteWord {
+                short: true,
+                direction: Direction::End,
+            }),
+            Expect(CurrentComponentContent("hello_yes")),
+            Editor(DeleteWord {
+                short: true,
+                direction: Direction::End,
+            }),
+            Expect(CurrentComponentContent("hello_")),
         ])
     })
 }

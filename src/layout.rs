@@ -224,20 +224,24 @@ impl Layout {
 
     pub fn show_keymap_legend(
         &mut self,
+        on_root: bool,
         keymap_legend_config: KeymapLegendConfig,
-        context: &Context,
         release_key: Option<ReleaseKey>,
     ) {
-        self.tree.append_component_to_current(
+        self.tree.append_component(
+            if on_root {
+                self.tree.root_id()
+            } else {
+                self.tree.focused_component_id()
+            },
             KindedComponent::new(
                 ComponentKind::KeymapLegend,
                 Rc::new(RefCell::new(KeymapLegend::new(
                     keymap_legend_config,
-                    context,
                     release_key,
                 ))),
             ),
-            true,
+            false,
         );
     }
 
@@ -266,12 +270,13 @@ impl Layout {
             .collect()
     }
 
-    pub fn save_all(&self, context: &Context) -> Result<(), anyhow::Error> {
+    pub fn save_all(&self, context: &Context) -> anyhow::Result<Dispatches> {
         self.background_suggestive_editors
             .iter()
             .map(|(_, editor)| editor.borrow_mut().editor_mut().save(context))
-            .collect::<Result<Vec<_>, _>>()?;
-        Ok(())
+            .try_fold(Dispatches::empty(), |dispatches, x| {
+                x.map(|other_dispatches| dispatches.chain(other_dispatches))
+            })
     }
 
     pub fn reveal_path_in_explorer(
@@ -417,6 +422,15 @@ impl Layout {
 
     pub fn close_editor_info(&mut self) {
         self.tree.remove_current_child(ComponentKind::EditorInfo);
+    }
+
+    pub fn close_keymap_legend(&mut self) {
+        self.tree.remove_current_child(ComponentKind::KeymapLegend);
+    }
+
+    pub fn close_app_keymap_legend(&mut self) {
+        self.tree
+            .remove_node_child(self.tree.root_id(), ComponentKind::KeymapLegend);
     }
 
     fn get_current_node_child_id(&self, kind: ComponentKind) -> Option<NodeId> {

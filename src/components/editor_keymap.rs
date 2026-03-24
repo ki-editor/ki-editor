@@ -157,6 +157,20 @@ impl KeyboardLayout {
             .unwrap_or(char_to_translate)
     }
 
+    pub fn translate_char_from_qwerty(&self, qwerty_char: char) -> char {
+        let zipped_chars = || {
+            self.get_keyboard_layout()
+                .iter()
+                .flatten()
+                .zip(QWERTY.iter().flatten())
+                .map(|(char, qwerty)| (*char, *qwerty))
+        };
+        zipped_chars()
+            .chain(zipped_chars().map(|(this, qwerty)| (shifted_char(this), shifted_char(qwerty))))
+            .find_map(|(this, qwerty)| (qwerty == qwerty_char).then_some(this))
+            .unwrap_or(qwerty_char)
+    }
+
     pub fn translate_key_event_to_qwerty(&self, event: KeyEvent) -> KeyEvent {
         match event.code {
             KeyCode::Char(pressed_char) => {
