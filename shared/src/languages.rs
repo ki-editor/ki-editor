@@ -510,7 +510,7 @@ fn heex() -> Language {
 fn latex() -> Language {
     Language {
         extensions: to_vec(&["tex"]),
-        formatter: Some(Command::new("tex-fmt",&["-s"],)),
+        formatter: Some(Command::new("tex-fmt", &["-s"])),
         lsp_command: Some(LspCommand {
             command: Command::new("texlab", &[]),
             initialization_options: None,
