@@ -100,7 +100,7 @@ const Recipe = (props: { recipe: Recipe }) => {
         loadKeyboardLayouts(url).then((keyboardLayouts) =>
             setKeyboardLayouts(keyboardLayouts),
         );
-    }, []);
+    }, [url]);
 
     const buffer_contents_entries = Object.entries(
         props.recipe.steps[stepIndex]?.buffer_contents_map ?? {},
