@@ -3005,7 +3005,7 @@ fn doc_assets_export_keyboard_layouts() {
         })
         .collect_vec();
 
-    let path = format!("docs/static/keyboard-layouts.json");
+    let path = "docs/static/keyboard-layouts.json".to_string();
     let json = serde_json::to_string_pretty(&keyboard_layouts).unwrap();
     std::fs::write(path, json).unwrap();
 }
