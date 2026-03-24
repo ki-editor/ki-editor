@@ -16,6 +16,10 @@ use crate::{
     edit::{Action, ActionGroup, Edit, EditTransaction},
     git::{hunk::SimpleHunkKind, DiffMode, GitOperation as _, GitRepo},
     grid::LINE_NUMBER_VERTICAL_BORDER,
+    keymap::{
+        insert_mode_keymap_legend_config, normal_mode_keymap_legend_config,
+        space_keymap_legend_config,
+    },
     keymap_override::{
         find_one::FindOneCharKeymapOverride, jump::JumpKeymapOverride, EditorKeymapOverride,
         KeymapOverrideTrait,
@@ -3933,8 +3937,7 @@ impl Editor {
         &self,
         include_universal_keymap: bool,
     ) -> super::keymap_legend::Keymap {
-        self.insert_mode_keymap_legend_config(include_universal_keymap)
-            .keymap()
+        insert_mode_keymap_legend_config(include_universal_keymap).keymap()
     }
 
     pub fn set_normal_mode_override(&mut self, normal_mode_override: NormalModeOverride) {
@@ -3949,8 +3952,8 @@ impl Editor {
 
     fn get_current_keymap_legend_config(&self) -> super::keymap_legend::KeymapLegendConfig {
         match self.mode {
-            Mode::Insert => self.insert_mode_keymap_legend_config(true),
-            _ => self.normal_mode_keymap_legend_config(None, None),
+            Mode::Insert => insert_mode_keymap_legend_config(true),
+            _ => normal_mode_keymap_legend_config(self, None, None),
         }
     }
 
@@ -4401,7 +4404,7 @@ impl Editor {
     fn press_space(&self, context: &Context) -> Dispatches {
         match self.mode {
             Mode::Normal => Dispatches::one(Dispatch::ShowKeymapLegend(
-                self.space_keymap_legend_config(context),
+                space_keymap_legend_config(self, context),
             )),
             Mode::Insert => Dispatches::default(),
             _ => Dispatches::one(Dispatch::ToEditor(EnterNormalMode)),

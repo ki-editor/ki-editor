@@ -23,6 +23,7 @@ pub mod history;
 mod integration_event;
 #[cfg(test)]
 mod integration_test;
+pub mod keymap;
 mod keymap_override;
 mod layout;
 pub mod list;
