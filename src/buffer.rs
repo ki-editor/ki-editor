@@ -1,5 +1,6 @@
 use crate::app::{Dispatch, Dispatches};
-use crate::context::Context;
+use crate::components::suggestive_editor::Info;
+use crate::context::{Context, FormatterCommand};
 use crate::git::hunk::SimpleHunk;
 use crate::git::{DiffMode, GitOperation};
 use crate::history::History;
@@ -22,6 +23,7 @@ use anyhow::Context as _;
 use itertools::Itertools;
 use regex::Regex;
 use ropey::Rope;
+use shared::process_command::SpawnCommandError;
 use shared::{absolute_path::AbsolutePath, language::Language};
 use std::ops::Range;
 use std::time::SystemTime;
@@ -721,23 +723,19 @@ impl Buffer {
         Ok(())
     }
 
-    pub fn get_formatted_content(&self) -> Option<String> {
-        if let Some(content) = self.language.as_ref().and_then(|language| {
-            language.formatter().map(|formatter| {
-                log::info!("[FORMAT]: {}", formatter.command_string());
-                formatter.format(&self.rope.to_string())
-            })
-        }) {
-            match content {
-                Ok(content) => {
-                    return Some(content);
-                }
-                Err(error) => {
-                    log::info!("Error formatting: {error}");
-                }
+    pub fn get_formatted_content(&self) -> Option<anyhow::Result<String>> {
+        let formatter = self
+            .language
+            .as_ref()
+            .and_then(|language| language.formatter())?;
+
+        match formatter.format(&self.rope.to_string()) {
+            Ok(content) => Some(Ok(content)),
+            Err(error) => {
+                log::info!("Error formatting: {error}");
+                Some(Err(error))
             }
         }
-        None
     }
 
     pub fn save_without_formatting(
@@ -805,19 +803,35 @@ impl Buffer {
         force: bool,
         last_visible_line: usize,
     ) -> anyhow::Result<(Dispatches, Option<AbsolutePath>)> {
-        if force || self.dirty(context) {
-            if let Some(formatted_content) = self.get_formatted_content() {
-                let dispatches = self.update_content(
-                    &formatted_content,
-                    current_selection_set,
-                    last_visible_line,
-                )?;
-                let (other_dispatches, path) = self.save_without_formatting(context, force)?;
-                return Ok((dispatches.chain(other_dispatches), path));
+        let extra_dispatches = if force || self.dirty(context) {
+            match self.get_formatted_content() {
+                Some(Ok(formatted_content)) => {
+                    let dispatches = self.update_content(
+                        &formatted_content,
+                        current_selection_set,
+                        last_visible_line,
+                    )?;
+                    let (other_dispatches, path) = self.save_without_formatting(context, force)?;
+                    return Ok((dispatches.chain(other_dispatches), path));
+                }
+                Some(Err(error)) => match error.downcast_ref::<SpawnCommandError>() {
+                    // Specially handle command not found error
+                    Some(SpawnCommandError::CommandNotFound { command }) => Dispatches::one(
+                        Dispatch::RaiseFormatterNotExist(FormatterCommand(command.clone())),
+                    ),
+                    None => Dispatches::one(Dispatch::ShowGlobalInfo(Info::new(
+                        "Failed formatter execution".to_string(),
+                        format!("{error}"),
+                    ))),
+                },
+                None => Dispatches::empty(),
             }
-        }
+        } else {
+            Dispatches::empty()
+        };
 
         self.save_without_formatting(context, force)
+            .map(|(dispatches, path)| (dispatches.chain(extra_dispatches), path))
     }
 
     pub fn update_content(

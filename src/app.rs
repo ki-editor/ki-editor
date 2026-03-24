@@ -21,8 +21,8 @@ use crate::{
         },
     },
     context::{
-        Context, GlobalMode, GlobalSearchConfig, LocalSearchConfigMode, QuickfixListKind,
-        QuickfixListSource, Search,
+        Context, FormatterCommand, GlobalMode, GlobalSearchConfig, LocalSearchConfigMode,
+        QuickfixListKind, QuickfixListSource, Search,
     },
     edit::Edit,
     file_watcher::{FileWatcherEvent, FileWatcherInput},
@@ -1212,6 +1212,9 @@ impl<T: Frontend> App<T> {
                 self.open_change_working_directory_prompt()?;
             }
             Dispatch::OpenQuickfixItemsPicker => self.open_quickfix_item_picker()?,
+            Dispatch::RaiseFormatterNotExist(formatter_error) => {
+                self.raise_formatter_error(formatter_error)?;
+            }
         }
         Ok(())
     }
@@ -3608,6 +3611,25 @@ Conflict markers will be injected in areas that cannot be merged gracefully."
             },
         ))
     }
+
+    fn raise_formatter_error(&mut self, formatter_command: FormatterCommand) -> anyhow::Result<()> {
+        if self
+            .context
+            .add_formatter_not_exist_error(&formatter_command)
+        {
+            self.show_global_info(Info::new(
+                "Formatting error".to_string(),
+                format!(
+                    "The formatter `{}` failed to run because it does not exist.\n\
+Please consider installing it.\n\
+(Note: this error will not be shown again in this Ki session.)",
+                    formatter_command.0
+                ),
+            ));
+        }
+
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -3904,6 +3926,7 @@ pub enum Dispatch {
     ChangeWorkingDirectory(AbsolutePath),
     OpenChangeWorkingDirectoryPrompt,
     OpenQuickfixItemsPicker,
+    RaiseFormatterNotExist(FormatterCommand),
 }
 
 /// Used to send notify host app about changes

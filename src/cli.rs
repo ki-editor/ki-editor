@@ -71,6 +71,8 @@ enum Commands {
     },
     /// Prints the log file path
     Log,
+    /// Prints the log file path related to LSP
+    LogLsp,
     /// Display the keymap in various formats
     Keymap {
         #[command(subcommand)]
@@ -192,6 +194,13 @@ pub fn cli() -> anyhow::Result<()> {
                 println!(
                     "{}",
                     AbsolutePath::try_from(grammar::default_log_file())?.display_absolute(),
+                );
+                Ok(())
+            }
+            Commands::LogLsp => {
+                println!(
+                    "{}",
+                    AbsolutePath::try_from(grammar::default_log_lsp_file())?.display_absolute(),
                 );
                 Ok(())
             }
