@@ -4,31 +4,7 @@ import { useColorMode } from "@docusaurus/theme-common";
 import * as React from "react";
 import useBaseUrl from "@docusaurus/useBaseUrl";
 import * as z from "zod";
-
-// Custom hook for localStorage
-function useLocalStorage<T>(key: string) {
-    // Initialize state with value from localStorage or initial value
-    const [storedValue, setStoredValue] = useState<T | undefined>(() => {
-        try {
-            const item = localStorage.getItem(key);
-            return item ? JSON.parse(item) : undefined;
-        } catch (error) {
-            console.error(`Error reading localStorage key "${key}":`, error);
-            return undefined;
-        }
-    });
-
-    // Update localStorage when the state changes
-    useEffect(() => {
-        try {
-            localStorage.setItem(key, JSON.stringify(storedValue));
-        } catch (error) {
-            console.error(`Error writing to localStorage key "${key}":`, error);
-        }
-    }, [key, storedValue]);
-
-    return [storedValue, setStoredValue] as const;
-}
+import { useLocalStorage } from "usehooks-ts";
 
 const keymapSchema = z.object({
     name: z.string(),
@@ -93,24 +69,24 @@ const panelLayouts = ["Unified", "Split", "Stack"] as const;
 type PanelLayout = (typeof panelLayouts)[number];
 
 export const useChosenKeyboardLayout = () =>
-    useLocalStorage<string>(STORAGE_KEYS.KEYBOARD_LAYOUT);
+    useLocalStorage<string>(STORAGE_KEYS.KEYBOARD_LAYOUT, "QWERTY");
 
 const KeymapView = (props: { keymap: Keymap }) => {
     // Using the custom hook for each stored value
-    const [rawShowKeys, setShowKeys] = useLocalStorage<boolean>(
+    const [showKeys, setShowKeys] = useLocalStorage<boolean>(
         STORAGE_KEYS.SHOW_KEYS,
+        true,
     );
-    const showKeys = rawShowKeys ?? true;
 
-    const [rawPanelLayout, setPanelLayout] = useLocalStorage<PanelLayout>(
+    const [panelLayout, setPanelLayout] = useLocalStorage<PanelLayout>(
         STORAGE_KEYS.PANEL_LAYOUT,
+        "Unified",
     );
-    const panelLayout = rawPanelLayout ?? "Unified";
 
-    const [rawGridAlignment, setGridAlignment] = useLocalStorage<GridAlignment>(
+    const [gridAlignment, setGridAlignment] = useLocalStorage<GridAlignment>(
         STORAGE_KEYS.GRID_ALIGNMENT,
+        "Ortholinear",
     );
-    const gridAlignment = rawGridAlignment ?? "Ortholinear";
 
     // Special handling for keyboard layout since we need to find the layout object
     const [layoutName, setLayoutName] = useChosenKeyboardLayout();
