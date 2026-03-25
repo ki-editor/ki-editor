@@ -2990,6 +2990,27 @@ fn doc_assets_export_keymaps_json() {
 }
 
 #[test]
+fn doc_assets_export_keyboard_layouts() {
+    #[derive(Serialize, Clone)]
+    struct KeyboardLayoutJson {
+        name: String,
+        keys: Vec<[char; 10]>,
+    }
+
+    let keyboard_layouts = BUILTIN_KEYBOARD_LAYOUTS
+        .iter()
+        .map(|(name, layout)| KeyboardLayoutJson {
+            name: name.to_string(),
+            keys: layout.to_vec(),
+        })
+        .collect_vec();
+
+    let path = "docs/static/keyboard-layouts.json".to_string();
+    let json = serde_json::to_string_pretty(&keyboard_layouts).unwrap();
+    std::fs::write(path, json).unwrap();
+}
+
+#[test]
 fn doc_assets_export_json_schemas() -> anyhow::Result<()> {
     let path = "docs/static/app_config_json_schema.json".to_string();
     let schema = schema_for!(crate::config::RawConfig);

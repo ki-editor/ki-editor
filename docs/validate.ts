@@ -63,9 +63,11 @@ function validateResourceAccess(
     tagName: string,
 ): string[] {
     const argFilenames = makeExtractArgumentFileNames(tagName)(mdxContent);
-    return argFilenames.filter(
-        (argFilename) => !validFilenames.includes(argFilename as string),
-    );
+    return argFilenames
+        .filter(
+            (argFilename) => !validFilenames.includes(argFilename as string),
+        )
+        .flatMap((x) => (x ? [x] : []));
 }
 
 module.exports = {
@@ -83,7 +85,7 @@ function validate(tagName: string, resourcesPath: string) {
         path.basename(filePath, path.extname(filePath)),
     );
 
-    const mdxFilePaths = glob.sync("docs/**/*.{md,mdx}");
+    const mdxFilePaths: string[] = glob.sync("docs/**/*.{md,mdx}");
 
     // Collect all validation outputs
     const allErrors: Array<{ file: string; invalidResources: string[] }> =

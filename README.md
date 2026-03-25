@@ -1,4 +1,4 @@
-# ⵣ Ki Editor
+# <picture><source media="(prefers-color-scheme: dark)" srcset="https://ki-editor.org/img/logo-white.svg"><img src="https://ki-editor.org/img/logo.svg" height="32"></picture> Ki Editor
 
 Multi-cursor combinatoric modal editor.
 
