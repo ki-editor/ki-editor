@@ -13,7 +13,7 @@
             "dist",
             "src/protocol/types.ts",
             "target",
-            "docs/static",
+            "docs/static/recipes",
             "docs/.docusaurus",
             "themes",
             "nvim-treesitter-highlight-queries/nvim-treesitter"

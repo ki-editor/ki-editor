@@ -1,6 +1,8 @@
 {
     "scripts": {
         "format": "biome format --write . --verbose",
+        "check": "biome check .",
+        "check:fix": "biome check --fix --unsafe",
         "lint": "biome lint .",
         "lint:fix": "biome lint --write ."
     },

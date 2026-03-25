@@ -1,10 +1,10 @@
-import { useEffect, useState } from "react";
 import { useColorMode } from "@docusaurus/theme-common";
+import { useEffect, useState } from "react";
 
-import * as React from "react";
 import useBaseUrl from "@docusaurus/useBaseUrl";
-import * as z from "zod";
+import * as React from "react";
 import { useLocalStorage } from "usehooks-ts";
+import * as z from "zod";
 
 const keymapSchema = z.object({
     name: z.string(),

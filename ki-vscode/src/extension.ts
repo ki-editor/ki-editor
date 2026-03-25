@@ -6,14 +6,14 @@ import { Dispatcher } from "./dispatcher";
 import { ErrorHandler, ErrorSeverity } from "./error_handler";
 import { IPC } from "./ipc";
 import { Logger } from "./logger";
-import { LspManager } from "./managers/lsp_manager";
-import { PromptManager } from "./managers/prompt_manager";
-import { DecorationManager } from "./managers/decoration_manager";
-import { ModeManager } from "./managers/mode_manager";
 import { BufferManager } from "./managers/buffer_manager";
-import { KeyboardManager } from "./managers/keyboard_manager";
-import { SelectionManager } from "./managers/selection_manager";
+import { DecorationManager } from "./managers/decoration_manager";
 import { DiagnosticManager } from "./managers/diagnostic_manager";
+import { KeyboardManager } from "./managers/keyboard_manager";
+import { LspManager } from "./managers/lsp_manager";
+import { ModeManager } from "./managers/mode_manager";
+import { PromptManager } from "./managers/prompt_manager";
+import { SelectionManager } from "./managers/selection_manager";
 
 // Track main extension state
 let ipc: IPC | undefined;

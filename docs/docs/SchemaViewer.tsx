@@ -1,11 +1,11 @@
-// @ts-expect-error - docusaurus-json-schema-plugin types not resolving
-import JSONSchemaViewer from "@theme/JSONSchemaViewer";
-// @ts-expect-error - docusaurus-json-schema-plugin types not resolving
-import JSONSchemaEditor from "@theme/JSONSchemaEditor";
 import AppConfigSchema from "@site/static/app_config_json_schema.json";
+import DefaultConfig from "@site/static/config_default.json";
 import ScriptInputSchema from "@site/static/script_input_json_schema.json";
 import ScriptOutputSchema from "@site/static/script_output_json_schema.json";
-import DefaultConfig from "@site/static/config_default.json";
+// @ts-expect-error - docusaurus-json-schema-plugin types not resolving
+import JSONSchemaEditor from "@theme/JSONSchemaEditor";
+// @ts-expect-error - docusaurus-json-schema-plugin types not resolving
+import JSONSchemaViewer from "@theme/JSONSchemaViewer";
 
 export function AppConfigSchemaViewer() {
     return (

@@ -1,12 +1,12 @@
-import { fromMarkdown, type Value } from "mdast-util-from-markdown";
-import { mdxFromMarkdown } from "mdast-util-mdx";
-import { mdx } from "micromark-extension-mdx";
 import type { Node, Parent } from "mdast";
+import { type Value, fromMarkdown } from "mdast-util-from-markdown";
+import { mdxFromMarkdown } from "mdast-util-mdx";
 import type {
     MdxJsxAttribute,
     MdxJsxFlowElement,
     MdxJsxTextElement,
 } from "mdast-util-mdx";
+import { mdx } from "micromark-extension-mdx";
 
 // A type guard to check if a node has children
 function isParent(node: Node | Parent): node is Parent {

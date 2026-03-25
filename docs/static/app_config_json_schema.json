@@ -1,475 +1,424 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "RawConfig",
-  "type": "object",
-  "properties": {
-    "custom_keyboard_layouts": {
-      "type": "object",
-      "additionalProperties": {
-        "type": "array",
-        "items": {
-          "type": "array",
-          "items": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "RawConfig",
+    "type": "object",
+    "properties": {
+        "custom_keyboard_layouts": {
+            "type": "object",
+            "additionalProperties": {
+                "type": "array",
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "maxLength": 1,
+                        "minLength": 1
+                    },
+                    "maxItems": 10,
+                    "minItems": 10
+                },
+                "maxItems": 3,
+                "minItems": 3
+            },
+            "default": {}
+        },
+        "indent_char": {
+            "$ref": "#/$defs/IndentChar"
+        },
+        "indent_width": {
+            "type": "integer",
+            "format": "uint",
+            "minimum": 0
+        },
+        "keyboard_layout": {
+            "type": "string"
+        },
+        "languages": {
+            "type": "object",
+            "additionalProperties": {
+                "$ref": "#/$defs/Language"
+            }
+        },
+        "leader_keymap": {
+            "$ref": "#/$defs/LeaderKeymap"
+        },
+        "status_lines": {
+            "type": "array",
+            "items": {
+                "$ref": "#/$defs/StatusLine"
+            }
+        },
+        "theme": {
+            "$ref": "#/$defs/Theme"
+        }
+    },
+    "additionalProperties": false,
+    "required": [
+        "languages",
+        "keyboard_layout",
+        "theme",
+        "status_lines",
+        "leader_keymap",
+        "indent_char",
+        "indent_width"
+    ],
+    "$defs": {
+        "CargoLinkedTreesitterLanguage": {
             "type": "string",
-            "maxLength": 1,
-            "minLength": 1
-          },
-          "maxItems": 10,
-          "minItems": 10
+            "enum": [
+                "Typescript",
+                "TSX",
+                "Python",
+                "Perl",
+                "Julia",
+                "Scheme",
+                "OCaml",
+                "OCamlInterface",
+                "Rust",
+                "Graphql",
+                "Javascript",
+                "JSX",
+                "Svelte",
+                "JSON",
+                "YAML",
+                "HTML",
+                "XML",
+                "Zig",
+                "Markdown",
+                "Go",
+                "Lua",
+                "Gleam",
+                "Bash",
+                "C",
+                "CPP",
+                "CSS",
+                "Ruby",
+                "Nix",
+                "Fish",
+                "Diff",
+                "Elixir",
+                "Swift",
+                "Heex",
+                "Latex",
+                "Toml",
+                "KiQuickfix",
+                "Haskell",
+                "Hcl",
+                "Odin",
+                "CSharp",
+                "Clojure",
+                "FSharp",
+                "Scala"
+            ]
         },
-        "maxItems": 3,
-        "minItems": 3
-      },
-      "default": {}
-    },
-    "indent_char": {
-      "$ref": "#/$defs/IndentChar"
-    },
-    "indent_width": {
-      "type": "integer",
-      "format": "uint",
-      "minimum": 0
-    },
-    "keyboard_layout": {
-      "type": "string"
-    },
-    "languages": {
-      "type": "object",
-      "additionalProperties": {
-        "$ref": "#/$defs/Language"
-      }
-    },
-    "leader_keymap": {
-      "$ref": "#/$defs/LeaderKeymap"
-    },
-    "status_lines": {
-      "type": "array",
-      "items": {
-        "$ref": "#/$defs/StatusLine"
-      }
-    },
-    "theme": {
-      "$ref": "#/$defs/Theme"
-    }
-  },
-  "additionalProperties": false,
-  "required": [
-    "languages",
-    "keyboard_layout",
-    "theme",
-    "status_lines",
-    "leader_keymap",
-    "indent_char",
-    "indent_width"
-  ],
-  "$defs": {
-    "CargoLinkedTreesitterLanguage": {
-      "type": "string",
-      "enum": [
-        "Typescript",
-        "TSX",
-        "Python",
-        "Perl",
-        "Julia",
-        "Scheme",
-        "OCaml",
-        "OCamlInterface",
-        "Rust",
-        "Graphql",
-        "Javascript",
-        "JSX",
-        "Svelte",
-        "JSON",
-        "YAML",
-        "HTML",
-        "XML",
-        "Zig",
-        "Markdown",
-        "Go",
-        "Lua",
-        "Gleam",
-        "Bash",
-        "C",
-        "CPP",
-        "CSS",
-        "Ruby",
-        "Nix",
-        "Fish",
-        "Diff",
-        "Elixir",
-        "Swift",
-        "Heex",
-        "Latex",
-        "Toml",
-        "KiQuickfix",
-        "Haskell",
-        "Hcl",
-        "Odin",
-        "CSharp",
-        "Clojure",
-        "FSharp",
-        "Scala"
-      ]
-    },
-    "Command": {
-      "type": "object",
-      "properties": {
-        "arguments": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "command": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "command",
-        "arguments"
-      ]
-    },
-    "GrammarConfig": {
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string"
-        },
-        "kind": {
-          "$ref": "#/$defs/GrammarConfigKind"
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "id",
-        "kind"
-      ]
-    },
-    "GrammarConfigKind": {
-      "oneOf": [
-        {
-          "description": "This is the recommended over `FromSource`, as `FromSource`\nis not reliable across different operating system.",
-          "type": "object",
-          "properties": {
-            "CargoLinked": {
-              "$ref": "#/$defs/CargoLinkedTreesitterLanguage"
-            }
-          },
-          "additionalProperties": false,
-          "required": [
-            "CargoLinked"
-          ]
-        },
-        {
-          "type": "object",
-          "properties": {
-            "FromSource": {
-              "type": "object",
-              "properties": {
-                "commit": {
-                  "type": "string"
+        "Command": {
+            "type": "object",
+            "properties": {
+                "arguments": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
-                "subpath": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "url": {
-                  "type": "string"
+                "command": {
+                    "type": "string"
                 }
-              },
-              "required": [
-                "url",
-                "commit"
-              ]
-            }
-          },
-          "additionalProperties": false,
-          "required": [
-            "FromSource"
-          ]
-        }
-      ]
-    },
-    "IndentChar": {
-      "type": "string",
-      "enum": [
-        "space",
-        "tab"
-      ]
-    },
-    "Keybinding": {
-      "type": "object",
-      "properties": {
-        "name": {
-          "type": "string"
-        },
-        "script": {
-          "$ref": "#/$defs/Script"
-        }
-      },
-      "required": [
-        "name",
-        "script"
-      ]
-    },
-    "Language": {
-      "type": "object",
-      "properties": {
-        "block_comment_affixes": {
-          "type": [
-            "array",
-            "null"
-          ],
-          "examples": [
-            [
-              "/*",
-              "*/"
-            ]
-          ],
-          "maxItems": 2,
-          "minItems": 2,
-          "prefixItems": [
-            {
-              "type": "string"
             },
-            {
-              "type": "string"
-            }
-          ]
+            "additionalProperties": false,
+            "required": ["command", "arguments"]
         },
-        "extensions": {
-          "type": "array",
-          "examples": [
-            [
-              "ts",
-              "tsx"
+        "GrammarConfig": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "kind": {
+                    "$ref": "#/$defs/GrammarConfigKind"
+                }
+            },
+            "additionalProperties": false,
+            "required": ["id", "kind"]
+        },
+        "GrammarConfigKind": {
+            "oneOf": [
+                {
+                    "description": "This is the recommended over `FromSource`, as `FromSource`\nis not reliable across different operating system.",
+                    "type": "object",
+                    "properties": {
+                        "CargoLinked": {
+                            "$ref": "#/$defs/CargoLinkedTreesitterLanguage"
+                        }
+                    },
+                    "additionalProperties": false,
+                    "required": ["CargoLinked"]
+                },
+                {
+                    "type": "object",
+                    "properties": {
+                        "FromSource": {
+                            "type": "object",
+                            "properties": {
+                                "commit": {
+                                    "type": "string"
+                                },
+                                "subpath": {
+                                    "type": ["string", "null"]
+                                },
+                                "url": {
+                                    "type": "string"
+                                }
+                            },
+                            "required": ["url", "commit"]
+                        }
+                    },
+                    "additionalProperties": false,
+                    "required": ["FromSource"]
+                }
             ]
-          ],
-          "items": {
+        },
+        "IndentChar": {
+            "type": "string",
+            "enum": ["space", "tab"]
+        },
+        "Keybinding": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "script": {
+                    "$ref": "#/$defs/Script"
+                }
+            },
+            "required": ["name", "script"]
+        },
+        "Language": {
+            "type": "object",
+            "properties": {
+                "block_comment_affixes": {
+                    "type": ["array", "null"],
+                    "examples": [["/*", "*/"]],
+                    "maxItems": 2,
+                    "minItems": 2,
+                    "prefixItems": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "string"
+                        }
+                    ]
+                },
+                "extensions": {
+                    "type": "array",
+                    "examples": [["ts", "tsx"]],
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "file_names": {
+                    "description": "For files without extensions.",
+                    "type": "array",
+                    "examples": [["Dockerfile"]],
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "formatter": {
+                    "description": "The formatter command will receive the content from STDIN\nand is expected to return the formatted output to STDOUT.",
+                    "anyOf": [
+                        {
+                            "$ref": "#/$defs/Command"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
+                },
+                "line_comment_prefix": {
+                    "type": ["string", "null"],
+                    "examples": ["//"]
+                },
+                "lsp_command": {
+                    "anyOf": [
+                        {
+                            "$ref": "#/$defs/LspCommand"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
+                },
+                "lsp_language_id": {
+                    "anyOf": [
+                        {
+                            "$ref": "#/$defs/LanguageId"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
+                },
+                "tree_sitter_grammar_config": {
+                    "anyOf": [
+                        {
+                            "$ref": "#/$defs/GrammarConfig"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
+                }
+            },
+            "additionalProperties": false,
+            "required": ["extensions", "file_names"]
+        },
+        "LanguageId": {
+            "description": "As defined by the LSP protocol.\nSee sections below https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#range",
             "type": "string"
-          }
         },
-        "file_names": {
-          "description": "For files without extensions.",
-          "type": "array",
-          "examples": [
-            [
-              "Dockerfile"
-            ]
-          ],
-          "items": {
+        "LeaderKeymap": {
+            "description": "The leader keymap is a 3x10 matrix representing three rows of 10 columns.\n\nAssuming the keyboard layout is Qwerty, then:  \n\n1st row is \"qwertyuiop\",  \n2nd row is \"asdfghjkl;\",  \nand 3rd row is \"zxcvbnm,./\".",
+            "type": "array",
+            "items": {
+                "type": "array",
+                "items": {
+                    "anyOf": [
+                        {
+                            "$ref": "#/$defs/Keybinding"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
+                },
+                "maxItems": 10,
+                "minItems": 10
+            },
+            "maxItems": 3,
+            "minItems": 3
+        },
+        "LspCommand": {
+            "type": "object",
+            "properties": {
+                "command": {
+                    "$ref": "#/$defs/Command"
+                },
+                "initialization_options": true
+            },
+            "additionalProperties": false,
+            "required": ["command"]
+        },
+        "Script": {
             "type": "string"
-          }
         },
-        "formatter": {
-          "description": "The formatter command will receive the content from STDIN\nand is expected to return the formatted output to STDOUT.",
-          "anyOf": [
-            {
-              "$ref": "#/$defs/Command"
+        "StatusLine": {
+            "type": "object",
+            "properties": {
+                "components": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/StatusLineComponent"
+                    }
+                }
             },
-            {
-              "type": "null"
-            }
-          ]
+            "required": ["components"]
         },
-        "line_comment_prefix": {
-          "type": [
-            "string",
-            "null"
-          ],
-          "examples": [
-            "//"
-          ]
+        "StatusLineComponent": {
+            "oneOf": [
+                {
+                    "type": "string",
+                    "enum": [
+                        "KiCharacter",
+                        "CurrentWorkingDirectory",
+                        "GitBranch",
+                        "Mode",
+                        "SelectionMode",
+                        "LastDispatch",
+                        "LineColumn",
+                        "LastSearchString",
+                        "Help",
+                        "KeyboardLayout",
+                        "Reveal",
+                        "CurrentFileParentFolder",
+                        "LspProgress"
+                    ]
+                },
+                {
+                    "description": "A spacer pushes its preceding group of components to the left,\nand the following to the right.\n\nIf a status line contains more than one spacers,\neach spacer will be given the similar width.",
+                    "type": "string",
+                    "const": "Spacer"
+                },
+                {
+                    "description": "The detected language for the current file",
+                    "type": "string",
+                    "const": "Language"
+                }
+            ]
         },
-        "lsp_command": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/LspCommand"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "lsp_language_id": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/LanguageId"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "tree_sitter_grammar_config": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/GrammarConfig"
-            },
-            {
-              "type": "null"
-            }
-          ]
+        "Theme": {
+            "type": "string",
+            "enum": [
+                "Alabaster",
+                "Alabaster BG",
+                "Alabaster Dark",
+                "Alabaster Dark Mono",
+                "Alabaster Mono",
+                "Apathy Dark",
+                "Apathy Light",
+                "Ayu Dark",
+                "Ayu Light",
+                "Ayu Mirage",
+                "Catppuccin Frappé",
+                "Catppuccin Latte",
+                "Catppuccin Macchiato",
+                "Catppuccin Mocha",
+                "Dracula",
+                "Dracula Light (Alucard)",
+                "Dracula Solid",
+                "Github Dark",
+                "Github Dark Colorblind",
+                "Github Dark Dimmed",
+                "Github Dark High Contrast",
+                "Github Dark Tritanopia",
+                "Github Light",
+                "Github Light Colorblind",
+                "Github Light High Contrast",
+                "Github Light Tritanopia",
+                "Gruber Darker",
+                "Gruvbox Dark",
+                "Gruvbox Dark Hard",
+                "Gruvbox Dark Soft",
+                "Gruvbox Light",
+                "Gruvbox Light Hard",
+                "Gruvbox Light Soft",
+                "Modus Operandi",
+                "Modus Operandi Deuteranopia",
+                "Modus Operandi Tinted",
+                "Modus Operandi Tritanopia",
+                "Modus Vivendi",
+                "Modus Vivendi Deuteranopia",
+                "Modus Vivendi Tinted",
+                "Modus Vivendi Tritanopia",
+                "Monokai",
+                "Monokai-ST3",
+                "Mqual Blue",
+                "Nord Dark",
+                "Nord Light",
+                "One Dark",
+                "One Light",
+                "Rosé Pine",
+                "Solarized Dark",
+                "Solarized Light",
+                "Tokyo Night",
+                "Tokyo Night Light",
+                "Tokyo Night Moon",
+                "Tokyo Night Storm",
+                "VS Code (Dark)",
+                "VS Code (Light)",
+                "Very Dark"
+            ]
         }
-      },
-      "additionalProperties": false,
-      "required": [
-        "extensions",
-        "file_names"
-      ]
-    },
-    "LanguageId": {
-      "description": "As defined by the LSP protocol.\nSee sections below https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#range",
-      "type": "string"
-    },
-    "LeaderKeymap": {
-      "description": "The leader keymap is a 3x10 matrix representing three rows of 10 columns.\n\nAssuming the keyboard layout is Qwerty, then:  \n\n1st row is \"qwertyuiop\",  \n2nd row is \"asdfghjkl;\",  \nand 3rd row is \"zxcvbnm,./\".",
-      "type": "array",
-      "items": {
-        "type": "array",
-        "items": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/Keybinding"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "maxItems": 10,
-        "minItems": 10
-      },
-      "maxItems": 3,
-      "minItems": 3
-    },
-    "LspCommand": {
-      "type": "object",
-      "properties": {
-        "command": {
-          "$ref": "#/$defs/Command"
-        },
-        "initialization_options": true
-      },
-      "additionalProperties": false,
-      "required": [
-        "command"
-      ]
-    },
-    "Script": {
-      "type": "string"
-    },
-    "StatusLine": {
-      "type": "object",
-      "properties": {
-        "components": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/StatusLineComponent"
-          }
-        }
-      },
-      "required": [
-        "components"
-      ]
-    },
-    "StatusLineComponent": {
-      "oneOf": [
-        {
-          "type": "string",
-          "enum": [
-            "KiCharacter",
-            "CurrentWorkingDirectory",
-            "GitBranch",
-            "Mode",
-            "SelectionMode",
-            "LastDispatch",
-            "LineColumn",
-            "LastSearchString",
-            "Help",
-            "KeyboardLayout",
-            "Reveal",
-            "CurrentFileParentFolder",
-            "LspProgress"
-          ]
-        },
-        {
-          "description": "A spacer pushes its preceding group of components to the left,\nand the following to the right.\n\nIf a status line contains more than one spacers,\neach spacer will be given the similar width.",
-          "type": "string",
-          "const": "Spacer"
-        },
-        {
-          "description": "The detected language for the current file",
-          "type": "string",
-          "const": "Language"
-        }
-      ]
-    },
-    "Theme": {
-      "type": "string",
-      "enum": [
-        "Alabaster",
-        "Alabaster BG",
-        "Alabaster Dark",
-        "Alabaster Dark Mono",
-        "Alabaster Mono",
-        "Apathy Dark",
-        "Apathy Light",
-        "Ayu Dark",
-        "Ayu Light",
-        "Ayu Mirage",
-        "Catppuccin Frappé",
-        "Catppuccin Latte",
-        "Catppuccin Macchiato",
-        "Catppuccin Mocha",
-        "Dracula",
-        "Dracula Light (Alucard)",
-        "Dracula Solid",
-        "Github Dark",
-        "Github Dark Colorblind",
-        "Github Dark Dimmed",
-        "Github Dark High Contrast",
-        "Github Dark Tritanopia",
-        "Github Light",
-        "Github Light Colorblind",
-        "Github Light High Contrast",
-        "Github Light Tritanopia",
-        "Gruber Darker",
-        "Gruvbox Dark",
-        "Gruvbox Dark Hard",
-        "Gruvbox Dark Soft",
-        "Gruvbox Light",
-        "Gruvbox Light Hard",
-        "Gruvbox Light Soft",
-        "Modus Operandi",
-        "Modus Operandi Deuteranopia",
-        "Modus Operandi Tinted",
-        "Modus Operandi Tritanopia",
-        "Modus Vivendi",
-        "Modus Vivendi Deuteranopia",
-        "Modus Vivendi Tinted",
-        "Modus Vivendi Tritanopia",
-        "Monokai",
-        "Monokai-ST3",
-        "Mqual Blue",
-        "Nord Dark",
-        "Nord Light",
-        "One Dark",
-        "One Light",
-        "Rosé Pine",
-        "Solarized Dark",
-        "Solarized Light",
-        "Tokyo Night",
-        "Tokyo Night Light",
-        "Tokyo Night Moon",
-        "Tokyo Night Storm",
-        "VS Code (Dark)",
-        "VS Code (Light)",
-        "Very Dark"
-      ]
     }
-  }
 }

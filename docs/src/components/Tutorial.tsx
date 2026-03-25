@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
 import useBaseUrl from "@docusaurus/useBaseUrl";
+import { useEffect, useMemo, useState } from "react";
 
-import { useXTerm, type UseXTermProps } from "react-xtermjs";
+import { type UseXTermProps, useXTerm } from "react-xtermjs";
 import * as z from "zod";
 import { useChosenKeyboardLayout } from "./Keymap";
 

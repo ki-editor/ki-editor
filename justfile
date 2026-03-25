@@ -22,6 +22,7 @@ fmt-check:
     @echo "Checking formating"
     cargo fmt --all -- --check
     alejandra --exclude ./nvim-treesitter-highlight-queries/nvim-treesitter/ --check ./
+    npm run check
     
 fmt:
 	cargo fmt --all

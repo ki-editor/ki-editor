@@ -8,10 +8,10 @@
  * It also ensures that binary files have the correct permissions.
  */
 
-import { join } from "node:path";
-import { mkdir, readdir, chmod } from "node:fs/promises";
 import { existsSync } from "node:fs";
+import { chmod, mkdir, readdir } from "node:fs/promises";
 import { platform } from "node:os";
+import { join } from "node:path";
 
 async function bundle() {
     console.log("Bundling Ki VS Code extension...");
