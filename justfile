@@ -94,6 +94,7 @@ check-config-schema:
     set -x
     cargo build 
     cargo test -- doc_assets_export_json_schemas
+    npm install && npm run check:fix 
     if ! git diff --exit-code docs/static/app_config_json_schema.json; then
         echo "❌ Config schema is out of date!"
         echo "Please run 'just check-config-schema' and commit 'docs/static/app_config_json_schema.json'."
