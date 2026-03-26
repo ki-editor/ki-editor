@@ -117,7 +117,6 @@ pub struct App<T: Frontend> {
     syntax_highlight_request_sender: Option<Sender<SyntaxHighlightRequest>>,
     status_lines: Vec<StatusLine>,
     last_action_description: Option<String>,
-    last_action_short_description: Option<String>,
 
     /// This is necessary when Ki is running as an embedded application
     last_prompt_config: Option<PromptConfig>,
@@ -260,7 +259,6 @@ impl<T: Frontend> App<T> {
             global_title: None,
             status_lines,
             last_action_description: None,
-            last_action_short_description: None,
             integration_event_sender,
             last_prompt_config: None,
             queued_events: Vec::new(),
@@ -1140,10 +1138,8 @@ impl<T: Frontend> App<T> {
             }
             Dispatch::SetLastActionDescription {
                 long_description: description,
-                short_description,
             } => {
                 self.last_action_description = Some(description);
-                self.last_action_short_description = short_description;
             }
             Dispatch::OpenFilterSelectionsPrompt { maintain } => {
                 self.open_filter_selections_prompt(maintain)?;
@@ -3860,7 +3856,6 @@ pub enum Dispatch {
     UseLastNonContiguousSelectionMode(IfCurrentNotFound),
     SetLastActionDescription {
         long_description: String,
-        short_description: Option<String>,
     },
     OpenFilterSelectionsPrompt {
         maintain: bool,
