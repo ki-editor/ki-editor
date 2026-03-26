@@ -296,8 +296,8 @@ impl<T: Frontend> App<T> {
     pub fn run(mut self, entry_path: Option<AbsolutePath>) -> Result<(), anyhow::Error> {
         self.set_terminal_options()?;
 
-        let first_dispatch = if let Some(entry_path) = entry_path {
-            Some(if entry_path.as_ref().is_dir() {
+        let first_dispatch = entry_path.map(|entry_path| {
+            if entry_path.as_ref().is_dir() {
                 Dispatch::OpenFileExplorer
             } else {
                 Dispatch::OpenFile {
@@ -305,16 +305,14 @@ impl<T: Frontend> App<T> {
                     owner: BufferOwner::User,
                     focus: true,
                 }
-            })
-        } else {
-            None
-        };
+            }
+        });
 
         if let Some(first_dispatch) = first_dispatch {
             if let Err(error) = self.sender.send(AppMessage::ExternalDispatch(Box::new(
                 first_dispatch.clone(),
             ))) {
-                log::error!("Failed to send the first dispatch {first_dispatch:?} due to {error}")
+                log::error!("Failed to send the first dispatch {first_dispatch:?} due to {error}");
             }
         }
 
