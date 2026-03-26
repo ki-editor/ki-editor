@@ -235,9 +235,8 @@ fn secondary_selection_modes_keybindings(
                 Keybinding::new(key, description.to_string(), dispatch)
             })
             .chain([
-                Keybinding::new_descriptive(
+                Keybinding::new(
                     "d",
-                    Direction::Start.format_action("Search"),
                     Direction::Start.format_action("Search"),
                     Dispatch::OpenSearchPromptWithPriorChange {
                         scope: Scope::Local,
@@ -256,10 +255,9 @@ fn secondary_selection_modes_keybindings(
                         prior_change,
                     },
                 ),
-                Keybinding::new_descriptive(
+                Keybinding::new(
                     "y",
                     "One".to_string(),
-                    "Find Character".to_string(),
                     Dispatch::ToEditor(FindOneChar(if_current_not_found)),
                 ),
                 Keybinding::new(
@@ -278,9 +276,8 @@ fn secondary_selection_modes_keybindings(
             ))
             .collect_vec(),
         Scope::Global => [
-            Keybinding::new_descriptive(
+            Keybinding::new(
                 "d",
-                "Search".to_string(),
                 "Search".to_string(),
                 Dispatch::OpenSearchPrompt {
                     scope,
@@ -340,19 +337,17 @@ pub fn normal_mode_keymap_legend_config(
 
 fn search_current_keymap(scope: Scope, if_current_not_found: IfCurrentNotFound) -> Vec<Keybinding> {
     [
-        Keybinding::new_descriptive(
+        Keybinding::new(
             "f",
             "Search This".to_string(),
-            "Search current selection".to_string(),
             Dispatch::ToEditor(DispatchEditor::SearchCurrentSelection(
                 if_current_not_found,
                 scope,
             )),
         ),
-        Keybinding::new_descriptive(
+        Keybinding::new(
             "F",
             "Search Clipboard".to_string(),
-            "Search clipboard content".to_string(),
             Dispatch::ToEditor(DispatchEditor::SearchClipboardContent(scope)),
         ),
     ]
@@ -838,16 +833,14 @@ pub fn multicursor_momentary_layer_keymap(editor: &Editor) -> Keymap {
                 "Delete Curs".to_string(),
                 Dispatch::ToEditor(DeleteCurrentCursor(Direction::End)),
             ),
-            Keybinding::new_descriptive(
+            Keybinding::new(
                 "h",
                 Direction::Start.format_action("Curs"),
-                Direction::Start.format_action("Cycle primary selection"),
                 Dispatch::ToEditor(CyclePrimarySelection(Direction::Start)),
             ),
-            Keybinding::new_descriptive(
+            Keybinding::new(
                 ";",
                 Direction::End.format_action("Curs"),
-                Direction::End.format_action("Cycle primary selection"),
                 Dispatch::ToEditor(CyclePrimarySelection(Direction::End)),
             ),
             Keybinding::new(
@@ -879,7 +872,7 @@ pub fn keymap_sub_modes(editor: &Editor) -> Vec<Keybinding> {
         )),
         Some(Keybinding::momentary_layer(MomentaryLayer {
             key: "t",
-            description: "≡ Swap".to_string(),
+            name: "≡ Swap".to_string(),
             config: KeymapLegendConfig {
                 title: "≡ Swap".to_string(),
                 keymap: swap_keymap(),
@@ -893,7 +886,7 @@ pub fn keymap_sub_modes(editor: &Editor) -> Vec<Keybinding> {
         )),
         Some(Keybinding::momentary_layer(MomentaryLayer {
             key: "r",
-            description: "≡ Multi-cursor".to_string(),
+            name: "≡ Multi-cursor".to_string(),
             config: KeymapLegendConfig {
                 title: "≡ Multi-cursor".to_string(),
                 keymap: multicursor_momentary_layer_keymap(editor),
@@ -927,15 +920,10 @@ fn keymap_clipboard_related_actions(
     let extra = if use_system_clipboard { "+ " } else { "" };
     let format = |description: &str| format!("{extra}{description}");
     [
-        Keybinding::new_descriptive(
-            "F",
-            format("Change X"),
-            format!("{}{}", "Change Cut", extra),
-            Dispatch::ToEditor(ChangeCut),
-        ),
+        Keybinding::new("F", format("Change X"), Dispatch::ToEditor(ChangeCut)),
         Keybinding::momentary_layer(MomentaryLayer {
             key: "c",
-            description: "≡ Copy".to_string(),
+            name: "≡ Copy".to_string(),
             config: KeymapLegendConfig {
                 title: "≡ Copy".to_string(),
                 keymap: duplicate_keymap(),
@@ -997,19 +985,17 @@ pub fn keymap_core_movements(prior_change: Option<PriorChange>) -> Vec<Keybindin
                 prior_change,
             )),
         ),
-        Keybinding::new_descriptive(
+        Keybinding::new(
             "m",
-            "Jump".to_string(),
             "Jump".to_string(),
             Dispatch::ToEditor(DispatchEditor::ShowJumps {
                 use_current_selection_mode: true,
                 prior_change,
             }),
         ),
-        Keybinding::new_descriptive(
+        Keybinding::new(
             "M",
             "Index".to_string(),
-            "To Index (1-based)".to_string(),
             Dispatch::OpenMoveToIndexPrompt(prior_change),
         ),
         Keybinding::new(
@@ -1070,10 +1056,9 @@ pub fn keymap_secondary_selection_modes_init(
     editor: &Editor,
     prior_change: Option<PriorChange>,
 ) -> Vec<Keybinding> {
-    [Keybinding::new_descriptive(
+    [Keybinding::new(
         "n",
         "⚲ Local".to_string(),
-        "Find (Local)".to_string(),
         Dispatch::ShowKeymapLegend(secondary_selection_modes_keymap_legend_config(
             editor,
             Scope::Local,
@@ -1094,7 +1079,7 @@ fn keymap_clipboard_related_actions_overridable(
     [
         Keybinding::momentary_layer(MomentaryLayer {
             key: "b",
-            description: format("≡ Paste"),
+            name: format("≡ Paste"),
             config: KeymapLegendConfig {
                 title: "≡ Paste".to_string(),
                 keymap: paste_keymap(),
@@ -1110,7 +1095,7 @@ fn keymap_clipboard_related_actions_overridable(
         ),
         Keybinding::momentary_layer(MomentaryLayer {
             key: "x",
-            description: "≡ Cut".to_string(),
+            name: "≡ Cut".to_string(),
             config: KeymapLegendConfig {
                 title: "≡ Cut".to_string(),
                 keymap: cut_keymap(),
@@ -1129,18 +1114,12 @@ fn keymap_clipboard_related_actions_overridable(
 
 pub fn keymap_universal() -> Vec<Keybinding> {
     [
-        Keybinding::new_descriptive(
+        Keybinding::new(
             "alt+;",
             "⇋ Align View".to_string(),
-            "Switch view alignment".to_string(),
             Dispatch::ToEditor(SwitchViewAlignment),
         ),
-        Keybinding::new_descriptive(
-            "alt+/",
-            "⇋ Window".to_string(),
-            "Switch window".to_string(),
-            Dispatch::OtherWindow,
-        ),
+        Keybinding::new("alt+/", "⇋ Window".to_string(), Dispatch::OtherWindow),
         #[cfg(unix)]
         Keybinding::new("ctrl+z", "Suspend".to_string(), Dispatch::Suspend),
     ]
@@ -1152,34 +1131,29 @@ pub fn insert_mode_keymap_legend_config(include_universal_keymap: bool) -> Keyma
         title: "Insert mode keymap".to_string(),
         keymap: Keymap::new(
             &[
-                Keybinding::new_descriptive(
+                Keybinding::new(
                     "left",
                     "Char ←".to_string(),
-                    "Move back a character".to_string(),
                     Dispatch::ToEditor(MoveCharacterBack),
                 ),
-                Keybinding::new_descriptive(
+                Keybinding::new(
                     "right",
                     "Char →".to_string(),
-                    "Move forward a character".to_string(),
                     Dispatch::ToEditor(MoveCharacterForward),
                 ),
-                Keybinding::new_descriptive(
+                Keybinding::new(
                     "alt+y",
                     "Line ←".to_string(),
-                    "Move to line start".to_string(),
                     Dispatch::ToEditor(MoveToLineStart),
                 ),
-                Keybinding::new_descriptive(
+                Keybinding::new(
                     "alt+p",
                     "Line →".to_string(),
-                    "Move to line end".to_string(),
                     Dispatch::ToEditor(MoveToLineEnd),
                 ),
-                Keybinding::new_descriptive(
+                Keybinding::new(
                     "alt+backspace",
                     "Delete Word ←".to_string(),
-                    "Delete word backward".to_string(),
                     Dispatch::ToEditor(DeleteWordBackward { short: true }),
                 ),
                 Keybinding::new(
@@ -1221,7 +1195,7 @@ pub fn insert_mode_keymap_legend_config(include_universal_keymap: bool) -> Keyma
             })
             .chain([Keybinding::momentary_layer(MomentaryLayer {
                 key: "alt+e",
-                description: "≡ Buffer".to_string(),
+                name: "≡ Buffer".to_string(),
                 config: KeymapLegendConfig {
                     title: "≡ Buffer".to_string(),
                     keymap: buffer_keymap(true),
@@ -1233,7 +1207,7 @@ pub fn insert_mode_keymap_legend_config(include_universal_keymap: bool) -> Keyma
             })])
             .chain([Keybinding::momentary_layer(MomentaryLayer {
                 key: "alt+v",
-                description: "Delete".to_string(),
+                name: "Delete".to_string(),
                 config: KeymapLegendConfig {
                     title: "Delete".to_string(),
                     keymap: insert_mode_delete_keymap(),
@@ -1248,16 +1222,14 @@ pub fn insert_mode_keymap_legend_config(include_universal_keymap: bool) -> Keyma
 pub fn insert_mode_delete_keymap() -> Keymap {
     Keymap::new(
         [
-            Keybinding::new_descriptive(
+            Keybinding::new(
                 "alt+y",
                 "Kill Line ←".to_string(),
-                Direction::End.format_action("Kill line"),
                 Dispatch::ToEditor(KillLine(Direction::Start)),
             ),
-            Keybinding::new_descriptive(
+            Keybinding::new(
                 "alt+p",
                 "Kill Line →".to_string(),
-                Direction::End.format_action("Kill line"),
                 Dispatch::ToEditor(KillLine(Direction::End)),
             ),
             Keybinding::new(
@@ -1303,18 +1275,8 @@ pub fn keymap_actions(
     _prior_change: Option<PriorChange>,
 ) -> Vec<Keybinding> {
     [
-        Keybinding::new_descriptive(
-            "I",
-            "Join".to_string(),
-            "Join".to_string(),
-            Dispatch::ToEditor(JoinSelection),
-        ),
-        Keybinding::new_descriptive(
-            "K",
-            "Break".to_string(),
-            "Break".to_string(),
-            Dispatch::ToEditor(BreakSelection),
-        ),
+        Keybinding::new("I", "Join".to_string(), Dispatch::ToEditor(JoinSelection)),
+        Keybinding::new("K", "Break".to_string(), Dispatch::ToEditor(BreakSelection)),
         Keybinding::new(
             "Y",
             Direction::Start.format_action("Align"),
@@ -1325,33 +1287,16 @@ pub fn keymap_actions(
             Direction::End.format_action("Align"),
             Dispatch::ToEditor(AlignSelections(Direction::End)),
         ),
-        Keybinding::new_descriptive(
+        Keybinding::new(
             "T",
-            "Raise".to_string(),
             "Raise".to_string(),
             Dispatch::ToEditor(Replace(Movement::Expand)),
         ),
-        Keybinding::new_descriptive(
-            "z",
-            "Undo".to_string(),
-            "Undo".to_string(),
-            Dispatch::ToEditor(Undo),
-        ),
-        Keybinding::new_descriptive(
-            "Z",
-            "Redo".to_string(),
-            "Redo".to_string(),
-            Dispatch::ToEditor(Redo),
-        ),
-        Keybinding::new_descriptive(
-            "enter",
-            "save".to_string(),
-            "Save".to_string(),
-            Dispatch::ToEditor(Save),
-        ),
-        Keybinding::new_descriptive(
+        Keybinding::new("z", "Undo".to_string(), Dispatch::ToEditor(Undo)),
+        Keybinding::new("Z", "Redo".to_string(), Dispatch::ToEditor(Redo)),
+        Keybinding::new("enter", "Save".to_string(), Dispatch::ToEditor(Save)),
+        Keybinding::new(
             "G",
-            "Transform".to_string(),
             "Transform".to_string(),
             Dispatch::ShowKeymapLegend(transform_keymap_legend_config()),
         ),
@@ -1360,18 +1305,8 @@ pub fn keymap_actions(
             Direction::End.format_action("Collapse selection"),
             Dispatch::ToEditor(DispatchEditor::CollapseSelection(Direction::End)),
         ),
-        Keybinding::new_descriptive(
-            "L",
-            "Indent".to_string(),
-            "Indent".to_string(),
-            Dispatch::ToEditor(Indent),
-        ),
-        Keybinding::new_descriptive(
-            "J",
-            "Dedent".to_string(),
-            "Dedent".to_string(),
-            Dispatch::ToEditor(Dedent),
-        ),
+        Keybinding::new("L", "Indent".to_string(), Dispatch::ToEditor(Indent)),
+        Keybinding::new("J", "Dedent".to_string(), Dispatch::ToEditor(Dedent)),
         Keybinding::new(
             "*",
             "Keyboard".to_string(),
@@ -1397,7 +1332,7 @@ pub fn keymap_actions_overridable(
     [
         Keybinding::momentary_layer(MomentaryLayer {
             key: "f",
-            description: "≡ Insert".to_string(),
+            name: "≡ Insert".to_string(),
             config: KeymapLegendConfig {
                 title: "≡ Insert".to_string(),
                 keymap: insert_keymap(),
@@ -1407,7 +1342,7 @@ pub fn keymap_actions_overridable(
         .override_keymap(normal_mode_override.change.as_ref(), none_if_no_override),
         Keybinding::momentary_layer(MomentaryLayer {
             key: "v",
-            description: "≡ Delete".to_string(),
+            name: "≡ Delete".to_string(),
             config: KeymapLegendConfig {
                 title: "≡ Delete".to_string(),
                 keymap: delete_keymap(),
@@ -1418,16 +1353,14 @@ pub fn keymap_actions_overridable(
             )),
         })
         .override_keymap(normal_mode_override.delete.as_ref(), none_if_no_override),
-        Keybinding::new_descriptive(
+        Keybinding::new(
             "h",
-            Direction::Start.format_action("Insert"),
             Direction::Start.format_action("Insert"),
             Dispatch::ToEditor(EnterInsertMode(Direction::Start)),
         )
         .override_keymap(normal_mode_override.insert.as_ref(), none_if_no_override),
-        Keybinding::new_descriptive(
+        Keybinding::new(
             ";",
-            Direction::End.format_action("Insert"),
             Direction::End.format_action("Insert"),
             Dispatch::ToEditor(EnterInsertMode(Direction::End)),
         )
@@ -1439,45 +1372,39 @@ pub fn keymap_actions_overridable(
 }
 pub fn keymap_other_movements() -> Vec<Keybinding> {
     [
-        Keybinding::new_descriptive(
+        Keybinding::new(
             "alt+k",
             "Scroll ↓".to_string(),
-            "Scroll down".to_string(),
             Dispatch::ToEditor(ScrollPageDown),
         ),
-        Keybinding::new_descriptive(
+        Keybinding::new(
             "alt+i",
             "Scroll ↑".to_string(),
-            "Scroll up".to_string(),
             Dispatch::ToEditor(ScrollPageUp),
         ),
-        Keybinding::new_descriptive(
+        Keybinding::new(
             "backspace",
             Direction::Start.format_action("Select"),
-            "Go back".to_string(),
             Dispatch::ToEditor(GoBack),
         ),
-        Keybinding::new_descriptive(
+        Keybinding::new(
             "tab",
             Direction::End.format_action("Select"),
-            "Go forward".to_string(),
             Dispatch::ToEditor(GoForward),
         ),
-        Keybinding::new_descriptive(
+        Keybinding::new(
             "alt+y",
             Direction::Start.format_action("Nav"),
-            "Navigate back".to_string(),
             Dispatch::NavigateBack,
         ),
-        Keybinding::new_descriptive(
+        Keybinding::new(
             "alt+p",
             Direction::End.format_action("Nav"),
-            "Navigate forward".to_string(),
             Dispatch::NavigateForward,
         ),
         Keybinding::app_momentary_layer(MomentaryLayer {
             key: "e",
-            description: "≡ Buffer".to_string(),
+            name: "≡ Buffer".to_string(),
             config: KeymapLegendConfig {
                 title: "≡ Buffer".to_string(),
                 keymap: buffer_keymap(false),
@@ -1487,16 +1414,14 @@ pub fn keymap_other_movements() -> Vec<Keybinding> {
                 Dispatch::ToggleSelectionMark,
             )),
         }),
-        Keybinding::new_descriptive(
+        Keybinding::new(
             "?",
             "⇋ Anchor".to_string(),
-            "Swap Anchor".to_string(),
             Dispatch::ToEditor(SwapExtensionAnchor),
         ),
-        Keybinding::new_descriptive(
+        Keybinding::new(
             "/",
             "⇋ Curs".to_string(),
-            "Swap cursor".to_string(),
             Dispatch::ToEditor(DispatchEditor::SwapCursor),
         ),
     ]
@@ -1701,28 +1626,24 @@ pub fn buffer_keymap(is_alted: bool) -> Keymap {
                     )
                 }),
         )
-        .chain(Some(Keybinding::new_descriptive(
+        .chain(Some(Keybinding::new(
             possibly_alted("k", is_alted),
             "Mark File".to_string(),
-            "Toggle File Mark".to_string(),
             Dispatch::ToggleFileMark,
         )))
-        .chain(Some(Keybinding::new_descriptive(
+        .chain(Some(Keybinding::new(
             possibly_alted("n", is_alted),
             "Close".to_string(),
-            "Close current window".to_string(),
             Dispatch::CloseCurrentWindow,
         )))
-        .chain(Some(Keybinding::new_descriptive(
+        .chain(Some(Keybinding::new(
             possibly_alted("i", is_alted),
             "Unmark Others".to_string(),
-            "Unmark all other buffers".to_string(),
             Dispatch::UnmarkAllOthers,
         )))
-        .chain(Some(Keybinding::new_descriptive(
+        .chain(Some(Keybinding::new(
             possibly_alted("m", is_alted),
             "Alternate".to_string(),
-            "Switch to the previous file".to_string(),
             Dispatch::OpenAlternateFile,
         )))
         .collect_vec(),

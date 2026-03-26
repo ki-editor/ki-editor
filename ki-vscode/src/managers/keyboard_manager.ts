@@ -1,5 +1,4 @@
 import * as vscode from "vscode";
-ll;
 import * as zlib from "node:zlib";
 import type { Dispatcher } from "../dispatcher";
 import type { Logger } from "../logger";
