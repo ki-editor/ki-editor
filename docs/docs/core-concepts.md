@@ -4,6 +4,22 @@ sidebar_position: 4
 
 # Core concepts
 
+## 0. Minimal but General (MinGen)
+
+This is a [principle introduced by the Koka language](https://koka-lang.github.io/koka/doc/book.html#why-mingen).
+
+Ki has a small core set of orthogonal, well-tested features, but each of these is as general and composable as possible, such that we do not need specialized keybindings/actions.
+
+For example:
+
+1. Moving to the next line is not a specialized action with a dedicated keybinding like how Vim and friends do it with `j`. To do this in Ki, we'll have to first enter the Line selection mode, and then execute the Right movement.
+
+2. Moving to the next word: unlike Vim's `w`, `e` and `b`, in Ki, first enter the Word selection mode, and then execute the Right movement.
+
+3. Jumping to a word: achieved by first entering the Word selection mode, and then executing Jump.
+
+Avid readers should have noted a pattern here, and this is what Ki strives to achieve in its core.
+
 ## 1. All selection modes are equal
 
 Unlike other modal editors [^1], the line & column movements/actions are not given special treatment.
@@ -86,7 +102,5 @@ Most keybindings in Ki synergize with one another, though a minority of them are
 But lone rangers are not encouraged, they are only added if they are truly crucial.
 
 [^1]: Vim, Neovim, Kakoune and Helix.
-
 [^2]: For example, in Vim, `p` means paste, but to paste in prompt use `ctrl+r` instead.
-
 [^3]: For example, in the [Helix's File Explorer PR](https://github.com/helix-editor/helix/pull/5768), every movement, including scrolling was reimplemented, although they were implemented in the Editor component.
