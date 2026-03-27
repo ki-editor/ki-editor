@@ -5,7 +5,7 @@ import { type UseXTermProps, useXTerm } from "react-xtermjs";
 import * as z from "zod";
 import { useChosenKeyboardLayout } from "./Keymap";
 import {
-    KeyboardLayout,
+    type KeyboardLayout,
     keyboardLayoutSchema,
     parseQwertyKey,
     translateQwertyToTargetLayout,

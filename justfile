@@ -10,7 +10,7 @@ run path="":
     rustup default 1.89.0
     CARGO_CODEGEN_BACKEND=cranelift CARGO_UNSTABLE_CODEGEN_BACKEND=true cargo +nightly run {{path}}
 
-check: check-typeshare fmt-check lint 
+check: check-typeshare check-format lint 
     
 build-all: tree-sitter-quickfix build vscode-build
     
@@ -18,15 +18,15 @@ install:
     rm -r ~/.cache/ki/zed-themes || echo "ok" 
     cargo install --locked --path .
 
-fmt-check:
+check-format:
     @echo "Checking formating"
     cargo fmt --all -- --check
     alejandra --exclude ./nvim-treesitter-highlight-queries/nvim-treesitter/ --check ./
     npm install && npm run check
     
-fmt:
+fix:
 	cargo fmt --all
-	npm run format
+	npm run fix
 	alejandra --exclude ./nvim-treesitter-highlight-queries/nvim-treesitter/ ./
 
 build:
@@ -55,7 +55,6 @@ lint:
     cargo clippy --tests -- -D warnings
     cargo machete
     npm install
-    npm run lint
     @just vscode-lint
     
 [working-directory: 'ki-vscode']
@@ -94,7 +93,7 @@ check-config-schema:
     set -x
     cargo build 
     cargo test -- doc_assets_export_json_schemas
-    npm install && npm run check:fix 
+    npm install && npm run fix 
     if ! git diff --exit-code docs/static/app_config_json_schema.json; then
         echo "❌ Config schema is out of date!"
         echo "Please run 'just check-config-schema' and commit 'docs/static/app_config_json_schema.json'."
