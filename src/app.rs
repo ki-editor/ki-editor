@@ -1226,7 +1226,7 @@ impl<T: Frontend> App<T> {
             Dispatch::OpenFileExplorer => self.layout.open_file_explorer(),
             Dispatch::OpenSaveAsPrompt => self.save_as()?,
             Dispatch::SaveCurrentBufferContentTo(path) => {
-                self.save_current_buffer_content_to(path)?
+                self.save_current_buffer_content_to(path)?;
             }
         }
         Ok(())
