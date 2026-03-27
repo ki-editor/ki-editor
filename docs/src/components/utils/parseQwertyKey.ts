@@ -38,8 +38,10 @@ export const parseQwertyKey = (raw: string) => {
     const [rest, releaseModifier] = raw.split("-").reverse();
     const [key, keyboardModifier] = (rest ?? "").split("+").reverse();
     const rowIndex = QWERTY_KEYS.findIndex((row) =>
-        row.includes(key.toLowerCase() ?? ""),
+        row.includes(key?.toLowerCase() ?? ""),
     );
-    const columnIndex = QWERTY_KEYS[rowIndex]?.indexOf(key.toLowerCase() ?? "");
+    const columnIndex = QWERTY_KEYS[rowIndex]?.indexOf(
+        key?.toLowerCase() ?? "",
+    );
     return { keyboardModifier, releaseModifier, rowIndex, columnIndex };
 };
