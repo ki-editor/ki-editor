@@ -361,7 +361,6 @@ impl Component for Editor {
             Dedent => return self.dedent(context),
             CyclePrimarySelection(direction) => self.cycle_primary_selection(direction),
             SwapExtensionAnchor => self.selection_set.swap_anchor(),
-            CollapseSelection(direction) => return self.collapse_selection(context, direction),
             FilterSelectionMatchingSearch { maintain, search } => {
                 self.mode = Mode::Normal;
                 let search_config = parse_search_config(&search)?;
@@ -3798,20 +3797,6 @@ impl Editor {
         ))
     }
 
-    fn collapse_selection(
-        &mut self,
-        context: &mut Context,
-        direction: Direction,
-    ) -> anyhow::Result<Dispatches> {
-        let set_column_selection_mode =
-            SetSelectionMode(IfCurrentNotFound::LookForward, SelectionMode::Character);
-        match direction {
-            Direction::Start => self.handle_dispatch_editor(context, set_column_selection_mode),
-            Direction::End => self
-                .handle_dispatch_editors(context, [SwapCursor, set_column_selection_mode].to_vec()),
-        }
-    }
-
     fn filter_selection_matching_search(
         &mut self,
         local_search_config: &crate::context::LocalSearchConfig,
@@ -4733,7 +4718,6 @@ pub enum DispatchEditor {
     Indent,
     Dedent,
     SwapExtensionAnchor,
-    CollapseSelection(Direction),
     FilterSelectionMatchingSearch {
         search: String,
         maintain: bool,

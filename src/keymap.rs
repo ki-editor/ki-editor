@@ -1300,11 +1300,6 @@ pub fn keymap_actions(
             "Transform".to_string(),
             Dispatch::ShowKeymapLegend(transform_keymap_legend_config()),
         ),
-        Keybinding::new(
-            "$",
-            Direction::End.format_action("Collapse selection"),
-            Dispatch::ToEditor(DispatchEditor::CollapseSelection(Direction::End)),
-        ),
         Keybinding::new("L", "Indent".to_string(), Dispatch::ToEditor(Indent)),
         Keybinding::new("J", "Dedent".to_string(), Dispatch::ToEditor(Dedent)),
         Keybinding::new(
