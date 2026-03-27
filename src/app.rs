@@ -1224,6 +1224,10 @@ impl<T: Frontend> App<T> {
                 self.raise_formatter_error(formatter_error)?;
             }
             Dispatch::OpenFileExplorer => self.layout.open_file_explorer(),
+            Dispatch::OpenSaveAsPrompt => self.save_as()?,
+            Dispatch::SaveCurrentBufferContentTo(path) => {
+                self.save_current_buffer_content_to(path)?
+            }
         }
         Ok(())
     }
@@ -3639,6 +3643,26 @@ Please consider installing it.\n\
 
         Ok(())
     }
+
+    fn save_as(&mut self) -> anyhow::Result<()> {
+        self.open_prompt(PromptConfig {
+            on_enter: PromptOnEnter::ParseCurrentLine {
+                parser: DispatchParser::SaveAs,
+                history_key: PromptHistoryKey::SaveAs,
+                current_line: Some(self.context.current_working_directory().display_absolute()),
+                suggested_items: vec![],
+            },
+            title: "Save current buffer content to a new file:".to_owned(),
+            on_cancelled: None,
+            on_change: None,
+        })
+    }
+
+    fn save_current_buffer_content_to(&mut self, path: AbsolutePath) -> anyhow::Result<()> {
+        path.write(&self.current_component().borrow().content())?;
+        self.open_file(&path, BufferOwner::User, true, true)?;
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -3936,6 +3960,8 @@ pub enum Dispatch {
     OpenQuickfixItemsPicker,
     RaiseFormatterNotExist(FormatterCommand),
     OpenFileExplorer,
+    OpenSaveAsPrompt,
+    SaveCurrentBufferContentTo(AbsolutePath),
 }
 
 /// Used to send notify host app about changes
@@ -4091,6 +4117,7 @@ pub enum DispatchParser {
     /// For testing only
     Null,
     ChangeWorkingDirectory,
+    SaveAs,
 }
 
 impl DispatchParser {
@@ -4178,6 +4205,17 @@ impl DispatchParser {
             DispatchParser::ChangeWorkingDirectory => Ok(Dispatches::one(
                 Dispatch::ChangeWorkingDirectory(text.try_into()?),
             )),
+            DispatchParser::SaveAs => {
+                let path = AbsolutePath::try_from(text)?;
+                if path.exists() {
+                    return Err(anyhow::anyhow!(
+                        "The given path already exists, saving to it would overwrite the file."
+                    ));
+                }
+                Ok(Dispatches::one(Dispatch::SaveCurrentBufferContentTo(
+                    AbsolutePath::try_from(text)?,
+                )))
+            }
         }
     }
 }

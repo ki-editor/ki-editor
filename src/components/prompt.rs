@@ -240,6 +240,7 @@ pub enum PromptHistoryKey {
     ResolveBufferSaveConflict,
     WorkspaceSymbol,
     ChangeWorkingDirectory,
+    SaveAs,
 }
 
 impl Prompt {

@@ -1296,6 +1296,11 @@ pub fn keymap_actions(
         Keybinding::new("Z", "Redo".to_string(), Dispatch::ToEditor(Redo)),
         Keybinding::new("enter", "Save".to_string(), Dispatch::ToEditor(Save)),
         Keybinding::new(
+            "shift+enter",
+            "Save As".to_string(),
+            Dispatch::OpenSaveAsPrompt,
+        ),
+        Keybinding::new(
             "G",
             "Transform".to_string(),
             Dispatch::ShowKeymapLegend(transform_keymap_legend_config()),

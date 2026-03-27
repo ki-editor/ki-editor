@@ -4020,7 +4020,7 @@ fn closing_all_buffers_should_land_on_scratch_buffer() -> Result<(), anyhow::Err
                 "\u{200b} [ ] 🦀 foo.rs \u{200b}".to_string(),
             )),
             App(Dispatch::CloseCurrentWindow),
-            Expect(AppGrid("[ROOT] (Cannot be saved)\n1│█".to_string())),
+            Expect(AppGrid("[Untitled]\n1│█".to_string())),
         ])
     })
 }
@@ -4363,6 +4363,66 @@ error: this file contains an unclosed delimiter
 "
                 .to_string(),
             )),
+        ])
+    })
+}
+
+#[test]
+fn saving_content_of_pathless_buffer_into_a_new_file_using_shift_enter() -> anyhow::Result<()> {
+    execute_test(|_| {
+        Box::new([
+            App(OpenFileExplorer),
+            Expect(CurrentComponentContent(
+                "
+ - 📁  .git/ :
+ - 🙈  .gitignore
+ - 🔒  Cargo.lock
+ - 📄  Cargo.toml
+ - 📁  src/ :
+"
+                .trim_start_matches("\n"),
+            )),
+            App(HandleKeyEvent(key!("shift+enter"))),
+            Expect(CurrentComponentTitle(
+                "Save current buffer content to a new file:".to_owned(),
+            )),
+            App(HandleKeyEvents(keys!("/ a . t x t enter").to_vec())),
+            // Expect a.txt is created and focused
+            Expect(CurrentComponentTitle(
+                "\u{200b} [ ] 📝 a.txt \u{200b}".to_string(),
+            )),
+            Expect(CurrentComponentContent(
+                "
+ - 📁  .git/ :
+ - 🙈  .gitignore
+ - 🔒  Cargo.lock
+ - 📄  Cargo.toml
+ - 📁  src/ :
+"
+                .trim_start_matches("\n"),
+            )),
+        ])
+    })
+}
+
+#[test]
+fn saving_content_of_pathless_buffer_into_a_new_file_using_enter() -> anyhow::Result<()> {
+    execute_test(|_| {
+        Box::new([
+            Expect(CurrentComponentTitle(
+                "[Untitled]".to_string(),
+            )),
+            Editor(SetContent("hello world".to_owned())),
+            App(HandleKeyEvent(key!("enter"))),
+            Expect(CurrentComponentTitle(
+                "Save current buffer content to a new file:".to_owned(),
+            )),
+            App(HandleKeyEvents(keys!("/ a . t x t enter").to_vec())),
+            // Expect a.txt is created and focused
+            Expect(CurrentComponentTitle(
+                "\u{200b} [ ] 📝 a.txt \u{200b}".to_string(),
+            )),
+            Expect(CurrentComponentContent("hello world")),
         ])
     })
 }
