@@ -12,7 +12,7 @@ typecheck: install
 
 check:
     tsx validate.ts
-    pnpm test
+    npm test
 
 build: typecheck check
     npm run build
