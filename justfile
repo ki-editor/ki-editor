@@ -26,7 +26,7 @@ check-format:
     
 fix:
 	cargo fmt --all
-	npm run fix
+	npm install && npm run fix
 	alejandra --exclude ./nvim-treesitter-highlight-queries/nvim-treesitter/ ./
 
 build:
