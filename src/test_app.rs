@@ -4409,9 +4409,7 @@ fn saving_content_of_pathless_buffer_into_a_new_file_using_shift_enter() -> anyh
 fn saving_content_of_pathless_buffer_into_a_new_file_using_enter() -> anyhow::Result<()> {
     execute_test(|_| {
         Box::new([
-            Expect(CurrentComponentTitle(
-                "[Untitled]".to_string(),
-            )),
+            Expect(CurrentComponentTitle("[Untitled]".to_string())),
             Editor(SetContent("hello world".to_owned())),
             App(HandleKeyEvent(key!("enter"))),
             Expect(CurrentComponentTitle(
