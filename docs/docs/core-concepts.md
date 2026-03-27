@@ -12,13 +12,15 @@ Ki has a small core set of orthogonal, well-tested features, but each of these i
 
 For example:
 
-1. Moving to the next line is not a specialized action with a dedicated keybinding like how Vim and friends do it with `j`. To do this in Ki, we'll have to first enter the Line selection mode, and then execute the Right movement.
+1. Moving to the next line: unlike Vim's `j`, in Ki, first enter the Line selection mode, and then execute the Right movement.
 
 2. Moving to the next word: unlike Vim's `w`, `e` and `b`, in Ki, first enter the Word selection mode, and then execute the Right movement.
 
-3. Jumping to a word: achieved by first entering the Word selection mode, and then executing Jump.
+3. Jumping to a word: in Ki, first enter the Word selection mode, and then execute Jump.
 
-Avid readers should have noted a pattern here, and this is what Ki strives to achieve in its core.
+Avid readers will have noted a pattern here, and this is what Ki strives to achieve in its core.
+
+The following principles can be viewed as extensions of this core principle.
 
 ## 1. All selection modes are equal
 
