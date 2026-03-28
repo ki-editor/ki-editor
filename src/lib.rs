@@ -93,17 +93,14 @@ fn init_logger() -> anyhow::Result<()> {
         .with(
             tracing_subscriber::fmt::layer()
                 .with_writer(open_log_file(grammar::default_log_file())?)
+                .with_line_number(true)
+                .with_ansi(false)
                 .with_filter(
                     tracing_subscriber::filter::filter_fn(|metadata| {
                         !metadata.target().starts_with("notify::fsevent")
                     })
                     .and(tracing_subscriber::filter::LevelFilter::DEBUG),
                 ),
-                .with_line_number(true)
-                .with_ansi(false)
-                .with_filter(tracing_subscriber::filter::filter_fn(|metadata| {
-                    !metadata.target().starts_with("notify::fsevent")
-                })),
         )
         .with(
             tracing_subscriber::fmt::layer()
