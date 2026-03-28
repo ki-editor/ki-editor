@@ -1,4 +1,4 @@
-# <picture><source media="(prefers-color-scheme: dark)" srcset="https://ki-editor.org/img/logo-white.svg"><img src="https://ki-editor.org/img/logo.svg" height="32"></picture> Ki Editor
+# <picture><source media="(prefers-color-scheme: dark)" srcset="https://ki-editor.org/img/logo-white.svg"><img src="https://avatars.githubusercontent.com/u/170408312" height="30"></picture> Ki Editor
 
 Multi-cursor combinatoric modal editor.
 
@@ -7,6 +7,8 @@ building instructions, and complete documentation.
 
 If you need help, please reach out on
 [Ki Editor community chat room](https://ki-editor.zulipchat.com/).
+
+For directly downloading the latest release binaries refer to [Latest mater build](https://github.com/ki-editor/ki-editor/releases/tag/latest)
 
 <!-- https://ki-editor.zulipchat.com/join/zzhagqzl6wyzpqfeqxcsrkin/ -->
 <!-- The invitation link is not required because we changed disabled "require invit. to join" setting -->
