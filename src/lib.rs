@@ -1,4 +1,6 @@
 mod buffer;
+use tracing_subscriber::filter::FilterExt;
+
 mod git;
 
 mod alternator;
