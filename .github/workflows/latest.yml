@@ -21,7 +21,7 @@ jobs:
       - name: Publish release
         run: |
           gh release delete latest --cleanup-tag --yes | true # Don't fail if the release doesn't exist
-          gh release create latest --prerelease --title 'Latest master build' \
+          gh release create latest --title 'Latest master build' \
             ki-linux-x64/ki-linux-x64 \
             ki-linux-arm64/ki-linux-arm64 \
             ki-windows-x64/ki-windows-x64.exe \
