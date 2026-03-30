@@ -744,7 +744,7 @@ impl Buffer {
         force: bool,
     ) -> anyhow::Result<(Dispatches, Option<AbsolutePath>)> {
         if !force && !self.dirty(context) {
-            return Ok((Dispatches::default(), None));
+            return Ok((Dispatches::default(), self.path()));
         }
 
         if let Some(path) = &self.path {
