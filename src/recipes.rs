@@ -1818,6 +1818,8 @@ foo bar spam
             filename: "showcase_simple",
             recipes: showcase_simple(),
         },
+        movement_history_mol_in_file(),
+        
     ]
     .to_vec()
 }
@@ -2753,6 +2755,37 @@ fn foo() {
                 )]),
                 terminal_height: Some(10),
                 similar_vim_combos: &[],
+                only: false,
+            },
+        ]
+        .to_vec(),
+    }
+}
+
+fn movement_history_mol_in_file() -> RecipeGroup {
+    RecipeGroup {
+        filename: "movement-history-mol",
+        recipes: [
+            Recipe {
+                description: "Movement History - In File",
+                content: "foo bar spam\nindra asura\nsponge bob".trim(),
+                file_extension: "md",
+                prepare_events: keys!("s"),
+                events: keys!("l l k j k l q u u u u u u o o o release-q"),
+                expectations: Box::new([CurrentSelectedTexts(&["asura"])]),
+                terminal_height: Some(10),
+                similar_vim_combos: &[""],
+                only: false,
+            },
+            Recipe {
+                description: "Movement History - Across File",
+                content: "".trim(),
+                file_extension: "md",
+                prepare_events: keys!("space ; n d s r c enter enter n d m a enter enter e k release-e space ; n d f o enter enter e k release-e space ; n d t e m enter enter e k release-e space ; n d g i t enter enter"),
+                events: keys!("e j j release-e l l l e j release-e q j j j l l release-q"),
+                expectations: Box::new([CurrentSelectedTexts(&[""])]),
+                terminal_height: Some(10),
+                similar_vim_combos: &[""],
                 only: false,
             },
         ]
