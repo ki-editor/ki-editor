@@ -1,5 +1,5 @@
 mod buffer;
-use tracing_subscriber::filter::FilterExt;
+use tracing_subscriber::filter::LevelFilter;
 
 mod git;
 
@@ -67,7 +67,7 @@ use shared::absolute_path::AbsolutePath;
 
 use app::App;
 
-use crate::{app::AppMessage, config::AppConfig, persistence::Persistence};
+use crate::{app::AppMessage, cli::LogKind, config::AppConfig, persistence::Persistence};
 
 pub fn main() {
     cli::cli().unwrap();
@@ -82,11 +82,11 @@ pub struct RunConfig {
 fn init_logger() -> anyhow::Result<()> {
     use tracing_subscriber::prelude::*;
 
-    fn open_log_file(path: impl AsRef<std::path::Path>) -> anyhow::Result<std::fs::File> {
+    fn open_log_file(log_kind: LogKind) -> anyhow::Result<std::fs::File> {
         Ok(std::fs::OpenOptions::new()
             .create(true)
             .append(true)
-            .open(path)?)
+            .open(log_kind.as_path()?)?)
     }
 
     tracing_log::LogTracer::init()?;
@@ -94,19 +94,23 @@ fn init_logger() -> anyhow::Result<()> {
     tracing_subscriber::registry()
         .with(
             tracing_subscriber::fmt::layer()
-                .with_writer(open_log_file(grammar::default_log_file())?)
+                .with_writer(open_log_file(LogKind::Default)?)
                 .with_line_number(true)
                 .with_ansi(false)
                 .with_filter(
-                    tracing_subscriber::filter::filter_fn(|metadata| {
-                        !metadata.target().starts_with("notify::fsevent")
-                    })
-                    .and(tracing_subscriber::filter::LevelFilter::DEBUG),
+                    std::env::var("KI_LOG")
+                        .ok()
+                        .map(|value| {
+                            value
+                                .parse()
+                                .unwrap_or_else(|error| panic!("Invalid KI_LOG value: {error}"))
+                        })
+                        .unwrap_or(LevelFilter::INFO),
                 ),
         )
         .with(
             tracing_subscriber::fmt::layer()
-                .with_writer(open_log_file(grammar::default_log_lsp_file())?)
+                .with_writer(open_log_file(LogKind::Lsp)?)
                 .with_line_number(true)
                 .with_ansi(false)
                 .with_filter(tracing_subscriber::filter::filter_fn(|metadata| {

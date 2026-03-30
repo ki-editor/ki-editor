@@ -25,9 +25,10 @@ check-format:
     npm install && npm run check
     
 fix:
-	cargo fmt --all
-	npm install && npm run fix
-	alejandra --exclude ./nvim-treesitter-highlight-queries/nvim-treesitter/ ./
+    cargo clippy --workspace --tests --fix --allow-staged --allow-dirty
+    cargo fmt --all
+    npm install && npm run fix
+    alejandra --exclude ./nvim-treesitter-highlight-queries/nvim-treesitter/ ./
 
 build:
     @echo "Running cargo build..."
@@ -62,13 +63,6 @@ vscode-lint:
     npm install
     ./node_modules/.bin/ts-unused-exports tsconfig.json --ignoreFiles="src/protocol/types"
     
-lint-fix:
-	cargo clippy --workspace --tests --fix --allow-staged --allow-dirty
-	@just vscode-lint-fix
-
-vscode-lint-fix:
-	npm run lint:fix
-	
 test-setup:
     git config --get --global user.name  || git config --global user.name  Tester 
     git config --get --global user.email || git config --global user.email tester@gmail.com

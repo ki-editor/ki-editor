@@ -3,10 +3,13 @@ use crate::embed;
 use crate::RunConfig;
 use chrono::Local;
 use clap::{Args, Parser, Subcommand};
+use convert_case::Casing;
+use grammar::cache_dir;
 use shared::absolute_path::AbsolutePath;
 use std::fs::File;
 use std::io::{self, IsTerminal, Read};
 use std::path::PathBuf;
+use strum_macros::Display;
 
 const LOGO_ASCII_ART: &str = r#"
       ██   ██   ██
@@ -69,10 +72,16 @@ enum Commands {
         #[command(subcommand)]
         command: Grammar,
     },
-    /// Prints the log file path
-    Log,
-    /// Prints the log file path related to LSP
-    LogLsp,
+    ///
+    /// Log level is controlled by the `KI_LOG` environment variable.
+    /// Valid values: `off`, `error`, `warn`, `info`, `debug`, `trace`.
+    /// Defaults to `info`.
+    ///
+    /// Example: `KI_LOG=debug ki`
+    Log {
+        #[command(subcommand)]
+        kind: Option<LogKind>,
+    },
     /// Display the keymap in various formats
     Keymap {
         #[command(subcommand)]
@@ -86,6 +95,24 @@ enum Commands {
     Embed(EmbedArgs),
 
     Version,
+}
+
+#[derive(Subcommand, Default, Display, Clone)]
+pub enum LogKind {
+    #[default]
+    Default,
+    Lsp,
+}
+
+impl LogKind {
+    pub fn as_path(&self) -> anyhow::Result<PathBuf> {
+        let base: PathBuf = cache_dir().join("logs");
+        if !base.exists() {
+            std::fs::create_dir_all(&base)?;
+        }
+
+        Ok(base.join(self.to_string().to_case(convert_case::Case::Kebab)))
+    }
 }
 
 #[derive(Args, Default, Clone)]
@@ -190,17 +217,10 @@ pub fn cli() -> anyhow::Result<()> {
                 };
                 Ok(())
             }
-            Commands::Log => {
+            Commands::Log { kind } => {
                 println!(
                     "{}",
-                    AbsolutePath::try_from(grammar::default_log_file())?.display_absolute(),
-                );
-                Ok(())
-            }
-            Commands::LogLsp => {
-                println!(
-                    "{}",
-                    AbsolutePath::try_from(grammar::default_log_lsp_file())?.display_absolute(),
+                    AbsolutePath::try_from(kind.unwrap_or_default().as_path()?)?.display_absolute(),
                 );
                 Ok(())
             }
