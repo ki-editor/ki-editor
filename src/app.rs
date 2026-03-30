@@ -1168,7 +1168,7 @@ impl<T: Frontend> App<T> {
             }
             Dispatch::OpenKeyboardLayoutPrompt => self.open_keyboard_layout_picker()?,
             Dispatch::MovementHistoryNavigation(movement) => {
-                self.movement_history_navigation(movement)?
+                self.movement_history_navigation(movement)?;
             }
             Dispatch::ToggleSelectionMark => self.toggle_selection_mark()?,
             Dispatch::ToggleFileMark => self.toggle_file_mark()?,
