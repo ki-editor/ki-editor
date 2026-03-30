@@ -1819,7 +1819,6 @@ foo bar spam
             recipes: showcase_simple(),
         },
         movement_history_mol_in_file(),
-        
     ]
     .to_vec()
 }
