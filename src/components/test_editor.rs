@@ -4016,9 +4016,7 @@ fn background_editor_closing_no_system_buffer() -> anyhow::Result<()> {
             Expect(OpenedFilesCount(0)),
             App(CloseCurrentWindow),
             Expect(OpenedFilesCount(0)),
-            Expect(CurrentComponentTitle(
-                "[ROOT] (Cannot be saved)".to_string(),
-            )),
+            Expect(CurrentComponentTitle("[Untitled]".to_string())),
         ])
     })
 }
@@ -5890,9 +5888,7 @@ fn delete_until_no_more_meaningful_selection_should_not_stuck() -> anyhow::Resul
 fn entering_normal_mode_from_insert_mode_in_scratch_buffer() -> anyhow::Result<()> {
     execute_test(move |_| {
         Box::new([
-            Expect(CurrentComponentTitle(
-                "[ROOT] (Cannot be saved)".to_string(),
-            )),
+            Expect(CurrentComponentTitle("[Untitled]".to_string())),
             Editor(EnterInsertMode(Direction::End)),
             App(HandleKeyEvent(key!("esc"))),
             Expect(CurrentMode(Mode::Normal)),

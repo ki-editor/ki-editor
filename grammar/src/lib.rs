@@ -58,23 +58,11 @@ pub fn runtime_file(rel_path: &Path) -> PathBuf {
 pub fn config_dir() -> PathBuf {
     // TODO: allow env var override
     let strategy = choose_base_strategy().expect("Unable to find the config directory!");
-    let mut path = strategy.config_dir();
-    path.push("ki");
-    path
+    strategy.config_dir().join("ki")
 }
 
 pub fn cache_dir() -> PathBuf {
     // TODO: allow env var override
     let strategy = choose_base_strategy().expect("Unable to find the config directory!");
-    let mut path = strategy.cache_dir();
-    path.push("ki");
-    path
-}
-
-pub fn default_log_file() -> PathBuf {
-    cache_dir().join("ki.log")
-}
-
-pub fn default_log_lsp_file() -> PathBuf {
-    cache_dir().join("ki-lsp.log")
+    strategy.cache_dir().join("ki")
 }

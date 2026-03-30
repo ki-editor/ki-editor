@@ -24,7 +24,7 @@ pub struct KeymapLegendConfig {
 
 pub struct MomentaryLayer {
     pub key: &'static str,
-    pub description: String,
+    pub name: String,
     pub config: KeymapLegendConfig,
     pub on_tap: Option<OnTap>,
 }
@@ -154,18 +154,16 @@ impl KeymapLegendConfig {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Keybinding {
     key: &'static str,
-    pub short_description: Option<String>,
-    pub description: String,
+    pub name: String,
     event: KeyEvent,
     dispatch: Dispatch,
 }
 
 impl Keybinding {
-    pub fn new(key: &'static str, description: String, dispatch: Dispatch) -> Keybinding {
+    pub fn new(key: &'static str, name: String, dispatch: Dispatch) -> Keybinding {
         Keybinding {
             key,
-            short_description: None,
-            description,
+            name,
             dispatch,
             event: parse_key_event(key).unwrap(),
         }
@@ -174,15 +172,14 @@ impl Keybinding {
     pub fn app_momentary_layer(
         MomentaryLayer {
             key,
-            description,
+            name,
             config,
             on_tap,
         }: MomentaryLayer,
     ) -> Keybinding {
         Keybinding {
             key,
-            short_description: None,
-            description,
+            name,
             dispatch: Dispatch::ShowAppKeymapLegendWithReleaseKey(
                 config,
                 ReleaseKey::new(key, on_tap),
@@ -194,15 +191,14 @@ impl Keybinding {
     pub fn momentary_layer(
         MomentaryLayer {
             key,
-            description,
+            name: description,
             config,
             on_tap,
         }: MomentaryLayer,
     ) -> Keybinding {
         Keybinding {
             key,
-            short_description: None,
-            description,
+            name: description,
             dispatch: Dispatch::ShowKeymapLegendWithReleaseKey(
                 config,
                 ReleaseKey::new(key, on_tap),
@@ -211,25 +207,9 @@ impl Keybinding {
         }
     }
 
-    pub fn new_descriptive(
-        key: &'static str,
-        short_description: String,
-        description: String,
-        dispatch: Dispatch,
-    ) -> Keybinding {
-        Keybinding {
-            key,
-            short_description: Some(short_description),
-            description,
-            dispatch,
-            event: parse_key_event(key).unwrap(),
-        }
-    }
-
     pub fn get_dispatches(&self) -> Dispatches {
         Dispatches::one(self.dispatch.clone()).append(Dispatch::SetLastActionDescription {
-            long_description: self.description.clone(),
-            short_description: self.short_description.clone(),
+            long_description: self.name.clone(),
         })
     }
 
@@ -244,8 +224,7 @@ impl Keybinding {
     ) -> Option<Keybinding> {
         match keymap_override {
             Some(keymap_override) => Some(Self {
-                short_description: Some(keymap_override.description.to_string()),
-                description: keymap_override.description.to_string(),
+                name: keymap_override.description.to_string(),
                 dispatch: keymap_override.dispatch.clone(),
                 ..self
             }),
@@ -260,9 +239,7 @@ impl Keybinding {
     }
 
     pub fn display(&self) -> String {
-        self.short_description
-            .clone()
-            .unwrap_or_else(|| self.description.clone())
+        self.name.clone()
     }
 }
 
@@ -298,7 +275,7 @@ impl KeymapLegend {
                 self.config.title,
                 duplicates
                     .into_iter()
-                    .map(|duplicate| format!("{}: {}", duplicate.key, duplicate.description))
+                    .map(|duplicate| format!("{}: {}", duplicate.key, duplicate.name))
                     .collect_vec()
             );
             log::info!("{message}");

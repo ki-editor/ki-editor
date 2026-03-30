@@ -10,7 +10,7 @@ run path="":
     rustup default 1.89.0
     CARGO_CODEGEN_BACKEND=cranelift CARGO_UNSTABLE_CODEGEN_BACKEND=true cargo +nightly run {{path}}
 
-check: check-typeshare fmt-check lint 
+check: check-typeshare check-format lint 
     
 build-all: tree-sitter-quickfix build vscode-build
     
@@ -18,15 +18,17 @@ install:
     rm -r ~/.cache/ki/zed-themes || echo "ok" 
     cargo install --locked --path .
 
-fmt-check:
+check-format:
     @echo "Checking formating"
     cargo fmt --all -- --check
     alejandra --exclude ./nvim-treesitter-highlight-queries/nvim-treesitter/ --check ./
+    npm install && npm run check
     
-fmt:
-	cargo fmt --all
-	npm run format
-	alejandra --exclude ./nvim-treesitter-highlight-queries/nvim-treesitter/ ./
+fix:
+    cargo clippy --workspace --tests --fix --allow-staged --allow-dirty
+    cargo fmt --all
+    npm install && npm run fix
+    alejandra --exclude ./nvim-treesitter-highlight-queries/nvim-treesitter/ ./
 
 build:
     @echo "Running cargo build..."
@@ -54,7 +56,6 @@ lint:
     cargo clippy --tests -- -D warnings
     cargo machete
     npm install
-    npm run lint
     @just vscode-lint
     
 [working-directory: 'ki-vscode']
@@ -62,13 +63,6 @@ vscode-lint:
     npm install
     ./node_modules/.bin/ts-unused-exports tsconfig.json --ignoreFiles="src/protocol/types"
     
-lint-fix:
-	cargo clippy --workspace --tests --fix --allow-staged --allow-dirty
-	@just vscode-lint-fix
-
-vscode-lint-fix:
-	npm run lint:fix
-	
 test-setup:
     git config --get --global user.name  || git config --global user.name  Tester 
     git config --get --global user.email || git config --global user.email tester@gmail.com
@@ -93,6 +87,7 @@ check-config-schema:
     set -x
     cargo build 
     cargo test -- doc_assets_export_json_schemas
+    npm install && npm run fix 
     if ! git diff --exit-code docs/static/app_config_json_schema.json; then
         echo "❌ Config schema is out of date!"
         echo "Please run 'just check-config-schema' and commit 'docs/static/app_config_json_schema.json'."
@@ -133,7 +128,8 @@ vscode-publish: vscode-package
 # Build and install the locally build VS Code extension
 vscode-install:
     rm ki-vscode/ki-editor-vscode-*.vsix || true
-    cargo build --release 
+    cargo build --release
+    mkdir -p ./ki-vscode/dist/bin 
     cp target/release/ki ./ki-vscode/dist/bin/ki-darwin-arm64  
     cd ki-vscode && npm install  
     cd ki-vscode && npm run package  

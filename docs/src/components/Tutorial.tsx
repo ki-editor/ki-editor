@@ -1,8 +1,15 @@
-import { useEffect, useMemo, useState } from "react";
 import useBaseUrl from "@docusaurus/useBaseUrl";
+import { useEffect, useMemo, useState } from "react";
 
-import { useXTerm, type UseXTermProps } from "react-xtermjs";
+import { type UseXTermProps, useXTerm } from "react-xtermjs";
 import * as z from "zod";
+import { useChosenKeyboardLayout } from "./Keymap";
+import {
+    type KeyboardLayout,
+    keyboardLayoutSchema,
+    parseQwertyKey,
+    translateQwertyToTargetLayout,
+} from "./utils/parseQwertyKey";
 
 const recipeSchema = z.object({
     description: z.string(),
@@ -50,6 +57,12 @@ export const Tutorial = (props: { filename: string }) => {
     );
 };
 
+export async function loadKeyboardLayouts(url: string) {
+    const response = await fetch(url);
+    const json = await response.json();
+    return z.array(keyboardLayoutSchema).parse(json);
+}
+
 const Recipe = (props: { recipe: Recipe }) => {
     const xtermOptions: UseXTermProps = useMemo(
         () => ({
@@ -64,14 +77,40 @@ const Recipe = (props: { recipe: Recipe }) => {
 
     const { instance, ref } = useXTerm(xtermOptions);
     const [stepIndex, setStepIndex] = useState(0);
+
+    const [keyboardLayouts, setKeyboardLayouts] = useState<KeyboardLayout[]>(
+        [],
+    );
+
+    const [chosenKeyboardLayoutName] = useChosenKeyboardLayout();
+
+    const chosenKeyboardLayout = keyboardLayouts.find(
+        (layout) => layout.name === chosenKeyboardLayoutName,
+    );
+
+    const url = useBaseUrl("/keyboard-layouts.json");
+
     useEffect(() => {
         const step = props.recipe.steps[stepIndex];
-        instance?.write(step.term_output);
+        instance?.write(step?.term_output ?? "");
     }, [instance, stepIndex, props.recipe.steps[stepIndex]]);
+
+    useEffect(() => {
+        loadKeyboardLayouts(url).then((keyboardLayouts) =>
+            setKeyboardLayouts(keyboardLayouts),
+        );
+    }, [url]);
+
     const buffer_contents_entries = Object.entries(
-        props.recipe.steps[stepIndex].buffer_contents_map,
+        props.recipe.steps[stepIndex]?.buffer_contents_map ?? {},
     ).sort((a, b) => a[0].localeCompare(b[0]));
 
+    const translateKey = (key: string) =>
+        chosenKeyboardLayout
+            ? translateQwertyToTargetLayout(key, chosenKeyboardLayout)
+            : key;
+
+    const currentStep = props.recipe.steps[stepIndex];
     return (
         <div
             style={{
@@ -200,11 +239,63 @@ const Recipe = (props: { recipe: Recipe }) => {
                             ].join(" ")}
                             style={{ fontFamily: "monospace" }}
                         >
-                            {step.key}
+                            {translateKey(step.key)}
                         </button>
                     ))}
                 </div>
             </div>
+            <KeyboardHint
+                currentKeyboardLayout={chosenKeyboardLayout}
+                currentKey={currentStep?.key}
+            />
+        </div>
+    );
+};
+
+const KeyboardHint = (props: {
+    currentKeyboardLayout: KeyboardLayout | undefined;
+    currentKey: string | undefined;
+}) => {
+    const parsed = props.currentKey
+        ? parseQwertyKey(props.currentKey)
+        : undefined;
+    return (
+        <div
+            style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(10, auto)",
+                gridTemplateRows: "repeat(3, auto)",
+                gap: "1px",
+            }}
+        >
+            {props.currentKeyboardLayout?.keys.map((row, rowIndex) => {
+                return row.map((cell, columnIndex) => {
+                    const focused =
+                        parsed?.rowIndex === rowIndex &&
+                        parsed?.columnIndex === columnIndex;
+                    return (
+                        <div
+                            key={`${rowIndex}-${columnIndex}`}
+                            style={{
+                                gridRow: rowIndex + 1,
+                                gridColumn: columnIndex + 1,
+                                border: focused
+                                    ? "1px solid black"
+                                    : "1px solid lightgrey",
+                                display: "grid",
+                                placeItems: "center",
+                                borderRadius: 8,
+                                backgroundColor: focused
+                                    ? "lightyellow"
+                                    : undefined,
+                                color: !focused ? "lightgrey" : undefined,
+                            }}
+                        >
+                            {cell}
+                        </div>
+                    );
+                });
+            })}
         </div>
     );
 };

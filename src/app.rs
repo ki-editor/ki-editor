@@ -21,8 +21,8 @@ use crate::{
         },
     },
     context::{
-        Context, GlobalMode, GlobalSearchConfig, LocalSearchConfigMode, QuickfixListKind,
-        QuickfixListSource, Search,
+        Context, FormatterCommand, GlobalMode, GlobalSearchConfig, LocalSearchConfigMode,
+        QuickfixListKind, QuickfixListSource, Search,
     },
     edit::Edit,
     file_watcher::{FileWatcherEvent, FileWatcherInput},
@@ -117,7 +117,6 @@ pub struct App<T: Frontend> {
     syntax_highlight_request_sender: Option<Sender<SyntaxHighlightRequest>>,
     status_lines: Vec<StatusLine>,
     last_action_description: Option<String>,
-    last_action_short_description: Option<String>,
 
     /// This is necessary when Ki is running as an embedded application
     last_prompt_config: Option<PromptConfig>,
@@ -260,7 +259,6 @@ impl<T: Frontend> App<T> {
             global_title: None,
             status_lines,
             last_action_description: None,
-            last_action_short_description: None,
             integration_event_sender,
             last_prompt_config: None,
             queued_events: Vec::new(),
@@ -298,11 +296,23 @@ impl<T: Frontend> App<T> {
     pub fn run(mut self, entry_path: Option<AbsolutePath>) -> Result<(), anyhow::Error> {
         self.set_terminal_options()?;
 
-        if let Some(entry_path) = entry_path {
+        let first_dispatch = entry_path.map(|entry_path| {
             if entry_path.as_ref().is_dir() {
-                self.layout.open_file_explorer();
+                Dispatch::OpenFileExplorer
             } else {
-                self.open_file(&entry_path, BufferOwner::User, true, true)?;
+                Dispatch::OpenFile {
+                    path: entry_path,
+                    owner: BufferOwner::User,
+                    focus: true,
+                }
+            }
+        });
+
+        if let Some(first_dispatch) = first_dispatch {
+            if let Err(error) = self.sender.send(AppMessage::ExternalDispatch(Box::new(
+                first_dispatch.clone(),
+            ))) {
+                log::error!("Failed to send the first dispatch {first_dispatch:?} due to {error}");
             }
         }
 
@@ -1153,10 +1163,8 @@ impl<T: Frontend> App<T> {
             }
             Dispatch::SetLastActionDescription {
                 long_description: description,
-                short_description,
             } => {
                 self.last_action_description = Some(description);
-                self.last_action_short_description = short_description;
             }
             Dispatch::OpenFilterSelectionsPrompt { maintain } => {
                 self.open_filter_selections_prompt(maintain)?;
@@ -1225,6 +1233,14 @@ impl<T: Frontend> App<T> {
                 self.open_change_working_directory_prompt()?;
             }
             Dispatch::OpenQuickfixItemsPicker => self.open_quickfix_item_picker()?,
+            Dispatch::RaiseFormatterNotExist(formatter_error) => {
+                self.raise_formatter_error(formatter_error)?;
+            }
+            Dispatch::OpenFileExplorer => self.layout.open_file_explorer(),
+            Dispatch::OpenSaveAsPrompt => self.save_as()?,
+            Dispatch::SaveCurrentBufferContentTo(path) => {
+                self.save_current_buffer_content_to(path)?;
+            }
         }
         Ok(())
     }
@@ -3623,6 +3639,45 @@ Conflict markers will be injected in areas that cannot be merged gracefully."
             },
         ))
     }
+
+    fn raise_formatter_error(&mut self, formatter_command: FormatterCommand) -> anyhow::Result<()> {
+        if self
+            .context
+            .add_formatter_not_exist_error(&formatter_command)
+        {
+            self.show_global_info(Info::new(
+                "Formatting error".to_string(),
+                format!(
+                    "The formatter `{}` failed to run because it does not exist.\n\
+Please consider installing it.\n\
+(Note: this error will not be shown again in this Ki session.)",
+                    formatter_command.0
+                ),
+            ));
+        }
+
+        Ok(())
+    }
+
+    fn save_as(&mut self) -> anyhow::Result<()> {
+        self.open_prompt(PromptConfig {
+            on_enter: PromptOnEnter::ParseCurrentLine {
+                parser: DispatchParser::SaveAs,
+                history_key: PromptHistoryKey::SaveAs,
+                current_line: Some(self.context.current_working_directory().display_absolute()),
+                suggested_items: vec![],
+            },
+            title: "Save current buffer content to a new file:".to_owned(),
+            on_cancelled: None,
+            on_change: None,
+        })
+    }
+
+    fn save_current_buffer_content_to(&mut self, path: AbsolutePath) -> anyhow::Result<()> {
+        path.write(&self.current_component().borrow().content())?;
+        self.open_file(&path, BufferOwner::User, true, true)?;
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -3853,7 +3908,6 @@ pub enum Dispatch {
     UseLastNonContiguousSelectionMode(IfCurrentNotFound),
     SetLastActionDescription {
         long_description: String,
-        short_description: Option<String>,
     },
     OpenFilterSelectionsPrompt {
         maintain: bool,
@@ -3919,6 +3973,10 @@ pub enum Dispatch {
     ChangeWorkingDirectory(AbsolutePath),
     OpenChangeWorkingDirectoryPrompt,
     OpenQuickfixItemsPicker,
+    RaiseFormatterNotExist(FormatterCommand),
+    OpenFileExplorer,
+    OpenSaveAsPrompt,
+    SaveCurrentBufferContentTo(AbsolutePath),
 }
 
 /// Used to send notify host app about changes
@@ -4074,6 +4132,7 @@ pub enum DispatchParser {
     /// For testing only
     Null,
     ChangeWorkingDirectory,
+    SaveAs,
 }
 
 impl DispatchParser {
@@ -4161,6 +4220,17 @@ impl DispatchParser {
             DispatchParser::ChangeWorkingDirectory => Ok(Dispatches::one(
                 Dispatch::ChangeWorkingDirectory(text.try_into()?),
             )),
+            DispatchParser::SaveAs => {
+                let path = AbsolutePath::try_from(text)?;
+                if path.exists() {
+                    return Err(anyhow::anyhow!(
+                        "The given path already exists, saving to it would overwrite the file."
+                    ));
+                }
+                Ok(Dispatches::one(Dispatch::SaveCurrentBufferContentTo(
+                    AbsolutePath::try_from(text)?,
+                )))
+            }
         }
     }
 }

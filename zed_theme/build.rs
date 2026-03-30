@@ -6,7 +6,7 @@ fn main() {
 
     let data = format!(
         "[{}]",
-        std::fs::read_dir("../themes")
+        std::fs::read_dir("../contrib/themes")
             .expect("Failed to read themes dir")
             .map(|entry| {
                 let entry = entry.expect("Failed to get particular file entry in themes dir");

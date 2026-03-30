@@ -34,6 +34,7 @@ const INCLUDED_NVIM_TREESITTER_LANGUAGES: &[&str] = &[
     "jsx",
     "julia",
     "just",
+    "latex",
     "ki_quickfix",
     "lua",
     "markdown",

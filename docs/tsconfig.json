@@ -6,7 +6,9 @@
         "baseUrl": ".",
         "moduleResolution": "node",
         "skipLibCheck": true,
-        "resolveJsonModule": true
+        "resolveJsonModule": true,
+        "strict": true,
+        "noUncheckedIndexedAccess": true
     },
     "exclude": ["node_modules"]
 }

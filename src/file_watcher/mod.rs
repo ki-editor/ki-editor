@@ -160,7 +160,12 @@ impl EventHandler {
                             destination,
                         });
                     }
-                } else {
+                }
+                // Only assume that `path` is renamed if `path` no longer exists,
+                // otherwise, it is very likely that `path` is not renamed
+                // but rather the modify event is fired from an unrelated
+                // file change.
+                else if !path.exists() {
                     self.rename_source = Some(path);
                 }
             }

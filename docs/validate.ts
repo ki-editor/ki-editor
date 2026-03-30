@@ -1,12 +1,12 @@
-import { fromMarkdown, type Value } from "mdast-util-from-markdown";
-import { mdxFromMarkdown } from "mdast-util-mdx";
-import { mdx } from "micromark-extension-mdx";
 import type { Node, Parent } from "mdast";
+import { type Value, fromMarkdown } from "mdast-util-from-markdown";
+import { mdxFromMarkdown } from "mdast-util-mdx";
 import type {
     MdxJsxAttribute,
     MdxJsxFlowElement,
     MdxJsxTextElement,
 } from "mdast-util-mdx";
+import { mdx } from "micromark-extension-mdx";
 
 // A type guard to check if a node has children
 function isParent(node: Node | Parent): node is Parent {
@@ -63,9 +63,11 @@ function validateResourceAccess(
     tagName: string,
 ): string[] {
     const argFilenames = makeExtractArgumentFileNames(tagName)(mdxContent);
-    return argFilenames.filter(
-        (argFilename) => !validFilenames.includes(argFilename as string),
-    );
+    return argFilenames
+        .filter(
+            (argFilename) => !validFilenames.includes(argFilename as string),
+        )
+        .flatMap((x) => (x ? [x] : []));
 }
 
 module.exports = {
@@ -83,7 +85,7 @@ function validate(tagName: string, resourcesPath: string) {
         path.basename(filePath, path.extname(filePath)),
     );
 
-    const mdxFilePaths = glob.sync("docs/**/*.{md,mdx}");
+    const mdxFilePaths: string[] = glob.sync("docs/**/*.{md,mdx}");
 
     // Collect all validation outputs
     const allErrors: Array<{ file: string; invalidResources: string[] }> =

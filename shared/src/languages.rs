@@ -38,6 +38,7 @@ pub fn languages() -> HashMap<String, Language> {
         ("hare", hare()),
         ("hcl", hcl()),
         ("heex", heex()),
+        ("latex", latex()),
         ("html", html()),
         ("idris", idris()),
         ("haskell", haskell()),
@@ -502,6 +503,24 @@ fn heex() -> Language {
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Heex),
         }),
         block_comment_affixes: Some(("<!--".to_string(), "-->".to_string())),
+        ..Language::new()
+    }
+}
+
+fn latex() -> Language {
+    Language {
+        extensions: to_vec(&["tex"]),
+        formatter: Some(Command::new("tex-fmt", &["-s"])),
+        lsp_command: Some(LspCommand {
+            command: Command::new("texlab", &[]),
+            initialization_options: None,
+        }),
+        lsp_language_id: Some(LanguageId::new("latex")),
+        line_comment_prefix: Some("%".to_string()),
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "latex".to_string(),
+            kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Latex),
+        }),
         ..Language::new()
     }
 }

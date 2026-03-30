@@ -16,6 +16,10 @@ use crate::{
     edit::{Action, ActionGroup, Edit, EditTransaction},
     git::{hunk::SimpleHunkKind, DiffMode, GitOperation as _, GitRepo},
     grid::LINE_NUMBER_VERTICAL_BORDER,
+    keymap::{
+        insert_mode_keymap_legend_config, normal_mode_keymap_legend_config,
+        space_keymap_legend_config,
+    },
     keymap_override::{
         find_one::FindOneCharKeymapOverride, jump::JumpKeymapOverride, EditorKeymapOverride,
         KeymapOverrideTrait,
@@ -357,7 +361,6 @@ impl Component for Editor {
             Dedent => return self.dedent(context),
             CyclePrimarySelection(direction) => self.cycle_primary_selection(direction),
             SwapExtensionAnchor => self.selection_set.swap_anchor(),
-            CollapseSelection(direction) => return self.collapse_selection(context, direction),
             FilterSelectionMatchingSearch { maintain, search } => {
                 self.mode = Mode::Normal;
                 let search_config = parse_search_config(&search)?;
@@ -2860,7 +2863,7 @@ impl Editor {
         };
 
         let Some(path) = path else {
-            return Ok(Dispatches::default());
+            return Ok(Dispatches::one(Dispatch::OpenSaveAsPrompt));
         };
 
         self.clamp(context)?;
@@ -3794,20 +3797,6 @@ impl Editor {
         ))
     }
 
-    fn collapse_selection(
-        &mut self,
-        context: &mut Context,
-        direction: Direction,
-    ) -> anyhow::Result<Dispatches> {
-        let set_column_selection_mode =
-            SetSelectionMode(IfCurrentNotFound::LookForward, SelectionMode::Character);
-        match direction {
-            Direction::Start => self.handle_dispatch_editor(context, set_column_selection_mode),
-            Direction::End => self
-                .handle_dispatch_editors(context, [SwapCursor, set_column_selection_mode].to_vec()),
-        }
-    }
-
     fn filter_selection_matching_search(
         &mut self,
         local_search_config: &crate::context::LocalSearchConfig,
@@ -3933,8 +3922,7 @@ impl Editor {
         &self,
         include_universal_keymap: bool,
     ) -> super::keymap_legend::Keymap {
-        self.insert_mode_keymap_legend_config(include_universal_keymap)
-            .keymap()
+        insert_mode_keymap_legend_config(include_universal_keymap).keymap()
     }
 
     pub fn set_normal_mode_override(&mut self, normal_mode_override: NormalModeOverride) {
@@ -3949,8 +3937,8 @@ impl Editor {
 
     fn get_current_keymap_legend_config(&self) -> super::keymap_legend::KeymapLegendConfig {
         match self.mode {
-            Mode::Insert => self.insert_mode_keymap_legend_config(true),
-            _ => self.normal_mode_keymap_legend_config(None, None),
+            Mode::Insert => insert_mode_keymap_legend_config(true),
+            _ => normal_mode_keymap_legend_config(self, None, None),
         }
     }
 
@@ -4401,7 +4389,7 @@ impl Editor {
     fn press_space(&self, context: &Context) -> Dispatches {
         match self.mode {
             Mode::Normal => Dispatches::one(Dispatch::ShowKeymapLegend(
-                self.space_keymap_legend_config(context),
+                space_keymap_legend_config(self, context),
             )),
             Mode::Insert => Dispatches::default(),
             _ => Dispatches::one(Dispatch::ToEditor(EnterNormalMode)),
@@ -4730,7 +4718,6 @@ pub enum DispatchEditor {
     Indent,
     Dedent,
     SwapExtensionAnchor,
-    CollapseSelection(Direction),
     FilterSelectionMatchingSearch {
         search: String,
         maintain: bool,
