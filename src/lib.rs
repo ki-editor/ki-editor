@@ -1,4 +1,6 @@
 mod buffer;
+#[cfg(test)]
+mod test_multibuffer;
 use tracing_subscriber::filter::LevelFilter;
 
 mod git;

@@ -253,7 +253,7 @@ impl Component for Editor {
             #[cfg(test)]
             MatchLiteral(literal) => return self.match_literal(&literal, context),
             EnterNormalMode => self.enter_normal_mode(context)?,
-            CursorAddToAllSelections => self.add_cursor_to_all_selections(context)?,
+            CursorAddToAllSelections => return self.add_cursor_to_all_selections(context),
             CursorKeepPrimaryOnly => self.cursor_keep_primary_only(),
             EnterSwapMode => self.enter_swap_mode(),
             ReplacePattern { config } => {
@@ -3015,7 +3015,14 @@ impl Editor {
         start..end
     }
 
-    pub fn add_cursor_to_all_selections(&mut self, context: &Context) -> Result<(), anyhow::Error> {
+    pub fn add_cursor_to_all_selections(
+        &mut self,
+        context: &Context,
+    ) -> Result<Dispatches, anyhow::Error> {
+        if context.mode() == Some(GlobalMode::QuickfixListItem) {
+            return Ok(Dispatches::one(Dispatch::EnableMultibuffer));
+        }
+
         self.selection_set
             .add_all(&self.buffer.borrow(), &self.cursor_direction, context)?;
 
@@ -3030,7 +3037,7 @@ impl Editor {
             self.reveal = Some(Reveal::Cursor);
         }
         self.recalculate_scroll_offset(context);
-        Ok(())
+        Ok(Default::default())
     }
 
     pub fn dispatch_selection_changed(&self) -> Dispatch {

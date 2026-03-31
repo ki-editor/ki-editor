@@ -128,6 +128,7 @@ pub struct App<T: Frontend> {
     /// Used for debouncing LSP Completion request, so that we don't overwhelm
     /// the server with too many requests, and also Ki with too many incoming Completion responses
     debounce_lsp_request_completion: Callback<()>,
+    multibuffer: Option<Multibuffer>,
 }
 
 #[derive(Clone, Serialize, Deserialize, JsonSchema)]
@@ -263,6 +264,7 @@ impl<T: Frontend> App<T> {
             last_prompt_config: None,
             queued_events: Vec::new(),
             file_watcher_input_sender,
+            multibuffer: None,
         };
 
         app.restore_session();
@@ -1228,6 +1230,7 @@ impl<T: Frontend> App<T> {
             Dispatch::SaveCurrentBufferContentTo(path) => {
                 self.save_current_buffer_content_to(path)?;
             }
+            Dispatch::EnableMultibuffer => self.enable_multibuffer()?,
         }
         Ok(())
     }
@@ -2189,7 +2192,14 @@ impl<T: Frontend> App<T> {
         &mut self,
         dispatch_editor: DispatchEditor,
     ) -> anyhow::Result<()> {
-        self.handle_dispatch_editor_custom(dispatch_editor, self.current_component())
+        if let Some(multibuffer) = self.multibuffer.as_ref() {
+            for component in multibuffer.editors.clone() {
+                self.handle_dispatch_editor_custom(dispatch_editor.clone(), component)?;
+            }
+            Ok(())
+        } else {
+            self.handle_dispatch_editor_custom(dispatch_editor, self.current_component())
+        }
     }
 
     fn handle_dispatch_editor_custom(
@@ -3663,6 +3673,31 @@ Please consider installing it.\n\
         self.open_file(&path, BufferOwner::User, true, true)?;
         Ok(())
     }
+
+    fn enable_multibuffer(&mut self) -> anyhow::Result<()> {
+        let paths = self
+            .quickfix_list()
+            .items()
+            .iter()
+            .map(|item| item.location().path.clone())
+            .unique()
+            .collect_vec();
+
+        let editors = paths
+            .into_iter()
+            .map(|path| self.open_file(&path, BufferOwner::User, true, false))
+            .collect::<anyhow::Result<Vec<_>>>()?;
+
+        self.multibuffer = Some(Multibuffer { editors });
+
+        self.set_global_mode(None)?;
+
+        self.handle_dispatch_editor(DispatchEditor::CursorAddToAllSelections)
+    }
+}
+
+struct Multibuffer {
+    editors: Vec<Rc<RefCell<SuggestiveEditor>>>,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -3962,6 +3997,7 @@ pub enum Dispatch {
     OpenFileExplorer,
     OpenSaveAsPrompt,
     SaveCurrentBufferContentTo(AbsolutePath),
+    EnableMultibuffer,
 }
 
 /// Used to send notify host app about changes
