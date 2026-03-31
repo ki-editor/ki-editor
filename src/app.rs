@@ -1169,8 +1169,9 @@ impl<T: Frontend> App<T> {
                 self.keyboard_layout_changed();
             }
             Dispatch::OpenKeyboardLayoutPrompt => self.open_keyboard_layout_picker()?,
-            Dispatch::NavigateForward => self.navigate_forward()?,
-            Dispatch::NavigateBack => self.navigate_back()?,
+            Dispatch::MovementHistoryNavigation(movement) => {
+                self.movement_history_navigation(movement)?;
+            }
             Dispatch::ToggleSelectionMark => self.toggle_selection_mark()?,
             Dispatch::ToggleFileMark => self.toggle_file_mark()?,
             Dispatch::SetFileDirtyStatus { path, dirty_status } => {
@@ -2945,6 +2946,16 @@ impl<T: Frontend> App<T> {
         Ok(())
     }
 
+    fn movement_history_navigation(&mut self, movement: Movement) -> anyhow::Result<()> {
+        match movement {
+            Movement::Left => self.navigate_back(),
+            Movement::Right => self.navigate_forward(),
+            Movement::Previous => self.handle_dispatch_editor(DispatchEditor::GoBack),
+            Movement::Next => self.handle_dispatch_editor(DispatchEditor::GoForward),
+            _ => Ok(()),
+        }
+    }
+
     fn push_current_location_into_navigation_history(&mut self, backward: bool) {
         // TODO: should include scroll offset as well
         // so that when the user navigates back, it really feels the same
@@ -3937,8 +3948,7 @@ pub enum Dispatch {
     SelectCompletionItem,
     SetKeyboardLayout(KeyboardLayout),
     OpenKeyboardLayoutPrompt,
-    NavigateForward,
-    NavigateBack,
+    MovementHistoryNavigation(Movement),
     ToggleSelectionMark,
     ToggleFileMark,
     SetFileDirtyStatus {

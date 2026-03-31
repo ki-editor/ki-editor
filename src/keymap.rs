@@ -1382,26 +1382,15 @@ pub fn keymap_other_movements() -> Vec<Keybinding> {
             "Scroll ↑".to_string(),
             Dispatch::ToEditor(ScrollPageUp),
         ),
-        Keybinding::new(
-            "backspace",
-            Direction::Start.format_action("Select"),
-            Dispatch::ToEditor(GoBack),
-        ),
-        Keybinding::new(
-            "tab",
-            Direction::End.format_action("Select"),
-            Dispatch::ToEditor(GoForward),
-        ),
-        Keybinding::new(
-            "alt+y",
-            Direction::Start.format_action("Nav"),
-            Dispatch::NavigateBack,
-        ),
-        Keybinding::new(
-            "alt+p",
-            Direction::End.format_action("Nav"),
-            Dispatch::NavigateForward,
-        ),
+        Keybinding::app_momentary_layer(MomentaryLayer {
+            key: "q",
+            name: "≡ Movement History".to_string(),
+            config: KeymapLegendConfig {
+                title: "≡ Movement History".to_string(),
+                keymap: movement_history_keymap(),
+            },
+            on_tap: None,
+        }),
         Keybinding::app_momentary_layer(MomentaryLayer {
             key: "e",
             name: "≡ Buffer".to_string(),
@@ -1650,6 +1639,28 @@ pub fn buffer_keymap(is_alted: bool) -> Keymap {
     )
 }
 
+pub fn movement_history_keymap() -> Keymap {
+    // movement_history_keymap should work in Insert Mode
+    // as well: hold-{alt+q} {u,o,j,l}
+    Keymap::new(
+        &[
+            (Movement::Left, "j"),
+            (Movement::Right, "l"),
+            (Movement::Previous, "u"),
+            (Movement::Next, "o"),
+        ]
+        .into_iter()
+        .map(|(movement, key)| {
+            Keybinding::new(
+                key,
+                movement.format_action("Movement History"),
+                Dispatch::MovementHistoryNavigation(movement),
+            )
+        })
+        .collect_vec(),
+    )
+}
+
 pub fn delete_keymap() -> Keymap {
     Keymap::new(
         &[
@@ -1714,7 +1725,7 @@ fn primary_selection_modes() -> Vec<(&'static str, SelectionMode)> {
         ("s", Word),
         ("S", BigWord),
         ("w", Subword),
-        ("q", Character),
+        ("W", Character),
     ]
     .to_vec()
 }

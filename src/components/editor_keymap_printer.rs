@@ -17,11 +17,11 @@ use crate::{
         buffer_keymap, cut_keymap, delete_keymap, duplicate_keymap, insert_keymap,
         insert_mode_delete_keymap, keymap_actions, keymap_core_movements, keymap_other_movements,
         keymap_overridable, keymap_primary_selection_modes, keymap_secondary_selection_modes_init,
-        keymap_surround, keymap_transform, keymap_universal, multicursor_menu_keymap,
-        multicursor_momentary_layer_keymap, normal_mode_keymap, paste_keymap,
-        secondary_selection_modes_keymap_legend_config, space_context_keymap_legend_config,
-        space_editor_keymap_legend_config, space_keymap_legend_config,
-        space_pick_keymap_legend_config, swap_keymap,
+        keymap_surround, keymap_transform, keymap_universal, movement_history_keymap,
+        multicursor_menu_keymap, multicursor_momentary_layer_keymap, normal_mode_keymap,
+        paste_keymap, secondary_selection_modes_keymap_legend_config,
+        space_context_keymap_legend_config, space_editor_keymap_legend_config,
+        space_keymap_legend_config, space_pick_keymap_legend_config, swap_keymap,
     },
 };
 use comfy_table::{
@@ -358,6 +358,10 @@ impl KeymapPrintSections {
             KeymapPrintSection::from_keymap("Delete".to_string(), &delete_keymap()),
             KeymapPrintSection::from_keymap("Insert".to_string(), &insert_keymap()),
             KeymapPrintSection::from_keymap("Buffer".to_string(), &buffer_keymap(false)),
+            KeymapPrintSection::from_keymap(
+                "Movement History".to_string(),
+                &movement_history_keymap(),
+            ),
         ]
         .to_vec();
 
