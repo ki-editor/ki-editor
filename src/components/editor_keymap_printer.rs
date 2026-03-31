@@ -360,7 +360,7 @@ impl KeymapPrintSections {
             KeymapPrintSection::from_keymap("Buffer".to_string(), &buffer_keymap(false)),
             KeymapPrintSection::from_keymap(
                 "Movement History".to_string(),
-                &movement_history_keymap(false),
+                &movement_history_keymap(),
             ),
         ]
         .to_vec();

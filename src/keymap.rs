@@ -1387,7 +1387,7 @@ pub fn keymap_other_movements() -> Vec<Keybinding> {
             name: "≡ Movement History".to_string(),
             config: KeymapLegendConfig {
                 title: "≡ Movement History".to_string(),
-                keymap: movement_history_keymap(false),
+                keymap: movement_history_keymap(),
             },
             on_tap: None,
         }),
@@ -1639,12 +1639,9 @@ pub fn buffer_keymap(is_alted: bool) -> Keymap {
     )
 }
 
-pub fn movement_history_keymap(is_alted: bool) -> Keymap {
-    if is_alted {
-        // movement_hisotyr_keymap should work in Insert Mode
-        // as well. alt+q alt+{u,o,j,l}
-        todo!();
-    }
+pub fn movement_history_keymap() -> Keymap {
+    // movement_history_keymap should work in Insert Mode
+    // as well: hold-{alt+q} {u,o,j,l}
     Keymap::new(
         &[
             (Movement::Left, "j"),
