@@ -1,16 +1,28 @@
 {
-    "name": "Other Movements",
+    "name": "Movement History",
     "rows": [
         [
-            { "normal": "≡ Movement History", "alted": null, "shifted": null },
-            { "normal": null, "alted": null, "shifted": null },
-            { "normal": "≡ Buffer", "alted": null, "shifted": null },
             { "normal": null, "alted": null, "shifted": null },
             { "normal": null, "alted": null, "shifted": null },
             { "normal": null, "alted": null, "shifted": null },
             { "normal": null, "alted": null, "shifted": null },
-            { "normal": null, "alted": "Scroll ↑", "shifted": null },
             { "normal": null, "alted": null, "shifted": null },
+            { "normal": null, "alted": null, "shifted": null },
+            { "normal": "< Movement History", "alted": null, "shifted": null },
+            { "normal": null, "alted": null, "shifted": null },
+            { "normal": "Movement History >", "alted": null, "shifted": null },
+            { "normal": null, "alted": null, "shifted": null }
+        ],
+        [
+            { "normal": null, "alted": null, "shifted": null },
+            { "normal": null, "alted": null, "shifted": null },
+            { "normal": null, "alted": null, "shifted": null },
+            { "normal": null, "alted": null, "shifted": null },
+            { "normal": null, "alted": null, "shifted": null },
+            { "normal": null, "alted": null, "shifted": null },
+            { "normal": "<< Movement History", "alted": null, "shifted": null },
+            { "normal": null, "alted": null, "shifted": null },
+            { "normal": "Movement History >>", "alted": null, "shifted": null },
             { "normal": null, "alted": null, "shifted": null }
         ],
         [
@@ -21,21 +33,9 @@
             { "normal": null, "alted": null, "shifted": null },
             { "normal": null, "alted": null, "shifted": null },
             { "normal": null, "alted": null, "shifted": null },
-            { "normal": null, "alted": "Scroll ↓", "shifted": null },
+            { "normal": null, "alted": null, "shifted": null },
             { "normal": null, "alted": null, "shifted": null },
             { "normal": null, "alted": null, "shifted": null }
-        ],
-        [
-            { "normal": null, "alted": null, "shifted": null },
-            { "normal": null, "alted": null, "shifted": null },
-            { "normal": null, "alted": null, "shifted": null },
-            { "normal": null, "alted": null, "shifted": null },
-            { "normal": null, "alted": null, "shifted": null },
-            { "normal": null, "alted": null, "shifted": null },
-            { "normal": null, "alted": null, "shifted": null },
-            { "normal": null, "alted": null, "shifted": null },
-            { "normal": null, "alted": null, "shifted": null },
-            { "normal": "⇋ Curs", "alted": null, "shifted": "⇋ Anchor" }
         ]
     ],
     "keyboard_layouts": [

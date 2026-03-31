@@ -2,8 +2,8 @@
     "name": "Multi-cursor Menu",
     "rows": [
         [
-            { "normal": "CHAR", "alted": null, "shifted": null },
-            { "normal": "SUBWORD", "alted": null, "shifted": null },
+            { "normal": null, "alted": null, "shifted": null },
+            { "normal": "SUBWORD", "alted": null, "shifted": "CHAR" },
             { "normal": null, "alted": null, "shifted": null },
             { "normal": null, "alted": null, "shifted": null },
             { "normal": null, "alted": null, "shifted": null },
