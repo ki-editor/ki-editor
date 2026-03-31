@@ -1656,7 +1656,7 @@ pub fn movement_history_keymap(is_alted: bool) -> Keymap {
         .map(|(movement, key)| {
             Keybinding::new(
                 key,
-                movement.format_action("Delete"),
+                movement.format_action("Movement History"),
                 Dispatch::MovementHistoryNavigation(movement),
             )
         })
@@ -1678,7 +1678,7 @@ pub fn delete_keymap() -> Keymap {
         .map(|(movement, key)| {
             Keybinding::new(
                 key,
-                movement.format_action("Movement History"),
+                movement.format_action("Delete"),
                 Dispatch::ToEditor(DeleteWithMovement(movement)),
             )
         })
