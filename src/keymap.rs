@@ -1678,7 +1678,7 @@ pub fn delete_keymap() -> Keymap {
         .map(|(movement, key)| {
             Keybinding::new(
                 key,
-                movement.format_action("Delete"),
+                movement.format_action("Movement History"),
                 Dispatch::ToEditor(DeleteWithMovement(movement)),
             )
         })
@@ -1728,7 +1728,7 @@ fn primary_selection_modes() -> Vec<(&'static str, SelectionMode)> {
         ("s", Word),
         ("S", BigWord),
         ("w", Subword),
-        ("Q", Character),
+        ("W", Character),
     ]
     .to_vec()
 }
