@@ -3028,7 +3028,7 @@ impl Editor {
         context: &Context,
     ) -> Result<Dispatches, anyhow::Error> {
         if context.mode() == Some(GlobalMode::QuickfixListItem) {
-            return Ok(Dispatches::one(Dispatch::EnableMultibuffer));
+            return Ok(Dispatches::one(Dispatch::ToggleMultibuffer));
         }
 
         self.selection_set

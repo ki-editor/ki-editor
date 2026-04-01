@@ -1319,7 +1319,7 @@ impl<T: Frontend> App<T> {
             Dispatch::SaveCurrentBufferContentTo(path) => {
                 self.save_current_buffer_content_to(path)?;
             }
-            Dispatch::EnableMultibuffer => self.enable_multibuffer()?,
+            Dispatch::ToggleMultibuffer => self.toggle_multibuffer()?,
             #[cfg(test)]
             Dispatch::SetFileContent(absolute_path, content) => {
                 absolute_path.write(&content)?;
@@ -3779,7 +3779,11 @@ Please consider installing it.\n\
         Ok(())
     }
 
-    fn enable_multibuffer(&mut self) -> anyhow::Result<()> {
+    fn toggle_multibuffer(&mut self) -> anyhow::Result<()> {
+        if self.multibuffer.is_some() {
+            self.multibuffer = None;
+            return Ok(());
+        }
         let paths = self
             .quickfix_list()
             .items()
@@ -4113,7 +4117,7 @@ pub enum Dispatch {
     OpenFileExplorer,
     OpenSaveAsPrompt,
     SaveCurrentBufferContentTo(AbsolutePath),
-    EnableMultibuffer,
+    ToggleMultibuffer,
     #[cfg(test)]
     SetFileContent(AbsolutePath, String),
 }

@@ -390,6 +390,7 @@ pub fn space_keymap_legend_config(editor: &Editor, context: &Context) -> KeymapL
                     "÷ Cursor".to_string(),
                     Dispatch::ToEditor(DispatchEditor::ToggleReveal(Reveal::Cursor)),
                 ),
+                Keybinding::new("p", "÷ File".to_string(), Dispatch::ToggleMultibuffer),
                 Keybinding::new(
                     "o",
                     "÷ Mark".to_string(),
