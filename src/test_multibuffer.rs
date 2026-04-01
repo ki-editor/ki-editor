@@ -30,10 +30,10 @@ fn render_should_show_all_quickfix_items_and_all_files() -> Result<(), anyhow::E
             Editor(CursorAddToAllSelections),
             Expect(AppGrid(
                 "
- [ ] 🦀  foo.rs
+src/foo.rs
 1│// third █oo
 
- [ ] 🦀  main.rs
+src/main.rs
 1│// first █oo
 2│
 4│second foo
@@ -79,6 +79,69 @@ src/main.rs
                     .trim_matches('\n')
                     .to_string(),
             )),
+        ])
+    })
+}
+
+#[test]
+fn able_to_open_search_prompt_when_multibuffer_enabled() -> Result<(), anyhow::Error> {
+    execute_test(|s| {
+        Box::new([
+            App(TerminalDimensionChanged(Dimension {
+                width: 50,
+                height: 8,
+            })),
+            App(OpenFile {
+                path: s.gitignore(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            App(ToggleFileMark),
+            App(SetFileContent(s.main_rs(), "// foo x bar".to_string())),
+            App(SetFileContent(s.foo_rs(), "// foo y bar".to_string())),
+            App(OpenSearchPrompt {
+                scope: Scope::Global,
+                if_current_not_found: IfCurrentNotFound::LookForward,
+            }),
+            App(HandleKeyEvents(keys!("f o o enter").to_vec())),
+            WaitForAppMessage(regex!("GlobalSearchFinished")),
+            Editor(CursorAddToAllSelections),
+            App(OpenSearchPrompt {
+                scope: Scope::Local,
+                if_current_not_found: IfCurrentNotFound::LookForward,
+            }),
+            Expect(AppGrid(
+                "
+src/foo.rs
+1│// █oo y bar
+src/main.rs
+1│// █oo x bar
+Local search             │Completion
+1│foo                    │1│█
+2│█                      │2│bar
+"
+                .to_string(),
+            )),
+            App(HandleKeyEvents(keys!("b a r").to_vec())),
+            Expect(AppGrid(
+                "
+src/foo.rs
+1│// █oo y bar
+src/main.rs
+1│// █oo x bar
+Local search (Literal)   │Completion
+1│foo                    │1│█ar
+2│bar█                   │
+"
+                .trim()
+                .to_string(),
+            )),
+            App(HandleKeyEvents(keys!("enter").to_vec())),
+            Expect(CurrentSelectedTexts(&["bar"])),
+            App(HandleKeyEvents(keys!("f release-f z").to_vec())),
+            App(SaveAll),
+            Expect(FileContent(s.main_rs(), "// foo x z\n".to_string())),
+            Expect(FileContent(s.foo_rs(), "// foo y z\n".to_string())),
         ])
     })
 }

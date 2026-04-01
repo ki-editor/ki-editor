@@ -1377,20 +1377,15 @@ impl<T: Frontend> App<T> {
         let config = self.context.local_search_config(Scope::Local);
         let search = config.search();
         if !search.is_empty() {
-            self.handle_dispatch_editor_custom(
-                SetSelectionMode(
-                    if_current_not_found,
-                    SelectionMode::Find {
-                        search: Search {
-                            mode: config.mode,
-                            search,
-                        },
+            self.handle_dispatch_editor(SetSelectionMode(
+                if_current_not_found,
+                SelectionMode::Find {
+                    search: Search {
+                        mode: config.mode,
+                        search,
                     },
-                ),
-                component_id
-                    .and_then(|component_id| self.get_component_by_id(component_id))
-                    .unwrap_or_else(|| self.current_component()),
-            )?;
+                },
+            ))?;
         }
 
         Ok(())
@@ -2285,13 +2280,20 @@ impl<T: Frontend> App<T> {
         &mut self,
         dispatch_editor: DispatchEditor,
     ) -> anyhow::Result<()> {
-        if let Some(multibuffer) = self.multibuffer.as_ref() {
-            for component in multibuffer.editors.clone() {
-                self.handle_dispatch_editor_custom(dispatch_editor.clone(), component)?;
+        match self.multibuffer.as_ref() {
+            // Only multiplex the DispatchEditor to multiple editors
+            // if the current focused component is a SuggestiveEditor
+            Some(multibuffer)
+                if self.current_component().borrow().type_id()
+                    == TypeId::of::<SuggestiveEditor>() =>
+            {
+                for component in multibuffer.editors.clone() {
+                    self.handle_dispatch_editor_custom(dispatch_editor.clone(), component)?;
+                }
+                Ok(())
             }
-            Ok(())
-        } else {
-            self.handle_dispatch_editor_custom(dispatch_editor, self.current_component())
+            // Otherwise, just send the DispatchEditor to the current component
+            _ => self.handle_dispatch_editor_custom(dispatch_editor, self.current_component()),
         }
     }
 
