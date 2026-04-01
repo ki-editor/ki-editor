@@ -1,20 +1,11 @@
-use std::time::Duration;
-
 use lazy_regex::regex;
-use my_proc_macros::{key, keys};
+use my_proc_macros::keys;
 
 use crate::{
-    app::{
-        Dimension,
-        Dispatch::{self, *},
-        Scope,
-    },
+    app::{Dispatch::*, Scope},
     buffer::BufferOwner,
     components::editor::{Direction, DispatchEditor::*, IfCurrentNotFound},
-    grid::StyleKey,
-    selection::SelectionMode,
-    selection_mode::GetGapMovement,
-    test_app::{execute_test, execute_test_custom, ExpectKind::*, RunTestOptions, Step::*},
+    test_app::{execute_test, ExpectKind::*, Step::*},
 };
 
 #[test]
@@ -26,14 +17,14 @@ fn case_1() -> Result<(), anyhow::Error> {
                 owner: BufferOwner::User,
                 focus: true,
             }),
-            Editor(SetContent("foo xxx yyy".to_string())),
+            Editor(SetContent("// foo xxx yyy\n// second foo".to_string())),
             Editor(Save),
             App(OpenFile {
                 path: s.foo_rs(),
                 owner: BufferOwner::User,
                 focus: true,
             }),
-            Editor(SetContent("foo aaa bbb".to_string())),
+            Editor(SetContent("// foo aaa bbb".to_string())),
             Editor(Save),
             App(OpenSearchPrompt {
                 scope: Scope::Global,
@@ -44,15 +35,17 @@ fn case_1() -> Result<(), anyhow::Error> {
             Expect(QuickfixListContent(
                 "
 src/foo.rs
-    1:1  foo aaa bbb
+    1: 4  // foo aaa bbb
 
 src/main.rs
-    1:1  foo xxx yyy
+    1: 4  // foo xxx yyy
+    2:11  // second foo
 "
                 .trim()
                 .to_string(),
             )),
             Editor(CursorAddToAllSelections),
+            Expect(CurrentSelectedTexts(&["foo"])),
             Expect(CurrentGlobalMode(None)),
             Editor(Change),
             App(HandleKeyEvents(keys!("b a r esc").to_vec())),
@@ -62,13 +55,14 @@ src/main.rs
                 owner: BufferOwner::User,
                 focus: true,
             }),
-            Expect(CurrentComponentContent("bar xxx yyy")),
+            Expect(CurrentComponentContent("// bar xxx yyy\n// second bar\n")),
             App(OpenFile {
                 path: s.foo_rs(),
                 owner: BufferOwner::User,
                 focus: true,
             }),
-            Expect(CurrentComponentContent("bar aaa bbb")),
+            Expect(CurrentComponentContent("// bar aaa bbb\n")),
+            Expect(AppGrid("".to_string())),
         ])
     })
 }

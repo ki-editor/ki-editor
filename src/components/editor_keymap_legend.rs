@@ -12,7 +12,7 @@ use super::{editor::Editor, keymap_legend::Keymap};
 
 impl Editor {
     pub fn handle_insert_mode(
-        &mut self,
+        &self,
         context: &Context,
         event: KeyEvent,
     ) -> anyhow::Result<Dispatches> {
@@ -27,13 +27,15 @@ impl Editor {
         {
             Ok(dispatches)
         } else if let (KeyCode::Char(c), KeyEventKind::Press) = (event.code, event.kind) {
-            self.insert(&c.to_string(), context)
+            Ok(Dispatches::one(Dispatch::ToEditor(
+                super::editor::DispatchEditor::Insert(c.to_string()),
+            )))
         } else {
             Ok(Dispatches::default())
         }
     }
 
-    pub fn handle_universal_key(&mut self, event: &KeyEvent) -> anyhow::Result<Option<Dispatches>> {
+    pub fn handle_universal_key(&self, event: &KeyEvent) -> anyhow::Result<Option<Dispatches>> {
         if let Some(keymap) = Keymap::new(&keymap_universal()).get(event) {
             Ok(Some(keymap.get_dispatches()))
         } else {

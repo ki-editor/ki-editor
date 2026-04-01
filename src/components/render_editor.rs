@@ -43,27 +43,52 @@ pub fn markup_focused_tab(path: &str) -> String {
 
 impl Editor {
     pub fn get_grid(&mut self, context: &Context, focused: bool) -> GetGridResult {
-        let hunks = self.buffer_mut().simple_hunks(context).unwrap_or_default();
-        self.get_grid_with_scroll_offset(context, focused, self.scroll_offset(), &hunks)
+        self.get_grid_with_custom_dimension(
+            context,
+            focused,
+            self.dimension(),
+            &self.reveal.clone(),
+        )
     }
+
+    pub fn get_grid_with_custom_dimension(
+        &mut self,
+        context: &Context,
+        focused: bool,
+        dimension: Dimension,
+        reveal: &Option<Reveal>,
+    ) -> GetGridResult {
+        let hunks = self.buffer_mut().simple_hunks(context).unwrap_or_default();
+        self.get_grid_with_scroll_offset(
+            context,
+            focused,
+            self.scroll_offset(),
+            &hunks,
+            dimension,
+            reveal,
+        )
+    }
+
     pub fn get_grid_with_scroll_offset(
         &self,
         context: &Context,
         focused: bool,
         scroll_offset: usize,
         hunks: &[SimpleHunk],
+        dimension: Dimension,
+        reveal: &Option<Reveal>,
     ) -> GetGridResult {
         let title = self.title(context);
         let title_grid_height = title.lines().count();
         let render_area = {
-            let Dimension { height, width } = self.dimension();
+            let Dimension { height, width } = dimension;
             Dimension {
                 height: height.saturating_sub(title_grid_height),
                 width,
             }
         };
         let marks = context.get_marks(self.path());
-        let grid = match &self.reveal {
+        let grid = match reveal {
             None => self.get_grid_with_dimension(
                 context.theme(),
                 context.current_working_directory(),

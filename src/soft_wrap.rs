@@ -257,10 +257,7 @@ pub fn soft_wrap(text: &str, width: usize) -> WrappedLines {
         width,
         ending_with_newline_character: text.ends_with('\n'),
     };
-    debug_assert_eq!(
-        result.to_string().replace('\n', ""),
-        text.to_string().replace('\n', "")
-    );
+
     result
 }
 

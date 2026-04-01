@@ -944,6 +944,8 @@ impl Editor {
                 false,
                 new_scroll_offset,
                 Default::default(),
+                self.dimension(),
+                &self.reveal(),
             );
             let grid_string = grid.grid.to_string();
             let grid_string_lines = grid_string.lines().collect_vec();
