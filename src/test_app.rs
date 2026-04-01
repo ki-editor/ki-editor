@@ -30,7 +30,7 @@ pub use SelectionMode::*;
 
 use crate::{
     app::{NucleoSource, StatusLine},
-    components::editor_keymap::BUILTIN_KEYBOARD_LAYOUTS,
+    components::{component::RenderTitleMode, editor_keymap::BUILTIN_KEYBOARD_LAYOUTS},
     lsp::process::ResponseContext,
     scripting::{ScriptInput, ScriptOutput},
     selection_mode::GetGapMovement,
@@ -541,7 +541,11 @@ impl ExpectKind {
                 }))?;
                 contextualize(
                     expected,
-                    &app.current_component().borrow().title(app.context()),
+                    &app.current_component().borrow().title(
+                        app.context(),
+                        &app.current_component().borrow().editor().dimension(),
+                        &RenderTitleMode::Tabline,
+                    ),
                 )
             }
             CurrentSelectionMode(expected) => contextualize(

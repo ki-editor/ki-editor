@@ -1,4 +1,4 @@
-use crate::app::Dispatches;
+use crate::app::{Dimension, Dispatches};
 use std::any::Any;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -81,6 +81,13 @@ impl Cursor {
     pub fn set_position(self, position: Position) -> Cursor {
         Cursor { position, ..self }
     }
+}
+
+pub enum RenderTitleMode {
+    /// Show the name of the current file only
+    Filename,
+    /// Besides showing the current file name, also shows the marked files names
+    Tabline,
 }
 
 pub trait Component: Any + AnyComponent {
@@ -173,8 +180,8 @@ pub trait Component: Any + AnyComponent {
         self.editor().buffer().content()
     }
 
-    fn title(&self, context: &Context) -> String {
-        self.editor().title(context)
+    fn title(&self, context: &Context, dimension: &Dimension, mode: &RenderTitleMode) -> String {
+        self.editor().title(context, dimension, mode)
     }
 
     fn set_title(&mut self, title: String) {

@@ -3,7 +3,7 @@ use crate::{
     char_index_range::CharIndexRange,
     clipboard::Texts,
     components::{
-        component::{Component, ComponentId, GetGridResult},
+        component::{self, Component, ComponentId, Cursor, GetGridResult},
         dropdown_sync::{DropdownItem, DropdownRender},
         editor::{
             Direction, DispatchEditor, Editor, IfCurrentNotFound, Movement, PriorChange, Reveal,
@@ -503,110 +503,9 @@ impl<T: Frontend> App<T> {
         let (windows, cursors): (Vec<_>, Vec<_>) = self
             .components()
             .into_iter()
-            .map(|component| {
-                let rectangle = component.component().borrow().rectangle().clone();
-                let focused_component_id = self.layout.focused_component_id();
-                let focused = component.component().borrow().id() == focused_component_id;
-                let GetGridResult { grid, cursor } =
-                    if let Some(multibuffer) = self.multibuffer.as_ref() {
-                        match multibuffer.quickfix_list_items.first() {
-                            Some(first_item) if focused => {
-                                let viewport_sections = divide_viewport(
-                                    &multibuffer.quickfix_list_items,
-                                    rectangle.height,
-                                    first_item.clone(),
-                                );
-
-                                let editor_heights = viewport_sections
-                                    .into_iter()
-                                    .sorted_by_key(|section| section.item().location().path.clone())
-                                    .chunk_by(|section| section.item().location().path.clone())
-                                    .into_iter()
-                                    .filter_map(|(path, sections)| {
-                                        let editor = multibuffer.editors.iter().find(|editor| {
-                                            editor.borrow().path().as_ref() == Some(&path)
-                                        })?;
-                                        Some((
-                                            editor,
-                                            sections
-                                                .into_iter()
-                                                .map(|section| section.height())
-                                                .sum::<usize>(),
-                                        ))
-                                    })
-                                    .collect_vec();
-
-                                let get_grid_results = editor_heights
-                                    .into_iter()
-                                    .enumerate()
-                                    .map(|(index, (editor, height))| {
-                                        editor
-                                            .borrow_mut()
-                                            .editor_mut()
-                                            .get_grid_with_custom_dimension(
-                                                &self.context,
-                                                index == 0,
-                                                Dimension {
-                                                    height,
-                                                    width: rectangle.width,
-                                                },
-                                                &Some(Reveal::Cursor),
-                                            )
-                                    })
-                                    .collect_vec();
-
-                                let cursor = get_grid_results
-                                    .first()
-                                    .and_then(|result| result.cursor.clone());
-
-                                let grid = get_grid_results
-                                    .into_iter()
-                                    .fold(Grid::new(Dimension::default()), |grid, result| {
-                                        grid.merge_vertical(result.grid)
-                                    });
-
-                                GetGridResult { grid, cursor }
-                            }
-                            _ => component
-                                .component()
-                                .borrow_mut()
-                                .get_grid(&self.context, focused),
-                        }
-                    } else {
-                        component
-                            .component()
-                            .borrow_mut()
-                            .get_grid(&self.context, focused)
-                    };
-
-                let cursor_position = 'cursor_calc: {
-                    if !focused {
-                        break 'cursor_calc None;
-                    }
-
-                    let Some(cursor) = cursor else {
-                        break 'cursor_calc None;
-                    };
-
-                    let cursor_position = cursor.position();
-
-                    // If cursor position is not in view
-                    if cursor_position.line >= rectangle.dimension().height {
-                        break 'cursor_calc None;
-                    }
-
-                    let calibrated_position = Position::new(
-                        cursor_position.line + rectangle.origin.line,
-                        cursor_position.column + rectangle.origin.column,
-                    );
-
-                    Some(cursor.set_position(calibrated_position))
-                };
-                let window = Window::new(grid, rectangle.clone());
-
-                (window, cursor_position)
-            })
+            .map(|component| self.render_component_window(component))
             .unzip();
+
         let borders = self.layout.borders();
         let cursor = cursors.into_iter().find_map(|cursor| cursor);
         let screen = Screen::new(windows, borders, cursor, self.context.theme().ui.border);
@@ -623,6 +522,111 @@ impl<T: Frontend> App<T> {
             .fold(screen, |screen, window| screen.add_window(window));
 
         Ok(screen)
+    }
+
+    fn render_component_window(&self, component: KindedComponent) -> (Window, Option<Cursor>) {
+        let rectangle = component.component().borrow().rectangle().clone();
+        let focused_component_id = self.layout.focused_component_id();
+        let focused = component.component().borrow().id() == focused_component_id;
+        let GetGridResult { grid, cursor } = if let Some(multibuffer) = self.multibuffer.as_ref() {
+            match multibuffer.quickfix_list_items.first() {
+                Some(first_item) if component.kind() == ComponentKind::SuggestiveEditor => {
+                    let viewport_sections = divide_viewport(
+                        &multibuffer.quickfix_list_items,
+                        rectangle.height,
+                        first_item.clone(),
+                    );
+
+                    let editor_heights = viewport_sections
+                        .into_iter()
+                        .sorted_by_key(|section| section.item().location().path.clone())
+                        .chunk_by(|section| section.item().location().path.clone())
+                        .into_iter()
+                        .filter_map(|(path, sections)| {
+                            let editor = multibuffer
+                                .editors
+                                .iter()
+                                .find(|editor| editor.borrow().path().as_ref() == Some(&path))?;
+                            Some((
+                                editor,
+                                sections
+                                    .into_iter()
+                                    .map(|section| section.height())
+                                    .sum::<usize>(),
+                            ))
+                        })
+                        .collect_vec();
+
+                    let get_grid_results = editor_heights
+                        .into_iter()
+                        .enumerate()
+                        .map(|(index, (editor, height))| {
+                            editor
+                                .borrow_mut()
+                                .editor_mut()
+                                .get_grid_with_custom_dimension(
+                                    &self.context,
+                                    index == 0,
+                                    Dimension {
+                                        height,
+                                        width: rectangle.width,
+                                    },
+                                    &Some(Reveal::Cursor),
+                                    &component::RenderTitleMode::Filename,
+                                )
+                        })
+                        .collect_vec();
+
+                    let cursor = get_grid_results
+                        .first()
+                        .and_then(|result| result.cursor.clone());
+
+                    let grid = get_grid_results
+                        .into_iter()
+                        .fold(Grid::new(Dimension::default()), |grid, result| {
+                            grid.merge_vertical(result.grid)
+                        });
+
+                    GetGridResult { grid, cursor }
+                }
+                _ => component
+                    .component()
+                    .borrow_mut()
+                    .get_grid(&self.context, focused),
+            }
+        } else {
+            component
+                .component()
+                .borrow_mut()
+                .get_grid(&self.context, focused)
+        };
+
+        let cursor_position = 'cursor_calc: {
+            if !focused {
+                break 'cursor_calc None;
+            }
+
+            let Some(cursor) = cursor else {
+                break 'cursor_calc None;
+            };
+
+            let cursor_position = cursor.position();
+
+            // If cursor position is not in view
+            if cursor_position.line >= rectangle.dimension().height {
+                break 'cursor_calc None;
+            }
+
+            let calibrated_position = Position::new(
+                cursor_position.line + rectangle.origin.line,
+                cursor_position.column + rectangle.origin.column,
+            );
+
+            Some(cursor.set_position(calibrated_position))
+        };
+        let window = Window::new(grid, rectangle.clone());
+
+        (window, cursor_position)
     }
 
     fn render_status_line(&self, index: usize, status_line: &StatusLine) -> Window {
@@ -1316,6 +1320,10 @@ impl<T: Frontend> App<T> {
                 self.save_current_buffer_content_to(path)?;
             }
             Dispatch::EnableMultibuffer => self.enable_multibuffer()?,
+            #[cfg(test)]
+            Dispatch::SetFileContent(absolute_path, content) => {
+                absolute_path.write(&content)?;
+            }
         }
         Ok(())
     }
@@ -3798,6 +3806,9 @@ Please consider installing it.\n\
                 },
             ))?;
             self.handle_dispatch_editor(DispatchEditor::CursorAddToAllSelections)?;
+
+            // Close the quickfix list
+            self.layout.remain_only_current_component();
         }
 
         Ok(())
@@ -4101,6 +4112,8 @@ pub enum Dispatch {
     OpenSaveAsPrompt,
     SaveCurrentBufferContentTo(AbsolutePath),
     EnableMultibuffer,
+    #[cfg(test)]
+    SetFileContent(AbsolutePath, String),
 }
 
 /// Used to send notify host app about changes

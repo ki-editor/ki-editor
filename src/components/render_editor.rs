@@ -10,7 +10,7 @@ use crate::{
     buffer::{Buffer, Line},
     char_index_range::CharIndexRange,
     components::{
-        component::{Component, Cursor, SetCursorStyle},
+        component::{Component, Cursor, RenderTitleMode, SetCursorStyle},
         editor::Mode,
     },
     context::Context,
@@ -48,6 +48,7 @@ impl Editor {
             focused,
             self.dimension(),
             &self.reveal.clone(),
+            &RenderTitleMode::Tabline,
         )
     }
 
@@ -57,6 +58,7 @@ impl Editor {
         focused: bool,
         dimension: Dimension,
         reveal: &Option<Reveal>,
+        render_title_mode: &RenderTitleMode,
     ) -> GetGridResult {
         let hunks = self.buffer_mut().simple_hunks(context).unwrap_or_default();
         self.get_grid_with_scroll_offset(
@@ -66,6 +68,7 @@ impl Editor {
             &hunks,
             dimension,
             reveal,
+            render_title_mode,
         )
     }
 
@@ -77,8 +80,9 @@ impl Editor {
         hunks: &[SimpleHunk],
         dimension: Dimension,
         reveal: &Option<Reveal>,
+        render_title_mode: &RenderTitleMode,
     ) -> GetGridResult {
-        let title = self.title(context);
+        let title = self.title(context, &dimension, render_title_mode);
         let title_grid_height = title.lines().count();
         let render_area = {
             let Dimension { height, width } = dimension;
@@ -130,7 +134,7 @@ impl Editor {
             );
             let dimension = Dimension {
                 height: title_grid_height,
-                width: self.dimension().width,
+                width: dimension.width,
             };
             let theme = Theme {
                 ui: UiStyles {
@@ -168,30 +172,43 @@ impl Editor {
         }
     }
 
-    pub fn title_impl(&self, context: &Context) -> Option<String> {
-        let dimension = self.dimension();
+    pub fn title_impl(
+        &self,
+        context: &Context,
+        dimension: &Dimension,
+        render_title_mode: &RenderTitleMode,
+    ) -> Option<String> {
         let result = if dimension.height <= 1 {
             vec![]
         } else {
-            let wrapped_items = wrap_items(
-                get_formatted_paths(
-                    &context.get_marked_files(),
-                    &context.get_dirty_files(),
-                    &self.path()?,
-                    context.current_working_directory(),
-                ),
-                // Reference: NEED_TO_REDUCE_WIDTH_BY_1
-                dimension.width.saturating_sub(1),
-            );
+            match render_title_mode {
+                RenderTitleMode::Filename => [self
+                    .path()
+                    .map(|path| path.try_display_relative_to(context.current_working_directory()))
+                    .unwrap_or_else(|| "[Untitled]".to_string())]
+                .to_vec(),
+                RenderTitleMode::Tabline => {
+                    let wrapped_items = wrap_items(
+                        get_formatted_paths(
+                            &context.get_marked_files(),
+                            &context.get_dirty_files(),
+                            &self.path()?,
+                            context.current_working_directory(),
+                        ),
+                        // Reference: NEED_TO_REDUCE_WIDTH_BY_1
+                        dimension.width.saturating_sub(1),
+                    );
 
-            trim_array(
-                &wrapped_items,
-                wrapped_items.len().saturating_sub(1)..wrapped_items.len(),
-                wrapped_items
-                    .len()
-                    .saturating_sub(dimension.height.saturating_sub(1)),
-            )
-            .trimmed_array
+                    trim_array(
+                        &wrapped_items,
+                        wrapped_items.len().saturating_sub(1)..wrapped_items.len(),
+                        wrapped_items
+                            .len()
+                            .saturating_sub(dimension.height.saturating_sub(1)),
+                    )
+                    .trimmed_array
+                }
+            }
         };
         let result = result.join("\n");
 
@@ -257,7 +274,7 @@ impl Editor {
         viewport_sections.into_iter().fold(
             Grid::new(Dimension {
                 height: 0,
-                width: self.dimension().width,
+                width: render_area.width,
             }),
             |grid, viewport_section| {
                 let range = viewport_section.item();
@@ -285,7 +302,7 @@ impl Editor {
                     context.quickfix_list_items(),
                     Dimension {
                         height: viewport_section.height(),
-                        width: self.dimension().width,
+                        width: render_area.width,
                     },
                     window.start,
                     Some(protected_range),

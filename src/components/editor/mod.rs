@@ -11,7 +11,7 @@ use crate::{
     buffer::{Buffer, Line},
     char_index_range::{range_intersects, CharIndexRange},
     clipboard::Texts,
-    components::component::Component,
+    components::component::{Component, RenderTitleMode},
     context::{Context, GlobalMode, LocalSearchConfig, LocalSearchConfigMode},
     edit::{Action, ActionGroup, Edit, EditTransaction},
     git::{hunk::SimpleHunkKind, DiffMode, GitOperation as _, GitRepo},
@@ -98,10 +98,15 @@ impl Component for Editor {
         dispatches
     }
 
-    fn title(&self, context: &Context) -> String {
+    fn title(
+        &self,
+        context: &Context,
+        dimension: &Dimension,
+        render_title_mode: &RenderTitleMode,
+    ) -> String {
         let title = self.title.clone();
         title
-            .or_else(|| self.title_impl(context))
+            .or_else(|| self.title_impl(context, dimension, render_title_mode))
             .unwrap_or_else(|| "[No title]".to_string())
     }
 
@@ -946,6 +951,7 @@ impl Editor {
                 Default::default(),
                 self.dimension(),
                 &self.reveal(),
+                &RenderTitleMode::Tabline,
             );
             let grid_string = grid.grid.to_string();
             let grid_string_lines = grid_string.lines().collect_vec();
@@ -4028,7 +4034,9 @@ impl Editor {
     }
 
     pub fn window_title_height(&self, context: &Context) -> usize {
-        self.title(context).lines().count()
+        self.title(context, &self.dimension(), &RenderTitleMode::Tabline)
+            .lines()
+            .count()
     }
 
     fn execute_completion(
