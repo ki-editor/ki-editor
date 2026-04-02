@@ -1321,12 +1321,12 @@ impl<T: Frontend> App<T> {
             Dispatch::SaveCurrentBufferContentTo(path) => {
                 self.save_current_buffer_content_to(path)?;
             }
-            Dispatch::ToggleMultibuffer => self.toggle_multibuffer()?,
             #[cfg(test)]
             Dispatch::SetFileContent(absolute_path, content) => {
                 absolute_path.write(&content)?;
             }
             Dispatch::AddCursorToAllSelections => self.add_cursor_to_all_selections()?,
+            Dispatch::KeepCursorPrimaryOnly => self.keep_primary_cursor_only()?,
         }
         Ok(())
     }
@@ -3782,11 +3782,7 @@ Please consider installing it.\n\
         Ok(())
     }
 
-    fn toggle_multibuffer(&mut self) -> anyhow::Result<()> {
-        if self.multibuffer.is_some() {
-            self.multibuffer = None;
-            return Ok(());
-        }
+    fn activate_multibuffer(&mut self) -> anyhow::Result<()> {
         let paths = self
             .quickfix_list()
             .items()
@@ -3825,10 +3821,24 @@ Please consider installing it.\n\
 
     fn add_cursor_to_all_selections(&mut self) -> anyhow::Result<()> {
         if self.context.mode() == Some(GlobalMode::QuickfixListItem) {
-            self.toggle_multibuffer()
+            self.activate_multibuffer()
         } else {
             self.handle_dispatch_editor(DispatchEditor::CursorAddToAllSelections)
         }
+    }
+
+    fn keep_primary_cursor_only(&mut self) -> anyhow::Result<()> {
+        if self.multibuffer.is_some() {
+            self.multibuffer = None;
+            Ok(())
+        } else {
+            self.handle_dispatch_editor(DispatchEditor::CursorKeepPrimaryOnly)
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn multibuffer_activated(&self) -> bool {
+        self.multibuffer.is_some()
     }
 }
 
@@ -4128,10 +4138,10 @@ pub enum Dispatch {
     OpenFileExplorer,
     OpenSaveAsPrompt,
     SaveCurrentBufferContentTo(AbsolutePath),
-    ToggleMultibuffer,
     #[cfg(test)]
     SetFileContent(AbsolutePath, String),
     AddCursorToAllSelections,
+    KeepCursorPrimaryOnly,
 }
 
 /// Used to send notify host app about changes

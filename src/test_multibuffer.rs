@@ -2,13 +2,25 @@ use lazy_regex::regex;
 use my_proc_macros::keys;
 
 use crate::{
-    app::{Dimension, Dispatch::*, Scope},
+    app::{
+        Dimension,
+        Dispatch::{self, *},
+        Scope,
+    },
     buffer::BufferOwner,
-    components::editor::{DispatchEditor::*, IfCurrentNotFound, Mode},
+    components::editor::{
+        DispatchEditor::{self, *},
+        IfCurrentNotFound, Mode,
+    },
     context::GlobalMode,
     grid::StyleKey,
     position::Position,
-    test_app::{execute_test, ExpectKind::*, Step::*},
+    test_app::{
+        execute_test,
+        ExpectKind::{self, *},
+        Step::*,
+    },
+    ui_tree::ComponentKind,
 };
 
 #[test]
@@ -314,6 +326,47 @@ fn simple_normal_mode_action_should_not_be_duplicated() -> Result<(), anyhow::Er
             App(SaveAll),
             Expect(FileContent(s.main_rs(), "// xxx yyy\n".to_string())),
             Expect(FileContent(s.foo_rs(), "// aaa bbb\n".to_string())),
+        ])
+    })
+}
+
+#[test]
+fn use_keep_primary_cursor_to_deactivate_multibuffer() -> Result<(), anyhow::Error> {
+    execute_test(|s| {
+        Box::new([
+            App(SetFileContent(s.main_rs(), "// foo xxx yyy".to_string())),
+            App(SetFileContent(s.foo_rs(), "// foo aaa bbb".to_string())),
+            App(OpenSearchPrompt {
+                scope: Scope::Global,
+                if_current_not_found: IfCurrentNotFound::LookForward,
+            }),
+            App(HandleKeyEvents(keys!("f o o enter").to_vec())),
+            WaitForAppMessage(regex!("GlobalSearchFinished")),
+            App(AddCursorToAllSelections),
+            Expect(ExpectKind::MultibufferActivated(true)),
+            App(Dispatch::KeepCursorPrimaryOnly),
+            Expect(ExpectKind::MultibufferActivated(false)),
+        ])
+    })
+}
+
+#[test]
+fn quickfix_list_should_be_closed_when_multibuffer_is_activated() -> Result<(), anyhow::Error> {
+    execute_test(|s| {
+        Box::new([
+            App(SetFileContent(s.main_rs(), "// foo xxx yyy".to_string())),
+            App(SetFileContent(s.foo_rs(), "// foo aaa bbb".to_string())),
+            App(OpenSearchPrompt {
+                scope: Scope::Global,
+                if_current_not_found: IfCurrentNotFound::LookForward,
+            }),
+            App(HandleKeyEvents(keys!("f o o enter").to_vec())),
+            WaitForAppMessage(regex!("GlobalSearchFinished")),
+            Expect(ComponentsOrder(
+                [ComponentKind::SuggestiveEditor, ComponentKind::QuickfixList].to_vec(),
+            )),
+            App(AddCursorToAllSelections),
+            Expect(ComponentsOrder([ComponentKind::SuggestiveEditor].to_vec())),
         ])
     })
 }
