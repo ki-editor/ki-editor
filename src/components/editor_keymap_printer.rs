@@ -223,7 +223,7 @@ impl KeymapPrintSection {
                 modifiers_column_index,
                 Cell::new(
                     [
-                        "\n",
+                        if layout.is_some() { "\n" } else { "" },
                         if option.show_alt { "⌥\n" } else { "" },
                         if option.show_shift { "⇧\n" } else { "" },
                         "∅",
