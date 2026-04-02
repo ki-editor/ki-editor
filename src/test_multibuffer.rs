@@ -4,7 +4,7 @@ use my_proc_macros::keys;
 use crate::{
     app::{Dimension, Dispatch::*, Scope},
     buffer::BufferOwner,
-    components::editor::{Direction, DispatchEditor::*, IfCurrentNotFound, Mode},
+    components::editor::{DispatchEditor::*, IfCurrentNotFound, Mode},
     context::GlobalMode,
     grid::StyleKey,
     position::Position,
@@ -30,7 +30,7 @@ fn render_should_show_all_quickfix_items_and_all_files() -> Result<(), anyhow::E
             }),
             App(HandleKeyEvents(keys!("f o o enter").to_vec())),
             WaitForAppMessage(regex!("GlobalSearchFinished")),
-            Editor(CursorAddToAllSelections),
+            App(AddCursorToAllSelections),
             Expect(AppGrid(
                 "
 src/foo.rs
@@ -70,7 +70,7 @@ fn rendered_filename_should_exclude_tabline() -> Result<(), anyhow::Error> {
             }),
             App(HandleKeyEvents(keys!("f o o enter").to_vec())),
             WaitForAppMessage(regex!("GlobalSearchFinished")),
-            Editor(CursorAddToAllSelections),
+            App(AddCursorToAllSelections),
             Expect(AppGrid(
                 "
 src/foo.rs
@@ -81,6 +81,53 @@ src/main.rs
 1│// first █oo"
                     .trim_matches('\n')
                     .to_string(),
+            )),
+        ])
+    })
+}
+
+#[test]
+fn should_only_have_one_selection_styled_as_primary() -> Result<(), anyhow::Error> {
+    execute_test(|s| {
+        Box::new([
+            App(TerminalDimensionChanged(Dimension {
+                width: 100,
+                height: 10,
+            })),
+            App(OpenFile {
+                path: s.gitignore(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            App(ToggleFileMark),
+            App(SetFileContent(s.foo_rs(), "hello\nfoo 1".to_string())),
+            App(SetFileContent(s.main_rs(), "hello\nfoo 2".to_string())),
+            App(OpenSearchPrompt {
+                scope: Scope::Global,
+                if_current_not_found: IfCurrentNotFound::LookForward,
+            }),
+            App(HandleKeyEvents(keys!("f o o enter").to_vec())),
+            WaitForAppMessage(regex!("GlobalSearchFinished")),
+            App(AddCursorToAllSelections),
+            Expect(AppGrid(
+                "
+src/foo.rs
+1│hello
+2│█oo 1
+
+
+src/main.rs
+1│hello
+2│█oo 2"
+                    .trim_matches('\n')
+                    .to_string(),
+            )),
+            Expect(CurrentComponentPath(Some(s.foo_rs()))),
+            // The selection of `foo` in `main.rs` should be rendered as secondary selection
+            // because the current focused file is `foo.rs`
+            Expect(AppGridCellStyleKey(
+                Position::new(7, 3),
+                Some(StyleKey::UiSecondarySelectionAnchors),
             )),
         ])
     })
@@ -108,7 +155,7 @@ fn able_to_open_search_prompt_when_multibuffer_enabled() -> Result<(), anyhow::E
             }),
             App(HandleKeyEvents(keys!("f o o enter").to_vec())),
             WaitForAppMessage(regex!("GlobalSearchFinished")),
-            Editor(CursorAddToAllSelections),
+            App(AddCursorToAllSelections),
             App(OpenSearchPrompt {
                 scope: Scope::Local,
                 if_current_not_found: IfCurrentNotFound::LookForward,
@@ -176,7 +223,7 @@ src/main.rs
                 .trim()
                 .to_string(),
             )),
-            Editor(CursorAddToAllSelections),
+            App(AddCursorToAllSelections),
             Editor(Change),
             App(HandleKeyEvents(keys!("b a r esc").to_vec())),
             App(SaveAll),
@@ -205,7 +252,7 @@ fn toggling_multibuffer_mode_should_unset_global_mode() -> Result<(), anyhow::Er
             App(HandleKeyEvents(keys!("f o o enter").to_vec())),
             WaitForAppMessage(regex!("GlobalSearchFinished")),
             Expect(CurrentGlobalMode(Some(GlobalMode::QuickfixListItem))),
-            Editor(CursorAddToAllSelections),
+            App(AddCursorToAllSelections),
             Expect(CurrentGlobalMode(None)),
         ])
     })
@@ -228,7 +275,7 @@ fn primary_cursor_of_secondary_buffers_should_be_highlighted_as_ui_primary_selec
             }),
             App(HandleKeyEvents(keys!("f o o enter").to_vec())),
             WaitForAppMessage(regex!("GlobalSearchFinished")),
-            Editor(CursorAddToAllSelections),
+            App(AddCursorToAllSelections),
             App(HandleKeyEvents(keys!("h").to_vec())),
             Expect(CurrentMode(Mode::Insert)),
             Expect(AppGrid(
@@ -261,7 +308,7 @@ fn simple_normal_mode_action_should_not_be_duplicated() -> Result<(), anyhow::Er
             }),
             App(HandleKeyEvents(keys!("f o o enter").to_vec())),
             WaitForAppMessage(regex!("GlobalSearchFinished")),
-            Editor(CursorAddToAllSelections),
+            App(AddCursorToAllSelections),
             // Enter word selection mode, then delete right
             App(HandleKeyEvents(keys!("s v l release-v").to_vec())),
             App(SaveAll),

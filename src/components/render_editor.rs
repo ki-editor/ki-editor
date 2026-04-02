@@ -732,7 +732,11 @@ impl Editor {
                                 set_symbol: None,
                                 is_cursor: false,
                                 range: HighlightSpanRange::CharIndexRange(anchor),
-                                source: Source::StyleKey(UiPrimarySelectionAnchors),
+                                source: Source::StyleKey(if is_primary_buffer {
+                                    UiPrimarySelectionAnchors
+                                } else {
+                                    UiSecondarySelectionAnchors
+                                }),
                                 is_protected_range_start: false,
                             });
 

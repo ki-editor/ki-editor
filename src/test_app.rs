@@ -389,17 +389,33 @@ impl ExpectKind {
                     style_key.clone(),
                 )
             }
-            AppGridCellStyleKey(position, style_key) => contextualize(
-                app.get_screen()?
-                    .get_positioned_cells()
-                    .iter()
-                    .find(|cell| &cell.position == position)
-                    .unwrap()
-                    .cell
-                    .source
-                    .clone(),
-                style_key.clone(),
-            ),
+            AppGridCellStyleKey(position, style_key) => {
+                println!(
+                    "{}",
+                    app.get_screen()?
+                        .get_positioned_cells()
+                        .iter()
+                        .map(|cell| format!(
+                            "{}:{}:{}:{:?}",
+                            cell.cell.symbol,
+                            cell.position.line,
+                            cell.position.column,
+                            cell.cell.source
+                        ))
+                        .join("\n")
+                );
+                contextualize(
+                    app.get_screen()?
+                        .get_positioned_cells()
+                        .iter()
+                        .find(|cell| &cell.position == position)
+                        .unwrap()
+                        .cell
+                        .source
+                        .clone(),
+                    style_key.clone(),
+                )
+            }
             GridCellsStyleKey(positions, style_key) => (
                 positions.iter().all(|position| {
                     let actual_style_key = &component

@@ -1326,6 +1326,7 @@ impl<T: Frontend> App<T> {
             Dispatch::SetFileContent(absolute_path, content) => {
                 absolute_path.write(&content)?;
             }
+            Dispatch::AddCursorToAllSelections => self.add_cursor_to_all_selections()?,
         }
         Ok(())
     }
@@ -3821,6 +3822,14 @@ Please consider installing it.\n\
 
         Ok(())
     }
+
+    fn add_cursor_to_all_selections(&mut self) -> anyhow::Result<()> {
+        if self.context.mode() == Some(GlobalMode::QuickfixListItem) {
+            self.toggle_multibuffer()
+        } else {
+            self.handle_dispatch_editor(DispatchEditor::CursorAddToAllSelections)
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -4122,6 +4131,7 @@ pub enum Dispatch {
     ToggleMultibuffer,
     #[cfg(test)]
     SetFileContent(AbsolutePath, String),
+    AddCursorToAllSelections,
 }
 
 /// Used to send notify host app about changes

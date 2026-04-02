@@ -3028,10 +3028,6 @@ impl Editor {
         &mut self,
         context: &Context,
     ) -> Result<Dispatches, anyhow::Error> {
-        if context.mode() == Some(GlobalMode::QuickfixListItem) {
-            return Ok(Dispatches::one(Dispatch::ToggleMultibuffer));
-        }
-
         self.selection_set
             .add_all(&self.buffer.borrow(), &self.cursor_direction, context)?;
 

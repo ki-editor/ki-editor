@@ -62,7 +62,7 @@ pub fn multicursor_menu_keymap(editor: &Editor) -> Keymap {
         Keybinding::new(
             "j",
             "Curs All".to_string(),
-            Dispatch::ToEditor(CursorAddToAllSelections),
+            Dispatch::AddCursorToAllSelections,
         ),
         Keybinding::new(
             "i",

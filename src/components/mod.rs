@@ -9,7 +9,6 @@ pub mod editor_keymap_legend;
 pub mod editor_keymap_printer;
 pub mod file_explorer;
 pub mod keymap_legend;
-pub mod multibuffer;
 pub mod render_editor;
 pub mod suggestive_editor;
 #[cfg(test)]
