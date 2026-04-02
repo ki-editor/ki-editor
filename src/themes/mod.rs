@@ -129,6 +129,7 @@ impl Theme {
             StyleKey::UiPrimarySelectionSecondaryCursor => {
                 self.ui.primary_selection_secondary_cursor
             }
+            StyleKey::UiPrimarySelectionPrimaryCursor => self.ui.primary_selection_primary_cursor,
             StyleKey::UiSecondarySelectionPrimaryCursor => {
                 self.ui.secondary_selection_primary_cursor
             }
@@ -202,6 +203,7 @@ pub struct UiStyles {
     pub line_number: Style,
     pub border: Style,
     pub mark: Style,
+    pub primary_selection_primary_cursor: Style,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Default)]

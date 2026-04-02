@@ -4,7 +4,10 @@ use my_proc_macros::keys;
 use crate::{
     app::{Dimension, Dispatch::*, Scope},
     buffer::BufferOwner,
-    components::editor::{Direction, DispatchEditor::*, IfCurrentNotFound},
+    components::editor::{Direction, DispatchEditor::*, IfCurrentNotFound, Mode},
+    context::GlobalMode,
+    grid::StyleKey,
+    position::Position,
     test_app::{execute_test, ExpectKind::*, Step::*},
 };
 
@@ -174,8 +177,6 @@ src/main.rs
                 .to_string(),
             )),
             Editor(CursorAddToAllSelections),
-            Expect(CurrentSelectedTexts(&["foo"])),
-            Expect(CurrentGlobalMode(None)),
             Editor(Change),
             App(HandleKeyEvents(keys!("b a r esc").to_vec())),
             App(SaveAll),
@@ -184,6 +185,66 @@ src/main.rs
                 "// bar xxx yyy\n// second bar\n".to_string(),
             )),
             Expect(FileContent(s.foo_rs(), "// bar aaa bbb\n".to_string())),
+        ])
+    })
+}
+
+#[test]
+fn toggling_multibuffer_mode_should_unset_global_mode() -> Result<(), anyhow::Error> {
+    execute_test(|s| {
+        Box::new([
+            App(SetFileContent(
+                s.main_rs(),
+                "// foo xxx yyy\n// second foo".to_string(),
+            )),
+            App(SetFileContent(s.foo_rs(), "// foo aaa bbb".to_string())),
+            App(OpenSearchPrompt {
+                scope: Scope::Global,
+                if_current_not_found: IfCurrentNotFound::LookForward,
+            }),
+            App(HandleKeyEvents(keys!("f o o enter").to_vec())),
+            WaitForAppMessage(regex!("GlobalSearchFinished")),
+            Expect(CurrentGlobalMode(Some(GlobalMode::QuickfixListItem))),
+            Editor(CursorAddToAllSelections),
+            Expect(CurrentGlobalMode(None)),
+        ])
+    })
+}
+
+#[test]
+fn primary_cursor_of_secondary_buffers_should_be_highlighted_as_ui_primary_selection_primary_cursor(
+) -> Result<(), anyhow::Error> {
+    execute_test(|s| {
+        Box::new([
+            App(TerminalDimensionChanged(Dimension {
+                width: 20,
+                height: 6,
+            })),
+            App(SetFileContent(s.main_rs(), "// foo bar".to_string())),
+            App(SetFileContent(s.foo_rs(), "// foo spam".to_string())),
+            App(OpenSearchPrompt {
+                scope: Scope::Global,
+                if_current_not_found: IfCurrentNotFound::LookForward,
+            }),
+            App(HandleKeyEvents(keys!("f o o enter").to_vec())),
+            WaitForAppMessage(regex!("GlobalSearchFinished")),
+            Editor(CursorAddToAllSelections),
+            App(HandleKeyEvents(keys!("h").to_vec())),
+            Expect(CurrentMode(Mode::Insert)),
+            Expect(AppGrid(
+                "
+src/foo.rs
+1│// █oo spam
+
+src/main.rs
+1│// █oo bar
+ ← Insert"
+                    .to_string(),
+            )),
+            Expect(AppGridCellStyleKey(
+                Position::new(4, 5),
+                Some(StyleKey::UiPrimarySelectionPrimaryCursor),
+            )),
         ])
     })
 }

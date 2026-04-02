@@ -170,6 +170,7 @@ pub enum ExpectKind {
     ),
     GridCellLine(/*Row*/ usize, /*Column*/ usize, Color),
     GridCellStyleKey(Position, Option<StyleKey>),
+    AppGridCellStyleKey(Position, Option<StyleKey>),
     GridCellsStyleKey(Vec<Position>, Option<StyleKey>),
     /// Referring to the current component, whatever it might be
     RangeStyleKey(/*Search*/ &'static str, Option<StyleKey>),
@@ -388,6 +389,17 @@ impl ExpectKind {
                     style_key.clone(),
                 )
             }
+            AppGridCellStyleKey(position, style_key) => contextualize(
+                app.get_screen()?
+                    .get_positioned_cells()
+                    .iter()
+                    .find(|cell| &cell.position == position)
+                    .unwrap()
+                    .cell
+                    .source
+                    .clone(),
+                style_key.clone(),
+            ),
             GridCellsStyleKey(positions, style_key) => (
                 positions.iter().all(|position| {
                     let actual_style_key = &component

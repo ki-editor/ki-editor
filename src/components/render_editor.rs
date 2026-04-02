@@ -49,6 +49,7 @@ impl Editor {
             self.dimension(),
             &self.reveal.clone(),
             &RenderTitleMode::Tabline,
+            true,
         )
     }
 
@@ -59,6 +60,7 @@ impl Editor {
         dimension: Dimension,
         reveal: &Option<Reveal>,
         render_title_mode: &RenderTitleMode,
+        is_primary_buffer: bool,
     ) -> GetGridResult {
         let hunks = self.buffer_mut().simple_hunks(context).unwrap_or_default();
         self.get_grid_with_scroll_offset(
@@ -69,6 +71,7 @@ impl Editor {
             dimension,
             reveal,
             render_title_mode,
+            is_primary_buffer,
         )
     }
 
@@ -81,6 +84,7 @@ impl Editor {
         dimension: Dimension,
         reveal: &Option<Reveal>,
         render_title_mode: &RenderTitleMode,
+        is_primary_buffer: bool,
     ) -> GetGridResult {
         let title = self.title(context, &dimension, render_title_mode);
         let title_grid_height = title.lines().count();
@@ -105,10 +109,17 @@ impl Editor {
                 focused,
                 hunks,
                 &marks,
+                is_primary_buffer,
             ),
-            Some(reveal) => {
-                self.get_splitted_grid(context, reveal, render_area, focused, hunks, &marks)
-            }
+            Some(reveal) => self.get_splitted_grid(
+                context,
+                reveal,
+                render_area,
+                focused,
+                hunks,
+                &marks,
+                is_primary_buffer,
+            ),
         };
         let theme = context.theme();
         let window_title_style = if focused {
@@ -157,6 +168,7 @@ impl Editor {
                 focused,
                 hunks,
                 &[],
+                true,
             )
         };
         let grid = title_grid.merge_vertical(grid);
@@ -225,6 +237,7 @@ impl Editor {
         focused: bool,
         hunks: &[SimpleHunk],
         marks: &[CharIndexRange],
+        is_primary_buffer: bool,
     ) -> crate::grid::Grid {
         let buffer = self.buffer();
         let ranges = match reveal {
@@ -311,6 +324,7 @@ impl Editor {
                     focused,
                     hunks,
                     marks,
+                    is_primary_buffer,
                 ))
             },
         )
@@ -333,6 +347,7 @@ impl Editor {
         focused: bool,
         hunks: &[SimpleHunk],
         marks: &[CharIndexRange],
+        is_primary_buffer: bool,
     ) -> Grid {
         let editor = self;
         let cursor_position = self.get_cursor_position().unwrap_or_default();
@@ -383,6 +398,7 @@ impl Editor {
                 protected_range,
                 quickfix_list_items,
                 marks,
+                is_primary_buffer,
             );
             let boundaries = hidden_parent_line_ranges
                 .into_iter()
@@ -567,6 +583,7 @@ impl Editor {
     }
 
     #[allow(clippy::too_many_arguments)]
+    /// `is_primary_buffer` should be true all the time, except for the secondary non-focused buffers when multibuffer is activated
     fn get_highlight_spans(
         &self,
         theme: &Theme,
@@ -577,6 +594,7 @@ impl Editor {
         protected_range: Option<CharIndexRange>,
         quickfix_list_items: &[QuickfixListItem],
         marks: &[CharIndexRange],
+        is_primary_buffer: bool,
     ) -> Vec<HighlightSpan> {
         use StyleKey::*;
         let buffer = self.buffer();
@@ -666,11 +684,13 @@ impl Editor {
         let (
             primary_selection_highlight_span,
             primary_selection_anchors,
+            primary_selection_primary_cursor,
             primary_selection_secondary_cursor,
         ) = {
             let no_primary_selection = (
                 None,
                 Box::new(std::iter::empty()) as Box<dyn Iterator<Item = HighlightSpan>>,
+                None,
                 None,
             );
             match self.reveal {
@@ -715,6 +735,21 @@ impl Editor {
                                 source: Source::StyleKey(UiPrimarySelectionAnchors),
                                 is_protected_range_start: false,
                             });
+
+                    let primary_selection_primary_cursor = if !is_primary_buffer {
+                        Some(HighlightSpan {
+                            set_symbol: None,
+                            is_cursor: false,
+                            range: HighlightSpanRange::CharIndex(
+                                primary_selection.to_char_index(&self.cursor_direction),
+                            ),
+                            source: Source::StyleKey(StyleKey::UiPrimarySelectionPrimaryCursor),
+                            is_protected_range_start: false,
+                        })
+                    } else {
+                        None
+                    };
+
                     let primary_selection_secondary_cursor = if self.mode == Mode::Insert {
                         None
                     } else {
@@ -732,6 +767,7 @@ impl Editor {
                         Some(primary_selection_highlight_span),
                         Box::new(primary_selection_anchors)
                             as Box<dyn Iterator<Item = HighlightSpan>>,
+                        primary_selection_primary_cursor,
                         primary_selection_secondary_cursor,
                     )
                 }
@@ -941,6 +977,7 @@ impl Editor {
             .chain(marks_spans)
             .chain(diagnostics)
             .chain(jumps)
+            .chain(primary_selection_primary_cursor)
             .chain(primary_selection_secondary_cursor)
             .chain(secondary_selection_cursors)
             .chain(custom_regex_highlights)

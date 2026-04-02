@@ -139,6 +139,7 @@ pub(super) fn from_theme_content(theme: ThemeContent) -> Theme {
             text_foreground: text_color,
             primary_selection_background,
             primary_selection_anchor_background: primary_selection_background,
+            primary_selection_primary_cursor: primary_cursor,
             primary_selection_secondary_cursor: secondary_cursor,
             secondary_selection_background: primary_selection_background,
             secondary_selection_anchor_background: primary_selection_background,

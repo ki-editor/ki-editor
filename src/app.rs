@@ -561,6 +561,7 @@ impl<T: Frontend> App<T> {
                         .into_iter()
                         .enumerate()
                         .map(|(index, (editor, height))| {
+                            let is_primary_buffer = editor.borrow().id() == focused_component_id;
                             editor
                                 .borrow_mut()
                                 .editor_mut()
@@ -573,6 +574,7 @@ impl<T: Frontend> App<T> {
                                     },
                                     &Some(Reveal::Cursor),
                                     &component::RenderTitleMode::Filename,
+                                    is_primary_buffer,
                                 )
                         })
                         .collect_vec();

@@ -701,6 +701,7 @@ pub enum StyleKey {
     UiSectionDivider,
     UiFocusedTab,
     UiCursorLineNumber,
+    UiPrimarySelectionPrimaryCursor,
 }
 
 impl StyleKey {
