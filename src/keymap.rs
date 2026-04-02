@@ -1384,9 +1384,9 @@ pub fn keymap_other_movements() -> Vec<Keybinding> {
         ),
         Keybinding::app_momentary_layer(MomentaryLayer {
             key: "q",
-            name: "≡ Movement History".to_string(),
+            name: "≡ Move Hist".to_string(),
             config: KeymapLegendConfig {
-                title: "≡ Movement History".to_string(),
+                title: "≡ Move Hist".to_string(),
                 keymap: movement_history_keymap(),
             },
             on_tap: None,
@@ -1653,7 +1653,7 @@ pub fn movement_history_keymap() -> Keymap {
         .map(|(movement, key)| {
             Keybinding::new(
                 key,
-                movement.format_action("Movement History"),
+                movement.format_action("Move Hist"),
                 Dispatch::MovementHistoryNavigation(movement),
             )
         })
