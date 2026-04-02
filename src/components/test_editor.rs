@@ -4777,13 +4777,13 @@ fn main() {
             Editor(MoveSelection(Left)),
             Editor(MoveSelection(Left)),
             Expect(CurrentSelectedTexts(&["fn main() {"])),
-            App(HandleKeyEvents(keys!("backspace").to_vec())),
+            App(MovementHistoryNavigation(Previous)),
             Expect(CurrentSelectedTexts(&["foo();"])),
-            App(HandleKeyEvents(keys!("backspace").to_vec())),
+            App(MovementHistoryNavigation(Previous)),
             Expect(CurrentSelectedTexts(&["bar();"])),
-            App(HandleKeyEvents(keys!("tab").to_vec())),
+            App(MovementHistoryNavigation(Next)),
             Expect(CurrentSelectedTexts(&["foo();"])),
-            App(HandleKeyEvents(keys!("tab").to_vec())),
+            App(MovementHistoryNavigation(Next)),
             Expect(CurrentSelectedTexts(&["fn main() {"])),
         ])
     })

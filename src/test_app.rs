@@ -3152,18 +3152,18 @@ fn test_navigate_back_from_open_file() -> anyhow::Result<()> {
                 focus: true,
             }),
             Expect(CurrentComponentPath(Some(s.foo_rs()))),
-            App(NavigateBack),
+            App(MovementHistoryNavigation(Movement::Left)),
             Expect(CurrentComponentPath(Some(s.main_rs()))),
-            App(NavigateForward),
+            App(MovementHistoryNavigation(Movement::Right)),
             Expect(CurrentComponentPath(Some(s.foo_rs()))),
-            App(NavigateBack),
+            App(MovementHistoryNavigation(Movement::Left)),
             Expect(CurrentComponentPath(Some(s.main_rs()))),
             App(OpenFile {
                 path: s.gitignore(),
                 owner: BufferOwner::User,
                 focus: true,
             }),
-            App(NavigateBack),
+            App(MovementHistoryNavigation(Movement::Left)),
             Expect(CurrentComponentPath(Some(s.main_rs()))),
         ])
     })
@@ -3186,9 +3186,9 @@ fn test_navigate_back_from_go_to_location() -> anyhow::Result<()> {
                 range: CharIndexRange::default(),
             })),
             Expect(CurrentComponentPath(Some(s.gitignore()))),
-            App(NavigateBack),
+            App(MovementHistoryNavigation(Movement::Left)),
             Expect(CurrentComponentPath(Some(s.foo_rs()))),
-            App(NavigateBack),
+            App(MovementHistoryNavigation(Movement::Left)),
             Expect(CurrentComponentPath(Some(s.main_rs()))),
         ])
     })
@@ -3220,7 +3220,7 @@ fn test_navigate_back_from_quickfix_list() -> anyhow::Result<()> {
                 ),
             ))),
             Expect(CurrentComponentPath(Some(s.foo_rs()))),
-            App(NavigateBack),
+            App(MovementHistoryNavigation(Movement::Left)),
             Expect(CurrentComponentPath(Some(s.main_rs()))),
         ])
     })
@@ -3737,7 +3737,7 @@ fn navigate_back_should_skip_files_that_were_renamed_or_deleted() -> anyhow::Res
                 focus: true,
             }),
             App(DeletePaths(NonEmpty::new(s.main_rs()))),
-            App(NavigateBack),
+            App(MovementHistoryNavigation(Movement::Left)),
             Expect(NoError),
         ])
     })
@@ -3757,10 +3757,10 @@ fn navigate_forward_should_skip_files_that_were_renamed_or_deleted() -> anyhow::
                 owner: BufferOwner::User,
                 focus: true,
             }),
-            App(NavigateBack),
+            App(MovementHistoryNavigation(Movement::Left)),
             Expect(CurrentPath(s.main_rs())),
             App(DeletePaths(NonEmpty::new(s.hello_ts()))),
-            App(NavigateForward),
+            App(MovementHistoryNavigation(Movement::Right)),
             Expect(NoError),
         ])
     })
