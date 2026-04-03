@@ -1,4 +1,5 @@
 mod buffer;
+mod global_multicursor;
 #[cfg(test)]
 mod test_global_multicursor;
 use tracing_subscriber::filter::LevelFilter;

@@ -48,7 +48,9 @@ pub fn very_dark() -> Theme {
                 .background_color(hex!("#84b701"))
                 .foreground_color(hex!("#ffffff")),
             background_color: hex!("#000000"),
-            text_foreground: hex!("#FFFFFF"),
+            default: Style::new()
+                .background_color(hex!("#000000"))
+                .foreground_color(hex!("#FFFFFF")),
             primary_selection_background: hex!("#304E75"),
             primary_selection_anchor_background: hex!("#304E75"),
             primary_selection_primary_cursor: primary_cursor,

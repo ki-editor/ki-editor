@@ -513,7 +513,7 @@ pub struct RegexHighlightRule {
     pub capture_styles: Vec<RegexHighlightRuleCaptureStyle>,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct RegexHighlightRuleCaptureStyle {
     /// 0 means the entire match.
     /// Refer https://docs.rs/regex/latest/regex/struct.Regex.html#method.captures

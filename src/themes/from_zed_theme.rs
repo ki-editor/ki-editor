@@ -63,7 +63,7 @@ pub(super) fn from_theme_content(theme: ThemeContent) -> Theme {
         .text_accent
         .and_then(|hex| from_hex(&hex).ok())
         .unwrap_or(text_color);
-    let window_title_focused_foreground = from_some_hex(theme.style.tab_bar_background);
+    let window_title_focused_foreground = from_some_hex(theme.style.tab_bar_background.clone());
     let window_title_focused = Style::new()
         .set_some_foreground_color(window_title_focused_foreground)
         .set_some_background_color(Some(text_color));
@@ -76,6 +76,9 @@ pub(super) fn from_theme_content(theme: ThemeContent) -> Theme {
             from_some_hex(theme.style.tab_active_background)
                 .or(window_title_focused.foreground_color),
         );
+    let tabline = Style::new()
+        .set_some_foreground_color(from_some_hex(theme.style.editor_foreground))
+        .set_some_background_color(from_some_hex(theme.style.tab_bar_background));
     Theme {
         name: theme.name,
         syntax: SyntaxStyles::new(&{
@@ -135,8 +138,10 @@ pub(super) fn from_theme_content(theme: ThemeContent) -> Theme {
             jump_mark_even: Style::new()
                 .background_color(hex!("#84b701"))
                 .foreground_color(hex!("#ffffff")),
+            default: Style::new()
+                .background_color(background)
+                .foreground_color(text_color),
             background_color: background,
-            text_foreground: text_color,
             primary_selection_background,
             primary_selection_anchor_background: primary_selection_background,
             primary_selection_primary_cursor: primary_cursor,

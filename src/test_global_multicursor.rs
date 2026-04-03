@@ -9,6 +9,7 @@ use crate::{
     },
     buffer::BufferOwner,
     components::editor::{
+        Direction,
         DispatchEditor::{self, *},
         IfCurrentNotFound, Mode,
     },
@@ -141,6 +142,53 @@ src/main.rs
                 Position::new(7, 3),
                 Some(StyleKey::UiSecondarySelectionAnchors),
             )),
+        ])
+    })
+}
+
+#[test]
+fn cycle_cursor_should_switch_file_focus() -> Result<(), anyhow::Error> {
+    execute_test(|s| {
+        Box::new([
+            App(TerminalDimensionChanged(Dimension {
+                width: 100,
+                height: 10,
+            })),
+            App(OpenFile {
+                path: s.gitignore(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            App(ToggleFileMark),
+            App(SetFileContent(s.foo_rs(), "hello\nfoo 1".to_string())),
+            App(SetFileContent(s.main_rs(), "hello\nfoo 2".to_string())),
+            App(OpenSearchPrompt {
+                scope: Scope::Global,
+                if_current_not_found: IfCurrentNotFound::LookForward,
+            }),
+            App(HandleKeyEvents(keys!("f o o enter").to_vec())),
+            WaitForAppMessage(regex!("GlobalSearchFinished")),
+            App(AddCursorToAllSelections),
+            Expect(AppGrid(
+                "
+src/foo.rs
+1│hello
+2│█oo 1
+
+
+src/main.rs
+1│hello
+2│█oo 2"
+                    .trim_matches('\n')
+                    .to_string(),
+            )),
+            Expect(CurrentComponentPath(Some(s.foo_rs()))),
+            // Expect foo.rs is selected
+            Expect(AppRangeStyleKey(
+                "src/foo.rs",
+                Some(StyleKey::FocusedWindowTitle),
+            )),
+            App(Dispatch::CycleCursor(Direction::End)),
         ])
     })
 }

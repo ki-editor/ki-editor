@@ -17,7 +17,7 @@ use crate::{
     divide_viewport::{calculate_window_position, divide_viewport},
     format_path_list::get_formatted_paths,
     git::hunk::SimpleHunk,
-    grid::{CellUpdate, Grid, RenderContentLineNumber, StyleKey},
+    grid::{Cell, CellUpdate, Grid, RenderContentLineNumber, StyleKey},
     position::Position,
     quickfix_list::QuickfixListItem,
     selection::{CharIndex, Selection},
@@ -110,6 +110,8 @@ impl Editor {
                 hunks,
                 &marks,
                 is_primary_buffer,
+                true,
+                None,
             ),
             Some(reveal) => self.get_splitted_grid(
                 context,
@@ -122,12 +124,6 @@ impl Editor {
             ),
         };
         let theme = context.theme();
-        let window_title_style = if focused {
-            theme.ui.window_title_focused
-        } else {
-            theme.ui.window_title_unfocused
-        };
-
         let title_grid = {
             let mut editor = Editor::from_text(None, &title);
             editor.set_regex_highlight_rules(
@@ -147,16 +143,7 @@ impl Editor {
                 height: title_grid_height,
                 width: dimension.width,
             };
-            let theme = Theme {
-                ui: UiStyles {
-                    background_color: window_title_style.background_color.unwrap_or_default(),
-                    text_foreground: window_title_style.foreground_color.unwrap_or_default(),
-                    ..theme.ui
-                },
-                ..context.theme().clone()
-            };
-
-            editor.get_grid_with_dimension(
+            let grid = editor.get_grid_with_dimension(
                 &theme,
                 context.current_working_directory(),
                 &Vec::new(),
@@ -169,7 +156,14 @@ impl Editor {
                 hunks,
                 &[],
                 true,
-            )
+                false,
+                Some(if focused {
+                    StyleKey::FocusedWindowTitle
+                } else {
+                    StyleKey::UnfocusedWindowTitle
+                }),
+            );
+            grid
         };
         let grid = title_grid.merge_vertical(grid);
         let cursor_position = grid.get_cursor_position();
@@ -325,6 +319,8 @@ impl Editor {
                     hunks,
                     marks,
                     is_primary_buffer,
+                    true,
+                    None,
                 ))
             },
         )
@@ -348,6 +344,8 @@ impl Editor {
         hunks: &[SimpleHunk],
         marks: &[CharIndexRange],
         is_primary_buffer: bool,
+        show_cursor: bool,
+        default_style_key: Option<StyleKey>,
     ) -> Grid {
         let editor = self;
         let cursor_position = self.get_cursor_position().unwrap_or_default();
@@ -388,6 +386,9 @@ impl Editor {
         let visible_line_range =
             self.visible_line_range_given_scroll_offset_and_height(scroll_offset, height);
         let primary_cursor_char_index = primary_selection.to_char_index(&self.cursor_direction);
+
+        let default_style_key = default_style_key.as_ref().unwrap_or(&StyleKey::Default);
+
         let (hidden_parent_lines_grid, remaining_highlight_spans) = {
             let highlight_spans = self.get_highlight_spans(
                 theme,
@@ -399,6 +400,7 @@ impl Editor {
                 quickfix_list_items,
                 marks,
                 is_primary_buffer,
+                show_cursor,
             );
             let boundaries = hidden_parent_line_ranges
                 .into_iter()
@@ -450,10 +452,10 @@ impl Editor {
                             RenderContentLineNumber::NoLineNumber
                         },
                         updates,
-                        Vec::default(),
                         theme,
                         None,
                         hunks,
+                        default_style_key,
                     ))
                 },
             );
@@ -506,7 +508,6 @@ impl Editor {
                         })
                     })
                     .collect_vec(),
-                Vec::default(),
                 theme,
                 if focused
                     && protected_range
@@ -520,6 +521,7 @@ impl Editor {
                     None
                 },
                 hunks,
+                &default_style_key,
             );
             let protected_range = visible_lines_grid
                 .get_protected_range_start_position()
@@ -595,6 +597,7 @@ impl Editor {
         quickfix_list_items: &[QuickfixListItem],
         marks: &[CharIndexRange],
         is_primary_buffer: bool,
+        show_cursor: bool,
     ) -> Vec<HighlightSpan> {
         use StyleKey::*;
         let buffer = self.buffer();
@@ -754,7 +757,9 @@ impl Editor {
                         None
                     };
 
-                    let primary_selection_secondary_cursor = if self.mode == Mode::Insert {
+                    let primary_selection_secondary_cursor = if self.mode == Mode::Insert
+                        || !show_cursor
+                    {
                         None
                     } else {
                         Some(HighlightSpan {

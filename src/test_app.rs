@@ -31,6 +31,7 @@ pub use SelectionMode::*;
 use crate::{
     app::{NucleoSource, StatusLine},
     components::{component::RenderTitleMode, editor_keymap::BUILTIN_KEYBOARD_LAYOUTS},
+    grid::Grid,
     lsp::process::ResponseContext,
     scripting::{ScriptInput, ScriptOutput},
     selection_mode::GetGapMovement,
@@ -172,6 +173,8 @@ pub enum ExpectKind {
     GridCellStyleKey(Position, Option<StyleKey>),
     AppGridCellStyleKey(Position, Option<StyleKey>),
     GridCellsStyleKey(Vec<Position>, Option<StyleKey>),
+    /// Referring to the whole app
+    AppRangeStyleKey(/*Search*/ &'static str, Option<StyleKey>),
     /// Referring to the current component, whatever it might be
     RangeStyleKey(/*Search*/ &'static str, Option<StyleKey>),
     /// Referring to the main editor
@@ -421,12 +424,18 @@ impl ExpectKind {
                 }),
                 format!("Expected positions {positions:?} to be styled as {style_key:?}"),
             ),
+            AppRangeStyleKey(search, style_key) => {
+                run_range_style_key_check_on_app(app, search, style_key)
+            }
             RangeStyleKey(search, style_key) => {
-                run_range_style_key_check(component, context, search, style_key)
+                run_range_style_key_check_on_component(component, context, search, style_key)
             }
-            MainEditorRangeStyleKey(search, style_key) => {
-                run_range_style_key_check(app.get_current_editor(), context, search, style_key)
-            }
+            MainEditorRangeStyleKey(search, style_key) => run_range_style_key_check_on_component(
+                app.get_current_editor(),
+                context,
+                search,
+                style_key,
+            ),
             CompletionDropdownIsOpen(is_open) => {
                 contextualize(app.completion_dropdown_is_open(), *is_open)
             }
@@ -673,13 +682,14 @@ impl ExpectKind {
     }
 }
 
-fn run_range_style_key_check(
+fn run_range_style_key_check_on_component(
     component: Rc<RefCell<dyn Component>>,
     context: &Context,
     search: &'static str,
     style_key: &Option<StyleKey>,
 ) -> (bool, String) {
     let grid = component.borrow_mut().editor_mut().get_grid(context, false);
+
     let grid_string = grid.to_string();
     let matches = grid_string.match_indices(search).collect_vec();
     let byte_range = match matches.split_first() {
@@ -704,6 +714,53 @@ fn run_range_style_key_check(
             if actual_style_key != style_key {
                 log(format!(
                     "Expected {position:?} to be styled as {style_key:?}, but got {actual_style_key:?}"
+                ));
+            }
+            actual_style_key == style_key
+        }),
+        format!("Expected positions {positions:?} to be styled as {style_key:?}"),
+    )
+}
+
+fn run_range_style_key_check_on_app(
+    app: &mut App<MockFrontend>,
+    search: &'static str,
+    style_key: &Option<StyleKey>,
+) -> (bool, String) {
+    let mut screen = app.get_screen().unwrap();
+
+    let grid_string = screen.stringify();
+    let matches = grid_string.match_indices(search).collect_vec();
+    let byte_range = match matches.split_first() {
+        Some(((byte_start, str), [])) => *byte_start..byte_start + str.len(),
+        Some((_, _)) => panic!(
+            "{search:?} should only match 1 range, but it matches {} ranges.",
+            matches.len()
+        ),
+        None => panic!("{search:?} should only match 1 range, but it matches nothing."),
+    };
+    // We use Buffer to obtain the position range given the byte range
+    let buffer = Buffer::new(None, &grid_string);
+    let positions = byte_range
+        .map(|byte| buffer.byte_to_position(byte).unwrap())
+        .collect_vec();
+    if positions.is_empty() {
+        panic!("There are 0 positions");
+    }
+    let cells = screen.get_positioned_cells();
+
+    (
+        positions.iter().all(|position| {
+            let actual_style_key = &cells
+                .iter()
+                .find(|cell| &cell.position == position)
+                .unwrap()
+                .cell
+                .source;
+            if actual_style_key != style_key {
+                log(format!(
+                    "Expected {:?} to be styled as {:?}, but got {:?}",
+                    position, style_key, actual_style_key
                 ));
             }
             actual_style_key == style_key

@@ -48,7 +48,9 @@ pub fn vscode_light() -> Theme {
                 .background_color(hex!("#84b701"))
                 .foreground_color(hex!("#ffffff")),
             background_color: hex!("#ffffff"),
-            text_foreground: hex!("#333333"),
+            default: Style::new()
+                .background_color(hex!("#ffffff"))
+                .foreground_color(hex!("#333333")),
             primary_selection_background: hex!("#c7e6ff"),
             primary_selection_anchor_background: hex!("#add6ff"),
             primary_selection_primary_cursor: primary_cursor,

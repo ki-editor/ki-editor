@@ -836,12 +836,12 @@ pub fn multicursor_momentary_layer_keymap(editor: &Editor) -> Keymap {
             Keybinding::new(
                 "h",
                 Direction::Start.format_action("Curs"),
-                Dispatch::ToEditor(CyclePrimarySelection(Direction::Start)),
+                Dispatch::CycleCursor(Direction::Start),
             ),
             Keybinding::new(
                 ";",
                 Direction::End.format_action("Curs"),
-                Dispatch::ToEditor(CyclePrimarySelection(Direction::End)),
+                Dispatch::CycleCursor(Direction::End),
             ),
             Keybinding::new(
                 "m",
