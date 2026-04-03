@@ -60,7 +60,7 @@ impl Editor {
         dimension: Dimension,
         reveal: &Option<Reveal>,
         render_title_mode: &RenderTitleMode,
-        is_primary_buffer: bool,
+        is_focused_file: bool,
     ) -> GetGridResult {
         let hunks = self.buffer_mut().simple_hunks(context).unwrap_or_default();
         self.get_grid_with_scroll_offset(
@@ -71,7 +71,7 @@ impl Editor {
             dimension,
             reveal,
             render_title_mode,
-            is_primary_buffer,
+            is_focused_file,
         )
     }
 
@@ -84,7 +84,7 @@ impl Editor {
         dimension: Dimension,
         reveal: &Option<Reveal>,
         render_title_mode: &RenderTitleMode,
-        is_primary_buffer: bool,
+        is_focused_file: bool,
     ) -> GetGridResult {
         let title = self.title(context, &dimension, render_title_mode);
         let title_grid_height = title.lines().count();
@@ -109,19 +109,12 @@ impl Editor {
                 focused,
                 hunks,
                 &marks,
-                is_primary_buffer,
                 true,
                 None,
             ),
-            Some(reveal) => self.get_splitted_grid(
-                context,
-                reveal,
-                render_area,
-                focused,
-                hunks,
-                &marks,
-                is_primary_buffer,
-            ),
+            Some(reveal) => {
+                self.get_splitted_grid(context, reveal, render_area, focused, hunks, &marks)
+            }
         };
         let theme = context.theme();
         let title_grid = {
@@ -155,7 +148,6 @@ impl Editor {
                 focused,
                 hunks,
                 &[],
-                true,
                 false,
                 Some(if focused {
                     StyleKey::FocusedWindowTitle
@@ -231,7 +223,6 @@ impl Editor {
         focused: bool,
         hunks: &[SimpleHunk],
         marks: &[CharIndexRange],
-        is_primary_buffer: bool,
     ) -> crate::grid::Grid {
         let buffer = self.buffer();
         let ranges = match reveal {
@@ -303,6 +294,7 @@ impl Editor {
                 let protected_range = buffer
                     .byte_range_to_char_index_range(&range)
                     .unwrap_or_default();
+
                 grid.merge_vertical(self.get_grid_with_dimension(
                     context.theme(),
                     context.current_working_directory(),
@@ -318,7 +310,6 @@ impl Editor {
                     focused,
                     hunks,
                     marks,
-                    is_primary_buffer,
                     true,
                     None,
                 ))
@@ -343,7 +334,6 @@ impl Editor {
         focused: bool,
         hunks: &[SimpleHunk],
         marks: &[CharIndexRange],
-        is_primary_buffer: bool,
         show_cursor: bool,
         default_style_key: Option<StyleKey>,
     ) -> Grid {
@@ -399,7 +389,7 @@ impl Editor {
                 protected_range,
                 quickfix_list_items,
                 marks,
-                is_primary_buffer,
+                focused,
                 show_cursor,
             );
             let boundaries = hidden_parent_line_ranges
@@ -481,7 +471,8 @@ impl Editor {
                                 CellUpdate::new(position)
                                     .set_is_protected_range_start(true)
                                     .set_is_cursor(
-                                        primary_cursor_char_index == protected_char_index,
+                                        focused
+                                            && primary_cursor_char_index == protected_char_index,
                                     )
                             })
                             .ok()
@@ -585,7 +576,7 @@ impl Editor {
     }
 
     #[allow(clippy::too_many_arguments)]
-    /// `is_primary_buffer` should be true all the time, except for the secondary non-focused buffers when global multicursor is activated
+    /// `is_focused_file` should be true all the time, except for the secondary non-focused buffers when global multicursor is activated
     fn get_highlight_spans(
         &self,
         theme: &Theme,
@@ -596,7 +587,7 @@ impl Editor {
         protected_range: Option<CharIndexRange>,
         quickfix_list_items: &[QuickfixListItem],
         marks: &[CharIndexRange],
-        is_primary_buffer: bool,
+        is_focused_file: bool,
         show_cursor: bool,
     ) -> Vec<HighlightSpan> {
         use StyleKey::*;
@@ -735,7 +726,7 @@ impl Editor {
                                 set_symbol: None,
                                 is_cursor: false,
                                 range: HighlightSpanRange::CharIndexRange(anchor),
-                                source: Source::StyleKey(if is_primary_buffer {
+                                source: Source::StyleKey(if is_focused_file {
                                     UiPrimarySelectionAnchors
                                 } else {
                                     UiSecondarySelectionAnchors
@@ -743,7 +734,7 @@ impl Editor {
                                 is_protected_range_start: false,
                             });
 
-                    let primary_selection_primary_cursor = if !is_primary_buffer {
+                    let primary_selection_primary_cursor = if !is_focused_file && show_cursor {
                         Some(HighlightSpan {
                             set_symbol: None,
                             is_cursor: false,

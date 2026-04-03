@@ -488,6 +488,13 @@ impl<T: Frontend> App<T> {
             .unzip();
 
         let borders = self.layout.borders();
+
+        #[cfg(test)]
+        {
+            // Ensure that there's at most one cursor
+            debug_assert!(cursors.iter().flatten().count() <= 1)
+        }
+
         let cursor = cursors.into_iter().find_map(|cursor| cursor);
         let screen = Screen::new(windows, borders, cursor, self.context.theme().ui.border);
 
@@ -517,7 +524,7 @@ impl<T: Frontend> App<T> {
         };
         let GetGridResult { grid, cursor } = match self.global_multicursor.as_ref() {
             Some(global_multicursor) if component.kind() == ComponentKind::SuggestiveEditor => self
-                .render_global_multicursor(global_multicursor, &rectangle, &focused_component_id)
+                .render_global_multicursor(global_multicursor, &rectangle)
                 .unwrap_or_else(otherwise),
             _ => otherwise(),
         };
@@ -2206,7 +2213,7 @@ impl<T: Frontend> App<T> {
                 if self.current_component().borrow().type_id()
                     == TypeId::of::<SuggestiveEditor>() =>
             {
-                for (_, component) in glolbal_multicursor.editors.clone() {
+                for component in glolbal_multicursor.editors().clone() {
                     self.handle_dispatch_editor_custom(dispatch_editor.clone(), component)?;
                 }
                 Ok(())

@@ -50,7 +50,7 @@ src/foo.rs
 1│// third █oo
 
 src/main.rs
-1│// first █oo
+1│// first foo
 2│
 4│second foo
 "
@@ -91,7 +91,7 @@ src/foo.rs
 
 
 src/main.rs
-1│// first █oo"
+1│// first foo"
                     .trim_matches('\n')
                     .to_string(),
             )),
@@ -131,7 +131,7 @@ src/foo.rs
 
 src/main.rs
 1│hello
-2│█oo 2"
+2│foo 2"
                     .trim_matches('\n')
                     .to_string(),
             )),
@@ -160,8 +160,11 @@ fn cycle_cursor_should_switch_file_focus() -> Result<(), anyhow::Error> {
                 focus: true,
             }),
             App(ToggleFileMark),
-            App(SetFileContent(s.foo_rs(), "hello\nfoo 1".to_string())),
-            App(SetFileContent(s.main_rs(), "hello\nfoo 2".to_string())),
+            App(SetFileContent(
+                s.foo_rs(),
+                "hello\nfoo 1/\nfoo 2".to_string(),
+            )),
+            App(SetFileContent(s.main_rs(), "hello\nfoo 3".to_string())),
             App(OpenSearchPrompt {
                 scope: Scope::Global,
                 if_current_not_found: IfCurrentNotFound::LookForward,
@@ -173,22 +176,77 @@ fn cycle_cursor_should_switch_file_focus() -> Result<(), anyhow::Error> {
                 "
 src/foo.rs
 1│hello
-2│█oo 1
-
-
+2│█oo 1/
+3│foo 2
+2│foo 1/
+3│foo 2
 src/main.rs
 1│hello
-2│█oo 2"
+2│foo 3"
                     .trim_matches('\n')
                     .to_string(),
             )),
             Expect(CurrentComponentPath(Some(s.foo_rs()))),
-            // Expect foo.rs is selected
+            // Expect foo.rs is focused, and main.rs is unfocused
             Expect(AppRangeStyleKey(
                 "src/foo.rs",
                 Some(StyleKey::FocusedWindowTitle),
             )),
+            Expect(AppRangeStyleKey(
+                "src/main.rs",
+                Some(StyleKey::UnfocusedWindowTitle),
+            )),
+            // Cycle to the next cursor
             App(Dispatch::CycleCursor(Direction::End)),
+            // Expect foo.rs is still focused, because foo.rs has two cursors
+            Expect(AppRangeStyleKey(
+                "src/foo.rs",
+                Some(StyleKey::FocusedWindowTitle),
+            )),
+            // Cycle to the next cursor again
+            App(Dispatch::CycleCursor(Direction::End)),
+            // Expect main.rs is focused, and foo.rs is unfocused
+            Expect(AppRangeStyleKey(
+                "src/main.rs",
+                Some(StyleKey::FocusedWindowTitle),
+            )),
+            Expect(AppCursorPosition(Position::new(8, 2))),
+            Expect(AppGrid(
+                "
+src/foo.rs
+1│hello
+2│foo 1/
+3│foo 2
+2│foo 1/
+3│foo 2
+src/main.rs
+1│hello
+2│█oo 3"
+                    .trim_matches('\n')
+                    .to_string(),
+            )),
+            // Cycle to the previous cursor
+            App(Dispatch::CycleCursor(Direction::Start)),
+            // Expect foo.rs is focused again
+            Expect(AppRangeStyleKey(
+                "src/foo.rs",
+                Some(StyleKey::FocusedWindowTitle),
+            )),
+            // Expect the second foo of foo.rs is selected (not the first foo of foo.rs)
+            Expect(AppGrid(
+                "
+src/foo.rs
+1│hello
+2│foo 1/
+3│foo 2
+2│foo 1/
+3│█oo 2
+src/main.rs
+1│hello
+2│foo 3"
+                    .trim_matches('\n')
+                    .to_string(),
+            )),
         ])
     })
 }
@@ -225,9 +283,9 @@ fn able_to_open_search_prompt_when_global_multicursor_enabled() -> Result<(), an
 src/foo.rs
 1│// █oo y bar
 src/main.rs
-1│// █oo x bar
+1│// foo x bar
 Local search             │Completion
-1│foo                    │1│█
+1│foo                    │1│y
 2│█                      │2│bar
 "
                 .to_string(),
@@ -238,9 +296,9 @@ Local search             │Completion
 src/foo.rs
 1│// █oo y bar
 src/main.rs
-1│// █oo x bar
+1│// foo x bar
 Local search (Literal)   │Completion
-1│foo                    │1│█ar
+1│foo                    │1│bar
 2│bar█                   │
 "
                 .trim()
@@ -344,9 +402,10 @@ src/foo.rs
 1│// █oo spam
 
 src/main.rs
-1│// █oo bar
- ← Insert"
-                    .to_string(),
+1│// foo bar
+ ← Insert
+"
+                .to_string(),
             )),
             Expect(AppGridCellStyleKey(
                 Position::new(4, 5),

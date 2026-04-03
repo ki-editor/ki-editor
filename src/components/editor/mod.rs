@@ -4616,6 +4616,24 @@ impl Editor {
             self.get_paste_vertically_edit_transaction(direction, |index| copied_texts.get(index));
         self.apply_edit_transaction(edit_transaction, context)
     }
+
+    pub fn is_at_first_or_last_selection(&self, direction: &Direction) -> bool {
+        let mut selections = self
+            .selection_set
+            .selections()
+            .iter()
+            .sorted_by_key(|selection| selection.range());
+
+        let predicate = |selection: &Selection| {
+            selection.range() == self.selection_set.primary_selection().range()
+        };
+
+        Some(0)
+            == match direction {
+                Direction::Start => selections.position(predicate),
+                Direction::End => selections.rev().position(predicate),
+            }
+    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]

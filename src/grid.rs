@@ -286,6 +286,18 @@ impl Grid {
     }
 
     pub fn get_cursor_position(&self) -> Option<Position> {
+        #[cfg(test)]
+        {
+            let cursors = self
+                .to_positioned_cells()
+                .into_iter()
+                .filter(|cell| cell.cell.is_cursor)
+                .collect_vec();
+
+            // A grid should not have more than 1 cursor
+            debug_assert!(cursors.len() <= 1);
+        }
+
         self.to_positioned_cells().into_iter().find_map(|cell| {
             if cell.cell.is_cursor {
                 Some(cell.position)

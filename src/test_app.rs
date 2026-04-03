@@ -211,6 +211,7 @@ pub enum ExpectKind {
     CurrentRangeAndInitialRange(CharIndexRange, Option<CharIndexRange>),
     CurrentWorkingDirectory(AbsolutePath),
     GlobalMultiCursorActivated(bool),
+    AppCursorPosition(Position),
 }
 fn log<T: std::fmt::Debug>(s: T) {
     if !is_ci::cached() {
@@ -317,6 +318,9 @@ impl ExpectKind {
                 &component.borrow().editor().get_cursor_position().unwrap(),
                 position,
             ),
+            AppCursorPosition(position) => {
+                contextualize(app.get_screen()?.cursor().unwrap().position(), position)
+            }
             EditorGridCursorPosition(position) => contextualize(
                 component
                     .borrow_mut()
