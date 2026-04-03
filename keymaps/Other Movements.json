@@ -2,7 +2,7 @@
     "name": "Other Movements",
     "rows": [
         [
-            { "normal": "≡ Movement History", "alted": null, "shifted": null },
+            { "normal": "≡ Move Hist", "alted": null, "shifted": null },
             { "normal": null, "alted": null, "shifted": null },
             { "normal": "≡ Buffer", "alted": null, "shifted": null },
             { "normal": null, "alted": null, "shifted": null },

@@ -2,7 +2,7 @@
     "name": "Normal",
     "rows": [
         [
-            { "normal": "≡ Movement History", "alted": null, "shifted": null },
+            { "normal": "≡ Move Hist", "alted": null, "shifted": null },
             { "normal": "SUBWORD", "alted": null, "shifted": "CHAR" },
             { "normal": "≡ Buffer", "alted": null, "shifted": null },
             { "normal": "≡ Multi-cursor", "alted": null, "shifted": null },

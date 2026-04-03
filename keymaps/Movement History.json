@@ -8,9 +8,9 @@
             { "normal": null, "alted": null, "shifted": null },
             { "normal": null, "alted": null, "shifted": null },
             { "normal": null, "alted": null, "shifted": null },
-            { "normal": "< Movement History", "alted": null, "shifted": null },
+            { "normal": "< Move Hist", "alted": null, "shifted": null },
             { "normal": null, "alted": null, "shifted": null },
-            { "normal": "Movement History >", "alted": null, "shifted": null },
+            { "normal": "Move Hist >", "alted": null, "shifted": null },
             { "normal": null, "alted": null, "shifted": null }
         ],
         [
@@ -20,9 +20,9 @@
             { "normal": null, "alted": null, "shifted": null },
             { "normal": null, "alted": null, "shifted": null },
             { "normal": null, "alted": null, "shifted": null },
-            { "normal": "<< Movement History", "alted": null, "shifted": null },
+            { "normal": "<< Move Hist", "alted": null, "shifted": null },
             { "normal": null, "alted": null, "shifted": null },
-            { "normal": "Movement History >>", "alted": null, "shifted": null },
+            { "normal": "Move Hist >>", "alted": null, "shifted": null },
             { "normal": null, "alted": null, "shifted": null }
         ],
         [
