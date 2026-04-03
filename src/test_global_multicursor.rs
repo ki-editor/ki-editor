@@ -146,7 +146,7 @@ src/main.rs
 }
 
 #[test]
-fn able_to_open_search_prompt_when_multibuffer_enabled() -> Result<(), anyhow::Error> {
+fn able_to_open_search_prompt_when_global_multicursor_enabled() -> Result<(), anyhow::Error> {
     execute_test(|s| {
         Box::new([
             App(TerminalDimensionChanged(Dimension {
@@ -249,7 +249,7 @@ src/main.rs
 }
 
 #[test]
-fn toggling_multibuffer_mode_should_unset_global_mode() -> Result<(), anyhow::Error> {
+fn toggling_global_multicursor_mode_should_unset_global_mode() -> Result<(), anyhow::Error> {
     execute_test(|s| {
         Box::new([
             App(SetFileContent(
@@ -331,7 +331,7 @@ fn simple_normal_mode_action_should_not_be_duplicated() -> Result<(), anyhow::Er
 }
 
 #[test]
-fn use_keep_primary_cursor_to_deactivate_multibuffer() -> Result<(), anyhow::Error> {
+fn use_keep_primary_cursor_to_deactivate_global_multicursor() -> Result<(), anyhow::Error> {
     execute_test(|s| {
         Box::new([
             App(SetFileContent(s.main_rs(), "// foo xxx yyy".to_string())),
@@ -343,15 +343,16 @@ fn use_keep_primary_cursor_to_deactivate_multibuffer() -> Result<(), anyhow::Err
             App(HandleKeyEvents(keys!("f o o enter").to_vec())),
             WaitForAppMessage(regex!("GlobalSearchFinished")),
             App(AddCursorToAllSelections),
-            Expect(ExpectKind::MultibufferActivated(true)),
+            Expect(ExpectKind::GlobalMultiCursorActivated(true)),
             App(Dispatch::KeepCursorPrimaryOnly),
-            Expect(ExpectKind::MultibufferActivated(false)),
+            Expect(ExpectKind::GlobalMultiCursorActivated(false)),
         ])
     })
 }
 
 #[test]
-fn quickfix_list_should_be_closed_when_multibuffer_is_activated() -> Result<(), anyhow::Error> {
+fn quickfix_list_should_be_closed_when_global_multicursor_is_activated() -> Result<(), anyhow::Error>
+{
     execute_test(|s| {
         Box::new([
             App(SetFileContent(s.main_rs(), "// foo xxx yyy".to_string())),

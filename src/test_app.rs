@@ -207,7 +207,7 @@ pub enum ExpectKind {
     CurrentEditorIncrementalSearchMatches(Vec<std::ops::Range<usize>>),
     CurrentRangeAndInitialRange(CharIndexRange, Option<CharIndexRange>),
     CurrentWorkingDirectory(AbsolutePath),
-    MultibufferActivated(bool),
+    GlobalMultiCursorActivated(bool),
 }
 fn log<T: std::fmt::Debug>(s: T) {
     if !is_ci::cached() {
@@ -666,7 +666,9 @@ impl ExpectKind {
                     .canonicalize()
                     .unwrap(),
             ),
-            MultibufferActivated(expected) => contextualize(expected, &app.multibuffer_activated()),
+            GlobalMultiCursorActivated(expected) => {
+                contextualize(expected, &app.glolbal_multicursor_activated())
+            }
         })
     }
 }

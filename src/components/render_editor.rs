@@ -583,7 +583,7 @@ impl Editor {
     }
 
     #[allow(clippy::too_many_arguments)]
-    /// `is_primary_buffer` should be true all the time, except for the secondary non-focused buffers when multibuffer is activated
+    /// `is_primary_buffer` should be true all the time, except for the secondary non-focused buffers when global multicursor is activated
     fn get_highlight_spans(
         &self,
         theme: &Theme,
