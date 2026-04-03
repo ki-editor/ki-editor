@@ -20,6 +20,7 @@ use crate::{
             DispatchSuggestiveEditor, Info, SuggestiveEditor, SuggestiveEditorFilter,
         },
     },
+    config::AppConfig,
     context::{
         Context, FormatterCommand, GlobalMode, GlobalSearchConfig, LocalSearchConfigMode,
         QuickfixListKind, QuickfixListSource, Search,
@@ -995,8 +996,7 @@ impl<T: Frontend> App<T> {
                         keymap_legend_config.clone(),
                     )),
                 )))?;
-                let layout = (*self.keyboard_layout()).clone();
-                self.show_keymap_legend(false, keymap_legend_config, None, Some(&layout));
+                self.show_keymap_legend(false, keymap_legend_config, None);
             }
             Dispatch::ShowKeymapLegendWithReleaseKey(keymap_legend_config, release_key) => {
                 self.handle_dispatch_editor(DispatchEditor::SetKeymapOverride(Some(
@@ -1006,13 +1006,7 @@ impl<T: Frontend> App<T> {
                         release_key.clone(),
                     )),
                 )))?;
-                let layout = (*self.keyboard_layout()).clone();
-                self.show_keymap_legend(
-                    false,
-                    keymap_legend_config,
-                    Some(release_key),
-                    Some(&layout),
-                );
+                self.show_keymap_legend(false, keymap_legend_config, Some(release_key));
             }
             Dispatch::ShowAppKeymapLegendWithReleaseKey(keymap_legend_config, release_key) => {
                 self.keymap_override = Some(AppKeymapOverride::MomentaryLayer(
@@ -1022,13 +1016,7 @@ impl<T: Frontend> App<T> {
                         release_key.clone(),
                     ),
                 ));
-                let layout = (*self.keyboard_layout()).clone();
-                self.show_keymap_legend(
-                    true,
-                    keymap_legend_config,
-                    Some(release_key),
-                    Some(&layout),
-                );
+                self.show_keymap_legend(true, keymap_legend_config, Some(release_key));
             }
             #[cfg(test)]
             Dispatch::Custom(_) => unreachable!(),
@@ -1917,8 +1905,10 @@ impl<T: Frontend> App<T> {
         on_root: bool,
         keymap_legend_config: KeymapLegendConfig,
         release_key: Option<ReleaseKey>,
-        keyboard_layout: Option<&KeyboardLayout>,
     ) {
+        let keyboard_layout = AppConfig::singleton()
+            .show_key_in_keymap()
+            .then(|| self.keyboard_layout().clone());
         if self.is_running_as_embedded() {
             let title = keymap_legend_config.title.clone();
             let body = keymap_legend_config.display(
@@ -1927,7 +1917,7 @@ impl<T: Frontend> App<T> {
                     show_alt: false,
                     show_shift: true,
                 },
-                keyboard_layout,
+                keyboard_layout.as_ref(),
             );
             self.integration_event_sender
                 .emit_event(IntegrationEvent::ShowInfo {

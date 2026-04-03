@@ -4,6 +4,7 @@ use itertools::Itertools;
 use crate::{
     app::{Dispatch, Dispatches},
     components::{editor_keymap::KeyboardLayout, editor_keymap_printer::KeymapDisplayOption},
+    config::AppConfig,
     context::Context,
     rectangle::Rectangle,
 };
@@ -282,8 +283,10 @@ impl KeymapLegend {
             // panic!("{}", message);
         }
 
-        let layout = (*context.keyboard_layout()).clone();
-        let content = self.display(Some(&layout));
+        let keyboard_layout = AppConfig::singleton()
+            .show_key_in_keymap()
+            .then(|| context.keyboard_layout().clone());
+        let content = self.display(keyboard_layout.as_ref());
 
         // dropping dispatch as this is a buffer with no path and
         // set_content dispatches are related to file dirty status
