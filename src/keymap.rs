@@ -828,11 +828,7 @@ pub fn multicursor_momentary_layer_keymap(editor: &Editor) -> Keymap {
             )
         })
         .chain([
-            Keybinding::new(
-                "n",
-                "Delete Curs".to_string(),
-                Dispatch::ToEditor(DeleteCurrentCursor(Direction::End)),
-            ),
+            Keybinding::new("n", "Delete Curs".to_string(), Dispatch::DeleteCursor),
             Keybinding::new(
                 "h",
                 Direction::Start.format_action("Curs"),

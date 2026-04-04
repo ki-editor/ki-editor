@@ -256,6 +256,66 @@ src/main.rs
 }
 
 #[test]
+fn delete_cursor_should_remove_file_if_the_selection_is_the_only_selection_of_the_file(
+) -> Result<(), anyhow::Error> {
+    execute_test(|s| {
+        Box::new([
+            App(TerminalDimensionChanged(Dimension {
+                width: 100,
+                height: 10,
+            })),
+            App(OpenFile {
+                path: s.gitignore(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            App(ToggleFileMark),
+            App(SetFileContent(s.foo_rs(), "foo1".to_string())),
+            App(SetFileContent(s.main_rs(), "foo2".to_string())),
+            App(OpenSearchPrompt {
+                scope: Scope::Global,
+                if_current_not_found: IfCurrentNotFound::LookForward,
+            }),
+            App(HandleKeyEvents(keys!("f o o enter").to_vec())),
+            WaitForAppMessage(regex!("GlobalSearchFinished")),
+            App(AddCursorToAllSelections),
+            Expect(AppGrid(
+                "
+src/foo.rs
+1│█oo1
+
+
+
+src/main.rs
+1│foo2
+"
+                .trim_matches('\n')
+                .to_string(),
+            )),
+            App(CycleCursor(Direction::End)),
+            Expect(AppRangeStyleKey(
+                "src/main.rs",
+                Some(StyleKey::FocusedWindowTitle),
+            )),
+            App(DeleteCursor),
+            // Expect main.rs is removed, because its only selection is deleted
+            Expect(AppGrid(
+                "
+src/foo.rs
+1│█oo1
+"
+                .trim_matches('\n')
+                .to_string(),
+            )),
+            Expect(AppRangeStyleKey(
+                "src/foo.rs",
+                Some(StyleKey::FocusedWindowTitle),
+            )),
+        ])
+    })
+}
+
+#[test]
 fn cycle_cursor_should_warp_around() -> Result<(), anyhow::Error> {
     execute_test(|s| {
         Box::new([

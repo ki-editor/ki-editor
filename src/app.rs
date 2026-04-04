@@ -1250,6 +1250,7 @@ impl<T: Frontend> App<T> {
             Dispatch::AddCursorToAllSelections => self.add_cursor_to_all_selections()?,
             Dispatch::KeepCursorPrimaryOnly => self.keep_primary_cursor_only()?,
             Dispatch::CycleCursor(direction) => self.cycle_primary_cursor(direction)?,
+            Dispatch::DeleteCursor => self.delete_cursor()?,
         }
         Ok(())
     }
@@ -4007,6 +4008,7 @@ pub enum Dispatch {
     AddCursorToAllSelections,
     KeepCursorPrimaryOnly,
     CycleCursor(Direction),
+    DeleteCursor,
 }
 
 /// Used to send notify host app about changes

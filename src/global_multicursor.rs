@@ -48,8 +48,11 @@ impl GlobalMulticursor {
         })
     }
 
-    fn cycle_primary_cursor(&mut self, direction: Direction) -> Result<(), anyhow::Error> {
-        let focused_file = self.focused_file()?;
+    /// Returns true if the focused file is changed
+    fn cycle_primary_cursor(&mut self, direction: &Direction) -> Result<bool, anyhow::Error> {
+        if !self.current_selection_is_first_or_last_selection(direction)? {
+            return Ok(false);
+        }
         let change: isize = match direction {
             Direction::Start => -1,
             Direction::End => 1,
@@ -72,6 +75,7 @@ impl GlobalMulticursor {
         }
 
         #[cfg(test)]
+        // Post condition assertion
         {
             let selection_set = self
                 .focused_file()?
@@ -105,7 +109,7 @@ impl GlobalMulticursor {
                 }
             }
         }
-        Ok(())
+        Ok(true)
     }
 
     fn current_selection_is_first_or_last_selection(
@@ -118,6 +122,28 @@ impl GlobalMulticursor {
             .borrow()
             .editor()
             .current_selection_is_first_or_last_selection(&direction))
+    }
+
+    /// Returns true if current focused file is removed
+    fn delete_cursor(&mut self) -> Result<bool, anyhow::Error> {
+        let focused_file = self.focused_file()?;
+        if focused_file.editor.borrow().editor().selection_set.len() > 1 {
+            return Ok(false);
+        }
+
+        if self.files.len() == 1 {
+            return Ok(false);
+        }
+
+        self.files.remove(self.focused_file_index);
+
+        let max_file_index = self.files.len().saturating_sub(1);
+
+        if self.focused_file_index > max_file_index {
+            self.focused_file_index = max_file_index
+        };
+
+        Ok(true)
     }
 }
 
@@ -189,11 +215,24 @@ impl<T: Frontend> App<T> {
 
     pub fn cycle_primary_cursor(&mut self, direction: Direction) -> anyhow::Result<()> {
         if let Some(global_multicursor) = self.global_multicursor.as_mut() {
-            if global_multicursor.current_selection_is_first_or_last_selection(&direction)? {
-                return global_multicursor.cycle_primary_cursor(direction);
+            let focused_file_changed = global_multicursor.cycle_primary_cursor(&direction)?;
+            if focused_file_changed {
+                return Ok(());
             }
         }
+
         self.handle_dispatch_editor(DispatchEditor::CyclePrimarySelection(direction))
+    }
+
+    pub fn delete_cursor(&mut self) -> anyhow::Result<()> {
+        if let Some(global_multicursor) = self.global_multicursor.as_mut() {
+            let focused_file_removed = global_multicursor.delete_cursor()?;
+            if focused_file_removed {
+                return Ok(());
+            }
+        }
+
+        self.handle_dispatch_editor(DispatchEditor::DeleteCurrentCursor(Direction::End))
     }
 
     #[cfg(test)]
