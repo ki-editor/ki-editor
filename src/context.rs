@@ -537,7 +537,7 @@ impl Context {
     }
 
     pub fn clear_forward_history(&mut self) {
-            self.location_history_forward.clear();
+        self.location_history_forward.clear();
     }
 
     pub fn location_previous(&mut self) -> Option<Location> {
