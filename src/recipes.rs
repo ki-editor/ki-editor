@@ -2782,7 +2782,7 @@ fn movement_history_mol_in_file() -> RecipeGroup {
                 file_extension: "md",
                 prepare_events: keys!("space ; n d s r c enter enter n d m a enter enter e k release-e space ; n d f o enter enter e k release-e space ; n d t e m enter enter e k release-e space ; n d g i t enter enter"),
                 events: keys!("e j j release-e l l l e j release-e q j j j l l release-q"),
-                expectations: Box::new([CurrentSelectedTexts(&[""])]),
+                expectations: Box::new([CurrentSelectedTexts(&["println!(\"Hello, world!\");"])]),
                 terminal_height: Some(10),
                 similar_vim_combos: &[""],
                 only: false,

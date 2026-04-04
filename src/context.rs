@@ -531,10 +531,13 @@ impl Context {
     pub fn push_location_history(&mut self, location: Location, backward: bool) {
         if backward {
             self.location_history_backward.push(location);
-            self.location_history_forward.clear();
         } else {
             self.location_history_forward.push(location);
         }
+    }
+
+    pub fn clear_forward_history(&mut self) {
+        self.location_history_forward.clear();
     }
 
     pub fn location_previous(&mut self) -> Option<Location> {

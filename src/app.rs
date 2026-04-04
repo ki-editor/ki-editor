@@ -1573,6 +1573,7 @@ impl<T: Frontend> App<T> {
 
         if store_history {
             self.push_current_location_into_navigation_history(true);
+            self.context.clear_forward_history();
         }
 
         // Check if the file is opened before so that we won't notify the LSP twice
@@ -2936,6 +2937,7 @@ impl<T: Frontend> App<T> {
             if location.path.exists() {
                 self.push_current_location_into_navigation_history(true);
                 self.go_to_location(&location, false)?;
+                return Ok(());
             }
         }
         Ok(())
