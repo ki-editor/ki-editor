@@ -4617,22 +4617,17 @@ impl Editor {
         self.apply_edit_transaction(edit_transaction, context)
     }
 
-    pub fn is_at_first_or_last_selection(&self, direction: &Direction) -> bool {
-        let mut selections = self
-            .selection_set
-            .selections()
-            .iter()
-            .sorted_by_key(|selection| selection.range());
+    pub fn current_selection_is_first_or_last_selection(&self, direction: &Direction) -> bool {
+        self.selection_set
+            .current_selection_is_first_or_last_selection(direction)
+    }
 
-        let predicate = |selection: &Selection| {
-            selection.range() == self.selection_set.primary_selection().range()
-        };
+    pub fn cycle_primary_selection_to_first(&mut self) {
+        self.selection_set.cycle_primary_selection_to_first()
+    }
 
-        Some(0)
-            == match direction {
-                Direction::Start => selections.position(predicate),
-                Direction::End => selections.rev().position(predicate),
-            }
+    pub fn cycle_primary_selection_to_last(&mut self) {
+        self.selection_set.cycle_primary_selection_to_last()
     }
 }
 

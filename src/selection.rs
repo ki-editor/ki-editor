@@ -398,6 +398,22 @@ impl SelectionSet {
         }
     }
 
+    pub fn current_selection_is_first_or_last_selection(&self, direction: &Direction) -> bool {
+        let index = match direction {
+            Direction::Start => 0,
+            Direction::End => self.len() - 1,
+        };
+        self.cursor_index == index
+    }
+
+    pub fn cycle_primary_selection_to_first(&mut self) {
+        self.cursor_index = 0
+    }
+
+    pub fn cycle_primary_selection_to_last(&mut self) {
+        self.cursor_index = self.len() - 1
+    }
+
     pub fn is_extended(&self) -> bool {
         self.primary_selection().initial_range.is_some()
     }

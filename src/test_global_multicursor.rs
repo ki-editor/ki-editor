@@ -164,7 +164,10 @@ fn cycle_cursor_should_switch_file_focus() -> Result<(), anyhow::Error> {
                 s.foo_rs(),
                 "hello\nfoo 1/\nfoo 2".to_string(),
             )),
-            App(SetFileContent(s.main_rs(), "hello\nfoo 3".to_string())),
+            App(SetFileContent(
+                s.main_rs(),
+                "hello\nfoo 3\nfoo4".to_string(),
+            )),
             App(OpenSearchPrompt {
                 scope: Scope::Global,
                 if_current_not_found: IfCurrentNotFound::LookForward,
@@ -177,14 +180,15 @@ fn cycle_cursor_should_switch_file_focus() -> Result<(), anyhow::Error> {
 src/foo.rs
 1│hello
 2│█oo 1/
-3│foo 2
 2│foo 1/
 3│foo 2
 src/main.rs
 1│hello
-2│foo 3"
-                    .trim_matches('\n')
-                    .to_string(),
+2│foo 3
+3│foo4
+"
+                .trim_matches('\n')
+                .to_string(),
             )),
             Expect(CurrentComponentPath(Some(s.foo_rs()))),
             // Expect foo.rs is focused, and main.rs is unfocused
@@ -210,20 +214,21 @@ src/main.rs
                 "src/main.rs",
                 Some(StyleKey::FocusedWindowTitle),
             )),
-            Expect(AppCursorPosition(Position::new(8, 2))),
+            Expect(AppCursorPosition(Position::new(6, 2))),
             Expect(AppGrid(
                 "
 src/foo.rs
 1│hello
 2│foo 1/
 3│foo 2
-2│foo 1/
-3│foo 2
 src/main.rs
 1│hello
-2│█oo 3"
-                    .trim_matches('\n')
-                    .to_string(),
+2│█oo 3
+2│foo 3
+3│foo4
+"
+                .trim_matches('\n')
+                .to_string(),
             )),
             // Cycle to the previous cursor
             App(Dispatch::CycleCursor(Direction::Start)),
@@ -238,12 +243,12 @@ src/main.rs
 src/foo.rs
 1│hello
 2│foo 1/
-3│foo 2
 2│foo 1/
 3│█oo 2
 src/main.rs
 1│hello
-2│foo 3"
+2│foo 3
+3│foo4"
                     .trim_matches('\n')
                     .to_string(),
             )),

@@ -106,13 +106,15 @@ impl<T: Frontend> App<T> {
 
     pub fn cycle_primary_cursor(&mut self, direction: Direction) -> anyhow::Result<()> {
         if let Some(global_multicursor) = self.global_multicursor.as_mut() {
-            if global_multicursor
-                .focused_file
-                .editor
-                .borrow()
-                .editor()
-                .is_at_first_or_last_selection(&direction)
-            {
+            let current_selection_is_first_or_last_selection = {
+                global_multicursor
+                    .focused_file
+                    .editor
+                    .borrow()
+                    .editor()
+                    .current_selection_is_first_or_last_selection(&direction)
+            };
+            if current_selection_is_first_or_last_selection {
                 let next_path = {
                     let mut sorted = global_multicursor
                         .other_files
@@ -135,12 +137,25 @@ impl<T: Frontend> App<T> {
                         .iter()
                         .position(|f| f.path == path)
                     {
+                        // Update the focused file
                         let new_focused_file = global_multicursor.other_files.remove(idx);
                         let old_focused_file = std::mem::replace(
                             &mut global_multicursor.focused_file,
                             new_focused_file,
                         );
                         global_multicursor.other_files.push(old_focused_file);
+
+                        // Ensure that the primary selection is either the first or last selection in the focused file
+                        {
+                            let mut editor_ref =
+                                global_multicursor.focused_file.editor.borrow_mut();
+                            let editor = editor_ref.editor_mut();
+
+                            match direction {
+                                Direction::Start => editor.cycle_primary_selection_to_last(),
+                                Direction::End => editor.cycle_primary_selection_to_first(),
+                            }
+                        }
 
                         #[cfg(test)]
                         {
