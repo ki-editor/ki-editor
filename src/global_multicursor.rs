@@ -38,7 +38,7 @@ impl GlobalMulticursor {
     fn focused_file(&self) -> anyhow::Result<&GlobalMulticursorFile> {
         self.files.get(self.focused_file_index).ok_or_else(|| {
             anyhow::anyhow!(
-                "Invariant violation: attempting to get index {} of the following list:\n{:?}",
+                "Invariant violation: attempting to get index {} of the following list:\n\n{:?}",
                 self.focused_file_index,
                 self.files
                     .iter()
@@ -46,6 +46,78 @@ impl GlobalMulticursor {
                     .collect_vec()
             )
         })
+    }
+
+    fn cycle_primary_cursor(&mut self, direction: Direction) -> Result<(), anyhow::Error> {
+        let focused_file = self.focused_file()?;
+        let change: isize = match direction {
+            Direction::Start => -1,
+            Direction::End => 1,
+        };
+        let next_file_index =
+            ((self.focused_file_index as isize + change) as usize).rem_euclid(self.files().len());
+
+        // Update the focused file index
+        self.focused_file_index = next_file_index;
+
+        // Ensure that the primary selection is either the first or last selection in the focused file
+        {
+            let mut editor_ref = self.focused_file()?.editor.borrow_mut();
+            let editor = editor_ref.editor_mut();
+
+            match direction {
+                Direction::Start => editor.cycle_primary_selection_to_last(),
+                Direction::End => editor.cycle_primary_selection_to_first(),
+            }
+        }
+
+        #[cfg(test)]
+        {
+            let selection_set = self
+                .focused_file()?
+                .editor
+                .borrow()
+                .editor()
+                .selection_set
+                .clone();
+
+            let primary_selection_range = selection_set.primary_selection().range;
+            let mut ranges = selection_set
+                .selections
+                .iter()
+                .map(|selection| selection.range.clone())
+                .sorted();
+
+            match direction {
+                // If changed to the previous file, expect the primary selection is the last selection
+                Direction::Start => debug_assert_eq!(
+                    Some(0),
+                    ranges
+                        .rev()
+                        .position(|range| range == primary_selection_range)
+                ),
+                // If changed to the next file, expect the primary selection is the first selection
+                Direction::End => {
+                    debug_assert_eq!(
+                        Some(0),
+                        ranges.position(|range| range == primary_selection_range)
+                    )
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn current_selection_is_first_or_last_selection(
+        &self,
+        direction: &Direction,
+    ) -> anyhow::Result<bool> {
+        Ok(self
+            .focused_file()?
+            .editor
+            .borrow()
+            .editor()
+            .current_selection_is_first_or_last_selection(&direction))
     }
 }
 
@@ -117,75 +189,10 @@ impl<T: Frontend> App<T> {
 
     pub fn cycle_primary_cursor(&mut self, direction: Direction) -> anyhow::Result<()> {
         if let Some(global_multicursor) = self.global_multicursor.as_mut() {
-            let focused_file = global_multicursor.focused_file()?;
-            let current_selection_is_first_or_last_selection = {
-                focused_file
-                    .editor
-                    .borrow()
-                    .editor()
-                    .current_selection_is_first_or_last_selection(&direction)
-            };
-            if current_selection_is_first_or_last_selection {
-                let change: isize = match direction {
-                    Direction::Start => -1,
-                    Direction::End => 1,
-                };
-                let next_file_index = ((global_multicursor.focused_file_index as isize + change)
-                    as usize)
-                    .rem_euclid(global_multicursor.files().len());
-
-                // Update the focused file index
-                global_multicursor.focused_file_index = next_file_index;
-
-                // Ensure that the primary selection is either the first or last selection in the focused file
-                {
-                    let mut editor_ref = global_multicursor.focused_file()?.editor.borrow_mut();
-                    let editor = editor_ref.editor_mut();
-
-                    match direction {
-                        Direction::Start => editor.cycle_primary_selection_to_last(),
-                        Direction::End => editor.cycle_primary_selection_to_first(),
-                    }
-                }
-
-                #[cfg(test)]
-                {
-                    let selection_set = global_multicursor
-                        .focused_file()?
-                        .editor
-                        .borrow()
-                        .editor()
-                        .selection_set
-                        .clone();
-
-                    let primary_selection_range = selection_set.primary_selection().range;
-                    let mut ranges = selection_set
-                        .selections
-                        .iter()
-                        .map(|selection| selection.range.clone())
-                        .sorted();
-
-                    match direction {
-                        // If changed to the previous file, expect the primary selection is the last selection
-                        Direction::Start => debug_assert_eq!(
-                            Some(0),
-                            ranges
-                                .rev()
-                                .position(|range| range == primary_selection_range)
-                        ),
-                        // If changed to the next file, expect the primary selection is the first selection
-                        Direction::End => {
-                            debug_assert_eq!(
-                                Some(0),
-                                ranges.position(|range| range == primary_selection_range)
-                            )
-                        }
-                    }
-                }
-                return Ok(());
+            if global_multicursor.current_selection_is_first_or_last_selection(&direction)? {
+                return global_multicursor.cycle_primary_cursor(direction);
             }
         }
-
         self.handle_dispatch_editor(DispatchEditor::CyclePrimarySelection(direction))
     }
 
