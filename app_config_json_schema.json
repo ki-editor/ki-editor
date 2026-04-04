@@ -42,6 +42,9 @@
         "leader_keymap": {
             "$ref": "#/$defs/LeaderKeymap"
         },
+        "show_key_in_keymap": {
+            "type": "boolean"
+        },
         "status_lines": {
             "type": "array",
             "items": {
@@ -60,7 +63,8 @@
         "status_lines",
         "leader_keymap",
         "indent_char",
-        "indent_width"
+        "indent_width",
+        "show_key_in_keymap"
     ],
     "$defs": {
         "CargoLinkedTreesitterLanguage": {
