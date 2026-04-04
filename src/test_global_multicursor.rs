@@ -214,21 +214,20 @@ src/main.rs
                 "src/main.rs",
                 Some(StyleKey::FocusedWindowTitle),
             )),
-            Expect(AppCursorPosition(Position::new(6, 2))),
+            Expect(AppCursorPosition(Position::new(7, 2))),
             Expect(AppGrid(
                 "
 src/foo.rs
 1│hello
 2│foo 1/
+2│foo 1/
 3│foo 2
 src/main.rs
 1│hello
 2│█oo 3
-2│foo 3
-3│foo4
-"
-                .trim_matches('\n')
-                .to_string(),
+3│foo4"
+                    .trim_matches('\n')
+                    .to_string(),
             )),
             // Cycle to the previous cursor
             App(Dispatch::CycleCursor(Direction::Start)),
@@ -251,6 +250,63 @@ src/main.rs
 3│foo4"
                     .trim_matches('\n')
                     .to_string(),
+            )),
+        ])
+    })
+}
+
+#[test]
+fn cycle_cursor_should_warp_around() -> Result<(), anyhow::Error> {
+    execute_test(|s| {
+        Box::new([
+            App(TerminalDimensionChanged(Dimension {
+                width: 100,
+                height: 7,
+            })),
+            App(OpenFile {
+                path: s.gitignore(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            App(ToggleFileMark),
+            App(SetFileContent(s.foo_rs(), "foo1".to_string())),
+            App(SetFileContent(s.main_rs(), "foo2".to_string())),
+            App(OpenSearchPrompt {
+                scope: Scope::Global,
+                if_current_not_found: IfCurrentNotFound::LookForward,
+            }),
+            App(HandleKeyEvents(keys!("f o o enter").to_vec())),
+            WaitForAppMessage(regex!("GlobalSearchFinished")),
+            App(AddCursorToAllSelections),
+            Expect(AppGrid(
+                "
+src/foo.rs
+1│█oo1
+
+src/main.rs
+1│foo2
+"
+                .trim_matches('\n')
+                .to_string(),
+            )),
+            Expect(CurrentComponentPath(Some(s.foo_rs()))),
+            Expect(AppRangeStyleKey(
+                "src/foo.rs",
+                Some(StyleKey::FocusedWindowTitle),
+            )),
+            // Cycle to the previous cursor, except in goes to the last file in the list,
+            // since the first selection of the first file is already the primary cursor
+            App(Dispatch::CycleCursor(Direction::Start)),
+            Expect(AppRangeStyleKey(
+                "src/main.rs",
+                Some(StyleKey::FocusedWindowTitle),
+            )),
+            // Cycle to the next cursor, except in goes to the first file in the list,
+            // since the last selection of the last file is already the primary cursor
+            App(Dispatch::CycleCursor(Direction::End)),
+            Expect(AppRangeStyleKey(
+                "src/foo.rs",
+                Some(StyleKey::FocusedWindowTitle),
             )),
         ])
     })

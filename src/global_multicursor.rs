@@ -20,22 +20,32 @@ use shared::absolute_path::AbsolutePath;
 use std::{cell::RefCell, rc::Rc};
 
 pub struct GlobalMulticursor {
-    focused_file: GlobalMulticursorFile,
-    other_files: Vec<GlobalMulticursorFile>,
+    files: Vec<GlobalMulticursorFile>,
+    focused_file_index: usize,
 }
 impl GlobalMulticursor {
     pub fn editors(&self) -> Vec<Rc<RefCell<SuggestiveEditor>>> {
-        Some(self.focused_file.editor.clone())
-            .into_iter()
-            .chain(self.other_files.iter().map(|file| file.editor.clone()))
+        self.files
+            .iter()
+            .map(|file| file.editor.clone())
             .collect_vec()
     }
 
-    fn files(&self) -> Vec<GlobalMulticursorFile> {
-        Some(self.focused_file.clone())
-            .into_iter()
-            .chain(self.other_files.iter().map(|file| file.clone()))
-            .collect_vec()
+    fn files(&self) -> &Vec<GlobalMulticursorFile> {
+        &self.files
+    }
+
+    fn focused_file(&self) -> anyhow::Result<&GlobalMulticursorFile> {
+        self.files.get(self.focused_file_index).ok_or_else(|| {
+            anyhow::anyhow!(
+                "Invariant violation: attempting to get index {} of the following list:\n{:?}",
+                self.focused_file_index,
+                self.files
+                    .iter()
+                    .map(|file| file.path.try_display_relative())
+                    .collect_vec()
+            )
+        })
     }
 }
 
@@ -53,9 +63,10 @@ impl<T: Frontend> App<T> {
             .iter()
             .map(|item| item.location().path.clone())
             .unique()
+            .sorted()
             .collect_vec();
 
-        let editors = paths
+        let files = paths
             .into_iter()
             .map(|path| -> anyhow::Result<_> {
                 let editor = self.open_file(&path, BufferOwner::User, true, false)?;
@@ -63,11 +74,11 @@ impl<T: Frontend> App<T> {
             })
             .collect::<anyhow::Result<Vec<_>>>()?;
 
-        if let Some((head, tail)) = editors.split_first() {
+        if !files.is_empty() {
             self.global_multicursor = Some(GlobalMulticursor {
                 // We'll just assume the first file is the focused file, for simplicity purposes
-                focused_file: head.clone(),
-                other_files: tail.into_iter().map(|file| file.clone()).collect(),
+                files: files,
+                focused_file_index: 0,
             });
 
             self.set_global_mode(None)?;
@@ -106,94 +117,72 @@ impl<T: Frontend> App<T> {
 
     pub fn cycle_primary_cursor(&mut self, direction: Direction) -> anyhow::Result<()> {
         if let Some(global_multicursor) = self.global_multicursor.as_mut() {
+            let focused_file = global_multicursor.focused_file()?;
             let current_selection_is_first_or_last_selection = {
-                global_multicursor
-                    .focused_file
+                focused_file
                     .editor
                     .borrow()
                     .editor()
                     .current_selection_is_first_or_last_selection(&direction)
             };
             if current_selection_is_first_or_last_selection {
-                let next_path = {
-                    let mut sorted = global_multicursor
-                        .other_files
-                        .iter()
-                        .sorted_by_key(|file| file.path.clone());
-                    match direction {
-                        Direction::Start => sorted
-                            .rev()
-                            .find(|file| file.path < global_multicursor.focused_file.path)
-                            .map(|f| f.path.clone()),
-                        Direction::End => sorted
-                            .find(|file| file.path > global_multicursor.focused_file.path)
-                            .map(|f| f.path.clone()),
-                    }
+                let change: isize = match direction {
+                    Direction::Start => -1,
+                    Direction::End => 1,
                 };
+                let next_file_index = ((global_multicursor.focused_file_index as isize + change)
+                    as usize)
+                    .rem_euclid(global_multicursor.files().len());
 
-                if let Some(path) = next_path {
-                    if let Some(idx) = global_multicursor
-                        .other_files
-                        .iter()
-                        .position(|f| f.path == path)
-                    {
-                        // Update the focused file
-                        let new_focused_file = global_multicursor.other_files.remove(idx);
-                        let old_focused_file = std::mem::replace(
-                            &mut global_multicursor.focused_file,
-                            new_focused_file,
-                        );
-                        global_multicursor.other_files.push(old_focused_file);
+                // Update the focused file index
+                global_multicursor.focused_file_index = next_file_index;
 
-                        // Ensure that the primary selection is either the first or last selection in the focused file
-                        {
-                            let mut editor_ref =
-                                global_multicursor.focused_file.editor.borrow_mut();
-                            let editor = editor_ref.editor_mut();
+                // Ensure that the primary selection is either the first or last selection in the focused file
+                {
+                    let mut editor_ref = global_multicursor.focused_file()?.editor.borrow_mut();
+                    let editor = editor_ref.editor_mut();
 
-                            match direction {
-                                Direction::Start => editor.cycle_primary_selection_to_last(),
-                                Direction::End => editor.cycle_primary_selection_to_first(),
-                            }
-                        }
-
-                        #[cfg(test)]
-                        {
-                            let selection_set = global_multicursor
-                                .focused_file
-                                .editor
-                                .borrow()
-                                .editor()
-                                .selection_set
-                                .clone();
-
-                            let primary_selection_range = selection_set.primary_selection().range;
-                            let mut ranges = selection_set
-                                .selections
-                                .iter()
-                                .map(|selection| selection.range.clone())
-                                .sorted();
-
-                            match direction {
-                                // If changed to the previous file, expect the primary selection is the last selection
-                                Direction::Start => debug_assert_eq!(
-                                    Some(0),
-                                    ranges
-                                        .rev()
-                                        .position(|range| range == primary_selection_range)
-                                ),
-                                // If changed to the next file, expect the primary selection is the first selection
-                                Direction::End => {
-                                    debug_assert_eq!(
-                                        Some(0),
-                                        ranges.position(|range| range == primary_selection_range)
-                                    )
-                                }
-                            }
-                        }
-                        return Ok(());
+                    match direction {
+                        Direction::Start => editor.cycle_primary_selection_to_last(),
+                        Direction::End => editor.cycle_primary_selection_to_first(),
                     }
                 }
+
+                #[cfg(test)]
+                {
+                    let selection_set = global_multicursor
+                        .focused_file()?
+                        .editor
+                        .borrow()
+                        .editor()
+                        .selection_set
+                        .clone();
+
+                    let primary_selection_range = selection_set.primary_selection().range;
+                    let mut ranges = selection_set
+                        .selections
+                        .iter()
+                        .map(|selection| selection.range.clone())
+                        .sorted();
+
+                    match direction {
+                        // If changed to the previous file, expect the primary selection is the last selection
+                        Direction::Start => debug_assert_eq!(
+                            Some(0),
+                            ranges
+                                .rev()
+                                .position(|range| range == primary_selection_range)
+                        ),
+                        // If changed to the next file, expect the primary selection is the first selection
+                        Direction::End => {
+                            debug_assert_eq!(
+                                Some(0),
+                                ranges.position(|range| range == primary_selection_range)
+                            )
+                        }
+                    }
+                }
+                return Ok(());
             }
         }
 
@@ -244,11 +233,11 @@ impl<T: Frontend> App<T> {
                 ))
             })
             .collect_vec();
-
+        let focused_file_path = &global_multicursor.focused_file().ok()?.path;
         let get_grid_results = file_with_heights
             .into_iter()
             .map(|(file, height)| {
-                let is_focused = &file.path == &global_multicursor.focused_file.path;
+                let is_focused = &file.path == focused_file_path;
                 let result = file
                     .editor
                     .borrow_mut()
