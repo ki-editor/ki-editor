@@ -367,13 +367,7 @@ impl Component for Editor {
             CyclePrimarySelection(direction) => self.cycle_primary_selection(direction),
             SwapExtensionAnchor => self.selection_set.swap_anchor(),
             FilterSelectionMatchingSearch { maintain, search } => {
-                self.mode = Mode::Normal;
-                let search_config = parse_search_config(&search)?;
-                return Ok(self.filter_selection_matching_search(
-                    search_config.local_config(),
-                    maintain,
-                    context,
-                ));
+                return self.filter_selection_matching_search(&search, maintain, context);
             }
             EnterNewline => return self.enter_newline(context),
             DeleteCurrentCursor(direction) => self.delete_current_cursor(direction),
@@ -3811,11 +3805,24 @@ impl Editor {
 
     fn filter_selection_matching_search(
         &mut self,
-        local_search_config: &crate::context::LocalSearchConfig,
-        keep: bool,
+        search: &String,
+        maintain: bool,
         context: &Context,
-    ) -> Dispatches {
-        let search = local_search_config.search();
+    ) -> anyhow::Result<Dispatches> {
+        self.mode = Mode::Normal;
+
+        let (_, selection_set) = self.filter_selection_matching_search_impl(search, maintain)?;
+        Ok(self.update_selection_set(selection_set, true, context))
+    }
+
+    /// Returns true if no selection matches the search criteria
+    pub fn filter_selection_matching_search_impl(
+        &self,
+        search: &String,
+        maintain: bool,
+    ) -> anyhow::Result<(bool, SelectionSet)> {
+        let parsed = parse_search_config(&search)?;
+        let local_search_config = parsed.local_config();
         let selections = self.selection_set.selections();
         let filtered = selections
             .iter()
@@ -3835,25 +3842,27 @@ impl Editor {
                             .not()
                     }
                 };
-                if keep && is_match || !keep && !is_match {
+                if maintain && is_match || !maintain && !is_match {
                     Some(selection.clone())
                 } else {
                     None
                 }
             })
             .collect_vec();
-        let selections = match filtered.split_first() {
-            Some((head, tail)) => NonEmpty {
-                head: head.clone(),
-                tail: tail.to_vec(),
-            },
-            None => selections.clone(),
+        let (selections, no_matches) = match filtered.split_first() {
+            Some((head, tail)) => (
+                NonEmpty {
+                    head: head.clone(),
+                    tail: tail.to_vec(),
+                },
+                false,
+            ),
+            None => (selections.clone(), true),
         };
-        self.update_selection_set(
+        Ok((
+            no_matches,
             self.selection_set.clone().set_selections(selections),
-            true,
-            context,
-        )
+        ))
     }
 
     fn delete_current_cursor(&mut self, direction: Direction) {

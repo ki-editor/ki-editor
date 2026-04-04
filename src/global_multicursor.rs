@@ -1,6 +1,9 @@
+use crate::app::Dispatches;
 use crate::components::component::{Component, Cursor, SetCursorStyle};
 use crate::components::editor::Direction;
+use crate::context::Context;
 use crate::divide_viewport::divide_viewport;
+use crate::selection::SelectionSet;
 use crate::{
     app::{App, Dimension},
     buffer::BufferOwner,
@@ -145,6 +148,34 @@ impl GlobalMulticursor {
 
         Ok(true)
     }
+
+    fn filter_cursor_matching_search(
+        &mut self,
+        search: String,
+        maintain: bool,
+    ) -> Result<Vec<(Rc<RefCell<SuggestiveEditor>>, SelectionSet)>, anyhow::Error> {
+        let mut result = vec![];
+        let mut no_match_file_indices = vec![];
+        for (index, file) in self.files.iter_mut().enumerate() {
+            let (no_matches, new_selection_set) = file
+                .editor
+                .borrow_mut()
+                .editor_mut()
+                .filter_selection_matching_search_impl(&search, maintain)?;
+            if no_matches {
+                no_match_file_indices.push(index)
+            } else {
+                result.push((file.editor.clone(), new_selection_set))
+            }
+        }
+
+        // Removed the files that has no matching selections
+        for index in no_match_file_indices.into_iter().rev() {
+            self.files.remove(index);
+        }
+
+        Ok(result)
+    }
 }
 
 #[derive(Clone)]
@@ -233,6 +264,36 @@ impl<T: Frontend> App<T> {
         }
 
         self.handle_dispatch_editor(DispatchEditor::DeleteCurrentCursor(Direction::End))
+    }
+
+    pub fn filter_cursor_matching_search(
+        &mut self,
+        search: String,
+        maintain: bool,
+    ) -> anyhow::Result<()> {
+        if self.global_multicursor.is_some() {
+            if let Some(global_multicursor) = self.global_multicursor.as_mut() {
+                let result = global_multicursor.filter_cursor_matching_search(search, maintain)?;
+                for (component, new_selection_set) in result {
+                    let dispatches = component.borrow_mut().editor_mut().update_selection_set(
+                        new_selection_set,
+                        false,
+                        &self.context,
+                    );
+                    self.handle_dispatches(dispatches)?;
+                }
+            }
+
+            if let Some(global_multicursor) = self.global_multicursor.as_ref() {
+                // Focus the new first file, otherwise handle_key_event will malfunction
+                let new_first_file = global_multicursor.focused_file()?.path.clone();
+                self.open_file(&new_first_file, BufferOwner::User, true, true)?;
+            }
+
+            Ok(())
+        } else {
+            self.handle_dispatch_editor(DispatchEditor::DeleteCurrentCursor(Direction::End))
+        }
     }
 
     #[cfg(test)]

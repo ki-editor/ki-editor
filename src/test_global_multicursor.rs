@@ -1,5 +1,5 @@
 use lazy_regex::regex;
-use my_proc_macros::keys;
+use my_proc_macros::{key, keys};
 
 use crate::{
     app::{
@@ -310,6 +310,66 @@ src/foo.rs
             Expect(AppRangeStyleKey(
                 "src/foo.rs",
                 Some(StyleKey::FocusedWindowTitle),
+            )),
+        ])
+    })
+}
+
+#[test]
+fn keep_matching_selections() -> Result<(), anyhow::Error> {
+    execute_test(|s| {
+        Box::new([
+            App(TerminalDimensionChanged(Dimension {
+                width: 100,
+                height: 10,
+            })),
+            App(OpenFile {
+                path: s.gitignore(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            App(ToggleFileMark),
+            App(SetFileContent(s.foo_rs(), "foox1".to_string())),
+            App(SetFileContent(s.main_rs(), "fooy2".to_string())),
+            App(OpenSearchPrompt {
+                scope: Scope::Global,
+                if_current_not_found: IfCurrentNotFound::LookForward,
+            }),
+            App(HandleKeyEvents(keys!("f o o enter").to_vec())),
+            WaitForAppMessage(regex!("GlobalSearchFinished")),
+            App(AddCursorToAllSelections),
+            Expect(AppGrid(
+                "
+src/foo.rs
+1│█oox1
+
+
+
+src/main.rs
+1│fooy2
+"
+                .trim_matches('\n')
+                .to_string(),
+            )),
+            // Enter line selection mode
+            App(HandleKeyEvent(key!("a"))),
+            App(OpenFilterSelectionsPrompt { maintain: true }),
+            App(HandleKeyEvents(keys!("x enter").to_vec())),
+            // Expect main.rs is removed, because its selection `fooy2` does not contain `x`
+            Expect(AppGrid(
+                "
+src/foo.rs
+1│█oox1
+
+
+
+
+
+
+
+ LINE"
+                    .trim_matches('\n')
+                    .to_string(),
             )),
         ])
     })

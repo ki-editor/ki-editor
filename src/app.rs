@@ -1251,6 +1251,9 @@ impl<T: Frontend> App<T> {
             Dispatch::KeepCursorPrimaryOnly => self.keep_primary_cursor_only()?,
             Dispatch::CycleCursor(direction) => self.cycle_primary_cursor(direction)?,
             Dispatch::DeleteCursor => self.delete_cursor()?,
+            Dispatch::FilterCursorsMatchingSearch { search, maintain } => {
+                self.filter_cursor_matching_search(search, maintain)?
+            }
         }
         Ok(())
     }
@@ -4009,6 +4012,10 @@ pub enum Dispatch {
     KeepCursorPrimaryOnly,
     CycleCursor(Direction),
     DeleteCursor,
+    FilterCursorsMatchingSearch {
+        search: String,
+        maintain: bool,
+    },
 }
 
 /// Used to send notify host app about changes
@@ -4238,12 +4245,12 @@ impl DispatchParser {
                     command: text.to_string(),
                 },
             ))),
-            DispatchParser::FilterSelectionMatchingSearch { maintain } => Ok(Dispatches::one(
-                Dispatch::ToEditor(DispatchEditor::FilterSelectionMatchingSearch {
+            DispatchParser::FilterSelectionMatchingSearch { maintain } => {
+                Ok(Dispatches::one(Dispatch::FilterCursorsMatchingSearch {
                     maintain,
                     search: text.to_string(),
-                }),
-            )),
+                }))
+            }
             DispatchParser::SurroundXmlTag => Ok(Dispatches::one(Dispatch::ToEditor(
                 DispatchEditor::Surround(format!("<{text}>"), format!("</{text}>")),
             ))),
