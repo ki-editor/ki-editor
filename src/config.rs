@@ -1,5 +1,9 @@
 use std::borrow::Cow;
-use std::{collections::HashMap, io::Read, path::PathBuf};
+use std::{
+    collections::HashMap,
+    io::Read,
+    path::{Path, PathBuf},
+};
 
 use anyhow::Context;
 use itertools::Itertools;

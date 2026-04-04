@@ -1,7 +1,10 @@
 #[cfg(test)]
 mod test;
 
-use notify::{event::ModifyKind, Event, EventKind, RecursiveMode, Result, Watcher};
+use grammar::config_dir;
+use notify::{
+    event::ModifyKind, recommended_watcher, Event, EventKind, RecursiveMode, Result, Watcher,
+};
 
 use shared::absolute_path::AbsolutePath;
 use std::{
@@ -15,6 +18,7 @@ use std::{
 
 use crate::{
     app::AppMessage,
+    config::{ki_global_directory, ki_workspace_directory},
     thread::{debounce, Callback},
 };
 
@@ -58,6 +62,39 @@ impl FileWatcherState {
             _ => false,
         }
     }
+}
+
+pub fn watch_config_folder_changes(app_message_sender: Sender<AppMessage>) {
+    std::thread::spawn(move || {
+        let (sender, reciever) = mpsc::channel::<Result<Event>>();
+        let mut watcher = recommended_watcher(sender).expect("Why this error");
+
+        let config_dirs = [ki_workspace_directory().unwrap(), ki_global_directory()];
+
+        for folder in config_dirs {
+            watcher
+                .watch(&folder, RecursiveMode::Recursive)
+                .expect("Error whatt");
+        }
+
+        let debounced_sender = debounce(
+            Callback::new(Arc::new({
+                let app_message_sender = app_message_sender.clone();
+                move |_| {
+                    let _ = app_message_sender.send(AppMessage::ConfigChanged);
+                }
+            })),
+            Duration::from_millis(500),
+        );
+
+        for result in reciever {
+            match result {
+                Ok(_) => debounced_sender.call(()),
+                Err(_) => {}
+            }
+        }
+        // hello
+    });
 }
 
 pub fn watch_file_changes(

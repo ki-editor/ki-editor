@@ -53,6 +53,7 @@ use crate::{
     search::parse_search_config,
     selection::{CharIndex, SelectionMode},
     syntax_highlight::{HighlightedSpans, SyntaxHighlightRequest, SyntaxHighlightRequestBatchId},
+    themes::{vscode_light, Theme},
     thread::{debounce, Callback, SendResult},
     ui_tree::{ComponentKind, KindedComponent},
 };
@@ -212,6 +213,8 @@ impl<T: Frontend> App<T> {
     ) -> anyhow::Result<App<T>> {
         let dimension = frontend.lock().unwrap().get_terminal_dimension()?;
         let file_watcher_input_sender = if enable_file_watcher {
+            let _config_file_watcher_sender =
+                crate::file_watcher::watch_config_folder_changes(sender.clone());
             Some(crate::file_watcher::watch_file_changes(
                 &working_directory.clone(),
                 sender.clone(),
@@ -334,8 +337,19 @@ impl<T: Frontend> App<T> {
         self.quit()
     }
 
+    fn get_config_theme(&self) -> Theme {
+        vscode_light()
+    }
+
+    fn reload_config(&mut self) -> anyhow::Result<()> {
+        let reloaded_theme = self.get_config_theme();
+        self.context.set_theme(reloaded_theme);
+        Ok(())
+    }
+
     pub fn process_message(&mut self, message: AppMessage) -> anyhow::Result<bool> {
         match message {
+            AppMessage::ConfigChanged => self.reload_config().map(|_| false),
             AppMessage::Event(event) => self.handle_event(event),
             AppMessage::LspNotification(notification) => {
                 self.handle_lsp_notification(*notification).map(|_| false)
@@ -4095,6 +4109,7 @@ pub enum Scope {
 
 #[derive(Debug)]
 pub enum AppMessage {
+    ConfigChanged,
     LspNotification(Box<LspNotification>),
     Event(Event),
     Quit,
