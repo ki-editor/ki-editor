@@ -60,8 +60,8 @@ impl GlobalMulticursor {
             Direction::Start => -1,
             Direction::End => 1,
         };
-        let next_file_index =
-            ((self.focused_file_index as isize + change) as usize).rem_euclid(self.files().len());
+        let next_file_index = (self.focused_file_index as isize + change)
+            .rem_euclid(self.files().len() as isize) as usize;
 
         // Update the focused file index
         self.focused_file_index = next_file_index;
