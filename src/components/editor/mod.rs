@@ -946,7 +946,6 @@ impl Editor {
                 self.dimension(),
                 &self.reveal(),
                 &RenderTitleMode::Tabline,
-                true,
             );
             let grid_string = grid.grid.to_string();
             let grid_string_lines = grid_string.lines().collect_vec();
@@ -3830,10 +3829,12 @@ impl Editor {
                 let range = selection.extended_range();
                 let haystack = self.buffer().slice(&range).unwrap_or_default().to_string();
                 let is_match = match local_search_config.mode {
-                    LocalSearchConfigMode::Regex(regex_config) => get_regex(&search, regex_config)
-                        .ok()?
-                        .is_match(&haystack)
-                        .ok()?,
+                    LocalSearchConfigMode::Regex(regex_config) => {
+                        get_regex(&local_search_config.search(), regex_config)
+                            .ok()?
+                            .is_match(&haystack)
+                            .ok()?
+                    }
                     LocalSearchConfigMode::AstGrep => false,
                     LocalSearchConfigMode::NamingConventionAgnostic => {
                         selection_mode::NamingConventionAgnostic::new(search.clone())

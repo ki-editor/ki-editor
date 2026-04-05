@@ -292,7 +292,10 @@ impl<T: Frontend> App<T> {
 
             Ok(())
         } else {
-            self.handle_dispatch_editor(DispatchEditor::DeleteCurrentCursor(Direction::End))
+            self.handle_dispatch_editor(DispatchEditor::FilterSelectionMatchingSearch {
+                search,
+                maintain,
+            })
         }
     }
 
@@ -364,7 +367,6 @@ impl<T: Frontend> App<T> {
                         },
                         &Some(Reveal::Cursor),
                         &RenderTitleMode::Filename,
-                        is_focused,
                     );
 
                 GetGridResult {

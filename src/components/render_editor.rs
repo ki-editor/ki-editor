@@ -49,7 +49,6 @@ impl Editor {
             self.dimension(),
             &self.reveal.clone(),
             &RenderTitleMode::Tabline,
-            true,
         )
     }
 
@@ -60,7 +59,6 @@ impl Editor {
         dimension: Dimension,
         reveal: &Option<Reveal>,
         render_title_mode: &RenderTitleMode,
-        is_focused_file: bool,
     ) -> GetGridResult {
         let hunks = self.buffer_mut().simple_hunks(context).unwrap_or_default();
         self.get_grid_with_scroll_offset(
@@ -71,7 +69,6 @@ impl Editor {
             dimension,
             reveal,
             render_title_mode,
-            is_focused_file,
         )
     }
 
@@ -84,7 +81,6 @@ impl Editor {
         dimension: Dimension,
         reveal: &Option<Reveal>,
         render_title_mode: &RenderTitleMode,
-        is_focused_file: bool,
     ) -> GetGridResult {
         let title = self.title(context, &dimension, render_title_mode);
         let title_grid_height = title.lines().count();

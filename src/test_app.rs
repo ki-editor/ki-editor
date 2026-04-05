@@ -294,7 +294,7 @@ impl ExpectKind {
                 component
                     .borrow_mut()
                     .editor_mut()
-                    .get_grid(context, false)
+                    .get_grid(context, true)
                     .to_string(),
                 grid.to_string(),
             ),
