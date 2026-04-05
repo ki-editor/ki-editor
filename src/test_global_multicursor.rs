@@ -433,6 +433,37 @@ src/main.rs
 }
 
 #[test]
+fn should_always_render_focused_selection_if_not_enough_vertical_space() -> Result<(), anyhow::Error>
+{
+    execute_test(|s| {
+        Box::new([
+            App(TerminalDimensionChanged(Dimension {
+                width: 100,
+                height: 2,
+            })),
+            App(OpenFile {
+                path: s.gitignore(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            App(ToggleFileMark),
+            App(SetFileContent(s.foo_rs(), "foo1".to_string())),
+            App(SetFileContent(s.main_rs(), "foo2".to_string())),
+            App(OpenSearchPrompt {
+                scope: Scope::Global,
+                if_current_not_found: IfCurrentNotFound::LookForward,
+            }),
+            App(HandleKeyEvents(keys!("f o o enter").to_vec())),
+            WaitForAppMessage(regex!("GlobalSearchFinished")),
+            App(AddCursorToAllSelections),
+            Expect(AppGrid("1│█oo1".to_string())),
+            App(Dispatch::CycleCursor(Direction::End)),
+            Expect(AppGrid("1│█oo2".to_string())),
+        ])
+    })
+}
+
+#[test]
 fn able_to_open_search_prompt_when_global_multicursor_enabled() -> Result<(), anyhow::Error> {
     execute_test(|s| {
         Box::new([

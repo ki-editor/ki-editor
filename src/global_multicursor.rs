@@ -309,25 +309,31 @@ impl<T: Frontend> App<T> {
         let files = global_multicursor.files();
         let selections = files
             .iter()
-            .flat_map(|file| {
-                file.editor
-                    .borrow()
-                    .editor()
-                    .selection_set
+            .enumerate()
+            .flat_map(|(file_index, file)| {
+                let binding = file.editor.borrow();
+                let selection_set = &binding.editor().selection_set;
+                selection_set
                     .selections
                     .iter()
-                    .map(|selection| (file.path.clone(), selection.clone()))
+                    .enumerate()
+                    .map(|(selection_index, selection)| {
+                        let is_primary = file_index == global_multicursor.focused_file_index
+                            && selection_index == selection_set.cursor_index;
+                        (is_primary, file.path.clone(), selection.clone())
+                    })
                     .collect_vec()
             })
             .collect_vec();
-        let first_item = selections.first()?;
-        let viewport_sections = divide_viewport(&selections, rectangle.height, first_item.clone());
+        let focused_item = selections.iter().find(|(is_primary, _, _)| *is_primary)?;
+        let viewport_sections =
+            divide_viewport(&selections, rectangle.height, focused_item.clone());
 
         let file_with_heights = viewport_sections
             .into_iter()
             // Sort and group by path
-            .sorted_by_key(|section| section.item().0.clone())
-            .chunk_by(|section| section.item().0.clone())
+            .sorted_by_key(|section| section.item().1.clone())
+            .chunk_by(|section| section.item().1.clone())
             .into_iter()
             .filter_map(|(path, sections)| {
                 let file = files.iter().find(|file| &file.path == &path)?;
