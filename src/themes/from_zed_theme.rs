@@ -141,7 +141,6 @@ pub(super) fn from_theme_content(theme: ThemeContent) -> Theme {
             default: Style::new()
                 .background_color(background)
                 .foreground_color(text_color),
-            background_color: background,
             primary_selection_background,
             primary_selection_anchor_background: primary_selection_background,
             primary_selection_primary_cursor: primary_cursor,

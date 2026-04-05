@@ -47,7 +47,6 @@ pub fn very_dark() -> Theme {
             jump_mark_even: Style::new()
                 .background_color(hex!("#84b701"))
                 .foreground_color(hex!("#ffffff")),
-            background_color: hex!("#000000"),
             default: Style::new()
                 .background_color(hex!("#000000"))
                 .foreground_color(hex!("#FFFFFF")),

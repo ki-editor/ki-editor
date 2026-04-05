@@ -974,7 +974,7 @@ mod test_grid {
                     Vec::new(),
                     &Theme {
                         ui: crate::themes::UiStyles {
-                            background_color,
+                            default: Style::new().background_color(background_color),
                             ..Default::default()
                         },
 

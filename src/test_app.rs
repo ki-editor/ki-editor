@@ -325,7 +325,7 @@ impl ExpectKind {
                 component
                     .borrow_mut()
                     .editor_mut()
-                    .get_grid(context, false)
+                    .get_grid(context, true)
                     .cursor
                     .unwrap()
                     .position(),
@@ -353,7 +353,7 @@ impl ExpectKind {
                 let grid = component
                     .borrow_mut()
                     .editor_mut()
-                    .get_grid(context, false)
+                    .get_grid(context, true)
                     .grid;
                 contextualize(
                     grid.rows[*row_index][*column_index].background_color,
@@ -364,7 +364,7 @@ impl ExpectKind {
                 component
                     .borrow_mut()
                     .editor_mut()
-                    .get_grid(context, false)
+                    .get_grid(context, true)
                     .grid
                     .rows[*row_index][*column_index]
                     .line
@@ -378,7 +378,7 @@ impl ExpectKind {
                     component
                         .borrow_mut()
                         .editor_mut()
-                        .get_grid(context, false)
+                        .get_grid(context, true)
                         .grid
                         .rows
                         .iter()
@@ -413,7 +413,7 @@ impl ExpectKind {
                     let actual_style_key = &component
                         .borrow_mut()
                         .editor_mut()
-                        .get_grid(context, false)
+                        .get_grid(context, true)
                         .grid
                         .rows[position.line][position.column]
                         .source;
@@ -609,7 +609,7 @@ impl ExpectKind {
                 &app.current_component()
                     .borrow_mut()
                     .editor_mut()
-                    .get_grid(context, false)
+                    .get_grid(context, true)
                     .grid
                     .rows
                     .into_iter()
@@ -692,7 +692,7 @@ fn run_range_style_key_check_on_component(
     search: &'static str,
     style_key: &Option<StyleKey>,
 ) -> (bool, String) {
-    let grid = component.borrow_mut().editor_mut().get_grid(context, false);
+    let grid = component.borrow_mut().editor_mut().get_grid(context, true);
 
     let grid_string = grid.to_string();
     let matches = grid_string.match_indices(search).collect_vec();
@@ -3900,10 +3900,12 @@ fn navigating_to_marked_file_that_is_deleted_should_not_cause_error() -> anyhow:
 
 
 Cycle marked file error
-1│█he file mark "src/main.rs" is removed from the list as it cannot be opened
-↪│due to the following error:
-2│
-3│The path "src/main.rs" does not exist."#
+ 1│The file mark "src/main.rs" is removed from the list as it cannot be opened
+ ↪│due to the following error:
+ 2│
+ 3│The path "src/main.rs" does not exist.
+ 4│
+ 5│Stack backtrace:"#
                     .to_string(),
             )),
         ])
@@ -4225,7 +4227,7 @@ fn marking_selections_should_refresh_mark_quickfix() -> Result<(), anyhow::Error
 Quickfix list
 1│.gitignore
 2│    1:1  foo
-3│█   3:1  spam
+3│    3:1  spam
 4│    4:1  baz"
                     .to_string(),
             )),

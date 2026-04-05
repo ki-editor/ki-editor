@@ -193,7 +193,6 @@ pub struct UiStyles {
     pub section_divider_background: Color,
     pub jump_mark_odd: Style,
     pub jump_mark_even: Style,
-    pub background_color: Color,
     pub primary_selection_background: Color,
     pub primary_selection_anchor_background: Color,
     pub primary_selection_secondary_cursor: Style,

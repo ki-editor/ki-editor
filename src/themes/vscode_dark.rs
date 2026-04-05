@@ -47,7 +47,6 @@ pub fn vscode_dark() -> Theme {
             jump_mark_even: Style::new()
                 .background_color(hex!("#84b701"))
                 .foreground_color(hex!("#ffffff")),
-            background_color: hex!("#1E1E1E"),
             default: Style::new()
                 .background_color(hex!("#1E1E1E"))
                 .foreground_color(hex!("#FFFFFF")),
