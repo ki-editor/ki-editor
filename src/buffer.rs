@@ -1667,68 +1667,6 @@ fn main() {
             Ok(())
         }
     }
-
-    mod nested_language {
-
-        use ropey::Rope;
-        use tree_sitter::{Parser, Query, QueryCursor, StreamingIterator};
-
-        #[test]
-        fn main() {
-            let src = r#"<html>
-<script>
-  let x = 1 + 2;
-</script>
-
-<body>
-</body>
-
-<script>
-  console.log("hello")
-</script>
-
-</html>"#;
-
-            // Step 1: Parse HTML
-            let mut parser = Parser::new();
-            let html = crate::config::from_extension("html").unwrap();
-            let html_language = html.tree_sitter_language().unwrap();
-            parser.set_language(&html_language).unwrap();
-            let html_tree = parser.parse(src, None).unwrap();
-
-            // Step 2: Query for the content inside <script> tags
-            // In the HTML grammar, `raw_text` is the node kind for script body content
-            let query = Query::new(&html_language, "(script_element (raw_text) @js)").unwrap();
-
-            let mut cursor = QueryCursor::new();
-            let mut matches = cursor.matches(&query, html_tree.root_node(), src.as_bytes());
-            let mut js_ranges = vec![];
-            while let Some(m) = matches.next() {
-                for capture in m.captures {
-                    js_ranges.push(capture.node.range());
-                }
-            }
-
-            println!("JS ranges in document: {:?}", js_ranges);
-
-            // Step 3: Parse JS using those ranges against the same source string
-            let mut js_parser = Parser::new();
-            let js = crate::config::from_extension("js").unwrap();
-            let js_language = js.tree_sitter_language().unwrap();
-            js_parser.set_language(&js_language).unwrap();
-            js_parser.set_included_ranges(&js_ranges).unwrap();
-
-            let js_tree = js_parser.parse(src, None).unwrap(); // same src!
-
-            println!("JS tree: {}", js_tree.root_node().to_sexp());
-
-            for child in js_tree.root_node().children(&mut js_tree.walk()) {
-                println!("{:?}", Rope::from_str(src).slice(child.byte_range()));
-            }
-
-            panic!()
-        }
-    }
 }
 
 #[derive(Clone, PartialEq)]
