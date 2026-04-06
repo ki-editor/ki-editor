@@ -26,6 +26,7 @@ pub struct AppConfig {
     keyboard_layouts: HashMap<String, KeyboardLayout>,
     indent_char: char,
     indent_width: usize,
+    show_key_in_keymap: bool,
 }
 
 #[derive(Deserialize, Serialize, JsonSchema)]
@@ -40,6 +41,7 @@ pub struct RawConfig {
     custom_keyboard_layouts: HashMap<String, KeyboardLayoutKeys>,
     indent_char: IndentChar,
     indent_width: usize,
+    show_key_in_keymap: bool,
 }
 
 #[derive(Deserialize, Serialize, JsonSchema)]
@@ -92,6 +94,7 @@ impl TryFrom<RawConfig> for AppConfig {
                 IndentChar::Tab => '\t',
             },
             indent_width: value.indent_width,
+            show_key_in_keymap: value.show_key_in_keymap,
         })
     }
 }
@@ -252,6 +255,10 @@ impl AppConfig {
 
     pub fn indent_char(&self) -> char {
         self.indent_char
+    }
+
+    pub fn show_key_in_keymap(&self) -> bool {
+        self.show_key_in_keymap
     }
 }
 

@@ -3,7 +3,8 @@ use itertools::Itertools;
 
 use crate::{
     app::{Dispatch, Dispatches},
-    components::editor_keymap_printer::KeymapDisplayOption,
+    components::{editor_keymap::KeyboardLayout, editor_keymap_printer::KeymapDisplayOption},
+    config::AppConfig,
     context::Context,
     rectangle::Rectangle,
 };
@@ -90,8 +91,17 @@ impl ReleaseKey {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Keymap(Vec<Keybinding>);
 impl Keymap {
-    fn display(&self, terminal_width: usize, option: &KeymapDisplayOption) -> String {
-        KeymapPrintSection::from_keymap("".to_string(), self).display(terminal_width, option)
+    fn display(
+        &self,
+        terminal_width: usize,
+        option: &KeymapDisplayOption,
+        layout: Option<&KeyboardLayout>,
+    ) -> String {
+        KeymapPrintSection::from_keymap("".to_string(), self).display(
+            terminal_width,
+            option,
+            layout,
+        )
     }
     pub fn new(keybindings: &[Keybinding]) -> Self {
         Self(keybindings.to_vec())
@@ -111,8 +121,13 @@ impl Keymap {
 }
 
 impl KeymapLegendConfig {
-    pub fn display(&self, width: usize, option: &KeymapDisplayOption) -> String {
-        self.keymap.display(width, option)
+    pub fn display(
+        &self,
+        width: usize,
+        option: &KeymapDisplayOption,
+        layout: Option<&KeyboardLayout>,
+    ) -> String {
+        self.keymap.display(width, option, layout)
     }
 
     pub fn keymap(&self) -> Keymap {
@@ -268,7 +283,10 @@ impl KeymapLegend {
             // panic!("{}", message);
         }
 
-        let content = self.display();
+        let keyboard_layout = AppConfig::singleton()
+            .show_key_in_keymap()
+            .then(|| context.keyboard_layout().clone());
+        let content = self.display(keyboard_layout.as_ref());
 
         // dropping dispatch as this is a buffer with no path and
         // set_content dispatches are related to file dirty status
@@ -278,13 +296,14 @@ impl KeymapLegend {
             .unwrap_or_default();
     }
 
-    fn display(&self) -> String {
+    fn display(&self, layout: Option<&KeyboardLayout>) -> String {
         let content = self.config.display(
             self.editor.rectangle().width,
             &KeymapDisplayOption {
                 show_alt: true,
                 show_shift: true,
             },
+            layout,
         );
 
         if let Some(on_tap) = self
@@ -370,6 +389,7 @@ mod test_keymap_legend {
                     show_alt: false,
                     show_shift: false,
                 },
+                None,
             )
             .to_string();
         let expected = r#"
@@ -392,6 +412,7 @@ mod test_keymap_legend {
                     show_alt: true,
                     show_shift: true,
                 },
+                None,
             )
             .to_string()
             .trim_matches('\n')
@@ -431,6 +452,7 @@ mod test_keymap_legend {
                     show_alt: true,
                     show_shift: true,
                 },
+                None,
             )
             .to_string();
         let expected = r#"
@@ -476,6 +498,7 @@ mod test_keymap_legend {
                     show_alt: true,
                     show_shift: true,
                 },
+                None,
             )
             .to_string();
         let expected = "Window is too small to display keymap legend :(";
@@ -508,7 +531,7 @@ mod test_keymap_legend {
             .unwrap();
 
         assert_eq!(
-            keymap_legend.display(),
+            keymap_legend.display(None),
             "
 ╭───┬───┬───┬───┬───┬───┬───┬───┬───┬───┬───╮
 │   ┆   ┆   ┆   ┆   ┆ ∅ ┆   ┆   ┆   ┆   ┆   │

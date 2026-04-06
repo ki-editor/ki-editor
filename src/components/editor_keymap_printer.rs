@@ -9,7 +9,7 @@ use crate::{
     app::Scope,
     components::{
         editor::Editor,
-        editor_keymap::{shifted, QWERTY_STR},
+        editor_keymap::{shifted, KeyboardLayout, QWERTY_STR},
         editor_keymap_legend::NormalModeOverride,
     },
     context::Context,
@@ -124,8 +124,13 @@ impl KeymapPrintSection {
     }
 
     /// Returns None if the terminal width is too small
-    pub fn display(&self, terminal_width: usize, option: &KeymapDisplayOption) -> String {
-        let table = self.display_full(terminal_width, option);
+    pub fn display(
+        &self,
+        terminal_width: usize,
+        option: &KeymapDisplayOption,
+        layout: Option<&KeyboardLayout>,
+    ) -> String {
+        let table = self.display_full(terminal_width, option, layout);
 
         fn get_content_width(table: &Table) -> usize {
             let content_width: u16 = table.column_max_content_widths().iter().sum();
@@ -137,7 +142,7 @@ impl KeymapPrintSection {
         if get_content_width(&table) < terminal_width {
             format!("{table}\n{exmatrix_keybindings}")
         } else {
-            let (left, right) = self.display_stacked(terminal_width, option);
+            let (left, right) = self.display_stacked(terminal_width, option, layout);
             let content_width = get_content_width(&left).min(get_content_width(&right));
             if content_width < terminal_width {
                 format!("{left}\n{right}\n{exmatrix_keybindings}")
@@ -157,17 +162,23 @@ impl KeymapPrintSection {
         &self.keys
     }
 
-    fn display_full(&self, terminal_width: usize, option: &KeymapDisplayOption) -> Table {
-        self.display_one_side(terminal_width, option, 0, 10, 5)
+    fn display_full(
+        &self,
+        terminal_width: usize,
+        option: &KeymapDisplayOption,
+        layout: Option<&KeyboardLayout>,
+    ) -> Table {
+        self.display_one_side(terminal_width, option, layout, 0, 10, 5)
     }
 
     fn display_stacked(
         &self,
         terminal_width: usize,
         option: &KeymapDisplayOption,
+        layout: Option<&KeyboardLayout>,
     ) -> (Table, Table) {
-        let left = self.display_one_side(terminal_width, option, 0, 5, 5);
-        let right = self.display_one_side(terminal_width, option, 5, 5, 0);
+        let left = self.display_one_side(terminal_width, option, layout, 0, 5, 5);
+        let right = self.display_one_side(terminal_width, option, layout, 5, 5, 0);
         (left, right)
     }
 
@@ -175,6 +186,7 @@ impl KeymapPrintSection {
         &self,
         terminal_width: usize,
         option: &KeymapDisplayOption,
+        layout: Option<&KeyboardLayout>,
         skip: usize,
         take: usize,
         modifiers_column_index: usize,
@@ -182,7 +194,7 @@ impl KeymapPrintSection {
         let columns_count = take;
         let max_column_width = terminal_width / columns_count;
         let mut table = Table::new();
-        let table_rows = self.keys.iter().map(|row| {
+        let table_rows = self.keys.iter().enumerate().map(|(row_index, row)| {
             let cells = row.iter().skip(skip).take(take);
             // Only show alt/shift row if the row contains any alt/shift keybinding
             let option = KeymapDisplayOption {
@@ -190,8 +202,19 @@ impl KeymapPrintSection {
                 show_shift: option.show_shift && cells.clone().any(|cell| cell.shifted.is_some()),
             };
             let mut cols: Vec<Cell> = cells
-                .map(|key| {
-                    let display = key.display(&option);
+                .enumerate()
+                .map(|(col_index, key)| {
+                    let display = if let Some(value) = layout.and_then(|layout| {
+                        layout
+                            .get_keyboard_layout()
+                            .get(row_index)
+                            .and_then(|row| row.get(col_index))
+                    }) {
+                        format!("{}\n{}", value, key.display(&option))
+                    } else {
+                        key.display(&option)
+                    };
+
                     Cell::new(display).set_alignment(CellAlignment::Center)
                 })
                 .collect();
@@ -200,6 +223,7 @@ impl KeymapPrintSection {
                 modifiers_column_index,
                 Cell::new(
                     [
+                        if layout.is_some() { "\n" } else { "" },
                         if option.show_alt { "⌥\n" } else { "" },
                         if option.show_shift { "⇧\n" } else { "" },
                         "∅",
@@ -398,6 +422,7 @@ fn print_single_keymap_table(keymap: &KeymapPrintSection) {
             show_alt: true,
             show_shift: true,
         },
+        None,
     );
 
     println!("{table}");

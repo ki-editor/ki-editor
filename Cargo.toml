@@ -120,6 +120,7 @@ serde_path_to_error = "0.1.20"
 
 tracing-subscriber.workspace = true
 tracing-log.workspace = true
+crossbeam-channel = "0.5.15"
 
 [dev-dependencies]
 serial_test = "~3.2.0"

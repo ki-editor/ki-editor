@@ -159,7 +159,9 @@ pub struct SyntaxHighlightRequest {
     pub source_code: String,
 }
 
-pub fn start_thread(callback: Sender<AppMessage>) -> Sender<SyntaxHighlightRequest> {
+pub fn start_thread(
+    callback: crossbeam_channel::Sender<AppMessage>,
+) -> Sender<SyntaxHighlightRequest> {
     let (sender, receiver) = std::sync::mpsc::channel::<SyntaxHighlightRequest>();
     use debounce::EventDebouncer;
     struct Event(SyntaxHighlightRequest);

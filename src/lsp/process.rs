@@ -57,7 +57,7 @@ struct LspServerProcess {
     current_working_directory: AbsolutePath,
     next_request_id: RequestId,
     pending_response_requests: HashMap<RequestId, PendingResponseRequest>,
-    app_message_sender: Sender<AppMessage>,
+    app_message_sender: crossbeam_channel::Sender<AppMessage>,
 
     sender: Sender<LspServerProcessMessage>,
     progress_notification_manager: ProgressNotificationManager,
@@ -188,7 +188,7 @@ pub struct LspServerProcessChannel {
 impl LspServerProcessChannel {
     pub fn new(
         language: Language,
-        screen_message_sender: Sender<AppMessage>,
+        screen_message_sender: crossbeam_channel::Sender<AppMessage>,
         current_working_directory: AbsolutePath,
     ) -> Result<Option<LspServerProcessChannel>, anyhow::Error> {
         LspServerProcess::start(language, screen_message_sender, current_working_directory)
@@ -248,7 +248,7 @@ impl LspServerProcessChannel {
 impl LspServerProcess {
     fn start(
         language: Language,
-        app_message_sender: Sender<AppMessage>,
+        app_message_sender: crossbeam_channel::Sender<AppMessage>,
         current_working_directory: AbsolutePath,
     ) -> anyhow::Result<Option<LspServerProcessChannel>> {
         let process_command = match language.lsp_process_command() {
@@ -447,7 +447,7 @@ impl LspServerProcess {
     pub fn listen(
         mut self,
         receiver: Receiver<LspServerProcessMessage>,
-        app_message_sender: Sender<AppMessage>,
+        app_message_sender: crossbeam_channel::Sender<AppMessage>,
     ) -> anyhow::Result<JoinHandle<()>> {
         let lsp_command = self.lsp_command();
         let stdout_reader = BufReader::new(
@@ -493,7 +493,7 @@ impl LspServerProcess {
         mut stdout_reader: BufReader<process::ChildStdout>,
         mut stderr_reader: BufReader<process::ChildStderr>,
         sender: Sender<LspServerProcessMessage>,
-        app_message_sender: Sender<AppMessage>,
+        app_message_sender: crossbeam_channel::Sender<AppMessage>,
         lsp_command: String,
     ) -> JoinHandle<()> {
         thread::spawn(move || {
@@ -1754,7 +1754,7 @@ mod test_lsp_server_process {
 
     #[test]
     fn lsp_should_shutdown_after_too_many_consecutive_errors() -> anyhow::Result<()> {
-        let (app_sender, app_receiver) = mpsc::channel();
+        let (app_sender, app_receiver) = crossbeam_channel::unbounded();
         let (sender, receiver) = mpsc::channel();
 
         // Create a process that will output invalid LSP data quickly

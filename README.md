@@ -8,7 +8,7 @@ building instructions, and complete documentation.
 If you need help, please reach out on
 [Ki Editor community chat room](https://ki-editor.zulipchat.com/).
 
-For directly downloading the latest release binaries refer to [Latest mater build](https://github.com/ki-editor/ki-editor/releases/tag/latest)
+For directly downloading the latest release binaries refer to [Latest master build](https://github.com/ki-editor/ki-editor/releases/tag/latest)
 
 <!-- https://ki-editor.zulipchat.com/join/zzhagqzl6wyzpqfeqxcsrkin/ -->
 <!-- The invitation link is not required because we changed disabled "require invit. to join" setting -->

@@ -24,9 +24,9 @@ use crate::embed::handlers;
 
 pub struct EmbeddedApp {
     pub app: Rc<Mutex<App<Crossterm>>>,
-    pub app_sender: mpsc::Sender<AppMessage>,
+    pub app_sender: crossbeam_channel::Sender<AppMessage>,
     pub integration_event_receiver: mpsc::Receiver<crate::integration_event::IntegrationEvent>,
-    pub app_message_receiver: mpsc::Receiver<AppMessage>,
+    pub app_message_receiver: crossbeam_channel::Receiver<AppMessage>,
     pub ipc_handler: WebSocketIpc,
     pub context: Context,
 }
@@ -49,7 +49,7 @@ impl EmbeddedApp {
 
         let status_line_components = vec![];
 
-        let (real_app_sender, real_app_receiver) = mpsc::channel::<AppMessage>();
+        let (real_app_sender, real_app_receiver) = crossbeam_channel::unbounded::<AppMessage>();
         let resolved_wd = working_directory.unwrap_or("./".try_into()?);
 
         let (integration_event_sender, integration_event_receiver) =
@@ -59,7 +59,8 @@ impl EmbeddedApp {
             frontend.clone(),
             resolved_wd,
             real_app_sender.clone(),
-            mpsc::channel().1,
+            crossbeam_channel::unbounded().1,
+            crossbeam_channel::unbounded().1,
             None,
             status_line_components.clone(),
             Some(integration_event_sender),
@@ -203,8 +204,8 @@ impl EmbeddedApp {
                         error!("Error processing message: {e}");
                     }
                 }
-                Err(TryRecvError::Empty) => {}
-                Err(TryRecvError::Disconnected) => {
+                Err(crossbeam_channel::TryRecvError::Empty) => {}
+                Err(crossbeam_channel::TryRecvError::Disconnected) => {
                     error!("Internal App message channel disconnected! Exiting.");
                     break;
                 }
