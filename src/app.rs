@@ -74,10 +74,7 @@ use std::{
     collections::{HashMap, HashSet},
     path::{Path, PathBuf},
     rc::Rc,
-    sync::{
-        mpsc::{Receiver, Sender},
-        Mutex,
-    },
+    sync::{mpsc::Sender, Mutex},
 };
 use std::{sync::Arc, time::Duration};
 use DispatchEditor::*;
@@ -93,12 +90,14 @@ use crate::{layout::BufferContentsMap, test_app::RunTestOptions};
 pub struct App<T: Frontend> {
     context: Context,
 
-    sender: Sender<AppMessage>,
+    sender: crossbeam_channel::Sender<AppMessage>,
 
     /// Used for receiving message from various sources:
-    /// - Events from crossterm
     /// - Notifications from language server
-    receiver: Receiver<AppMessage>,
+    receiver: crossbeam_channel::Receiver<AppMessage>,
+
+    /// Used for user inputs. Processed first
+    priority_receiver: crossbeam_channel::Receiver<AppMessage>,
 
     /// Sender for integration events (used by external integrations like VSCode)
     integration_event_sender: Option<Sender<crate::integration_event::IntegrationEvent>>,
@@ -176,7 +175,9 @@ impl<T: Frontend> App<T> {
     ) -> anyhow::Result<App<T>> {
         use crate::syntax_highlight;
 
-        let (sender, receiver) = std::sync::mpsc::channel();
+        let (sender, receiver) = crossbeam_channel::unbounded();
+        // For testing, it doesn't really matter what we do here
+        let (_, priority_receiver) = crossbeam_channel::unbounded();
         let syntax_highlight_request_sender = if options.enable_syntax_highlighting {
             Some(syntax_highlight::start_thread(sender.clone()))
         } else {
@@ -187,6 +188,7 @@ impl<T: Frontend> App<T> {
             working_directory,
             sender,
             receiver,
+            priority_receiver,
             syntax_highlight_request_sender,
             status_lines,
             None, // No integration event sender
@@ -201,8 +203,9 @@ impl<T: Frontend> App<T> {
     pub fn from_channel(
         frontend: Rc<Mutex<T>>,
         working_directory: AbsolutePath,
-        sender: Sender<AppMessage>,
-        receiver: Receiver<AppMessage>,
+        sender: crossbeam_channel::Sender<AppMessage>,
+        receiver: crossbeam_channel::Receiver<AppMessage>,
+        priority_receiver: crossbeam_channel::Receiver<AppMessage>,
         syntax_highlight_request_sender: Option<Sender<SyntaxHighlightRequest>>,
         status_lines: Vec<StatusLine>,
         integration_event_sender: Option<Sender<crate::integration_event::IntegrationEvent>>,
@@ -227,6 +230,7 @@ impl<T: Frontend> App<T> {
                 persistence,
             ),
             receiver,
+            priority_receiver,
             lsp_manager: [(
                 working_directory.clone().into_path_buf(),
                 LspManager::new(sender.clone(), working_directory.clone()),
@@ -319,7 +323,10 @@ impl<T: Frontend> App<T> {
 
         self.render()?;
 
-        while let Ok(message) = self.receiver.recv() {
+        while let Ok(message) = crossbeam_channel::select_biased! {
+            recv(self.priority_receiver) -> msg => msg,
+            recv(self.receiver) -> msg => msg,
+        } {
             let should_quit = self.process_message(message).unwrap_or_else(|e| {
                 self.show_global_info(Info::new("ERROR".to_string(), e.to_string()));
                 false
@@ -2030,10 +2037,6 @@ impl<T: Frontend> App<T> {
                 .collect::<Vec<_>>()
         );
         Ok(self.sender.send(AppMessage::Quit)?)
-    }
-
-    pub fn sender(&self) -> Sender<AppMessage> {
-        self.sender.clone()
     }
 
     fn save_all(&mut self) -> anyhow::Result<()> {

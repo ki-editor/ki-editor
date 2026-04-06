@@ -125,7 +125,8 @@ fn init_logger() -> anyhow::Result<()> {
 pub fn run(config: RunConfig) -> anyhow::Result<()> {
     let _ = init_logger();
     std::fs::create_dir_all(grammar::cache_dir()).context("Failed to create cache_dir")?;
-    let (sender, receiver) = std::sync::mpsc::channel();
+    let (sender, receiver) = crossbeam_channel::unbounded();
+    let (priority_sender, priority_receiver) = crossbeam_channel::unbounded();
     let syntax_highlighter_sender = syntax_highlight::start_thread(sender.clone());
 
     let app = App::from_channel(
@@ -133,6 +134,7 @@ pub fn run(config: RunConfig) -> anyhow::Result<()> {
         config.working_directory.unwrap_or(".".try_into()?),
         sender,
         receiver,
+        priority_receiver,
         Some(syntax_highlighter_sender),
         AppConfig::singleton().status_lines(),
         None, // No integration event sender
@@ -144,15 +146,13 @@ pub fn run(config: RunConfig) -> anyhow::Result<()> {
         )),
     )?;
 
-    let sender = app.sender();
-
     std::thread::spawn(move || loop {
         let message = match crossterm::event::read() {
             Ok(event) => AppMessage::Event(event.into()),
             Err(err) => AppMessage::NotifyError(err),
         };
 
-        let _ = sender
+        let _ = priority_sender
             .send(message)
             .map_err(|err| log::info!("main::run::crossterm {err:#?}"));
     });
