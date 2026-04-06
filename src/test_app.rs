@@ -3894,12 +3894,10 @@ fn navigating_to_marked_file_that_is_deleted_should_not_cause_error() -> anyhow:
 
 
 Cycle marked file error
- 1│The file mark "src/main.rs" is removed from the list as it cannot be opened
- ↪│due to the following error:
- 2│
- 3│The path "src/main.rs" does not exist.
- 4│
- 5│Stack backtrace:"#
+1│The file mark "src/main.rs" is removed from the list as it cannot be opened
+↪│due to the following error:
+2│
+3│The path "src/main.rs" does not exist."#
                     .to_string(),
             )),
         ])
