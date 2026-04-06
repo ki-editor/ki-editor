@@ -3,7 +3,7 @@ use crate::{
     char_index_range::CharIndexRange,
     clipboard::Texts,
     components::{
-        component::{self, Component, ComponentId, Cursor, GetGridResult},
+        component::{Component, ComponentId, Cursor, GetGridResult},
         dropdown_sync::{DropdownItem, DropdownRender},
         editor::{
             Direction, DispatchEditor, Editor, IfCurrentNotFound, Movement, PriorChange, Reveal,
@@ -24,13 +24,12 @@ use crate::{
         Context, FormatterCommand, GlobalMode, GlobalSearchConfig, LocalSearchConfigMode,
         QuickfixListKind, QuickfixListSource, Search,
     },
-    divide_viewport::divide_viewport,
     edit::Edit,
     file_watcher::{FileWatcherEvent, FileWatcherInput},
     frontend::Frontend,
     git::{self},
     global_multicursor::GlobalMulticursor,
-    grid::{Grid, LineUpdate, StyleKey},
+    grid::{Grid, StyleKey},
     integration_event::{IntegrationEvent, IntegrationEventEmitter},
     keymap_override::{
         menu::MenuKeymapOverride, momentary_layer::MomentaryLayerKeymapOverride, AppKeymapOverride,
@@ -492,7 +491,7 @@ impl<T: Frontend> App<T> {
         #[cfg(test)]
         {
             // Ensure that there's at most one cursor
-            debug_assert!(cursors.iter().flatten().count() <= 1)
+            debug_assert!(cursors.iter().flatten().count() <= 1);
         }
 
         let cursor = cursors.into_iter().find_map(|cursor| cursor);
@@ -1096,13 +1095,11 @@ impl<T: Frontend> App<T> {
                 scope,
                 if_current_not_found,
                 run_search_after_config_updated,
-                component_id,
             } => self.update_local_search_config(
                 update,
                 scope,
                 if_current_not_found,
                 run_search_after_config_updated,
-                component_id,
             )?,
             Dispatch::UpdateGlobalSearchConfig { update } => {
                 self.update_global_search_config(update)?;
@@ -1252,7 +1249,7 @@ impl<T: Frontend> App<T> {
             Dispatch::CycleCursor(direction) => self.cycle_primary_cursor(direction)?,
             Dispatch::DeleteCursor => self.delete_cursor()?,
             Dispatch::FilterCursorsMatchingSearch { search, maintain } => {
-                self.filter_cursor_matching_search(search, maintain)?
+                self.filter_cursor_matching_search(search, maintain)?;
             }
         }
         Ok(())
@@ -1299,11 +1296,7 @@ impl<T: Frontend> App<T> {
         Ok(())
     }
 
-    fn local_search(
-        &mut self,
-        if_current_not_found: IfCurrentNotFound,
-        component_id: Option<ComponentId>,
-    ) -> anyhow::Result<()> {
+    fn local_search(&mut self, if_current_not_found: IfCurrentNotFound) -> anyhow::Result<()> {
         let config = self.context.local_search_config(Scope::Local);
         let search = config.search();
         if !search.is_empty() {
@@ -2327,12 +2320,11 @@ impl<T: Frontend> App<T> {
         scope: Scope,
         if_current_not_found: IfCurrentNotFound,
         run_search_after_config_updated: bool,
-        component_id: Option<ComponentId>,
     ) -> Result<(), anyhow::Error> {
         self.context.update_local_search_config(update, scope);
         if run_search_after_config_updated {
             match scope {
-                Scope::Local => self.local_search(if_current_not_found, component_id)?,
+                Scope::Local => self.local_search(if_current_not_found)?,
                 Scope::Global => {
                     self.global_search()?;
                 }
@@ -3896,8 +3888,6 @@ pub enum Dispatch {
         scope: Scope,
         if_current_not_found: IfCurrentNotFound,
         run_search_after_config_updated: bool,
-        /// If None, then this search will run in the current component
-        component_id: Option<ComponentId>,
     },
     UpdateGlobalSearchConfig {
         update: GlobalSearchConfigUpdate,
@@ -4198,7 +4188,6 @@ impl DispatchParser {
                             scope,
                             if_current_not_found,
                             run_search_after_config_updated,
-                            component_id: None,
                         },
                         Scope::Global => Dispatch::UpdateGlobalSearchConfig {
                             update: GlobalSearchConfigUpdate::Config(search_config),

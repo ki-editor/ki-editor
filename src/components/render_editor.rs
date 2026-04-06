@@ -17,14 +17,14 @@ use crate::{
     divide_viewport::{calculate_window_position, divide_viewport},
     format_path_list::get_formatted_paths,
     git::hunk::SimpleHunk,
-    grid::{Cell, CellUpdate, Grid, RenderContentLineNumber, StyleKey},
+    grid::{CellUpdate, Grid, RenderContentLineNumber, StyleKey},
     position::Position,
     quickfix_list::QuickfixListItem,
     selection::{CharIndex, Selection},
     selection_mode::{self, ByteRange},
     soft_wrap::wrap_items,
     style::Style,
-    themes::{Theme, UiStyles},
+    themes::Theme,
     utils::trim_array,
 };
 
@@ -72,6 +72,7 @@ impl Editor {
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn get_grid_with_scroll_offset(
         &self,
         context: &Context,
@@ -133,7 +134,7 @@ impl Editor {
                 width: dimension.width,
             };
             let grid = editor.get_grid_with_dimension(
-                &theme,
+                theme,
                 context.current_working_directory(),
                 &Vec::new(),
                 dimension,
@@ -508,7 +509,7 @@ impl Editor {
                     None
                 },
                 hunks,
-                &default_style_key,
+                default_style_key,
             );
             let protected_range = visible_lines_grid
                 .get_protected_range_start_position()

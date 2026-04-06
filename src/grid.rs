@@ -611,24 +611,15 @@ impl Grid {
         result_grid
     }
 
-    fn set_background_color(mut self, background_color: Color) -> Self {
-        for row in self.rows.iter_mut() {
-            for cell in row {
-                cell.background_color = background_color;
-            }
-        }
-        self
-    }
-
     fn set_default_style(mut self, theme: &Theme, default_style_key: &StyleKey) -> Grid {
-        let style = theme.get_style(&default_style_key);
+        let style = theme.get_style(default_style_key);
         let background_color = style.background_color.unwrap_or_default();
         let foreground_color = style.foreground_color.unwrap_or_default();
         for row in self.rows.iter_mut() {
             for cell in row {
                 cell.background_color = background_color;
                 cell.foreground_color = foreground_color;
-                cell.source = Some(default_style_key.clone())
+                cell.source = Some(default_style_key.clone());
             }
         }
         self
@@ -736,13 +727,6 @@ pub fn get_char_width(c: char) -> usize {
     }
 }
 
-#[derive(Clone)]
-pub struct LineUpdate {
-    /// 0-based
-    pub line_index: usize,
-    pub style: Style,
-}
-
 #[cfg(test)]
 mod test_grid {
 
@@ -759,7 +743,7 @@ mod test_grid {
 
     mod render_content {
         use crate::{
-            grid::{Cell, LineUpdate, PositionedCell, RenderContentLineNumber, StyleKey},
+            grid::{RenderContentLineNumber, StyleKey},
             themes::Theme,
         };
 

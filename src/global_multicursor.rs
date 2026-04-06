@@ -1,14 +1,12 @@
-use crate::app::Dispatches;
 use crate::components::component::{Component, Cursor, SetCursorStyle};
 use crate::components::editor::Direction;
-use crate::context::Context;
 use crate::divide_viewport::divide_viewport;
 use crate::selection::SelectionSet;
 use crate::{
     app::{App, Dimension},
     buffer::BufferOwner,
     components::{
-        component::{ComponentId, GetGridResult, RenderTitleMode},
+        component::{GetGridResult, RenderTitleMode},
         editor::{DispatchEditor, IfCurrentNotFound, Reveal},
         suggestive_editor::SuggestiveEditor,
     },
@@ -25,6 +23,11 @@ use std::{cell::RefCell, rc::Rc};
 pub struct GlobalMulticursor {
     files: Vec<GlobalMulticursorFile>,
     focused_file_index: usize,
+}
+
+pub struct EditorWithUpdatedSelectionSet {
+    editor: Rc<RefCell<SuggestiveEditor>>,
+    selection_set: SelectionSet,
 }
 impl GlobalMulticursor {
     pub fn editors(&self) -> Vec<Rc<RefCell<SuggestiveEditor>>> {
@@ -92,7 +95,7 @@ impl GlobalMulticursor {
             let mut ranges = selection_set
                 .selections
                 .iter()
-                .map(|selection| selection.range.clone())
+                .map(|selection| selection.range)
                 .sorted();
 
             match direction {
@@ -108,7 +111,7 @@ impl GlobalMulticursor {
                     debug_assert_eq!(
                         Some(0),
                         ranges.position(|range| range == primary_selection_range)
-                    )
+                    );
                 }
             }
         }
@@ -124,7 +127,7 @@ impl GlobalMulticursor {
             .editor
             .borrow()
             .editor()
-            .current_selection_is_first_or_last_selection(&direction))
+            .current_selection_is_first_or_last_selection(direction))
     }
 
     /// Returns true if current focused file is removed
@@ -143,7 +146,7 @@ impl GlobalMulticursor {
         let max_file_index = self.files.len().saturating_sub(1);
 
         if self.focused_file_index > max_file_index {
-            self.focused_file_index = max_file_index
+            self.focused_file_index = max_file_index;
         };
 
         Ok(true)
@@ -153,7 +156,7 @@ impl GlobalMulticursor {
         &mut self,
         search: String,
         maintain: bool,
-    ) -> Result<Vec<(Rc<RefCell<SuggestiveEditor>>, SelectionSet)>, anyhow::Error> {
+    ) -> Result<Vec<EditorWithUpdatedSelectionSet>, anyhow::Error> {
         let mut result = vec![];
         let mut no_match_file_indices = vec![];
         for (index, file) in self.files.iter_mut().enumerate() {
@@ -162,10 +165,14 @@ impl GlobalMulticursor {
                 .borrow_mut()
                 .editor_mut()
                 .filter_selection_matching_search_impl(&search, maintain)?;
+
             if no_matches {
-                no_match_file_indices.push(index)
+                no_match_file_indices.push(index);
             } else {
-                result.push((file.editor.clone(), new_selection_set))
+                result.push(EditorWithUpdatedSelectionSet {
+                    editor: file.editor.clone(),
+                    selection_set: new_selection_set,
+                });
             }
         }
 
@@ -206,7 +213,7 @@ impl<T: Frontend> App<T> {
         if !files.is_empty() {
             self.global_multicursor = Some(GlobalMulticursor {
                 // We'll just assume the first file is the focused file, for simplicity purposes
-                files: files,
+                files,
                 focused_file_index: 0,
             });
 
@@ -273,8 +280,13 @@ impl<T: Frontend> App<T> {
     ) -> anyhow::Result<()> {
         if self.global_multicursor.is_some() {
             if let Some(global_multicursor) = self.global_multicursor.as_mut() {
-                let result = global_multicursor.filter_cursor_matching_search(search, maintain)?;
-                for (component, new_selection_set) in result {
+                let editors = global_multicursor.filter_cursor_matching_search(search, maintain)?;
+
+                for EditorWithUpdatedSelectionSet {
+                    editor: component,
+                    selection_set: new_selection_set,
+                } in editors
+                {
                     let dispatches = component.borrow_mut().editor_mut().update_selection_set(
                         new_selection_set,
                         false,
@@ -339,7 +351,7 @@ impl<T: Frontend> App<T> {
             .chunk_by(|section| section.item().1.clone())
             .into_iter()
             .filter_map(|(path, sections)| {
-                let file = files.iter().find(|file| &file.path == &path)?;
+                let file = files.iter().find(|file| file.path == path)?;
                 Some((
                     file,
                     sections
@@ -378,7 +390,7 @@ impl<T: Frontend> App<T> {
 
         let cursor_style = get_grid_results
             .iter()
-            .find_map(|result| result.cursor.as_ref().map(|cursor| cursor.style().clone()));
+            .find_map(|result| result.cursor.as_ref().map(|cursor| *cursor.style()));
 
         let grid = get_grid_results
             .into_iter()

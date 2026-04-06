@@ -3035,7 +3035,7 @@ impl Editor {
             self.reveal = Some(Reveal::Cursor);
         }
         self.recalculate_scroll_offset(context);
-        Ok(Default::default())
+        Ok(Dispatches::default())
     }
 
     pub fn dispatch_selection_changed(&self) -> Dispatch {
@@ -3804,7 +3804,7 @@ impl Editor {
 
     fn filter_selection_matching_search(
         &mut self,
-        search: &String,
+        search: &str,
         maintain: bool,
         context: &Context,
     ) -> anyhow::Result<Dispatches> {
@@ -3817,10 +3817,10 @@ impl Editor {
     /// Returns true if no selection matches the search criteria
     pub fn filter_selection_matching_search_impl(
         &self,
-        search: &String,
+        search: &str,
         maintain: bool,
     ) -> anyhow::Result<(bool, SelectionSet)> {
-        let parsed = parse_search_config(&search)?;
+        let parsed = parse_search_config(search)?;
         let local_search_config = parsed.local_config();
         let selections = self.selection_set.selections();
         let filtered = selections
@@ -3828,16 +3828,15 @@ impl Editor {
             .filter_map(|selection| -> Option<_> {
                 let range = selection.extended_range();
                 let haystack = self.buffer().slice(&range).unwrap_or_default().to_string();
+                let search = local_search_config.search();
                 let is_match = match local_search_config.mode {
-                    LocalSearchConfigMode::Regex(regex_config) => {
-                        get_regex(&local_search_config.search(), regex_config)
-                            .ok()?
-                            .is_match(&haystack)
-                            .ok()?
-                    }
+                    LocalSearchConfigMode::Regex(regex_config) => get_regex(&search, regex_config)
+                        .ok()?
+                        .is_match(&haystack)
+                        .ok()?,
                     LocalSearchConfigMode::AstGrep => false,
                     LocalSearchConfigMode::NamingConventionAgnostic => {
-                        selection_mode::NamingConventionAgnostic::new(search.clone())
+                        selection_mode::NamingConventionAgnostic::new(search)
                             .find_all(&haystack)
                             .is_empty()
                             .not()
@@ -4025,7 +4024,6 @@ impl Editor {
                     .clone(),
             ),
             run_search_after_config_updated: true,
-            component_id: None,
         })
         .append(Dispatch::PushPromptHistory {
             key: super::prompt::PromptHistoryKey::Search,
@@ -4211,7 +4209,6 @@ impl Editor {
                     .clone(),
             ),
             run_search_after_config_updated: true,
-            component_id: None,
         });
         Ok(dispatches)
     }
@@ -4633,11 +4630,11 @@ impl Editor {
     }
 
     pub fn cycle_primary_selection_to_first(&mut self) {
-        self.selection_set.cycle_primary_selection_to_first()
+        self.selection_set.cycle_primary_selection_to_first();
     }
 
     pub fn cycle_primary_selection_to_last(&mut self) {
-        self.selection_set.cycle_primary_selection_to_last()
+        self.selection_set.cycle_primary_selection_to_last();
     }
 }
 

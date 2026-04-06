@@ -407,11 +407,11 @@ impl SelectionSet {
     }
 
     pub fn cycle_primary_selection_to_first(&mut self) {
-        self.cursor_index = 0
+        self.cursor_index = 0;
     }
 
     pub fn cycle_primary_selection_to_last(&mut self) {
-        self.cursor_index = self.len() - 1
+        self.cursor_index = self.len() - 1;
     }
 
     pub fn is_extended(&self) -> bool {

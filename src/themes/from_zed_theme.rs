@@ -76,9 +76,6 @@ pub(super) fn from_theme_content(theme: ThemeContent) -> Theme {
             from_some_hex(theme.style.tab_active_background)
                 .or(window_title_focused.foreground_color),
         );
-    let tabline = Style::new()
-        .set_some_foreground_color(from_some_hex(theme.style.editor_foreground))
-        .set_some_background_color(from_some_hex(theme.style.tab_bar_background));
     Theme {
         name: theme.name,
         syntax: SyntaxStyles::new(&{

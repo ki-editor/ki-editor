@@ -8,11 +8,7 @@ use crate::{
         Scope,
     },
     buffer::BufferOwner,
-    components::editor::{
-        Direction,
-        DispatchEditor::{self, *},
-        IfCurrentNotFound, Mode,
-    },
+    components::editor::{Direction, DispatchEditor::*, IfCurrentNotFound, Mode},
     context::GlobalMode,
     grid::StyleKey,
     position::Position,
