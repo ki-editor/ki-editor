@@ -1,10 +1,15 @@
 use crate::app::{App, Dimension};
+mod global_multicursor;
+mod global_reveal_selections;
+use self::global_multicursor::GlobalMulticursor;
+#[cfg(test)]
+mod test_global_multicursor;
+use self::global_reveal_selections::GlobalRevealSelections;
 use crate::buffer::BufferOwner;
 use crate::components::component::{Component, Cursor, RenderTitleMode, SetCursorStyle};
 use crate::components::editor::Reveal;
 use crate::components::suggestive_editor::SuggestiveEditor;
 use crate::divide_viewport::divide_viewport;
-use crate::global_multicursor::GlobalMulticursor;
 use crate::grid::Grid;
 use crate::{components::component::GetGridResult, frontend::Frontend, rectangle::Rectangle};
 use itertools::Itertools;
@@ -15,21 +20,6 @@ use std::rc::Rc;
 pub enum Multibuffer {
     GlobalRevealSelections(GlobalRevealSelections),
     GlobalMulticursor(GlobalMulticursor),
-}
-
-pub struct GlobalRevealSelections {
-    pub files: Vec<MultibufferFile>,
-    pub focused_file_index: usize,
-}
-
-impl GlobalRevealSelections {
-    #[cfg(test)]
-    pub fn editors(&self) -> Vec<Rc<RefCell<SuggestiveEditor>>> {
-        self.files
-            .iter()
-            .map(|file| file.editor.clone())
-            .collect_vec()
-    }
 }
 
 impl Multibuffer {
