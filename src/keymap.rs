@@ -383,7 +383,7 @@ pub fn space_keymap_legend_config(editor: &Editor, context: &Context) -> KeymapL
                 Keybinding::new(
                     "u",
                     "÷ Selection".to_string(),
-                    Dispatch::ToEditor(DispatchEditor::ToggleReveal(Reveal::CurrentSelectionMode)),
+                    Dispatch::ToggleRevealSelections,
                 ),
                 Keybinding::new(
                     "i",

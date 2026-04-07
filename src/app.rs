@@ -29,7 +29,6 @@ use crate::{
     file_watcher::{FileWatcherEvent, FileWatcherInput},
     frontend::Frontend,
     git::{self},
-    global_multicursor::GlobalMulticursor,
     grid::{Grid, StyleKey},
     integration_event::{IntegrationEvent, IntegrationEventEmitter},
     keymap_override::{
@@ -46,6 +45,7 @@ use crate::{
         symbols::Symbols,
         workspace_edit::WorkspaceEdit,
     },
+    multibuffer::Multibuffer,
     persistence::Persistence,
     position::Position,
     quickfix_list::{Location, QuickfixListItem, QuickfixListType},
@@ -124,7 +124,7 @@ pub struct App<T: Frontend> {
     /// Used for debouncing LSP Completion request, so that we don't overwhelm
     /// the server with too many requests, and also Ki with too many incoming Completion responses
     debounce_lsp_request_completion: Callback<()>,
-    pub global_multicursor: Option<GlobalMulticursor>,
+    pub multibuffer: Option<Multibuffer>,
 }
 
 #[derive(Clone, Serialize, Deserialize, JsonSchema)]
@@ -265,7 +265,7 @@ impl<T: Frontend> App<T> {
             last_prompt_config: None,
             queued_events: Vec::new(),
             file_watcher_input_sender,
-            global_multicursor: None,
+            multibuffer: None,
         };
 
         app.restore_session();
@@ -529,9 +529,9 @@ impl<T: Frontend> App<T> {
                 .borrow_mut()
                 .get_grid(&self.context, focused)
         };
-        let GetGridResult { grid, cursor } = match self.global_multicursor.as_ref() {
-            Some(global_multicursor) if component.kind() == ComponentKind::SuggestiveEditor => self
-                .render_global_multicursor(global_multicursor, &rectangle)
+        let GetGridResult { grid, cursor } = match self.multibuffer.as_ref() {
+            Some(multibuffer) if component.kind() == ComponentKind::SuggestiveEditor => self
+                .render_multibuffer(multibuffer, &rectangle)
                 .unwrap_or_else(otherwise),
             _ => otherwise(),
         };
@@ -1259,6 +1259,7 @@ impl<T: Frontend> App<T> {
             Dispatch::FilterCursorsMatchingSearch { search, maintain } => {
                 self.filter_cursor_matching_search(search, maintain)?;
             }
+            Dispatch::ToggleRevealSelections => self.toggle_reveal_selections()?,
         }
         Ok(())
     }
@@ -2184,8 +2185,8 @@ impl<T: Frontend> App<T> {
 
     #[cfg(test)]
     pub fn get_current_selected_texts(&self) -> Vec<String> {
-        if let Some(global_multicursor) = self.global_multicursor.as_ref() {
-            global_multicursor
+        if let Some(multibuffer) = self.multibuffer.as_ref() {
+            multibuffer
                 .editors()
                 .into_iter()
                 .flat_map(|editor| editor.borrow().editor().get_selected_texts())
@@ -2216,28 +2217,7 @@ impl<T: Frontend> App<T> {
             .content()
     }
 
-    pub fn handle_dispatch_editor(
-        &mut self,
-        dispatch_editor: DispatchEditor,
-    ) -> anyhow::Result<()> {
-        match self.global_multicursor.as_ref() {
-            // Only multiplex the DispatchEditor to multiple editors
-            // if the current focused component is a SuggestiveEditor
-            Some(glolbal_multicursor)
-                if self.current_component().borrow().type_id()
-                    == TypeId::of::<SuggestiveEditor>() =>
-            {
-                for component in glolbal_multicursor.editors().clone() {
-                    self.handle_dispatch_editor_custom(dispatch_editor.clone(), component)?;
-                }
-                Ok(())
-            }
-            // Otherwise, just send the DispatchEditor to the current component
-            _ => self.handle_dispatch_editor_custom(dispatch_editor, self.current_component()),
-        }
-    }
-
-    fn handle_dispatch_editor_custom(
+    pub fn handle_dispatch_editor_custom(
         &mut self,
         dispatch_editor: DispatchEditor,
         component: Rc<RefCell<dyn Component>>,
@@ -4024,6 +4004,7 @@ pub enum Dispatch {
         search: String,
         maintain: bool,
     },
+    ToggleRevealSelections,
 }
 
 /// Used to send notify host app about changes
