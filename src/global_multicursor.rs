@@ -159,6 +159,8 @@ impl GlobalMulticursor {
     ) -> Result<Vec<EditorWithUpdatedSelectionSet>, anyhow::Error> {
         let mut result = vec![];
         let mut no_match_file_indices = vec![];
+
+        // Removed the files that has no matching selections
         for (index, file) in self.files.iter_mut().enumerate() {
             let (no_matches, new_selection_set) = file
                 .editor
@@ -175,8 +177,6 @@ impl GlobalMulticursor {
                 });
             }
         }
-
-        // Removed the files that has no matching selections
         for index in no_match_file_indices.into_iter().rev() {
             self.files.remove(index);
         }
@@ -243,12 +243,12 @@ impl<T: Frontend> App<T> {
     }
 
     pub fn keep_primary_cursor_only(&mut self) -> anyhow::Result<()> {
+        self.handle_dispatch_editor(DispatchEditor::CursorKeepPrimaryOnly)?;
+
         if self.global_multicursor.is_some() {
             self.global_multicursor = None;
-            Ok(())
-        } else {
-            self.handle_dispatch_editor(DispatchEditor::CursorKeepPrimaryOnly)
         }
+        Ok(())
     }
 
     pub fn cycle_primary_cursor(&mut self, direction: Direction) -> anyhow::Result<()> {

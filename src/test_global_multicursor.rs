@@ -513,7 +513,7 @@ Local search (Literal)   │Completion
                 .to_string(),
             )),
             App(HandleKeyEvents(keys!("enter").to_vec())),
-            Expect(CurrentSelectedTexts(&["bar"])),
+            Expect(CurrentSelectedTexts(&["bar", "bar"])),
             App(HandleKeyEvents(keys!("f release-f z").to_vec())),
             App(SaveAll),
             Expect(FileContent(s.main_rs(), "// foo x z\n".to_string())),
@@ -649,17 +649,19 @@ fn simple_normal_mode_action_should_not_be_duplicated() -> Result<(), anyhow::Er
 fn use_keep_primary_cursor_to_deactivate_global_multicursor() -> Result<(), anyhow::Error> {
     execute_test(|s| {
         Box::new([
-            App(SetFileContent(s.main_rs(), "// foo xxx yyy".to_string())),
-            App(SetFileContent(s.foo_rs(), "// foo aaa bbb".to_string())),
+            App(SetFileContent(s.foo_rs(), "// foo1 foo2".to_string())),
+            App(SetFileContent(s.main_rs(), "// foo3 foo4".to_string())),
             App(OpenSearchPrompt {
                 scope: Scope::Global,
                 if_current_not_found: IfCurrentNotFound::LookForward,
             }),
-            App(HandleKeyEvents(keys!("f o o enter").to_vec())),
+            App(HandleKeyEvents(keys!("r / f o o . enter").to_vec())),
             WaitForAppMessage(regex!("GlobalSearchFinished")),
             App(AddCursorToAllSelections),
+            Expect(CurrentSelectedTexts(&["foo1", "foo2", "foo3", "foo4"])),
             Expect(ExpectKind::GlobalMultiCursorActivated(true)),
             App(Dispatch::KeepCursorPrimaryOnly),
+            Expect(CurrentSelectedTexts(&["foo1"])),
             Expect(ExpectKind::GlobalMultiCursorActivated(false)),
         ])
     })

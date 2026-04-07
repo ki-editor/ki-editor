@@ -2184,10 +2184,18 @@ impl<T: Frontend> App<T> {
 
     #[cfg(test)]
     pub fn get_current_selected_texts(&self) -> Vec<String> {
-        self.current_component()
-            .borrow()
-            .editor()
-            .get_selected_texts()
+        if let Some(global_multicursor) = self.global_multicursor.as_ref() {
+            global_multicursor
+                .editors()
+                .into_iter()
+                .flat_map(|editor| editor.borrow().editor().get_selected_texts())
+                .collect_vec()
+        } else {
+            self.current_component()
+                .borrow()
+                .editor()
+                .get_selected_texts()
+        }
     }
 
     #[cfg(test)]
