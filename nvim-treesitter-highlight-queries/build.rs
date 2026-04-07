@@ -7,6 +7,7 @@ const INCLUDED_NVIM_TREESITTER_LANGUAGES: &[&str] = &[
     "cpp",
     "css",
     "csv",
+    "devicetree",
     "diff",
     "dockerfile",
     "dune",

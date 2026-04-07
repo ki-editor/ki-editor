@@ -112,7 +112,8 @@
                 "CSharp",
                 "Clojure",
                 "FSharp",
-                "Scala"
+                "Scala",
+                "Devicetree"
             ]
         },
         "Command": {

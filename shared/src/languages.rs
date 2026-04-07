@@ -23,6 +23,7 @@ pub fn languages() -> HashMap<String, Language> {
         ("c_sharp", c_sharp()),
         ("css", css()),
         ("csv", csv()),
+        ("devicetree", devicetree()),
         ("diff", diff()),
         ("dockerfile", dockerfile()),
         ("elixir", elixir()),
@@ -251,6 +252,22 @@ fn css() -> Language {
             id: "css".to_string(),
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::CSS),
         }),
+        block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
+        ..Language::new()
+    }
+}
+
+fn devicetree() -> Language {
+    Language {
+        extensions: to_vec(&["dts", "dtsi", "keymap"]),
+        formatter: None,
+        lsp_command: None,
+        lsp_language_id: None,
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "devicetree".to_string(),
+            kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Devicetree),
+        }),
+        line_comment_prefix: Some("//".to_string()),
         block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
         ..Language::new()
     }

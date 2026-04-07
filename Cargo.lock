@@ -2515,6 +2515,7 @@ dependencies = [
  "tree-sitter-clojure",
  "tree-sitter-cpp",
  "tree-sitter-css",
+ "tree-sitter-devicetree",
  "tree-sitter-diff",
  "tree-sitter-elixir",
  "tree-sitter-fish",
@@ -2973,6 +2974,16 @@ name = "tree-sitter-css"
 version = "0.23.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5ad6489794d41350d12a7fbe520e5199f688618f43aace5443980d1ddcf1b29e"
+dependencies = [
+ "cc",
+ "tree-sitter-language",
+]
+
+[[package]]
+name = "tree-sitter-devicetree"
+version = "0.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6264316c288e1d4fed3002fb6c2d7a8e90d65d519e2ecf64a60c5abd0ee35481"
 dependencies = [
  "cc",
  "tree-sitter-language",

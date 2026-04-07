@@ -63,6 +63,7 @@ tree-sitter-c-sharp = "0.23.1"
 tree-sitter-fsharp = "0.2.2"
 tree-sitter-perl-next = "0.1.0"
 codebook-tree-sitter-latex = "0.6.1"
+tree-sitter-devicetree = "0.15.0"
 
 
 [dev-dependencies]
