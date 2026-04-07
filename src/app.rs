@@ -2048,8 +2048,8 @@ impl<T: Frontend> App<T> {
         self.handle_dispatch(Dispatch::ShowKeymapLegend(KeymapLegendConfig {
             title: prompt.title.to_string(),
             keymap: Keymap::new(&[
-                Keybinding::new("d", "Yes".to_string(), *prompt.yes),
-                Keybinding::new("k", "No".to_string(), Dispatch::Null),
+                Keybinding::new("d", "Yes", *prompt.yes),
+                Keybinding::new("k", "No", Dispatch::Null),
             ]),
         }))
     }
