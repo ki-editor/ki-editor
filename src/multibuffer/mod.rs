@@ -1,4 +1,5 @@
 use crate::app::{App, Dimension};
+use crate::context::GlobalMode;
 mod global_multicursor;
 mod global_reveal_selections;
 use self::global_multicursor::GlobalMulticursor;
@@ -7,7 +8,7 @@ mod test_global_multicursor;
 use self::global_reveal_selections::GlobalRevealSelections;
 use crate::buffer::BufferOwner;
 use crate::components::component::{Component, Cursor, RenderTitleMode, SetCursorStyle};
-use crate::components::editor::Reveal;
+use crate::components::editor::{DispatchEditor, Reveal};
 use crate::components::suggestive_editor::SuggestiveEditor;
 use crate::divide_viewport::divide_viewport;
 use crate::grid::Grid;
@@ -67,11 +68,15 @@ pub struct MultibufferFile {
 
 impl<T: Frontend> App<T> {
     pub fn toggle_reveal_selections(&mut self) -> anyhow::Result<()> {
-        if self.multibuffer.is_some() {
-            self.multibuffer = None;
-            Ok(())
+        if self.context.mode() == Some(GlobalMode::QuickfixListItem) {
+            if self.multibuffer.is_some() {
+                self.multibuffer = None;
+                Ok(())
+            } else {
+                self.active_global_reveal_selections()
+            }
         } else {
-            self.active_global_reveal_selections()
+            self.handle_dispatch_editor(DispatchEditor::ToggleReveal(Reveal::CurrentSelectionMode))
         }
     }
 
