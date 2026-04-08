@@ -93,9 +93,11 @@ impl Component for Editor {
     }
 
     fn set_content(&mut self, str: &str, context: &Context) -> Result<Dispatches, anyhow::Error> {
-        let dispatches = Ok(self.update_buffer(str));
+        let dispatches = self.update_buffer(str);
         self.clamp(context)?;
-        dispatches
+
+        // We need to send DocumentDidChange request to trigger syntax highlight
+        Ok(dispatches.chain(self.get_document_did_change_dispatch()))
     }
 
     fn title(
@@ -203,7 +205,7 @@ impl Component for Editor {
 
     fn handle_dispatch_editor(
         &mut self,
-        context: &mut Context,
+        context: &Context,
         dispatch: DispatchEditor,
     ) -> anyhow::Result<Dispatches> {
         log::info!(
@@ -304,10 +306,6 @@ impl Component for Editor {
             SetScrollOffset(n) => self.set_scroll_offset(n),
             #[cfg(test)]
             SetLanguage(language) => self.set_language(*language)?,
-            #[cfg(test)]
-            ApplySyntaxHighlight => {
-                self.apply_syntax_highlighting(context)?;
-            }
             Save => return self.do_save(false, context),
             ForceSave => {
                 return self.do_save(true, context);
@@ -718,7 +716,7 @@ impl Editor {
 
     pub fn render_dropdown(
         &mut self,
-        context: &mut Context,
+        context: &Context,
         render: &DropdownRender,
     ) -> anyhow::Result<Dispatches> {
         self.apply_dispatches(
@@ -876,6 +874,7 @@ impl Editor {
         } else {
             SelectionMode::Custom
         };
+        let mode = self.selection_set.mode.primary().clone();
         let primary = self
             .selection_set
             .primary_selection()
@@ -946,6 +945,7 @@ impl Editor {
                 self.dimension(),
                 &self.reveal(),
                 &RenderTitleMode::Tabline,
+                true,
             );
             let grid_string = grid.grid.to_string();
             let grid_string_lines = grid_string.lines().collect_vec();
@@ -1036,12 +1036,12 @@ impl Editor {
         quickfix_list_items: &[QuickfixListItem],
         marks: &[CharIndexRange],
     ) -> anyhow::Result<Box<dyn selection_mode::SelectionModeTrait>> {
-        if use_current_selection_mode {
+        let mode = if use_current_selection_mode {
             self.selection_set.mode().clone()
         } else {
             SelectionMode::Subword
-        }
-        .to_selection_mode_trait_object(
+        };
+        mode.to_selection_mode_trait_object(
             &self.buffer(),
             selection,
             &self.cursor_direction,
@@ -3150,7 +3150,7 @@ impl Editor {
         .into())
     }
 
-    pub fn select_all(&mut self, context: &mut Context) -> anyhow::Result<Dispatches> {
+    pub fn select_all(&mut self, context: &Context) -> anyhow::Result<Dispatches> {
         self.handle_dispatch_editors(
             context,
             [
@@ -3270,25 +3270,9 @@ impl Editor {
         }
     }
 
-    #[cfg(test)]
-    pub fn apply_syntax_highlighting(&mut self, context: &mut Context) -> anyhow::Result<()> {
-        let source_code = self.text();
-        let mut buffer = self.buffer_mut();
-        if let Some(language) = buffer.language() {
-            use crate::syntax_highlight::SyntaxHighlightRequestBatchId;
-
-            let highlighted_spans = context.highlight(language, &source_code)?;
-            buffer.update_highlighted_spans(
-                SyntaxHighlightRequestBatchId::default(),
-                highlighted_spans,
-            );
-        }
-        Ok(())
-    }
-
     pub fn apply_dispatches(
         &mut self,
-        context: &mut Context,
+        context: &Context,
         dispatches: Vec<DispatchEditor>,
     ) -> anyhow::Result<Dispatches> {
         let mut result = Vec::new();
@@ -3788,7 +3772,7 @@ impl Editor {
 
     fn handle_dispatch_editors(
         &mut self,
-        context: &mut Context,
+        context: &Context,
         dispatch_editors: Vec<DispatchEditor>,
     ) -> Result<Dispatches, anyhow::Error> {
         Ok(Dispatches::new(
@@ -4171,7 +4155,7 @@ impl Editor {
 
     fn handle_movement_with_prior_change(
         &mut self,
-        context: &mut Context,
+        context: &Context,
         movement: Movement,
         prior_change: Option<PriorChange>,
     ) -> Result<Dispatches, anyhow::Error> {
@@ -4273,7 +4257,7 @@ impl Editor {
         self.apply_edit_transaction(edit_transaction, context)
     }
 
-    fn git_blame(&self, context: &mut Context) -> Result<Dispatches, anyhow::Error> {
+    fn git_blame(&self, context: &Context) -> Result<Dispatches, anyhow::Error> {
         let Some(file_path) = self.buffer().path() else {
             return Ok(Dispatches::default());
         };
@@ -4596,7 +4580,7 @@ impl Editor {
 
     fn duplicate_with_movement(
         &mut self,
-        context: &mut Context,
+        context: &Context,
         get_gap_movement: GetGapMovement,
     ) -> Result<Dispatches, anyhow::Error> {
         let copied_texts = Texts::new(self.selection_set.map(|selection| {
@@ -4610,7 +4594,7 @@ impl Editor {
 
     fn duplicate_vertically(
         &mut self,
-        context: &mut Context,
+        context: &Context,
         direction: Direction,
     ) -> Result<Dispatches, anyhow::Error> {
         let copied_texts = Texts::new(self.selection_set.map(|selection| {
@@ -4728,8 +4712,6 @@ pub enum DispatchEditor {
     },
     #[cfg(test)]
     SetLanguage(Box<shared::language::Language>),
-    #[cfg(test)]
-    ApplySyntaxHighlight,
     ReplaceCurrentSelectionWith(String),
     SelectLineAt(usize),
     SwapCursor,

@@ -1,7 +1,7 @@
 use crate::components::component::Component;
 use crate::components::editor::Direction;
 
-use crate::multibuffer::{Multibuffer, MultibufferFile};
+use crate::multibuffer::{Multibuffer, MultibufferFile, MultibufferRange};
 use crate::selection::SelectionSet;
 use crate::{
     app::App,
@@ -185,6 +185,31 @@ impl GlobalMulticursor {
 
     pub fn focused_file_index(&self) -> usize {
         self.focused_file_index
+    }
+
+    pub fn ranges(&self) -> Vec<MultibufferRange> {
+        self.files()
+            .iter()
+            .enumerate()
+            .flat_map(|(file_index, file)| {
+                let binding = file.editor.borrow();
+                let selection_set = &binding.editor().selection_set;
+                selection_set
+                    .selections
+                    .iter()
+                    .enumerate()
+                    .map(|(selection_index, selection)| {
+                        let is_primary = file_index == self.focused_file_index
+                            && selection_index == selection_set.cursor_index;
+                        MultibufferRange {
+                            path: file.path.clone(),
+                            range: selection.extended_range().clone(),
+                            is_primary,
+                        }
+                    })
+                    .collect_vec()
+            })
+            .collect_vec()
     }
 }
 

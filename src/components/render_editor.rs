@@ -49,6 +49,7 @@ impl Editor {
             self.dimension(),
             &self.reveal.clone(),
             &RenderTitleMode::Tabline,
+            true,
         )
     }
 
@@ -59,6 +60,7 @@ impl Editor {
         dimension: Dimension,
         reveal: &Option<Reveal>,
         render_title_mode: &RenderTitleMode,
+        show_cursors: bool,
     ) -> GetGridResult {
         let hunks = self.buffer_mut().simple_hunks(context).unwrap_or_default();
         self.get_grid_with_scroll_offset(
@@ -69,6 +71,7 @@ impl Editor {
             dimension,
             reveal,
             render_title_mode,
+            show_cursors,
         )
     }
 
@@ -82,6 +85,7 @@ impl Editor {
         dimension: Dimension,
         reveal: &Option<Reveal>,
         render_title_mode: &RenderTitleMode,
+        show_cursors: bool,
     ) -> GetGridResult {
         let title = self.title(context, &dimension, render_title_mode);
         let title_grid_height = title.lines().count();
@@ -109,9 +113,15 @@ impl Editor {
                 true,
                 None,
             ),
-            Some(reveal) => {
-                self.get_splitted_grid(context, reveal, render_area, focused, hunks, &marks)
-            }
+            Some(reveal) => self.get_splitted_grid(
+                context,
+                reveal,
+                render_area,
+                focused,
+                hunks,
+                &marks,
+                show_cursors,
+            ),
         };
         let theme = context.theme();
         let title_grid = {
@@ -220,6 +230,7 @@ impl Editor {
         focused: bool,
         hunks: &[SimpleHunk],
         marks: &[CharIndexRange],
+        show_cursors: bool,
     ) -> crate::grid::Grid {
         let buffer = self.buffer();
         let ranges = match reveal {
@@ -307,7 +318,7 @@ impl Editor {
                     focused,
                     hunks,
                     marks,
-                    true,
+                    show_cursors,
                     None,
                 ))
             },
@@ -331,7 +342,7 @@ impl Editor {
         focused: bool,
         hunks: &[SimpleHunk],
         marks: &[CharIndexRange],
-        show_cursor: bool,
+        show_cursors: bool,
         default_style_key: Option<StyleKey>,
     ) -> Grid {
         let editor = self;
@@ -387,7 +398,7 @@ impl Editor {
                 quickfix_list_items,
                 marks,
                 focused,
-                show_cursor,
+                show_cursors,
             );
             let boundaries = hidden_parent_line_ranges
                 .into_iter()
@@ -448,8 +459,6 @@ impl Editor {
             );
             (grid, remaining_highlight_spans)
         };
-
-        debug_assert!(remaining_highlight_spans.is_empty().not());
 
         let grid = {
             let visible_lines_updates = {
@@ -585,7 +594,7 @@ impl Editor {
         quickfix_list_items: &[QuickfixListItem],
         marks: &[CharIndexRange],
         is_focused_file: bool,
-        show_cursor: bool,
+        show_cursors: bool,
     ) -> Vec<HighlightSpan> {
         use StyleKey::*;
         let buffer = self.buffer();
@@ -672,6 +681,14 @@ impl Editor {
 
         let primary_selection = &self.selection_set.primary_selection();
 
+        let empty_if_not_show_cursors = |iter: Box<dyn Iterator<Item = HighlightSpan>>| {
+            if show_cursors {
+                iter
+            } else {
+                Box::new(std::iter::empty())
+            }
+        };
+
         let (
             primary_selection_highlight_span,
             primary_selection_anchors,
@@ -706,7 +723,7 @@ impl Editor {
                     no_primary_selection
                 }
                 _ => {
-                    let primary_selection_highlight_span = HighlightSpan {
+                    let primary_selection_highlight_span = show_cursors.then_some(HighlightSpan {
                         set_symbol: None,
                         is_cursor: false,
                         range: HighlightSpanRange::CharIndexRange(
@@ -714,8 +731,8 @@ impl Editor {
                         ),
                         source: Source::StyleKey(UiPrimarySelection),
                         is_protected_range_start: false,
-                    };
-                    let primary_selection_anchors =
+                    });
+                    let primary_selection_anchors = empty_if_not_show_cursors(Box::new(
                         primary_selection
                             .anchors()
                             .into_iter()
@@ -729,9 +746,10 @@ impl Editor {
                                     UiSecondarySelectionAnchors
                                 }),
                                 is_protected_range_start: false,
-                            });
+                            }),
+                    ));
 
-                    let primary_selection_primary_cursor = if !is_focused_file && show_cursor {
+                    let primary_selection_primary_cursor = if !is_focused_file && show_cursors {
                         Some(HighlightSpan {
                             set_symbol: None,
                             is_cursor: false,
@@ -746,7 +764,7 @@ impl Editor {
                     };
 
                     let primary_selection_secondary_cursor = if self.mode == Mode::Insert
-                        || !show_cursor
+                        || !show_cursors
                     {
                         None
                     } else {
@@ -761,7 +779,7 @@ impl Editor {
                         })
                     };
                     (
-                        Some(primary_selection_highlight_span),
+                        primary_selection_highlight_span,
                         Box::new(primary_selection_anchors)
                             as Box<dyn Iterator<Item = HighlightSpan>>,
                         primary_selection_primary_cursor,
@@ -772,26 +790,29 @@ impl Editor {
         };
 
         let secondary_selections_highlight_spans =
-            secondary_selections
-                .iter()
-                .map(|secondary_selection| HighlightSpan {
+            empty_if_not_show_cursors(Box::new(secondary_selections.iter().map(
+                |secondary_selection| HighlightSpan {
                     set_symbol: None,
                     is_cursor: false,
                     range: HighlightSpanRange::CharIndexRange(secondary_selection.extended_range()),
                     source: Source::StyleKey(UiSecondarySelection),
                     is_protected_range_start: false,
-                });
+                },
+            )));
 
-        let secondary_selection_anchors = secondary_selections.iter().flat_map(|selection| {
-            selection.anchors().into_iter().map(|anchor| HighlightSpan {
-                set_symbol: None,
-                is_cursor: false,
-                range: HighlightSpanRange::CharIndexRange(anchor),
-                source: Source::StyleKey(UiSecondarySelectionAnchors),
-                is_protected_range_start: false,
-            })
-        });
-        let secondary_selection_cursors =
+        let secondary_selection_anchors = empty_if_not_show_cursors(Box::new(
+            secondary_selections.iter().flat_map(|selection| {
+                selection.anchors().into_iter().map(|anchor| HighlightSpan {
+                    set_symbol: None,
+                    is_cursor: false,
+                    range: HighlightSpanRange::CharIndexRange(anchor),
+                    source: Source::StyleKey(UiSecondarySelectionAnchors),
+                    is_protected_range_start: false,
+                })
+            }),
+        ));
+
+        let secondary_selection_cursors = empty_if_not_show_cursors(Box::new(
             secondary_selections.iter().flat_map(|secondary_selection| {
                 [
                     HighlightSpan {
@@ -815,7 +836,8 @@ impl Editor {
                 ]
                 .into_iter()
                 .collect::<Vec<_>>()
-            });
+            }),
+        ));
 
         let content = buffer.rope().to_string();
 

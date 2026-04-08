@@ -190,7 +190,7 @@ pub trait Component: Any + AnyComponent {
 
     fn handle_dispatch_editor(
         &mut self,
-        context: &mut Context,
+        context: &Context,
         dispatch: DispatchEditor,
     ) -> anyhow::Result<Dispatches> {
         self.editor_mut().handle_dispatch_editor(context, dispatch)

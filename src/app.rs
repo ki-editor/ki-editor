@@ -1782,7 +1782,12 @@ impl<T: Frontend> App<T> {
             self.context
                 .set_quickfix_list_current_item_index(current_item_index);
             self.handle_dispatches(dispatches)?;
-            self.render_quickfix_list()?;
+
+            // Only render the quickfix list if multibuffer is not activated
+            // This is crucial because when multibuffer is activated, there are not much space left for rendering
+            if self.multibuffer.is_none() {
+                self.render_quickfix_list()?;
+            }
         } else {
             log::info!("No current item found");
         }
