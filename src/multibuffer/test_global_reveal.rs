@@ -123,3 +123,50 @@ src/main.rs
         ])
     })
 }
+
+#[test]
+fn should_only_render_one_cursor_when_same_line_has_multiple_matches() -> Result<(), anyhow::Error>
+{
+    execute_test(|s| {
+        Box::new([
+            App(TerminalDimensionChanged(Dimension {
+                width: 100,
+                height: 8,
+            })),
+            App(SetFileContent(
+                s.foo_rs(),
+                "// x \n// qux1 qux2".to_string(),
+            )),
+            App(OpenSearchPrompt {
+                scope: Scope::Global,
+                if_current_not_found: IfCurrentNotFound::LookForward,
+            }),
+            App(HandleKeyEvents(keys!("r / q u x . enter").to_vec())),
+            WaitForAppMessage(regex!("GlobalSearchFinished")),
+            App(ToggleRevealSelections),
+            Expect(AppGrid(
+                "
+src/foo.rs
+1│// x
+2│// █ux1 qux2
+
+1│// x
+2│// qux1 qux2
+"
+                .trim_matches('\n')
+                .to_string(),
+            )),
+            // Expect the first qux1 to be styled as the primary selection
+            Expect(AppRangeStyleKey(
+                "█ux",
+                Some(StyleKey::UiPrimarySelectionAnchors),
+            )),
+            // Expect the second qux1 to be styled as UiPossibleSelection, but not UiPrimarySelectionAnchors,
+            // since it is the contextual line for qux2
+            Expect(AppRangeStyleKey(
+                "qux1",
+                Some(StyleKey::UiPossibleSelection),
+            )),
+        ])
+    })
+}

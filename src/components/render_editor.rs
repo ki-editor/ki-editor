@@ -304,6 +304,16 @@ impl Editor {
                     .byte_range_to_char_index_range(&range)
                     .unwrap_or_default();
 
+                // We only render the primary selection if the current split is meant to focus on the primary selection
+                let show_cursors = show_cursors
+                    && match reveal {
+                        Reveal::CurrentSelectionMode | Reveal::Mark => {
+                            protected_range
+                                == self.selection_set.primary_selection().extended_range()
+                        }
+                        Reveal::Cursor => false,
+                    };
+
                 grid.merge_vertical(self.get_grid_with_dimension(
                     context.theme(),
                     context.current_working_directory(),
