@@ -2051,7 +2051,12 @@ fn syntax_highlight_spans_updated_by_edit() -> anyhow::Result<()> {
 
 #[test]
 fn syntax_highlighting() -> anyhow::Result<()> {
-    execute_test(|s| {
+    let options = RunTestOptions {
+        enable_lsp: false,
+        enable_syntax_highlighting: true,
+        enable_file_watcher: false,
+    };
+    execute_test_custom(options, |s| {
         let theme = Theme::default();
         Box::new([
             App(OpenFile {

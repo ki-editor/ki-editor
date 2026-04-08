@@ -1,5 +1,6 @@
 use crate::app::{App, Dimension};
 use crate::char_index_range::CharIndexRange;
+use crate::ui_tree::ComponentKind;
 mod global_multicursor;
 mod global_reveal;
 use self::global_multicursor::GlobalMulticursor;
@@ -94,7 +95,11 @@ impl<T: Frontend> App<T> {
         rectangle: &Rectangle,
     ) -> Option<GetGridResult> {
         let files = multibuffer.files();
-        let current_file_path = self.get_current_file_path()?;
+        let current_file_path = self
+            .layout
+            .get_component_by_kind(ComponentKind::SuggestiveEditor)?
+            .borrow()
+            .path()?;
         let focused_file_index = multibuffer.focused_file_index(&current_file_path)?;
         let reveal = multibuffer.reveal();
         let ranges = multibuffer.ranges(&current_file_path);
