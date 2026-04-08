@@ -869,11 +869,6 @@ impl Editor {
         &self,
         range: CharIndexRange,
     ) -> anyhow::Result<SelectionSet> {
-        let mode = if self.buffer().given_range_is_node(&range) {
-            SelectionMode::SyntaxNode
-        } else {
-            SelectionMode::Custom
-        };
         let mode = self.selection_set.mode.primary().clone();
         let primary = self
             .selection_set

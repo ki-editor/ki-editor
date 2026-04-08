@@ -203,7 +203,7 @@ impl GlobalMulticursor {
                             && selection_index == selection_set.cursor_index;
                         MultibufferRange {
                             path: file.path.clone(),
-                            range: selection.extended_range().clone(),
+                            range: selection.extended_range(),
                             is_primary,
                         }
                     })

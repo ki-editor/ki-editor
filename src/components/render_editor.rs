@@ -1,4 +1,4 @@
-use std::ops::{Not, Range};
+use std::ops::Range;
 
 use itertools::Itertools;
 use lazy_regex::Lazy;
@@ -222,6 +222,7 @@ impl Editor {
         Some(result)
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn get_splitted_grid(
         &self,
         context: &Context,

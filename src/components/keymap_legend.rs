@@ -531,7 +531,7 @@ mod test_keymap_legend {
 
         let _ = keymap_legend
             .handle_dispatch_editor(
-                &mut Context::default(),
+                &Context::default(),
                 DispatchEditor::SetRectangle(Rectangle {
                     origin: Position::default(),
                     width: 100,

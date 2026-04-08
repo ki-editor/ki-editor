@@ -1,6 +1,5 @@
 use crate::app::{App, Dimension};
 use crate::char_index_range::CharIndexRange;
-use crate::selection::Selection;
 mod global_multicursor;
 mod global_reveal;
 use self::global_multicursor::GlobalMulticursor;

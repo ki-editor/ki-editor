@@ -58,7 +58,7 @@ impl GlobalReveal {
                             && range == &selection_set.primary_selection().range;
                         MultibufferRange {
                             path: file.path.clone(),
-                            range: range.clone(),
+                            range: *range,
                             is_primary,
                         }
                     })
@@ -98,7 +98,7 @@ impl<T: Frontend> App<T> {
                     path,
                     items
                         .into_iter()
-                        .map(|item| item.location().range.clone())
+                        .map(|item| item.location().range)
                         .collect_vec(),
                 )
             })

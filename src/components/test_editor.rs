@@ -1,4 +1,4 @@
-use crate::app::{Dimension, Dispatch, LocalSearchConfigUpdate, Scope};
+use crate::app::{Dimension, LocalSearchConfigUpdate, Scope};
 use crate::buffer::BufferOwner;
 use crate::char_index_range::CharIndexRange;
 use crate::clipboard::Texts;

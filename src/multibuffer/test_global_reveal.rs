@@ -1,23 +1,11 @@
 use lazy_regex::regex;
-use my_proc_macros::{key, keys};
+use my_proc_macros::keys;
 
 use crate::{
-    app::{
-        Dimension,
-        Dispatch::{self, *},
-        Scope,
-    },
-    buffer::BufferOwner,
-    components::editor::{Direction, DispatchEditor::*, IfCurrentNotFound, Mode, Movement},
-    context::GlobalMode,
+    app::{Dimension, Dispatch::*, Scope},
+    components::editor::{DispatchEditor::*, IfCurrentNotFound, Movement},
     grid::StyleKey,
-    position::Position,
-    test_app::{
-        execute_test,
-        ExpectKind::{self, *},
-        Step::*,
-    },
-    ui_tree::ComponentKind,
+    test_app::{execute_test, ExpectKind::*, Step::*},
 };
 
 #[test]

@@ -2230,7 +2230,7 @@ impl<T: Frontend> App<T> {
         // Call the component's handle_dispatch_editor method
         let dispatches = component
             .borrow_mut()
-            .handle_dispatch_editor(&mut self.context, dispatch_editor.clone())?;
+            .handle_dispatch_editor(&self.context, dispatch_editor.clone())?;
 
         self.handle_dispatches(dispatches)?;
 
@@ -2637,7 +2637,7 @@ impl<T: Frontend> App<T> {
     ) -> Result<(), anyhow::Error> {
         let dispatches = editor
             .borrow_mut()
-            .render_dropdown(&mut self.context, &render)?;
+            .render_dropdown(&self.context, &render)?;
         editor.borrow_mut().set_title(render.title);
 
         match render.info {
