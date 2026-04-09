@@ -87,84 +87,60 @@ impl Editor {
         render_title_mode: &RenderTitleMode,
         show_cursors: bool,
     ) -> GetGridResult {
+        let marks = context.get_marks(self.path());
         let title = self.title(context, &dimension, render_title_mode);
         let title_grid_height = title.lines().count();
-        let render_area = {
-            let Dimension { height, width } = dimension;
-            Dimension {
-                height: height.saturating_sub(title_grid_height),
-                width,
-            }
-        };
-        let marks = context.get_marks(self.path());
         let grid = match reveal {
-            None => self.get_grid_with_dimension(
-                context.theme(),
-                context.current_working_directory(),
-                context.quickfix_list_items(),
-                render_area,
-                scroll_offset,
-                Some(self.selection_set.primary_selection().range()),
-                false,
-                true,
-                focused,
-                hunks,
-                &marks,
-                true,
-                None,
-            ),
+            // When not revealing anything, we will always show the title,
+            // unless the rendering area has only one unit height, which only allows rendering the cursor.
+            None => {
+                let render_area = Dimension {
+                    height: dimension.height.saturating_sub(title_grid_height),
+                    width: dimension.width,
+                };
+                let grid = self.get_grid_with_dimension(
+                    context.theme(),
+                    context.current_working_directory(),
+                    context.quickfix_list_items(),
+                    render_area,
+                    scroll_offset,
+                    Some(self.selection_set.primary_selection().range()),
+                    false,
+                    true,
+                    focused,
+                    hunks,
+                    &marks,
+                    true,
+                    None,
+                );
+                let title_grid = self.get_title_grid(
+                    context,
+                    hunks,
+                    focused,
+                    &title,
+                    Dimension {
+                        height: title_grid_height,
+                        width: dimension.width,
+                    },
+                );
+                title_grid.merge_vertical(grid)
+            }
+            // During reveal, the ranges to be shown takes priority over the title
+            // so if there's not enough vertical space to render all ranges and title,
+            // we will sacrifice the title.
             Some(reveal) => self.get_splitted_grid(
                 context,
                 reveal,
-                render_area,
+                dimension,
                 focused,
                 hunks,
                 &marks,
                 show_cursors,
+                &title,
+                title_grid_height,
             ),
         };
-        let theme = context.theme();
-        let title_grid = {
-            let mut editor = Editor::from_text(None, &title);
-            editor.set_regex_highlight_rules(
-                [RegexHighlightRule {
-                    regex: (**FOCUSED_TAB_REGEX).clone(),
-                    capture_styles: [RegexHighlightRuleCaptureStyle {
-                        capture_name: "focused_tab",
-                        source: Source::StyleKey(StyleKey::UiFocusedTab),
-                    }]
-                    .into_iter()
-                    .collect(),
-                }]
-                .into_iter()
-                .collect(),
-            );
-            let dimension = Dimension {
-                height: title_grid_height,
-                width: dimension.width,
-            };
-            let grid = editor.get_grid_with_dimension(
-                theme,
-                context.current_working_directory(),
-                &Vec::new(),
-                dimension,
-                0,
-                None,
-                false,
-                false,
-                focused,
-                hunks,
-                &[],
-                false,
-                Some(if focused {
-                    StyleKey::FocusedWindowTitle
-                } else {
-                    StyleKey::UnfocusedWindowTitle
-                }),
-            );
-            grid
-        };
-        let grid = title_grid.merge_vertical(grid);
+
         let cursor_position = grid.get_cursor_position();
         let style = match self.mode {
             Mode::Normal => SetCursorStyle::BlinkingBlock,
@@ -175,6 +151,53 @@ impl Editor {
             cursor: cursor_position.map(|position| Cursor::new(position, style)),
             grid,
         }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn get_title_grid(
+        &self,
+        context: &Context,
+        hunks: &[SimpleHunk],
+        focused: bool,
+        title: &str,
+        dimension: Dimension,
+    ) -> Grid {
+        let theme = context.theme();
+        let mut editor = Editor::from_text(None, &title);
+        editor.set_regex_highlight_rules(
+            [RegexHighlightRule {
+                regex: (**FOCUSED_TAB_REGEX).clone(),
+                capture_styles: [RegexHighlightRuleCaptureStyle {
+                    capture_name: "focused_tab",
+                    source: Source::StyleKey(StyleKey::UiFocusedTab),
+                }]
+                .into_iter()
+                .collect(),
+            }]
+            .into_iter()
+            .collect(),
+        );
+
+        let grid = editor.get_grid_with_dimension(
+            theme,
+            context.current_working_directory(),
+            &Vec::new(),
+            dimension,
+            0,
+            None,
+            false,
+            false,
+            focused,
+            hunks,
+            &[],
+            false,
+            Some(if focused {
+                StyleKey::FocusedWindowTitle
+            } else {
+                StyleKey::UnfocusedWindowTitle
+            }),
+        );
+        grid
     }
 
     pub fn title_impl(
@@ -232,6 +255,8 @@ impl Editor {
         hunks: &[SimpleHunk],
         marks: &[CharIndexRange],
         show_cursors: bool,
+        title: &str,
+        title_grid_height: usize,
     ) -> crate::grid::Grid {
         let buffer = self.buffer();
         let ranges = match reveal {
@@ -268,9 +293,17 @@ impl Editor {
         .sorted_by_key(|range| (range.start, range.end))
         .unique()
         .collect_vec();
+
+        // We calculate the maximum title height because we will prioritize showing all the ranges over showing the title
+        // which means then there's not enough space, we will hide the title first before hiding some ranges
+        let maximum_title_height = render_area.height.saturating_sub(ranges.len());
+        let adjusted_title_grid_height = title_grid_height.min(maximum_title_height);
+
         let viewport_sections = divide_viewport(
             &ranges,
-            render_area.height,
+            render_area
+                .height
+                .saturating_sub(adjusted_title_grid_height),
             buffer
                 .char_index_range_to_byte_range(
                     self.selection_set.primary_selection().extended_range(),
@@ -278,7 +311,7 @@ impl Editor {
                 .unwrap_or_default(),
         );
 
-        viewport_sections.into_iter().fold(
+        let grid = viewport_sections.into_iter().fold(
             Grid::new(Dimension {
                 height: 0,
                 width: render_area.width,
@@ -314,6 +347,10 @@ impl Editor {
                         Reveal::Cursor => false,
                     };
 
+                dbg!(&protected_range);
+                dbg!(self.selection_set.primary_selection().extended_range());
+                dbg!(&show_cursors);
+
                 grid.merge_vertical(self.get_grid_with_dimension(
                     context.theme(),
                     context.current_working_directory(),
@@ -333,7 +370,24 @@ impl Editor {
                     None,
                 ))
             },
-        )
+        );
+
+        let title_grid = self.get_title_grid(
+            context,
+            hunks,
+            focused,
+            &title,
+            Dimension {
+                height: adjusted_title_grid_height,
+                width: render_area.width,
+            },
+        );
+
+        let grid = title_grid.merge_vertical(grid);
+
+        debug_assert_eq!(grid.dimension(), render_area);
+
+        grid
     }
 
     /// Protected char index must not be trimmed and always be rendered.
@@ -734,6 +788,7 @@ impl Editor {
                     no_primary_selection
                 }
                 _ => {
+                    dbg!(&show_cursors);
                     let primary_selection_highlight_span = show_cursors.then_some(HighlightSpan {
                         set_symbol: None,
                         is_cursor: false,

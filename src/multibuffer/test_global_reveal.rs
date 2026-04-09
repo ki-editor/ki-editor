@@ -170,3 +170,64 @@ src/foo.rs
         ])
     })
 }
+
+#[test]
+fn should_prioritize_showing_selection_and_hide_file_path_if_space_is_limited(
+) -> Result<(), anyhow::Error> {
+    execute_test(|s| {
+        Box::new([
+            App(TerminalDimensionChanged(Dimension {
+                width: 100,
+                height: 5,
+            })),
+            App(SetFileContent(
+                s.foo_rs(),
+                "// x \n// qux1 qux2".to_string(),
+            )),
+            App(SetFileContent(
+                s.main_rs(),
+                "// x \n// qux3 qux4".to_string(),
+            )),
+            App(OpenSearchPrompt {
+                scope: Scope::Global,
+                if_current_not_found: IfCurrentNotFound::LookForward,
+            }),
+            App(HandleKeyEvents(keys!("r / q u x . enter").to_vec())),
+            WaitForAppMessage(regex!("GlobalSearchFinished")),
+            App(ToggleRevealSelections),
+            // When there's not enough space, all selections within foo.rs should be shown
+            // sacrificing the rendering of the main.rs split.
+            //
+            // This is because whenwhenile path is shown, all of its selections should be shown.
+            // This is the file path will be hidden if not all of its selections are shown,
+            // as showing the selection takes priority over showing the file path
+            Expect(AppGrid(
+                "
+2│// █ux1 qux2
+2│// qux1 qux2
+2│// qux3 qux4
+2│// qux3 qux4
+"
+                .trim_matches('\n')
+                .to_string(),
+            )),
+            // Increase height by 1
+            App(TerminalDimensionChanged(Dimension {
+                width: 100,
+                height: 6,
+            })),
+            // Expect the name of foo.rs is rendered, since there are more than enough spaces to show all ranges
+            Expect(AppGrid(
+                "
+src/foo.rs
+2│// █ux1 qux2
+2│// qux1 qux2
+2│// qux3 qux4
+2│// qux3 qux4
+"
+                .trim_matches('\n')
+                .to_string(),
+            )),
+        ])
+    })
+}
