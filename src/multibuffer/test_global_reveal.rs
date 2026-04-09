@@ -161,10 +161,14 @@ src/foo.rs
                 "█ux",
                 Some(StyleKey::UiPrimarySelectionAnchors),
             )),
-            // Expect the second qux1 to be styled as UiPossibleSelection, but not UiPrimarySelectionAnchors,
-            // since it is the contextual line for qux2
-            Expect(AppRangeStyleKey(
-                "qux1",
+            // Expect the second qux1 to not be styled, since the second split is highlighting qux2, not qux1
+            Expect(AppRangeStyleKey("qux1", Some(StyleKey::Default))),
+            // Expect the first qux2 is not styled, because the first split should highlight qux1
+            Expect(AppRangeIndexStyleKey("qux2", 0, Some(StyleKey::Default))),
+            // Expect the second qux2 is styled as UiPossibleSelection, because the second split should highlight qux2
+            Expect(AppRangeIndexStyleKey(
+                "qux2",
+                1,
                 Some(StyleKey::UiPossibleSelection),
             )),
         ])

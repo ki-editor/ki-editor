@@ -112,6 +112,7 @@ impl Editor {
                     &marks,
                     true,
                     None,
+                    reveal,
                 );
                 let title_grid = self.get_title_grid(
                     context,
@@ -196,6 +197,7 @@ impl Editor {
             } else {
                 StyleKey::UnfocusedWindowTitle
             }),
+            &None,
         );
         grid
     }
@@ -364,6 +366,7 @@ impl Editor {
                     marks,
                     show_cursors,
                     None,
+                    &Some(reveal.clone()),
                 ))
             },
         );
@@ -405,6 +408,7 @@ impl Editor {
         marks: &[CharIndexRange],
         show_cursors: bool,
         default_style_key: Option<StyleKey>,
+        reveal: &Option<Reveal>,
     ) -> Grid {
         let editor = self;
         let cursor_position = self.get_cursor_position().unwrap_or_default();
@@ -460,6 +464,7 @@ impl Editor {
                 marks,
                 focused,
                 show_cursors,
+                reveal,
             );
             let boundaries = hidden_parent_line_ranges
                 .into_iter()
@@ -656,6 +661,7 @@ impl Editor {
         marks: &[CharIndexRange],
         is_focused_file: bool,
         show_cursors: bool,
+        reveal: &Option<Reveal>,
     ) -> Vec<HighlightSpan> {
         use StyleKey::*;
         let buffer = self.buffer();
@@ -664,9 +670,9 @@ impl Editor {
             Box::new(std::iter::empty()) as Box<dyn Iterator<Item = HighlightSpan>>
         } else {
             Box::new(
-                if self.selection_set.mode().is_contiguous() && self.reveal.is_none() {
+                if self.selection_set.mode().is_contiguous() && reveal.is_none() {
                     Vec::default()
-                } else if self.reveal == Some(Reveal::CurrentSelectionMode) {
+                } else if reveal == &Some(Reveal::CurrentSelectionMode) {
                     protected_range
                         .and_then(|protected_range| {
                             buffer.char_index_range_to_byte_range(protected_range).ok()
@@ -714,7 +720,7 @@ impl Editor {
         let marks_spans = marks
             .iter()
             .filter(|mark_range| {
-                if let Some(Reveal::Mark) = self.reveal {
+                if let Some(Reveal::Mark) = reveal {
                     Some(*mark_range) == protected_range.as_ref()
                 } else {
                     true
@@ -732,7 +738,7 @@ impl Editor {
             .secondary_selections()
             .into_iter()
             .filter(|secondary_selection| {
-                if let Some(Reveal::Cursor) = self.reveal {
+                if let Some(Reveal::Cursor) = reveal {
                     Some(secondary_selection.range()) == protected_range
                 } else {
                     true
@@ -762,7 +768,7 @@ impl Editor {
                 None,
                 None,
             );
-            match self.reveal {
+            match reveal {
                 Some(Reveal::CurrentSelectionMode)
                     if protected_range != Some(primary_selection.extended_range()) =>
                 {
@@ -1027,7 +1033,7 @@ impl Editor {
             })
             .flatten();
 
-        let visible_parent_lines = if self.reveal.is_none() {
+        let visible_parent_lines = if reveal.is_none() {
             Box::new(visible_parent_lines.iter().map(|line| HighlightSpan {
                 source: Source::StyleKey(StyleKey::ParentLine),
                 range: HighlightSpanRange::Line(line.line),

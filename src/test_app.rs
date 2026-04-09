@@ -174,6 +174,11 @@ pub enum ExpectKind {
     GridCellsStyleKey(Vec<Position>, Option<StyleKey>),
     /// Referring to the whole app
     AppRangeStyleKey(/*Search*/ &'static str, Option<StyleKey>),
+    AppRangeIndexStyleKey(
+        /*Search*/ &'static str,
+        /*Matching Index*/ usize,
+        Option<StyleKey>,
+    ),
     /// Referring to the current component, whatever it might be
     RangeStyleKey(/*Search*/ &'static str, Option<StyleKey>),
     /// Referring to the main editor
@@ -428,7 +433,10 @@ impl ExpectKind {
                 format!("Expected positions {positions:?} to be styled as {style_key:?}"),
             ),
             AppRangeStyleKey(search, style_key) => {
-                run_range_style_key_check_on_app(app, search, style_key)
+                run_range_style_key_check_on_app(app, search, style_key, None)
+            }
+            AppRangeIndexStyleKey(search, match_index, style_key) => {
+                run_range_style_key_check_on_app(app, search, style_key, Some(*match_index))
             }
             RangeStyleKey(search, style_key) => {
                 run_range_style_key_check_on_component(component, context, search, style_key)
@@ -729,19 +737,27 @@ fn run_range_style_key_check_on_app(
     app: &mut App<MockFrontend>,
     search: &'static str,
     style_key: &Option<StyleKey>,
+    match_index: Option<usize>,
 ) -> (bool, String) {
     let mut screen = app.get_screen().unwrap();
 
     let grid_string = screen.stringify();
     let matches = grid_string.match_indices(search).collect_vec();
-    let byte_range = match matches.split_first() {
-        Some(((byte_start, str), [])) => *byte_start..byte_start + str.len(),
-        Some((_, _)) => panic!(
-            "{search:?} should only match 1 range, but it matches {} ranges.",
-            matches.len()
-        ),
-        None => panic!("{search:?} should only match 1 range, but it matches nothing."),
+    let (byte_start, str) = match match_index {
+        Some(match_index) => matches.get(match_index).expect(&format!(
+            "Unable to get element at index {} in vector {:?}",
+            match_index, matches
+        )),
+        None => match matches.split_first() {
+            Some(((byte_start, str), [])) => &(*byte_start, *str),
+            Some((_, _)) => panic!(
+                "{search:?} should only match 1 range, but it matches {} ranges.",
+                matches.len()
+            ),
+            None => panic!("{search:?} should only match 1 range, but it matches nothing."),
+        },
     };
+    let byte_range = *byte_start..byte_start + str.len();
     // We use Buffer to obtain the position range given the byte range
     let buffer = Buffer::new(None, &grid_string);
     let positions = byte_range
