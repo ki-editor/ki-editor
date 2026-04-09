@@ -1230,7 +1230,7 @@ pub fn keymap_actions(
         Keybinding::new("T", "Raise", Dispatch::ToEditor(Replace(Movement::Expand))),
         Keybinding::new("z", "Undo", Dispatch::ToEditor(Undo)),
         Keybinding::new("Z", "Redo", Dispatch::ToEditor(Redo)),
-        Keybinding::new("enter", "Save", Dispatch::ToEditor(Save)),
+        Keybinding::new("enter", "Save", Dispatch::SaveFile),
         Keybinding::new("shift+enter", "Save As", Dispatch::OpenSaveAsPrompt),
         Keybinding::new(
             "G",

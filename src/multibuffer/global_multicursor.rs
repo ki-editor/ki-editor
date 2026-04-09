@@ -302,9 +302,7 @@ impl<T: Frontend> App<T> {
     pub fn keep_primary_cursor_only(&mut self) -> anyhow::Result<()> {
         self.handle_dispatch_editor(DispatchEditor::CursorKeepPrimaryOnly)?;
 
-        if self.multibuffer.is_some() {
-            self.multibuffer = None;
-        }
+        self.multibuffer.take();
         Ok(())
     }
 
@@ -377,5 +375,11 @@ impl<T: Frontend> App<T> {
     #[cfg(test)]
     pub(crate) fn glolbal_multicursor_activated(&self) -> bool {
         self.multibuffer.is_some()
+    }
+
+    pub fn save(&mut self) -> anyhow::Result<()> {
+        self.handle_dispatch_editor(DispatchEditor::Save)?;
+        self.multibuffer.take();
+        Ok(())
     }
 }

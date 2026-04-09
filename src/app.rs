@@ -1260,6 +1260,7 @@ impl<T: Frontend> App<T> {
                 self.filter_cursor_matching_search(search, maintain)?;
             }
             Dispatch::ToggleRevealSelections => self.toggle_reveal_selections()?,
+            Dispatch::SaveFile => self.save()?,
         }
         Ok(())
     }
@@ -4010,6 +4011,7 @@ pub enum Dispatch {
         maintain: bool,
     },
     ToggleRevealSelections,
+    SaveFile,
 }
 
 /// Used to send notify host app about changes

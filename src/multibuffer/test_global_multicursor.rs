@@ -668,6 +668,28 @@ fn use_keep_primary_cursor_to_deactivate_global_multicursor() -> Result<(), anyh
 }
 
 #[test]
+fn save_should_deactivate_global_multicursor() -> Result<(), anyhow::Error> {
+    execute_test(|s| {
+        Box::new([
+            App(SetFileContent(s.foo_rs(), "// foo1 foo2".to_string())),
+            App(SetFileContent(s.main_rs(), "// foo3 foo4".to_string())),
+            App(OpenSearchPrompt {
+                scope: Scope::Global,
+                if_current_not_found: IfCurrentNotFound::LookForward,
+            }),
+            App(HandleKeyEvents(keys!("r / f o o . enter").to_vec())),
+            WaitForAppMessage(regex!("GlobalSearchFinished")),
+            App(AddCursorToAllSelections),
+            Expect(CurrentSelectedTexts(&["foo1", "foo2", "foo3", "foo4"])),
+            Expect(ExpectKind::GlobalMultiCursorActivated(true)),
+            App(Dispatch::SaveFile),
+            Expect(CurrentSelectedTexts(&["foo1"])),
+            Expect(ExpectKind::GlobalMultiCursorActivated(false)),
+        ])
+    })
+}
+
+#[test]
 fn quickfix_list_should_be_closed_when_global_multicursor_is_activated() -> Result<(), anyhow::Error>
 {
     execute_test(|s| {
