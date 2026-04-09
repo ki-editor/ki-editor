@@ -344,12 +344,8 @@ impl Editor {
                             protected_range
                                 == self.selection_set.primary_selection().extended_range()
                         }
-                        Reveal::Cursor => false,
+                        Reveal::Cursor => true,
                     };
-
-                // dbg!(&protected_range);
-                // dbg!(self.selection_set.primary_selection().extended_range());
-                // dbg!(&show_cursors);
 
                 grid.merge_vertical(self.get_grid_with_dimension(
                     context.theme(),
@@ -788,7 +784,6 @@ impl Editor {
                     no_primary_selection
                 }
                 _ => {
-                    // dbg!(&show_cursors);
                     let primary_selection_highlight_span = show_cursors.then_some(HighlightSpan {
                         set_symbol: None,
                         is_cursor: false,
