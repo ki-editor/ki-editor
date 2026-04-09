@@ -4424,3 +4424,41 @@ fn saving_content_of_pathless_buffer_into_a_new_file_using_enter() -> anyhow::Re
         ])
     })
 }
+
+#[test]
+fn cycling_window_focus_should_not_create_more_windows() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            App(OpenThemePicker),
+            Expect(CurrentComponentTitle("Theme".to_string())),
+            Expect(ComponentsLength(3)),
+            App(OtherWindow),
+            Expect(CurrentComponentTitle("Completion".to_string())),
+            Expect(ComponentsLength(3)),
+            App(OtherWindow),
+            Expect(CurrentComponentTitle(
+                "\u{200b} [ ] 🦀 main.rs \u{200b}".to_string(),
+            )),
+            Expect(ComponentsLength(3)),
+            App(OtherWindow),
+            Expect(CurrentComponentTitle("Theme".to_string())),
+            Expect(ComponentsLength(3)),
+            App(OtherWindow),
+            Expect(CurrentComponentTitle("Completion".to_string())),
+            Expect(ComponentsLength(3)),
+            App(OtherWindow),
+            Expect(CurrentComponentTitle(
+                "\u{200b} [ ] 🦀 main.rs \u{200b}".to_string(),
+            )),
+            Expect(ComponentsLength(3)),
+            App(OtherWindow),
+            Expect(CurrentComponentTitle("Theme".to_string())),
+            Expect(ComponentsLength(3)),
+        ])
+    })
+}
