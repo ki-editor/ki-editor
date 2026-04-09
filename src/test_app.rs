@@ -744,10 +744,12 @@ fn run_range_style_key_check_on_app(
     let grid_string = screen.stringify();
     let matches = grid_string.match_indices(search).collect_vec();
     let (byte_start, str) = match match_index {
-        Some(match_index) => matches.get(match_index).expect(&format!(
-            "Unable to get element at index {} in vector {:?}",
-            match_index, matches
-        )),
+        Some(match_index) => matches.get(match_index).unwrap_or_else(|| {
+            panic!(
+                "Unable to get element at index {} in vector {:?}",
+                match_index, matches
+            )
+        }),
         None => match matches.split_first() {
             Some(((byte_start, str), [])) => &(*byte_start, *str),
             Some((_, _)) => panic!(

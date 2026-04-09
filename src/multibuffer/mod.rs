@@ -73,6 +73,13 @@ impl Multibuffer {
             Multibuffer::GlobalMulticursor(global_multicursor) => global_multicursor.ranges(),
         }
     }
+
+    pub(crate) fn display_name(&self) -> &'static str {
+        match self {
+            Multibuffer::GlobalReveal(_) => "[GLOBAL REVEAL]",
+            Multibuffer::GlobalMulticursor(_) => "[GLOBAL MULTICURSOR]",
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

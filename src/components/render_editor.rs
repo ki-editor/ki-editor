@@ -164,7 +164,7 @@ impl Editor {
         dimension: Dimension,
     ) -> Grid {
         let theme = context.theme();
-        let mut editor = Editor::from_text(None, &title);
+        let mut editor = Editor::from_text(None, title);
         editor.set_regex_highlight_rules(
             [RegexHighlightRule {
                 regex: (**FOCUSED_TAB_REGEX).clone(),
@@ -375,7 +375,7 @@ impl Editor {
             context,
             hunks,
             focused,
-            &title,
+            title,
             Dimension {
                 height: adjusted_title_grid_height,
                 width: render_area.width,

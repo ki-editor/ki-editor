@@ -609,6 +609,11 @@ impl<T: Frontend> App<T> {
                             .current_branch()
                             .map(|branch| FlexLayoutComponent::Text(format!("⎇ {branch}"))),
                         StatusLineComponent::Mode => {
+                            let multibuffer_mode = self
+                                .multibuffer
+                                .as_ref()
+                                .map(|multibuffer| format!("{} ", multibuffer.display_name()))
+                                .unwrap_or_default();
                             let mode = self
                                 .context
                                 .mode()
@@ -616,7 +621,9 @@ impl<T: Frontend> App<T> {
                                 .unwrap_or_else(|| {
                                     self.current_component().borrow().editor().display_mode()
                                 });
-                            Some(FlexLayoutComponent::Text(format!("{mode: <5}")))
+                            Some(FlexLayoutComponent::Text(format!(
+                                "{multibuffer_mode}{mode: <5}"
+                            )))
                         }
                         StatusLineComponent::SelectionMode => Some(FlexLayoutComponent::Text(
                             self.current_component()
