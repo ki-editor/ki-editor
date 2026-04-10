@@ -1,7 +1,9 @@
 use crate::components::component::Component;
-use crate::components::editor::Direction;
+use crate::components::editor::{Direction, Movement};
 
+use crate::context::QuickfixListKind;
 use crate::multibuffer::{Multibuffer, MultibufferFile, MultibufferRange};
+use crate::quickfix_list::QuickfixListType;
 use crate::selection::SelectionSet;
 use crate::{
     app::App,
@@ -17,6 +19,7 @@ use crate::{
 use itertools::Itertools;
 use shared::absolute_path::AbsolutePath;
 use std::any::TypeId;
+use std::collections::HashSet;
 use std::{cell::RefCell, rc::Rc};
 
 pub struct GlobalMulticursor {
@@ -380,6 +383,69 @@ impl<T: Frontend> App<T> {
     pub fn save(&mut self) -> anyhow::Result<()> {
         self.handle_dispatch_editor(DispatchEditor::Save)?;
         self.multibuffer.take();
+        Ok(())
+    }
+
+    pub fn toggle_selection_mark(&mut self) -> anyhow::Result<()> {
+        let paths = self
+            .multibuffer
+            .as_ref()
+            .map(|multibuffer| {
+                multibuffer
+                    .files()
+                    .iter()
+                    .map(|file| file.path.clone())
+                    .collect_vec()
+            })
+            .unwrap_or_else(|| self.get_current_file_path().into_iter().collect_vec());
+
+        for path in paths {
+            self.toggle_selection_mark_by_path(&path)?;
+        }
+
+        // Refresh the quickfix list if possible
+        // TODO: we need to maintain the last quickfix list index too
+        match (self.context.quickfix_list().kind(), self.context.mode()) {
+            (Some(QuickfixListKind::Mark), Some(GlobalMode::QuickfixListItem)) => {
+                self.update_quickfix_list_item(QuickfixListType::Mark);
+                self.render_quickfix_list()?;
+                self.goto_quickfix_list_item(Movement::Current(IfCurrentNotFound::LookForward))?;
+            }
+            _ => {}
+        }
+
+        Ok(())
+    }
+
+    fn toggle_selection_mark_by_path(&mut self, path: &AbsolutePath) -> anyhow::Result<()> {
+        // Mark the current file if we are actually marking some selection
+        let marks: HashSet<_> = self
+            .context
+            .get_marks(Some(path.clone()))
+            .into_iter()
+            .collect();
+        let component = self.open_file(path, BufferOwner::User, false, false)?;
+        let current_selections: HashSet<_> = component
+            .borrow()
+            .editor()
+            .selection_set
+            .selections()
+            .iter()
+            .map(|selection| selection.extended_range())
+            .collect();
+
+        // If the set of current selections is the subset of the marks of this file
+        // then this `toggle_selection_mark` action only consists of unmarking action,
+        // and zero marking action.
+        //
+        // We only mark the current file if there are some marking actions
+        if !current_selections.is_subset(&marks) {
+            let _ = self.context.mark_file(path.clone());
+        }
+        let dispatches = component.borrow_mut().editor_mut().toggle_marks();
+
+        self.handle_dispatches(dispatches)?;
+
         Ok(())
     }
 }

@@ -12,6 +12,7 @@ use crate::{
     context::GlobalMode,
     grid::StyleKey,
     position::Position,
+    selection::CharIndex,
     test_app::{
         execute_test,
         ExpectKind::{self, *},
@@ -246,6 +247,41 @@ src/main.rs
 3│foo4"
                     .trim_matches('\n')
                     .to_string(),
+            )),
+        ])
+    })
+}
+
+#[test]
+fn global_multicursor_marks() -> Result<(), anyhow::Error> {
+    execute_test(|s| {
+        Box::new([
+            App(TerminalDimensionChanged(Dimension {
+                width: 100,
+                height: 10,
+            })),
+            App(OpenFile {
+                path: s.gitignore(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            App(ToggleFileMark),
+            App(SetFileContent(s.foo_rs(), "foo1".to_string())),
+            App(SetFileContent(s.main_rs(), "foo2".to_string())),
+            App(OpenSearchPrompt {
+                scope: Scope::Global,
+                if_current_not_found: IfCurrentNotFound::LookForward,
+            }),
+            App(HandleKeyEvents(keys!("r / f o o . enter").to_vec())),
+            WaitForAppMessage(regex!("GlobalSearchFinished")),
+            App(AddCursorToAllSelections),
+            App(ToggleSelectionMark),
+            Expect(CurrentMarks(
+                [
+                    (s.foo_rs(), [(CharIndex(0)..CharIndex(4)).into()].to_vec()),
+                    (s.main_rs(), [(CharIndex(0)..CharIndex(4)).into()].to_vec()),
+                ]
+                .to_vec(),
             )),
         ])
     })

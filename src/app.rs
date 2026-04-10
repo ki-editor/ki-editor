@@ -1783,7 +1783,7 @@ impl<T: Frontend> App<T> {
         Ok(())
     }
 
-    fn goto_quickfix_list_item(&mut self, movement: Movement) -> anyhow::Result<()> {
+    pub fn goto_quickfix_list_item(&mut self, movement: Movement) -> anyhow::Result<()> {
         if let Some((current_item_index, dispatches)) =
             self.context.get_quickfix_list_item(movement)
         {
@@ -1882,7 +1882,7 @@ impl<T: Frontend> App<T> {
     }
 
     /// Returns the items length
-    fn update_quickfix_list_item(&mut self, r#type: QuickfixListType) -> usize {
+    pub fn update_quickfix_list_item(&mut self, r#type: QuickfixListType) -> usize {
         let (kind, source) = match r#type {
             QuickfixListType::Diagnostic(severity_range) => {
                 (None, QuickfixListSource::Diagnostic(severity_range))
@@ -2995,55 +2995,6 @@ impl<T: Frontend> App<T> {
             let location = Location { path, range };
             self.context.push_location_history(location, backward);
         }
-    }
-
-    fn toggle_selection_mark(&mut self) -> anyhow::Result<()> {
-        // Mark the current file if we are actually marking some selection
-        if let Some(path) = self.get_current_file_path() {
-            let marks: HashSet<_> = self
-                .context
-                .get_marks(Some(path.clone()))
-                .into_iter()
-                .collect();
-            let current_selections: HashSet<_> = self
-                .current_component()
-                .borrow()
-                .editor()
-                .selection_set
-                .selections()
-                .iter()
-                .map(|selection| selection.extended_range())
-                .collect();
-
-            // If the set of current selections is the subset of the marks of this file
-            // then this `toggle_selection_mark` action only consists of unmarking action,
-            // and zero marking action.
-            //
-            // We only mark the current file if there are some marking actions
-            if !current_selections.is_subset(&marks) {
-                let _ = self.context.mark_file(path);
-            }
-        }
-        let dispatches = self
-            .current_component()
-            .borrow_mut()
-            .editor_mut()
-            .toggle_marks();
-
-        self.handle_dispatches(dispatches)?;
-
-        // Refresh the quickfix list if possible
-        // TODO: we need to maintain the last quickfix list index too
-        match (self.context.quickfix_list().kind(), self.context.mode()) {
-            (Some(QuickfixListKind::Mark), Some(GlobalMode::QuickfixListItem)) => {
-                self.update_quickfix_list_item(QuickfixListType::Mark);
-                self.render_quickfix_list()?;
-                self.goto_quickfix_list_item(Movement::Current(IfCurrentNotFound::LookForward))?;
-            }
-            _ => {}
-        }
-
-        Ok(())
     }
 
     fn toggle_file_mark(&mut self) -> anyhow::Result<()> {

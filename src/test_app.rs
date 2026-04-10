@@ -216,6 +216,7 @@ pub enum ExpectKind {
     CurrentWorkingDirectory(AbsolutePath),
     GlobalMultiCursorActivated(bool),
     AppCursorPosition(Position),
+    CurrentMarks(Vec<(AbsolutePath, Vec<CharIndexRange>)>),
 }
 fn log<T: std::fmt::Debug>(s: T) {
     if !is_ci::cached() {
@@ -689,6 +690,15 @@ impl ExpectKind {
             GlobalMultiCursorActivated(expected) => {
                 contextualize(expected, &app.glolbal_multicursor_activated())
             }
+            CurrentMarks(expected) => contextualize(
+                expected,
+                &app.context()
+                    .marks()
+                    .into_iter()
+                    .map(|(path, marks)| (path.clone(), marks.clone()))
+                    .sorted_by_key(|(path, _)| path.clone())
+                    .collect_vec(),
+            ),
         })
     }
 }
