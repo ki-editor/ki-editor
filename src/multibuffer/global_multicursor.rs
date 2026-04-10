@@ -387,17 +387,17 @@ impl<T: Frontend> App<T> {
     }
 
     pub fn toggle_selection_mark(&mut self) -> anyhow::Result<()> {
-        let paths = self
-            .multibuffer
-            .as_ref()
-            .map(|multibuffer| {
-                multibuffer
-                    .files()
-                    .iter()
-                    .map(|file| file.path.clone())
-                    .collect_vec()
-            })
-            .unwrap_or_else(|| self.get_current_file_path().into_iter().collect_vec());
+        let paths = if let Some(Multibuffer::GlobalMulticursor(global_multicursor)) =
+            self.multibuffer.as_ref()
+        {
+            multibuffer
+                .files()
+                .iter()
+                .map(|file| file.path.clone())
+                .collect_vec()
+        } else {
+            self.get_current_file_path().into_iter().collect_vec()
+        };
 
         for path in paths {
             self.toggle_selection_mark_by_path(&path)?;
