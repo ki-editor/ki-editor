@@ -696,6 +696,7 @@ impl ExpectKind {
                     .marks()
                     .into_iter()
                     .map(|(path, marks)| (path.clone(), marks.clone()))
+                    .filter(|(_, marks)| !marks.is_empty())
                     .sorted_by_key(|(path, _)| path.clone())
                     .collect_vec(),
             ),

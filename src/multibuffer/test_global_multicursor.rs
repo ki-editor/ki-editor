@@ -283,6 +283,8 @@ fn global_multicursor_marks() -> Result<(), anyhow::Error> {
                 ]
                 .to_vec(),
             )),
+            App(ToggleSelectionMark),
+            Expect(CurrentMarks([].to_vec())),
         ])
     })
 }
