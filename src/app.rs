@@ -72,7 +72,7 @@ use shared::{absolute_path::AbsolutePath, language::Language};
 use std::{
     any::TypeId,
     cell::RefCell,
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     path::{Path, PathBuf},
     rc::Rc,
     sync::{mpsc::Sender, Mutex},

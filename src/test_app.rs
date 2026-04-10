@@ -694,7 +694,7 @@ impl ExpectKind {
                 expected,
                 &app.context()
                     .marks()
-                    .into_iter()
+                    .iter()
                     .map(|(path, marks)| (path.clone(), marks.clone()))
                     .filter(|(_, marks)| !marks.is_empty())
                     .sorted_by_key(|(path, _)| path.clone())

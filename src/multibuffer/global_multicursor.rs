@@ -390,7 +390,7 @@ impl<T: Frontend> App<T> {
         let paths = if let Some(Multibuffer::GlobalMulticursor(global_multicursor)) =
             self.multibuffer.as_ref()
         {
-            multibuffer
+            global_multicursor
                 .files()
                 .iter()
                 .map(|file| file.path.clone())
