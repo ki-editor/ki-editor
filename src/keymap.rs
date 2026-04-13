@@ -1360,7 +1360,7 @@ pub fn swap_keymap() -> Keymap {
         ),
         Keybinding::new_undocumented(
             "j",
-            "Swap <<",
+            "<< Swap",
             Dispatch::ToEditor(DispatchEditor::SwapWithMovement(Movement::Left)),
         ),
         Keybinding::new_undocumented(
@@ -1375,17 +1375,17 @@ pub fn swap_keymap() -> Keymap {
         ),
         Keybinding::new_undocumented(
             "u",
-            "Swap <",
+            "< Swap",
             Dispatch::ToEditor(DispatchEditor::SwapWithMovement(Movement::Previous)),
         ),
         Keybinding::new_undocumented(
             "y",
-            "Swap |<",
+            "|< Swap",
             Dispatch::ToEditor(DispatchEditor::SwapWithMovement(Movement::First)),
         ),
         Keybinding::new_undocumented(
             "p",
-            "Swap |>",
+            "Swap >|",
             Dispatch::ToEditor(DispatchEditor::SwapWithMovement(Movement::Last)),
         ),
         Keybinding::new_undocumented(
