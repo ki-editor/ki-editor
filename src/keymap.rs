@@ -146,7 +146,7 @@ fn secondary_selection_modes_keybindings(
             diff_mode_to_dispatch(DiffMode::UnstagedAgainstCurrentBranch),
         ),
         Keybinding::new_undocumented(
-            "g",
+            "G",
             "Hunk^",
             diff_mode_to_dispatch(DiffMode::UnstagedAgainstMainBranch),
         ),
