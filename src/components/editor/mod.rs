@@ -4134,7 +4134,71 @@ impl Editor {
         else {
             return Ok(Dispatches::default());
         };
-        self.transform_selection(Transformation::ToggleLineComment { prefix }, context)
+        let edit_transaction = EditTransaction::from_action_groups(
+            self.selection_set
+                .map(|selection| -> anyhow::Result<_> {
+                    let buffer = self.buffer();
+                    let line_range =
+                        buffer.char_index_range_to_line_range(selection.extended_range())?;
+                    let lines = buffer.get_line_by_line_range(line_range.clone())?;
+
+                    let common_indentation_count = lines
+                        .iter()
+                        .map(|line| line.chars().take_while(|char| char.is_whitespace()).count())
+                        .min()
+                        .unwrap_or(0);
+
+                    let common_indentation = {
+                        let indent_char = lines
+                            .first()
+                            .and_then(|line| {
+                                let c = line.chars().next()?;
+                                c.is_whitespace().then_some(c.to_string())
+                            })
+                            .unwrap_or_else(|| "".to_string());
+                        indent_char.repeat(common_indentation_count).to_string()
+                    };
+
+                    let edit_range = buffer.line_range_to_char_index_range(&line_range)?;
+                    let replacement: Rope = lines
+                        .into_iter()
+                        .map(|line| {
+                            let line = line
+                                .chars()
+                                .skip(common_indentation_count)
+                                .collect::<String>();
+                            if line.starts_with(&prefix) {
+                                // Uncomment
+                                let content = line
+                                    .trim_start_matches(&prefix)
+                                    .chars()
+                                    .skip(1)
+                                    .collect::<String>();
+                                format!("{}{}", common_indentation, content)
+                            } else {
+                                // Comment
+                                format!("{}{} {}", common_indentation, prefix, line)
+                            }
+                        })
+                        .join("")
+                        .into();
+                    let select_range = {
+                        let start = edit_range.start;
+                        (start..start + replacement.len_chars()).into()
+                    };
+                    Ok(ActionGroup::new(
+                        [
+                            Action::Edit(Edit::new(self.buffer().rope(), edit_range, replacement)),
+                            Action::Select(selection.clone().set_range(select_range)),
+                        ]
+                        .to_vec(),
+                    ))
+                })
+                .into_iter()
+                .flatten()
+                .collect_vec(),
+        );
+        self.apply_edit_transaction(edit_transaction, context)
     }
 
     fn toggle_block_comment(&mut self, context: &Context) -> anyhow::Result<Dispatches> {

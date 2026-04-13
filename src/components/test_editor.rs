@@ -4821,6 +4821,50 @@ fn toggle_line_comment() -> anyhow::Result<()> {
 }
 
 #[test]
+fn toggle_line_comment_on_multiline_selections() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent(
+                "
+    fn main() {
+        bar();
+    }
+"
+                .trim_matches('\n')
+                .to_string(),
+            )),
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                SelectionMode::SyntaxNode,
+            )),
+            Editor(ToggleLineComment),
+            Expect(CurrentComponentContent(
+                "
+    // fn main() {
+    //     bar();
+    // }
+"
+                .trim_matches('\n'),
+            )),
+            Editor(ToggleLineComment),
+            Expect(CurrentComponentContent(
+                "
+    fn main() {
+        bar();
+    }
+"
+                .trim_matches('\n'),
+            )),
+        ])
+    })
+}
+
+#[test]
 fn toggle_block_comment() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([

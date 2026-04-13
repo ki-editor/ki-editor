@@ -1134,6 +1134,12 @@ impl Buffer {
         Ok(start..end)
     }
 
+    pub fn get_line_by_line_range(&self, line_range: Range<usize>) -> anyhow::Result<Vec<String>> {
+        line_range
+            .map(|line_index| Ok(self.get_line_by_line_index(line_index)?.to_string()))
+            .collect::<anyhow::Result<Vec<_>>>()
+    }
+
     pub fn push_selection_set_history(&mut self, selection_set: SelectionSet) {
         self.selection_set_history.push(selection_set.clone());
     }
