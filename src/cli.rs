@@ -258,8 +258,8 @@ use grammar::grammar::GrammarConfiguration;
 pub fn grammar_configs() -> Vec<GrammarConfiguration> {
     crate::config::AppConfig::singleton()
         .languages()
-        .iter()
-        .flat_map(|(_, language)| language.tree_sitter_grammar_config())
+        .values()
+        .flat_map(|language| language.tree_sitter_grammar_config())
         .collect()
 }
 pub fn build_grammars() {

@@ -99,6 +99,15 @@ fn secondary_selection_modes_keybindings(
             )
             .collect_vec()
     };
+
+    let diff_mode_to_dispatch = |diff_mode| match scope {
+        Scope::Global => Dispatch::GetRepoGitHunks(diff_mode),
+        Scope::Local => Dispatch::ToEditor(SetSelectionModeWithPriorChange(
+            if_current_not_found,
+            GitHunk(diff_mode),
+            prior_change,
+        )),
+    };
     let misc_keybindings = [
         Keybinding::new_undocumented(
             "e",
@@ -130,50 +139,55 @@ fn secondary_selection_modes_keybindings(
         ),
     ]
     .into_iter()
-    .chain(
-        [
-            ("g", DiffMode::UnstagedAgainstCurrentBranch),
-            ("G", DiffMode::UnstagedAgainstMainBranch),
-        ]
-        .map(|(key, diff_mode)| {
-            Keybinding::new_dynamic(
-                key,
-                format!("Hunk{}", diff_mode.display()),
-                match scope {
-                    Scope::Global => Dispatch::GetRepoGitHunks(diff_mode),
-                    Scope::Local => Dispatch::ToEditor(SetSelectionModeWithPriorChange(
-                        if_current_not_found,
-                        GitHunk(diff_mode),
-                        prior_change,
-                    )),
-                },
-            )
-        }),
-    )
-    .collect_vec();
-    let diagnostics_keybindings = [
-        ("a", "All", DiagnosticSeverityRange::All),
-        ("s", "Error", DiagnosticSeverityRange::Error),
-        ("q", "Hint", DiagnosticSeverityRange::Hint),
-        ("Q", "Info", DiagnosticSeverityRange::Information),
-        ("w", "Warn", DiagnosticSeverityRange::Warning),
-    ]
-    .into_iter()
-    .map(|(key, description, severity)| {
+    .chain([
         Keybinding::new_undocumented(
-            key,
-            description,
-            match scope {
-                Scope::Local => Dispatch::ToEditor(SetSelectionModeWithPriorChange(
-                    if_current_not_found,
-                    Diagnostic(severity),
-                    prior_change,
-                )),
-                Scope::Global => Dispatch::SetQuickfixList(QuickfixListType::Diagnostic(severity)),
-            },
-        )
-    })
+            "g",
+            "Hunk@",
+            diff_mode_to_dispatch(DiffMode::UnstagedAgainstCurrentBranch),
+        ),
+        Keybinding::new_undocumented(
+            "g",
+            "Hunk^",
+            diff_mode_to_dispatch(DiffMode::UnstagedAgainstMainBranch),
+        ),
+    ])
     .collect_vec();
+
+    let severity_to_dispatch = |severity| match scope {
+        Scope::Local => Dispatch::ToEditor(SetSelectionModeWithPriorChange(
+            if_current_not_found,
+            Diagnostic(severity),
+            prior_change,
+        )),
+        Scope::Global => Dispatch::SetQuickfixList(QuickfixListType::Diagnostic(severity)),
+    };
+    let diagnostics_keybindings = [
+        Keybinding::new_undocumented(
+            "a",
+            "All",
+            severity_to_dispatch(DiagnosticSeverityRange::All),
+        ),
+        Keybinding::new_undocumented(
+            "s",
+            "Error",
+            severity_to_dispatch(DiagnosticSeverityRange::Error),
+        ),
+        Keybinding::new_undocumented(
+            "q",
+            "Hint",
+            severity_to_dispatch(DiagnosticSeverityRange::Hint),
+        ),
+        Keybinding::new_undocumented(
+            "Q",
+            "Info",
+            severity_to_dispatch(DiagnosticSeverityRange::Information),
+        ),
+        Keybinding::new_undocumented(
+            "w",
+            "Warn",
+            severity_to_dispatch(DiagnosticSeverityRange::Warning),
+        ),
+    ];
     let lsp_keybindings = [
         Keybinding::new_undocumented("x", "Def", Dispatch::RequestDefinitions(scope)),
         Keybinding::new_undocumented("X", "Decl", Dispatch::RequestDeclarations(scope)),
