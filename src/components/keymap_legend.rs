@@ -157,14 +157,54 @@ impl KeymapLegendConfig {
 pub struct Keybinding {
     key: &'static str,
     name: Cow<'static, str>,
+    documentation: Option<&'static str>,
     event: KeyEvent,
     dispatch: Dispatch,
 }
 
+pub struct KeybindingNameAndDoc {
+    pub name: &'static str,
+    pub doc: &'static str,
+}
+
+#[macro_export]
+macro_rules! name_and_doc {
+    ($name:expr) => {
+        $crate::components::keymap_legend::KeybindingNameAndDoc {
+            name: $name,
+            doc: include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/reference/",
+                $name,
+                ".md"
+            )),
+        }
+    };
+}
+
 impl Keybinding {
-    pub fn new(key: &'static str, name: &'static str, dispatch: Dispatch) -> Keybinding {
+    pub fn new_undocumented(
+        key: &'static str,
+        name: &'static str,
+        dispatch: Dispatch,
+    ) -> Keybinding {
         Keybinding {
             key,
+            documentation: None,
+            name: name.into(),
+            dispatch,
+            event: parse_key_event(key).unwrap(),
+        }
+    }
+
+    pub fn new(
+        key: &'static str,
+        KeybindingNameAndDoc { name, doc }: KeybindingNameAndDoc,
+        dispatch: Dispatch,
+    ) -> Keybinding {
+        Keybinding {
+            key,
+            documentation: Some(doc),
             name: name.into(),
             dispatch,
             event: parse_key_event(key).unwrap(),
@@ -174,6 +214,7 @@ impl Keybinding {
     pub fn new_dynamic(key: &'static str, name: String, dispatch: Dispatch) -> Keybinding {
         Keybinding {
             key,
+            documentation: None,
             name: name.into(),
             dispatch,
             event: parse_key_event(key).unwrap(),
@@ -191,6 +232,7 @@ impl Keybinding {
         Keybinding {
             key,
             name: name.into(),
+            documentation: None,
             dispatch: Dispatch::ShowAppKeymapLegendWithReleaseKey(
                 config,
                 ReleaseKey::new(key, on_tap),
@@ -210,6 +252,7 @@ impl Keybinding {
         Keybinding {
             key,
             name: name.into(),
+            documentation: None,
             dispatch: Dispatch::ShowKeymapLegendWithReleaseKey(
                 config,
                 ReleaseKey::new(key, on_tap),
@@ -384,11 +427,11 @@ mod test_keymap_legend {
     fn test_display_positional_full() {
         let keymap = Keymap(
             [
-                Keybinding::new("a", "Aloha", Dispatch::Null),
-                Keybinding::new("b", "Bomb", Dispatch::Null),
-                Keybinding::new("F", "Foo", Dispatch::Null),
-                Keybinding::new("c", "Caterpillar", Dispatch::Null),
-                Keybinding::new("alt+g", "Gogagg", Dispatch::Null),
+                Keybinding::new_undocumented("a", "Aloha", Dispatch::Null),
+                Keybinding::new_undocumented("b", "Bomb", Dispatch::Null),
+                Keybinding::new_undocumented("F", "Foo", Dispatch::Null),
+                Keybinding::new_undocumented("c", "Caterpillar", Dispatch::Null),
+                Keybinding::new_undocumented("alt+g", "Gogagg", Dispatch::Null),
             ]
             .to_vec(),
         );
@@ -446,12 +489,12 @@ mod test_keymap_legend {
     fn test_display_positional_stacked() {
         let keymap = Keymap(
             [
-                Keybinding::new("a", "Aloha", Dispatch::Null),
-                Keybinding::new("b", "Bomb", Dispatch::Null),
-                Keybinding::new("F", "Foo", Dispatch::Null),
-                Keybinding::new("c", "Caterpillar", Dispatch::Null),
-                Keybinding::new("alt+g", "Gogagg", Dispatch::Null),
-                Keybinding::new("alt+l", "Lamp", Dispatch::Null),
+                Keybinding::new_undocumented("a", "Aloha", Dispatch::Null),
+                Keybinding::new_undocumented("b", "Bomb", Dispatch::Null),
+                Keybinding::new_undocumented("F", "Foo", Dispatch::Null),
+                Keybinding::new_undocumented("c", "Caterpillar", Dispatch::Null),
+                Keybinding::new_undocumented("alt+g", "Gogagg", Dispatch::Null),
+                Keybinding::new_undocumented("alt+l", "Lamp", Dispatch::Null),
             ]
             .to_vec(),
         );
@@ -492,12 +535,12 @@ mod test_keymap_legend {
     fn test_display_positional_too_small() {
         let keymap = Keymap(
             [
-                Keybinding::new("a", "Aloha", Dispatch::Null),
-                Keybinding::new("b", "Bomb", Dispatch::Null),
-                Keybinding::new("F", "Foo", Dispatch::Null),
-                Keybinding::new("c", "Caterpillar", Dispatch::Null),
-                Keybinding::new("alt+g", "Gogagg", Dispatch::Null),
-                Keybinding::new("alt+l", "Lamp", Dispatch::Null),
+                Keybinding::new_undocumented("a", "Aloha", Dispatch::Null),
+                Keybinding::new_undocumented("b", "Bomb", Dispatch::Null),
+                Keybinding::new_undocumented("F", "Foo", Dispatch::Null),
+                Keybinding::new_undocumented("c", "Caterpillar", Dispatch::Null),
+                Keybinding::new_undocumented("alt+g", "Gogagg", Dispatch::Null),
+                Keybinding::new_undocumented("alt+l", "Lamp", Dispatch::Null),
             ]
             .to_vec(),
         );
@@ -609,7 +652,7 @@ Release hold: Conichihuahua
                 App(ShowKeymapLegendWithReleaseKey(
                     KeymapLegendConfig {
                         title: "LEGEND_TITLE".to_string(),
-                        keymap: Keymap::new(&[Keybinding::new(
+                        keymap: Keymap::new(&[Keybinding::new_undocumented(
                             "x",
                             "",
                             Dispatch::ToEditor(Insert("hello".to_string())),
