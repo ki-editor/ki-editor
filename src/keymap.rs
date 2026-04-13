@@ -35,23 +35,15 @@ pub fn transform_keymap_legend_config() -> KeymapLegendConfig {
 }
 
 fn generate_enclosures_keymap(get_dispatch: impl Fn(EnclosureKind) -> Dispatch) -> Keymap {
-    Keymap::new(
-        &[
-            ("m", EnclosureKind::Parentheses),
-            (",", EnclosureKind::SquareBrackets),
-            (".", EnclosureKind::CurlyBraces),
-            ("/", EnclosureKind::AngularBrackets),
-            ("j", EnclosureKind::SingleQuotes),
-            ("k", EnclosureKind::DoubleQuotes),
-            ("l", EnclosureKind::Backticks),
-        ]
-        .into_iter()
-        .map(|(key, enclosure)| {
-            let (open, close) = enclosure.open_close_symbols_str();
-            Keybinding::new_dynamic(key, format!("{open} {close}"), get_dispatch(enclosure))
-        })
-        .collect_vec(),
-    )
+    Keymap::new(&[
+        Keybinding::new_undocumented("m", "( )", get_dispatch(EnclosureKind::Parentheses)),
+        Keybinding::new_undocumented(",", "[ ]", get_dispatch(EnclosureKind::SquareBrackets)),
+        Keybinding::new_undocumented(".", "{ }", get_dispatch(EnclosureKind::CurlyBraces)),
+        Keybinding::new_undocumented("/", "< >", get_dispatch(EnclosureKind::AngularBrackets)),
+        Keybinding::new_undocumented("j", "' '", get_dispatch(EnclosureKind::SingleQuotes)),
+        Keybinding::new_undocumented("k", "\" \"", get_dispatch(EnclosureKind::DoubleQuotes)),
+        Keybinding::new_undocumented("l", "` `", get_dispatch(EnclosureKind::Backticks)),
+    ])
 }
 
 pub fn multicursor_menu_keymap(editor: &Editor) -> Keymap {
