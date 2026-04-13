@@ -7,11 +7,11 @@
             { "normal": null, "alted": null, "shifted": null },
             { "normal": null, "alted": null, "shifted": null },
             { "normal": null, "alted": null, "shifted": null },
-            { "normal": "Swap |<", "alted": null, "shifted": null },
-            { "normal": "Swap <", "alted": null, "shifted": null },
+            { "normal": "|< Swap", "alted": null, "shifted": null },
+            { "normal": "< Swap", "alted": null, "shifted": null },
             { "normal": "Swap ^", "alted": null, "shifted": null },
             { "normal": "Swap >", "alted": null, "shifted": null },
-            { "normal": "Swap |>", "alted": null, "shifted": null }
+            { "normal": "Swap >|", "alted": null, "shifted": null }
         ],
         [
             { "normal": null, "alted": null, "shifted": null },
@@ -20,7 +20,7 @@
             { "normal": null, "alted": null, "shifted": null },
             { "normal": null, "alted": null, "shifted": null },
             { "normal": null, "alted": null, "shifted": null },
-            { "normal": "Swap <<", "alted": null, "shifted": null },
+            { "normal": "<< Swap", "alted": null, "shifted": null },
             { "normal": "Swap v", "alted": null, "shifted": null },
             { "normal": "Swap >>", "alted": null, "shifted": null },
             { "normal": null, "alted": null, "shifted": null }
