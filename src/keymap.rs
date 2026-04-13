@@ -1352,35 +1352,56 @@ pub fn keymap_other_movements() -> Vec<Keybinding> {
 }
 
 pub fn swap_keymap() -> Keymap {
-    Keymap::new(
-        &[
-            (Movement::Up, "i"),
-            (Movement::Down, "k"),
-            (Movement::Left, "j"),
-            (Movement::Right, "l"),
-            (Movement::Previous, "u"),
-            (Movement::Next, "o"),
-            (Movement::First, "y"),
-            (Movement::Last, "p"),
-        ]
-        .into_iter()
-        .map(|(movement, key)| {
-            Keybinding::new_dynamic(
-                key,
-                movement.format_action("Swap"),
-                Dispatch::ToEditor(DispatchEditor::SwapWithMovement(movement)),
-            )
-        })
-        .chain(Some(Keybinding::new_undocumented(
+    Keymap::new(&[
+        Keybinding::new_undocumented(
+            "i",
+            "Swap ^",
+            Dispatch::ToEditor(DispatchEditor::SwapWithMovement(Movement::Up)),
+        ),
+        Keybinding::new_undocumented(
+            "j",
+            "Swap <<",
+            Dispatch::ToEditor(DispatchEditor::SwapWithMovement(Movement::Left)),
+        ),
+        Keybinding::new_undocumented(
+            "l",
+            "Swap >>",
+            Dispatch::ToEditor(DispatchEditor::SwapWithMovement(Movement::Right)),
+        ),
+        Keybinding::new_undocumented(
+            "k",
+            "Swap v",
+            Dispatch::ToEditor(DispatchEditor::SwapWithMovement(Movement::Down)),
+        ),
+        Keybinding::new_undocumented(
+            "u",
+            "Swap <",
+            Dispatch::ToEditor(DispatchEditor::SwapWithMovement(Movement::Previous)),
+        ),
+        Keybinding::new_undocumented(
+            "y",
+            "Swap |<",
+            Dispatch::ToEditor(DispatchEditor::SwapWithMovement(Movement::First)),
+        ),
+        Keybinding::new_undocumented(
+            "p",
+            "Swap |>",
+            Dispatch::ToEditor(DispatchEditor::SwapWithMovement(Movement::Last)),
+        ),
+        Keybinding::new_undocumented(
+            "o",
+            "Swap >",
+            Dispatch::ToEditor(DispatchEditor::SwapWithMovement(Movement::Next)),
+        ),
+        Keybinding::new_undocumented(
             "m",
             "Jump Swap",
             Dispatch::ToEditor(ShowJumps {
                 use_current_selection_mode: true,
                 prior_change: Some(PriorChange::EnterSwapMode),
             }),
-        )))
-        .collect_vec(),
-    )
+        ),
+    ])
 }
 
 pub fn paste_keymap() -> Keymap {
