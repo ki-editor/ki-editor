@@ -215,9 +215,9 @@ fn secondary_selection_modes_keybindings(
                 Keybinding::new(key, description, dispatch)
             })
             .chain([
-                Keybinding::new_dynamic(
+                Keybinding::new(
                     "d",
-                    Direction::Start.format_action("Search"),
+                    "← Search",
                     Dispatch::OpenSearchPromptWithPriorChange {
                         scope: Scope::Local,
                         if_current_not_found: editor
@@ -240,9 +240,9 @@ fn secondary_selection_modes_keybindings(
                     "One",
                     Dispatch::ToEditor(FindOneChar(if_current_not_found)),
                 ),
-                Keybinding::new_dynamic(
+                Keybinding::new(
                     "r",
-                    Direction::End.format_action("Repeat Search"),
+                    "Repeat Search →",
                     Dispatch::ToEditor(DispatchEditor::RepeatSearch(
                         Scope::Local,
                         editor.cursor_direction.reverse().to_if_current_not_found(),
@@ -801,16 +801,8 @@ pub fn multicursor_momentary_layer_keymap(editor: &Editor) -> Keymap {
         })
         .chain([
             Keybinding::new("n", "Delete Curs", Dispatch::DeleteCursor),
-            Keybinding::new_dynamic(
-                "h",
-                Direction::Start.format_action("Curs"),
-                Dispatch::CycleCursor(Direction::Start),
-            ),
-            Keybinding::new_dynamic(
-                ";",
-                Direction::End.format_action("Curs"),
-                Dispatch::CycleCursor(Direction::End),
-            ),
+            Keybinding::new("h", "← Curs", Dispatch::CycleCursor(Direction::Start)),
+            Keybinding::new(";", "Curs →", Dispatch::CycleCursor(Direction::End)),
             Keybinding::new(
                 "m",
                 "Jump Add Curs",
@@ -1172,33 +1164,33 @@ pub fn insert_mode_delete_keymap() -> Keymap {
                 "Kill Line →",
                 Dispatch::ToEditor(KillLine(Direction::End)),
             ),
-            Keybinding::new_dynamic(
+            Keybinding::new(
                 "alt+j",
-                Direction::Start.format_action("Delete Word"),
+                "← Delete Word",
                 Dispatch::ToEditor(DeleteWord {
                     short: false,
                     direction: Direction::Start,
                 }),
             ),
-            Keybinding::new_dynamic(
+            Keybinding::new(
                 "alt+l",
-                Direction::End.format_action("Delete Word"),
+                "Delete Word →",
                 Dispatch::ToEditor(DeleteWord {
                     short: false,
                     direction: Direction::End,
                 }),
             ),
-            Keybinding::new_dynamic(
+            Keybinding::new(
                 "alt+u",
-                Direction::Start.format_action("Delete Subword"),
+                "← Delete Subword",
                 Dispatch::ToEditor(DeleteWord {
                     short: true,
                     direction: Direction::Start,
                 }),
             ),
-            Keybinding::new_dynamic(
+            Keybinding::new(
                 "alt+o",
-                Direction::End.format_action("Delete Subword"),
+                "Delete Subword →",
                 Dispatch::ToEditor(DeleteWord {
                     short: true,
                     direction: Direction::End,
@@ -1217,14 +1209,14 @@ pub fn keymap_actions(
     [
         Keybinding::new("I", "Join", Dispatch::ToEditor(JoinSelection)),
         Keybinding::new("K", "Break", Dispatch::ToEditor(BreakSelection)),
-        Keybinding::new_dynamic(
+        Keybinding::new(
             "Y",
-            Direction::Start.format_action("Align"),
+            "← Align",
             Dispatch::ToEditor(AlignSelections(Direction::Start)),
         ),
-        Keybinding::new_dynamic(
+        Keybinding::new(
             "P",
-            Direction::End.format_action("Align"),
+            "Align →",
             Dispatch::ToEditor(AlignSelections(Direction::End)),
         ),
         Keybinding::new("T", "Raise", Dispatch::ToEditor(Replace(Movement::Expand))),
@@ -1281,15 +1273,15 @@ pub fn keymap_actions_overridable(
             )),
         })
         .override_keymap(normal_mode_override.delete.as_ref(), none_if_no_override),
-        Keybinding::new_dynamic(
+        Keybinding::new(
             "h",
-            Direction::Start.format_action("Insert"),
+            "← Insert",
             Dispatch::ToEditor(EnterInsertMode(Direction::Start)),
         )
         .override_keymap(normal_mode_override.insert.as_ref(), none_if_no_override),
-        Keybinding::new_dynamic(
+        Keybinding::new(
             ";",
-            Direction::End.format_action("Insert"),
+            "Insert →",
             Dispatch::ToEditor(EnterInsertMode(Direction::End)),
         )
         .override_keymap(normal_mode_override.append.as_ref(), none_if_no_override),
@@ -1369,24 +1361,24 @@ pub fn swap_keymap() -> Keymap {
 pub fn paste_keymap() -> Keymap {
     Keymap::new(
         [
-            Keybinding::new_dynamic(
+            Keybinding::new(
                 "j",
-                Movement::Left.format_action("Gap Paste"),
+                "<< Gap Paste",
                 Dispatch::ToEditor(PasteWithMovement(GetGapMovement::Left)),
             ),
-            Keybinding::new_dynamic(
+            Keybinding::new(
                 "l",
-                Movement::Right.format_action("Gap Paste"),
+                "Gap Paste >>",
                 Dispatch::ToEditor(PasteWithMovement(GetGapMovement::Right)),
             ),
-            Keybinding::new_dynamic(
+            Keybinding::new(
                 "o",
-                Movement::Next.format_action("Gap Paste"),
+                "Gap Paste >",
                 Dispatch::ToEditor(PasteWithMovement(GetGapMovement::Next)),
             ),
-            Keybinding::new_dynamic(
+            Keybinding::new(
                 "u",
-                Movement::Previous.format_action("Gap Paste"),
+                "< Gap Paste",
                 Dispatch::ToEditor(PasteWithMovement(GetGapMovement::Previous)),
             ),
             Keybinding::new(
@@ -1404,24 +1396,24 @@ pub fn paste_keymap() -> Keymap {
                 "Replace w/ pattern",
                 Dispatch::ToEditor(ReplaceWithPattern),
             ),
-            Keybinding::new_dynamic(
+            Keybinding::new(
                 "y",
-                Direction::Start.format_action("Replace History"),
+                "← Replace History",
                 Dispatch::ToEditor(ReplaceWithPreviousCopiedText),
             ),
-            Keybinding::new_dynamic(
+            Keybinding::new(
                 "p",
-                Direction::End.format_action("Replace History"),
+                "Replace History →",
                 Dispatch::ToEditor(ReplaceWithNextCopiedText),
             ),
-            Keybinding::new_dynamic(
+            Keybinding::new(
                 "i",
-                Movement::Up.format_action("Paste"),
+                "Paste ^",
                 Dispatch::ToEditor(PasteVertically(Direction::Start)),
             ),
-            Keybinding::new_dynamic(
+            Keybinding::new(
                 "k",
-                Movement::Down.format_action("Paste"),
+                "Paste v",
                 Dispatch::ToEditor(PasteVertically(Direction::End)),
             ),
         ]
@@ -1432,24 +1424,24 @@ pub fn paste_keymap() -> Keymap {
 pub fn duplicate_keymap() -> Keymap {
     Keymap::new(
         [
-            Keybinding::new_dynamic(
+            Keybinding::new(
                 "j",
-                Movement::Left.format_action("Gap Dup"),
+                "<< Gap Dup",
                 Dispatch::ToEditor(DuplicateWithMovement(GetGapMovement::Left)),
             ),
-            Keybinding::new_dynamic(
+            Keybinding::new(
                 "l",
-                Movement::Right.format_action("Gap Dup"),
+                "Gap Dup >>",
                 Dispatch::ToEditor(DuplicateWithMovement(GetGapMovement::Right)),
             ),
-            Keybinding::new_dynamic(
+            Keybinding::new(
                 "o",
-                Movement::Next.format_action("Gap Dup"),
+                "Gap Dup >",
                 Dispatch::ToEditor(DuplicateWithMovement(GetGapMovement::Next)),
             ),
-            Keybinding::new_dynamic(
+            Keybinding::new(
                 "u",
-                Movement::Previous.format_action("Gap Dup"),
+                "< Gap Dup",
                 Dispatch::ToEditor(DuplicateWithMovement(GetGapMovement::Previous)),
             ),
             Keybinding::new(
@@ -1462,14 +1454,14 @@ pub fn duplicate_keymap() -> Keymap {
                 "< Dup",
                 Dispatch::ToEditor(DuplicateWithMovement(GetGapMovement::BeforeWithoutGap)),
             ),
-            Keybinding::new_dynamic(
+            Keybinding::new(
                 "i",
-                Movement::Up.format_action("Dup"),
+                "Dup ^",
                 Dispatch::ToEditor(DuplicateVertically(Direction::Start)),
             ),
-            Keybinding::new_dynamic(
+            Keybinding::new(
                 "k",
-                Movement::Down.format_action("Dup"),
+                "Dup v",
                 Dispatch::ToEditor(DuplicateVertically(Direction::End)),
             ),
         ]

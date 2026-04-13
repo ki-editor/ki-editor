@@ -1184,20 +1184,16 @@ impl Decoration {
 
 pub fn completion_item_keymap() -> Keymap {
     Keymap::new(&[
-        Keybinding::new_dynamic(
+        Keybinding::new(
             alted("l"),
-            Direction::End.format_action("Comp"),
+            "Comp →",
             Dispatch::MoveToCompletionItem(Direction::End),
         ),
-        Keybinding::new_dynamic(
+        Keybinding::new(
             alted("j"),
-            Direction::Start.format_action("Comp"),
+            "← Comp",
             Dispatch::MoveToCompletionItem(Direction::Start),
         ),
-        Keybinding::new_dynamic(
-            alted("x"),
-            "Replace Comp".to_string(),
-            Dispatch::SelectCompletionItem,
-        ),
+        Keybinding::new(alted("x"), "Replace Comp", Dispatch::SelectCompletionItem),
     ])
 }
