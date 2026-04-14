@@ -640,24 +640,6 @@ impl Movement {
             _ => *self,
         }
     }
-
-    pub(crate) fn format_action(&self, action: &str) -> String {
-        match self {
-            Movement::Left => format!("<< {action}"),
-            Movement::Right => format!("{action} >>"),
-            Movement::First => format!("|< {action}"),
-            Movement::Last => format!("{action} >|"),
-            Movement::Up => format!("{action} ^"),
-            Movement::Down => format!("{action} v"),
-            Movement::Current(_) => action.to_string(),
-            Movement::Index(_) => format!("[{action}]"),
-            Movement::Jump(_) => format!("{action} Jump"),
-            Movement::Expand => action.to_string(),
-            Movement::Previous => format!("< {action}"),
-            Movement::Next => format!("{action} >"),
-            Movement::ParentLine => "Parent Line".to_string(),
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

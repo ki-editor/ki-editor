@@ -480,22 +480,16 @@ pub fn space_context_keymap_legend_config(editor: &Editor) -> KeymapLegendConfig
             }),
             Keybinding::new_undocumented("s", "Hover", Dispatch::RequestHover),
             Keybinding::new_undocumented("f", "Rename", Dispatch::PrepareRename),
-            Keybinding::new_dynamic(
+            Keybinding::new_undocumented(
                 "g",
-                format!(
-                    "Revert Hunk{}",
-                    DiffMode::UnstagedAgainstCurrentBranch.display()
-                ),
+                "Revert Hunk@",
                 Dispatch::ToEditor(DispatchEditor::RevertHunk(
                     DiffMode::UnstagedAgainstCurrentBranch,
                 )),
             ),
-            Keybinding::new_dynamic(
+            Keybinding::new_undocumented(
                 "G",
-                format!(
-                    "Revert Hunk{}",
-                    DiffMode::UnstagedAgainstMainBranch.display()
-                ),
+                "Revert Hunk^",
                 Dispatch::ToEditor(DispatchEditor::RevertHunk(
                     DiffMode::UnstagedAgainstMainBranch,
                 )),
@@ -542,20 +536,22 @@ pub fn space_pick_keymap_legend_config() -> KeymapLegendConfig {
             .map(|(key, description, kind)| {
                 Keybinding::new_undocumented(key, description, Dispatch::OpenFilePicker(kind))
             })
-            .chain(
-                [
-                    ("g", DiffMode::UnstagedAgainstCurrentBranch),
-                    ("G", DiffMode::UnstagedAgainstMainBranch),
-                ]
-                .into_iter()
-                .map(|(key, diff_mode)| {
-                    Keybinding::new_dynamic(
-                        key,
-                        format!("Git status {}", diff_mode.display()),
-                        Dispatch::OpenFilePicker(FilePickerKind::GitStatus(diff_mode)),
-                    )
-                }),
-            )
+            .chain([
+                Keybinding::new_undocumented(
+                    "g",
+                    "Git status ^",
+                    Dispatch::OpenFilePicker(FilePickerKind::GitStatus(
+                        DiffMode::UnstagedAgainstCurrentBranch,
+                    )),
+                ),
+                Keybinding::new_undocumented(
+                    "G",
+                    "Git status @",
+                    Dispatch::OpenFilePicker(FilePickerKind::GitStatus(
+                        DiffMode::UnstagedAgainstMainBranch,
+                    )),
+                ),
+            ])
             .chain(Some(Keybinding::new_undocumented(
                 "s",
                 "Symbol (Document)",
@@ -793,23 +789,48 @@ pub fn keymap_surround() -> Keymap {
 pub fn multicursor_momentary_layer_keymap(editor: &Editor) -> Keymap {
     Keymap::new(
         &[
-            (Movement::Up, "i"),
-            (Movement::Down, "k"),
-            (Movement::Left, "j"),
-            (Movement::Right, "l"),
-            (Movement::Previous, "u"),
-            (Movement::Next, "o"),
-            (Movement::First, "y"),
-            (Movement::Last, "p"),
+            Keybinding::new_undocumented(
+                "i",
+                "Add Curs ^",
+                Dispatch::ToEditor(DispatchEditor::AddCursorWithMovement(Movement::Up)),
+            ),
+            Keybinding::new_undocumented(
+                "k",
+                "Add Curs v",
+                Dispatch::ToEditor(DispatchEditor::AddCursorWithMovement(Movement::Down)),
+            ),
+            Keybinding::new_undocumented(
+                "j",
+                "<< Add Curs",
+                Dispatch::ToEditor(DispatchEditor::AddCursorWithMovement(Movement::Left)),
+            ),
+            Keybinding::new_undocumented(
+                "l",
+                "Add Curs >>",
+                Dispatch::ToEditor(DispatchEditor::AddCursorWithMovement(Movement::Right)),
+            ),
+            Keybinding::new_undocumented(
+                "u",
+                "< Add Curs",
+                Dispatch::ToEditor(DispatchEditor::AddCursorWithMovement(Movement::Previous)),
+            ),
+            Keybinding::new_undocumented(
+                "o",
+                "Add Curs >",
+                Dispatch::ToEditor(DispatchEditor::AddCursorWithMovement(Movement::Next)),
+            ),
+            Keybinding::new_undocumented(
+                "y",
+                "|< Add Curs",
+                Dispatch::ToEditor(DispatchEditor::AddCursorWithMovement(Movement::First)),
+            ),
+            Keybinding::new_undocumented(
+                "p",
+                "Add Curs >|",
+                Dispatch::ToEditor(DispatchEditor::AddCursorWithMovement(Movement::Last)),
+            ),
         ]
         .into_iter()
-        .map(|(movement, key)| {
-            Keybinding::new_dynamic(
-                key,
-                movement.format_action("Add Curs"),
-                Dispatch::ToEditor(DispatchEditor::AddCursorWithMovement(movement)),
-            )
-        })
         .chain([
             Keybinding::new_undocumented("n", "Delete Curs", Dispatch::DeleteCursor),
             Keybinding::new_undocumented("h", "← Curs", Dispatch::CycleCursor(Direction::Start)),
@@ -877,21 +898,15 @@ pub fn keymap_overridable(
     keymap_actions_overridable(normal_mode_override, none_if_no_override)
         .into_iter()
         .chain(keymap_clipboard_related_actions_overridable(
-            false,
             normal_mode_override.clone(),
             none_if_no_override,
         ))
         .collect_vec()
 }
 
-fn keymap_clipboard_related_actions(
-    use_system_clipboard: bool,
-    normal_mode_override: NormalModeOverride,
-) -> Vec<Keybinding> {
-    let extra = if use_system_clipboard { "+ " } else { "" };
-    let format = |description: &str| format!("{extra}{description}");
+fn keymap_clipboard_related_actions(normal_mode_override: NormalModeOverride) -> Vec<Keybinding> {
     [
-        Keybinding::new_dynamic("F", format("Change X"), Dispatch::ToEditor(ChangeCut)),
+        Keybinding::new_undocumented("F", "Change X", Dispatch::ToEditor(ChangeCut)),
         Keybinding::momentary_layer(MomentaryLayer {
             key: "c",
             name: "≡ Copy".to_string(),
@@ -904,7 +919,6 @@ fn keymap_clipboard_related_actions(
     ]
     .into_iter()
     .chain(keymap_clipboard_related_actions_overridable(
-        use_system_clipboard,
         normal_mode_override,
         false,
     ))
@@ -1003,20 +1017,25 @@ pub fn keymap_primary_selection_modes(
     prior_change: Option<PriorChange>,
 ) -> Vec<Keybinding> {
     let direction = editor.cursor_direction.reverse().to_if_current_not_found();
-    primary_selection_modes()
-        .into_iter()
-        .map(|(key, selection_mode)| {
-            Keybinding::new_dynamic(
-                key,
-                selection_mode.display(),
-                Dispatch::ToEditor(SetSelectionModeWithPriorChange(
-                    direction,
-                    selection_mode,
-                    prior_change,
-                )),
-            )
-        })
-        .collect_vec()
+    let selection_mode_to_dispatch = |selection_mode| {
+        Dispatch::ToEditor(SetSelectionModeWithPriorChange(
+            direction,
+            selection_mode,
+            prior_change,
+        ))
+    };
+
+    [
+        Keybinding::new_undocumented("a", "LINE", selection_mode_to_dispatch(Line)),
+        Keybinding::new_undocumented("A", "LINE*", selection_mode_to_dispatch(LineFull)),
+        Keybinding::new_undocumented("d", "NODE", selection_mode_to_dispatch(SyntaxNode)),
+        Keybinding::new_undocumented("D", "NODE*", selection_mode_to_dispatch(SyntaxNodeFine)),
+        Keybinding::new_undocumented("s", "WORD", selection_mode_to_dispatch(Word)),
+        Keybinding::new_undocumented("S", "WORD*", selection_mode_to_dispatch(BigWord)),
+        Keybinding::new_undocumented("w", "SUBWORD", selection_mode_to_dispatch(Subword)),
+        Keybinding::new_undocumented("W", "CHAR", selection_mode_to_dispatch(Character)),
+    ]
+    .into()
 }
 
 pub fn keymap_secondary_selection_modes_init(
@@ -1037,16 +1056,13 @@ pub fn keymap_secondary_selection_modes_init(
 }
 
 fn keymap_clipboard_related_actions_overridable(
-    use_system_clipboard: bool,
     normal_mode_override: NormalModeOverride,
     none_if_no_override: bool,
 ) -> Vec<Keybinding> {
-    let extra = if use_system_clipboard { "+ " } else { "" };
-    let format = |description: &str| format!("{extra}{description}");
     [
         Keybinding::momentary_layer(MomentaryLayer {
             key: "b",
-            name: format("≡ Paste"),
+            name: "≡ Paste".to_string(),
             config: KeymapLegendConfig {
                 title: "≡ Paste".to_string(),
                 keymap: paste_keymap(),
@@ -1270,7 +1286,6 @@ pub fn keymap_actions(
         none_if_no_override,
     ))
     .chain(keymap_clipboard_related_actions(
-        false,
         normal_mode_override.clone(),
     ))
     .collect_vec()
@@ -1524,21 +1539,38 @@ pub fn duplicate_keymap() -> Keymap {
 pub fn cut_keymap() -> Keymap {
     Keymap::new(
         &[
-            (Movement::Left, "j"),
-            (Movement::Right, "l"),
-            (Movement::Previous, "u"),
-            (Movement::Next, "o"),
-            (Movement::First, "y"),
-            (Movement::Last, "p"),
+            Keybinding::new_undocumented(
+                "j",
+                "<< Cut",
+                Dispatch::ToEditor(CutWithMovement(Movement::Left)),
+            ),
+            Keybinding::new_undocumented(
+                "l",
+                "Cut >>",
+                Dispatch::ToEditor(CutWithMovement(Movement::Right)),
+            ),
+            Keybinding::new_undocumented(
+                "u",
+                "< Cut",
+                Dispatch::ToEditor(CutWithMovement(Movement::Previous)),
+            ),
+            Keybinding::new_undocumented(
+                "o",
+                "Cut >",
+                Dispatch::ToEditor(CutWithMovement(Movement::Next)),
+            ),
+            Keybinding::new_undocumented(
+                "y",
+                "|< Cut",
+                Dispatch::ToEditor(CutWithMovement(Movement::First)),
+            ),
+            Keybinding::new_undocumented(
+                "p",
+                "Cut >|",
+                Dispatch::ToEditor(CutWithMovement(Movement::Last)),
+            ),
         ]
         .into_iter()
-        .map(|(movement, key)| {
-            Keybinding::new_dynamic(
-                key,
-                movement.format_action("Cut"),
-                Dispatch::ToEditor(CutWithMovement(movement)),
-            )
-        })
         .chain(Some(Keybinding::new_undocumented(
             "b",
             "Replace Cut",
@@ -1551,30 +1583,38 @@ pub fn cut_keymap() -> Keymap {
 pub fn buffer_keymap(is_alted: bool) -> Keymap {
     Keymap::new(
         &[
-            ("j", Movement::Left),
-            ("l", Movement::Right),
-            ("y", Movement::First),
-            ("p", Movement::Last),
+            Keybinding::new_undocumented(
+                possibly_alted("j", is_alted),
+                "<< Marked File",
+                Dispatch::CycleMarkedFile(Movement::Left),
+            ),
+            Keybinding::new_undocumented(
+                possibly_alted("l", is_alted),
+                "Marked File >>",
+                Dispatch::CycleMarkedFile(Movement::Right),
+            ),
+            Keybinding::new_undocumented(
+                possibly_alted("y", is_alted),
+                "|< Marked File",
+                Dispatch::CycleMarkedFile(Movement::First),
+            ),
+            Keybinding::new_undocumented(
+                possibly_alted("p", is_alted),
+                "Marked File >|",
+                Dispatch::CycleMarkedFile(Movement::Last),
+            ),
+            Keybinding::new_undocumented(
+                possibly_alted("u", is_alted),
+                "Marked File >",
+                Dispatch::CycleMarkedFile(Movement::Previous),
+            ),
+            Keybinding::new_undocumented(
+                possibly_alted("o", is_alted),
+                "< Marked File",
+                Dispatch::CycleMarkedFile(Movement::Next),
+            ),
         ]
         .into_iter()
-        .map(|(key, movement)| {
-            Keybinding::new_dynamic(
-                possibly_alted(key, is_alted),
-                movement.format_action("Marked File"),
-                Dispatch::CycleMarkedFile(movement),
-            )
-        })
-        .chain(
-            [("u", Movement::Previous), ("o", Movement::Next)]
-                .into_iter()
-                .map(|(key, movement)| {
-                    Keybinding::new_dynamic(
-                        possibly_alted(key, is_alted),
-                        movement.format_action("Opened File"),
-                        Dispatch::CycleMarkedFile(movement),
-                    )
-                }),
-        )
         .chain(Some(Keybinding::new_undocumented(
             possibly_alted("k", is_alted),
             "Mark File",
@@ -1602,64 +1642,100 @@ pub fn buffer_keymap(is_alted: bool) -> Keymap {
 pub fn movement_history_keymap() -> Keymap {
     // movement_history_keymap should work in Insert Mode
     // as well: hold-{alt+q} {u,o,j,l}
-    Keymap::new(
-        &[
-            (Movement::Left, "j"),
-            (Movement::Right, "l"),
-            (Movement::Previous, "u"),
-            (Movement::Next, "o"),
-        ]
-        .into_iter()
-        .map(|(movement, key)| {
-            Keybinding::new_dynamic(
-                key,
-                movement.format_action("Move Hist"),
-                Dispatch::MovementHistoryNavigation(movement),
-            )
-        })
-        .collect_vec(),
-    )
+    Keymap::new(&[
+        Keybinding::new_undocumented(
+            "j",
+            "<< Move Hist",
+            Dispatch::MovementHistoryNavigation(Movement::Left),
+        ),
+        Keybinding::new_undocumented(
+            "l",
+            "Move Hist >>",
+            Dispatch::MovementHistoryNavigation(Movement::Right),
+        ),
+        Keybinding::new_undocumented(
+            "u",
+            "< Move Hist",
+            Dispatch::MovementHistoryNavigation(Movement::Previous),
+        ),
+        Keybinding::new_undocumented(
+            "o",
+            "Move Hist >",
+            Dispatch::MovementHistoryNavigation(Movement::Next),
+        ),
+    ])
 }
 
 pub fn delete_keymap() -> Keymap {
-    Keymap::new(
-        &[
-            (Movement::Left, "j"),
-            (Movement::Right, "l"),
-            (Movement::Previous, "u"),
-            (Movement::Next, "o"),
-            (Movement::First, "y"),
-            (Movement::Last, "p"),
-        ]
-        .into_iter()
-        .map(|(movement, key)| {
-            Keybinding::new_dynamic(
-                key,
-                movement.format_action("Delete"),
-                Dispatch::ToEditor(DeleteWithMovement(movement)),
-            )
-        })
-        .collect_vec(),
-    )
+    Keymap::new(&[
+        Keybinding::new_undocumented(
+            "j",
+            "<< Delete",
+            Dispatch::ToEditor(DeleteWithMovement(Movement::Left)),
+        ),
+        Keybinding::new_undocumented(
+            "l",
+            "Delete >>",
+            Dispatch::ToEditor(DeleteWithMovement(Movement::Right)),
+        ),
+        Keybinding::new_undocumented(
+            "u",
+            "< Delete",
+            Dispatch::ToEditor(DeleteWithMovement(Movement::Previous)),
+        ),
+        Keybinding::new_undocumented(
+            "o",
+            "Delete >",
+            Dispatch::ToEditor(DeleteWithMovement(Movement::Next)),
+        ),
+        Keybinding::new_undocumented(
+            "y",
+            "|< Delete",
+            Dispatch::ToEditor(DeleteWithMovement(Movement::First)),
+        ),
+        Keybinding::new_undocumented(
+            "p",
+            "Delete >|",
+            Dispatch::ToEditor(DeleteWithMovement(Movement::Last)),
+        ),
+    ])
 }
+
 pub fn insert_keymap() -> Keymap {
     Keymap::new(
         &[
-            (GetGapMovement::Left, "<< Open", "j"),
-            (GetGapMovement::Right, "Open >>", "l"),
-            (GetGapMovement::Previous, "< Open", "u"),
-            (GetGapMovement::Next, "Open >", "o"),
-            (GetGapMovement::BeforeWithoutGap, "< Insert", "h"),
-            (GetGapMovement::AfterWithoutGap, "Insert >", ";"),
+            Keybinding::new_undocumented(
+                "j",
+                "<< Open",
+                Dispatch::ToEditor(DispatchEditor::Open(GetGapMovement::Left)),
+            ),
+            Keybinding::new_undocumented(
+                "l",
+                "Open >>",
+                Dispatch::ToEditor(DispatchEditor::Open(GetGapMovement::Right)),
+            ),
+            Keybinding::new_undocumented(
+                "u",
+                "< Open",
+                Dispatch::ToEditor(DispatchEditor::Open(GetGapMovement::Previous)),
+            ),
+            Keybinding::new_undocumented(
+                "o",
+                "Open >",
+                Dispatch::ToEditor(DispatchEditor::Open(GetGapMovement::Next)),
+            ),
+            Keybinding::new_undocumented(
+                "h",
+                "< Insert",
+                Dispatch::ToEditor(DispatchEditor::Open(GetGapMovement::BeforeWithoutGap)),
+            ),
+            Keybinding::new_undocumented(
+                ";",
+                "Insert >",
+                Dispatch::ToEditor(DispatchEditor::Open(GetGapMovement::AfterWithoutGap)),
+            ),
         ]
         .into_iter()
-        .map(|(movement, description, key)| {
-            Keybinding::new_undocumented(
-                key,
-                description,
-                Dispatch::ToEditor(DispatchEditor::Open(movement)),
-            )
-        })
         .chain([
             Keybinding::new_undocumented(
                 "i",
@@ -1674,18 +1750,4 @@ pub fn insert_keymap() -> Keymap {
         ])
         .collect_vec(),
     )
-}
-
-fn primary_selection_modes() -> Vec<(&'static str, SelectionMode)> {
-    [
-        ("a", Line),
-        ("A", LineFull),
-        ("d", SyntaxNode),
-        ("D", SyntaxNodeFine),
-        ("s", Word),
-        ("S", BigWord),
-        ("w", Subword),
-        ("W", Character),
-    ]
-    .to_vec()
 }
