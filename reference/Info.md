@@ -1,0 +1,1 @@
+Enters a secondary selection mode where the items are LSP info diagnostics.

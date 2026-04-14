@@ -154,36 +154,49 @@ fn secondary_selection_modes_keybindings(
         Scope::Global => Dispatch::SetQuickfixList(QuickfixListType::Diagnostic(severity)),
     };
     let diagnostics_keybindings = [
-        Keybinding::new_undocumented(
+        Keybinding::new(
             "a",
-            "All",
+            name_and_doc!("All"),
             severity_to_dispatch(DiagnosticSeverityRange::All),
         ),
-        Keybinding::new_undocumented(
+        Keybinding::new(
             "s",
-            "Error",
+            name_and_doc!("Error"),
             severity_to_dispatch(DiagnosticSeverityRange::Error),
         ),
-        Keybinding::new_undocumented(
+        Keybinding::new(
             "q",
-            "Hint",
+            name_and_doc!("Hint"),
             severity_to_dispatch(DiagnosticSeverityRange::Hint),
         ),
-        Keybinding::new_undocumented(
+        Keybinding::new(
             "Q",
-            "Info",
+            name_and_doc!("Info"),
             severity_to_dispatch(DiagnosticSeverityRange::Information),
         ),
-        Keybinding::new_undocumented(
+        Keybinding::new(
             "w",
-            "Warn",
+            name_and_doc!("Warn"),
             severity_to_dispatch(DiagnosticSeverityRange::Warning),
         ),
     ];
+
     let lsp_keybindings = [
-        Keybinding::new_undocumented("x", "Def", Dispatch::RequestDefinitions(scope)),
-        Keybinding::new_undocumented("X", "Decl", Dispatch::RequestDeclarations(scope)),
-        Keybinding::new_undocumented("b", "Impl", Dispatch::RequestImplementations(scope)),
+        Keybinding::new(
+            "x",
+            name_and_doc!("Def"),
+            Dispatch::RequestDefinitions(scope),
+        ),
+        Keybinding::new(
+            "X",
+            name_and_doc!("Decl"),
+            Dispatch::RequestDeclarations(scope),
+        ),
+        Keybinding::new(
+            "b",
+            name_and_doc!("Impl"),
+            Dispatch::RequestImplementations(scope),
+        ),
         Keybinding::new(
             "v",
             name_and_doc!("Ref-"),
@@ -192,15 +205,19 @@ fn secondary_selection_modes_keybindings(
                 scope,
             },
         ),
-        Keybinding::new_undocumented(
+        Keybinding::new(
             "V",
-            "Ref+",
+            name_and_doc!("Ref+"),
             Dispatch::RequestReferences {
                 include_declaration: true,
                 scope,
             },
         ),
-        Keybinding::new_undocumented("c", "Type", Dispatch::RequestTypeDefinitions(scope)),
+        Keybinding::new(
+            "c",
+            name_and_doc!("Type"),
+            Dispatch::RequestTypeDefinitions(scope),
+        ),
     ];
     let scope_specific_keybindings = match scope {
         Scope::Local => [("Y", "Int", r"\d+")]
