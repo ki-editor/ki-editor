@@ -1,0 +1,1 @@
+Enters a secondary selection mode, where the items are the LSP references of the current item, excluding the declaration itself. 

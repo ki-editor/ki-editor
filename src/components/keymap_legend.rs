@@ -182,6 +182,21 @@ macro_rules! name_and_doc {
     };
 }
 
+#[macro_export]
+macro_rules! name_and_doc2 {
+    ($name:expr, $doc_name:expr) => {
+        $crate::components::keymap_legend::KeybindingNameAndDoc {
+            name: $name,
+            doc: include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/reference/",
+                $doc_name,
+                ".md"
+            )),
+        }
+    };
+}
+
 impl Keybinding {
     pub fn new_undocumented(
         key: &'static str,

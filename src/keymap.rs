@@ -12,7 +12,7 @@ use crate::{
     context::{Context, LocalSearchConfigMode, Search},
     git::DiffMode,
     list::grep::RegexConfig,
-    name_and_doc,
+    name_and_doc, name_and_doc2,
     quickfix_list::{DiagnosticSeverityRange, QuickfixListType},
     scripting::custom_keymap,
     selection::SelectionMode,
@@ -184,9 +184,9 @@ fn secondary_selection_modes_keybindings(
         Keybinding::new_undocumented("x", "Def", Dispatch::RequestDefinitions(scope)),
         Keybinding::new_undocumented("X", "Decl", Dispatch::RequestDeclarations(scope)),
         Keybinding::new_undocumented("b", "Impl", Dispatch::RequestImplementations(scope)),
-        Keybinding::new_undocumented(
+        Keybinding::new(
             "v",
-            "Ref-",
+            name_and_doc!("Ref-"),
             Dispatch::RequestReferences {
                 include_declaration: false,
                 scope,
@@ -929,7 +929,7 @@ pub fn keymap_core_movements(prior_change: Option<PriorChange>) -> Vec<Keybindin
     [
         Keybinding::new(
             "j",
-            name_and_doc!("<<"),
+            name_and_doc2!("<<", "Left"),
             Dispatch::ToEditor(MoveSelectionWithPriorChange(Movement::Left, prior_change)),
         ),
         Keybinding::new_undocumented(
