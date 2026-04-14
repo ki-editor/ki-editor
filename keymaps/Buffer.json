@@ -8,9 +8,9 @@
             { "normal": null, "alted": null, "shifted": null },
             { "normal": null, "alted": null, "shifted": null },
             { "normal": "|< Marked File", "alted": null, "shifted": null },
-            { "normal": "< Opened File", "alted": null, "shifted": null },
+            { "normal": "Marked File >", "alted": null, "shifted": null },
             { "normal": "Unmark Others", "alted": null, "shifted": null },
-            { "normal": "Opened File >", "alted": null, "shifted": null },
+            { "normal": "< Marked File", "alted": null, "shifted": null },
             { "normal": "Marked File >|", "alted": null, "shifted": null }
         ],
         [

@@ -23,9 +23,9 @@
             { "normal": "File", "alted": null, "shifted": null },
             { "normal": "Buffer", "alted": null, "shifted": null },
             {
-                "normal": "Git status @",
+                "normal": "Git status ^",
                 "alted": null,
-                "shifted": "Git status ^"
+                "shifted": "Git status @"
             },
             { "normal": null, "alted": null, "shifted": null },
             { "normal": null, "alted": null, "shifted": null },
