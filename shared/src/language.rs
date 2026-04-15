@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use grammar::grammar::GrammarConfiguration;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -226,6 +228,10 @@ impl CargoLinkedTreesitterLanguage {
 pub struct LspCommand {
     pub(crate) command: Command,
     pub(crate) initialization_options: Option<serde_json::Value>,
+    /// Environment variables to set when spawning the LSP process.
+    /// Example: `{ "CARGO_TARGET_DIR": "target/analyzer" }`
+    #[serde(default)]
+    pub(crate) environment: HashMap<String, String>,
 }
 
 impl Language {
@@ -256,6 +262,13 @@ impl Language {
 
     pub fn block_comment_affixes(&self) -> Option<(String, String)> {
         self.block_comment_affixes.clone()
+    }
+
+    pub fn lsp_environment(&self) -> HashMap<String, String> {
+        self.lsp_command
+            .as_ref()
+            .map(|c| c.environment.clone())
+            .unwrap_or_default()
     }
 }
 
@@ -378,7 +391,11 @@ impl Language {
 
     pub fn lsp_process_command(&self) -> Option<ProcessCommand> {
         self.lsp_command.as_ref().map(|command| {
-            ProcessCommand::new(&command.command.command, &command.command.arguments)
+            ProcessCommand::with_environment(
+                &command.command.command,
+                &command.command.arguments,
+                &command.environment,
+            )
         })
     }
 

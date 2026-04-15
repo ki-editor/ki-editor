@@ -310,6 +310,14 @@
                 "command": {
                     "$ref": "#/$defs/Command"
                 },
+                "environment": {
+                    "description": "Environment variables to set when spawning the LSP process.\nExample: `{ \"CARGO_TARGET_DIR\": \"target/analyzer\" }`",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    },
+                    "default": {}
+                },
                 "initialization_options": true
             },
             "additionalProperties": false,

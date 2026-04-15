@@ -307,6 +307,7 @@ fn elixir() -> Language {
         lsp_command: Some(LspCommand {
             command: Command::new("elixir-ls", &[]),
             initialization_options: None,
+            environment: HashMap::new(),
         }),
         lsp_language_id: Some(LanguageId::new("elixir")),
         tree_sitter_grammar_config: Some(GrammarConfig {
@@ -466,6 +467,7 @@ fn graphql() -> Language {
             initialization_options: Some(
                 json! {r#"{ "graphql-config.load.legacy": true }"#.to_string()},
             ),
+            environment: HashMap::new(),
         }),
         lsp_language_id: Some(LanguageId::new("graphql")),
         tree_sitter_grammar_config: Some(GrammarConfig {
@@ -513,6 +515,7 @@ fn heex() -> Language {
         lsp_command: Some(LspCommand {
             command: Command::new("elixir-ls", &[]),
             initialization_options: None,
+            environment: HashMap::new(),
         }),
         lsp_language_id: Some(LanguageId::new("heex")),
         tree_sitter_grammar_config: Some(GrammarConfig {
@@ -531,6 +534,7 @@ fn latex() -> Language {
         lsp_command: Some(LspCommand {
             command: Command::new("texlab", &[]),
             initialization_options: None,
+            environment: HashMap::new(),
         }),
         lsp_language_id: Some(LanguageId::new("latex")),
         line_comment_prefix: Some("%".to_string()),
