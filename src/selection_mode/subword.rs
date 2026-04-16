@@ -122,11 +122,11 @@ impl Subword {
                 }
             };
             start..end + 1
-        } else if current_char.is_digit(10) {
+        } else if current_char.is_ascii_digit() {
             let start = {
                 let mut index = current;
                 loop {
-                    if index > CharIndex(0) && buffer.char(index - 1)?.is_digit(10) {
+                    if index > CharIndex(0) && buffer.char(index - 1)?.is_ascii_digit() {
                         index = index - 1;
                     } else {
                         break index;
@@ -136,7 +136,7 @@ impl Subword {
             let end = {
                 let mut index = current;
                 loop {
-                    if index < last_char_index && buffer.char(index + 1)?.is_digit(10) {
+                    if index < last_char_index && buffer.char(index + 1)?.is_ascii_digit() {
                         index = index + 1;
                     } else {
                         break index;
