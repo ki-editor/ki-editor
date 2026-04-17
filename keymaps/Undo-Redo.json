@@ -1,36 +1,36 @@
 {
-    "name": "Actions",
+    "name": "Undo-Redo",
     "rows": [
         [
             { "normal": null, "alted": null, "shifted": null },
             { "normal": null, "alted": null, "shifted": null },
             { "normal": null, "alted": null, "shifted": null },
             { "normal": null, "alted": null, "shifted": null },
-            { "normal": null, "alted": null, "shifted": "Raise" },
-            { "normal": null, "alted": null, "shifted": "← Align" },
             { "normal": null, "alted": null, "shifted": null },
-            { "normal": null, "alted": null, "shifted": "Join" },
             { "normal": null, "alted": null, "shifted": null },
-            { "normal": null, "alted": null, "shifted": "Align →" }
+            { "normal": "Fine Undo", "alted": null, "shifted": null },
+            { "normal": null, "alted": null, "shifted": null },
+            { "normal": "Fine Redo", "alted": null, "shifted": null },
+            { "normal": null, "alted": null, "shifted": null }
         ],
         [
             { "normal": null, "alted": null, "shifted": null },
             { "normal": null, "alted": null, "shifted": null },
             { "normal": null, "alted": null, "shifted": null },
-            { "normal": "≡ Insert", "alted": null, "shifted": "Change X" },
-            { "normal": null, "alted": null, "shifted": "Transform" },
-            { "normal": "← Insert", "alted": null, "shifted": null },
-            { "normal": null, "alted": null, "shifted": "Dedent" },
-            { "normal": null, "alted": null, "shifted": "Break" },
-            { "normal": null, "alted": null, "shifted": "Indent" },
-            { "normal": "Insert →", "alted": null, "shifted": null }
+            { "normal": null, "alted": null, "shifted": null },
+            { "normal": null, "alted": null, "shifted": null },
+            { "normal": null, "alted": null, "shifted": null },
+            { "normal": "Coarse Undo", "alted": null, "shifted": null },
+            { "normal": null, "alted": null, "shifted": null },
+            { "normal": "Coarse Redo", "alted": null, "shifted": null },
+            { "normal": null, "alted": null, "shifted": null }
         ],
         [
-            { "normal": "Undo/Redo", "alted": null, "shifted": null },
-            { "normal": "≡ Cut", "alted": null, "shifted": null },
-            { "normal": "≡ Copy", "alted": null, "shifted": null },
-            { "normal": "≡ Delete", "alted": null, "shifted": null },
-            { "normal": "≡ Paste", "alted": null, "shifted": null },
+            { "normal": null, "alted": null, "shifted": null },
+            { "normal": null, "alted": null, "shifted": null },
+            { "normal": null, "alted": null, "shifted": null },
+            { "normal": null, "alted": null, "shifted": null },
+            { "normal": null, "alted": null, "shifted": null },
             { "normal": null, "alted": null, "shifted": null },
             { "normal": null, "alted": null, "shifted": null },
             { "normal": null, "alted": null, "shifted": null },
