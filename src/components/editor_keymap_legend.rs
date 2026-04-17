@@ -28,7 +28,7 @@ impl Editor {
             Ok(dispatches)
         } else if let (KeyCode::Char(c), KeyEventKind::Press) = (event.code, event.kind) {
             Ok(Dispatches::one(Dispatch::ToEditor(
-                super::editor::DispatchEditor::Insert(c.to_string()),
+                super::editor::DispatchEditor::InsertChar(c),
             )))
         } else {
             Ok(Dispatches::default())

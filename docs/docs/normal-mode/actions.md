@@ -154,13 +154,6 @@ File unmarking has two behaviors:
 
 To move between marked files, see [≡ Buffer](../momentary-layers/buffer-mol).
 
-### `Undo`/`Redo`
-
-Notes:
-
-1. Undo/redo works for multi-cursors as well
-2. The current implementation is naive, it undoes/redoes character-by-character, instead of chunk-by-chunk, so it can be mildly frustrating
-
 ### Save
 
 Keybinding: `enter`

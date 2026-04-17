@@ -1317,10 +1317,26 @@ pub fn keymap_actions(
 
 pub fn undo_redo_keymap() -> Keymap {
     Keymap::new(&[
-        Keybinding::new_undocumented("j", "<< Undo", Dispatch::ToEditor(CoarseUndo)),
-        Keybinding::new_undocumented("l", "Redo >>", Dispatch::ToEditor(CoarseRedo)),
-        Keybinding::new_undocumented("u", "< Undo", Dispatch::ToEditor(FineUndo)),
-        Keybinding::new_undocumented("o", "Redo >", Dispatch::ToEditor(FineRedo)),
+        Keybinding::new(
+            "j",
+            name_and_doc!("Coarse Undo"),
+            Dispatch::ToEditor(CoarseUndo),
+        ),
+        Keybinding::new(
+            "l",
+            name_and_doc!("Coarse Redo"),
+            Dispatch::ToEditor(CoarseRedo),
+        ),
+        Keybinding::new(
+            "u",
+            name_and_doc!("Fine Undo"),
+            Dispatch::ToEditor(FineUndo),
+        ),
+        Keybinding::new(
+            "o",
+            name_and_doc!("Fine Redo"),
+            Dispatch::ToEditor(FineRedo),
+        ),
     ])
 }
 

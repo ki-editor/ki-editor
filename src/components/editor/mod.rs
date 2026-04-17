@@ -121,7 +121,7 @@ impl Component for Editor {
         content: String,
         context: &Context,
     ) -> anyhow::Result<Dispatches> {
-        self.insert(&content, context)
+        self.insert(&content, context, EditHistoryKind::Coarse)
     }
 
     fn get_cursor_position(&self) -> anyhow::Result<Position> {
@@ -256,7 +256,7 @@ impl Component for Editor {
             EnableSelectionExtension => self.enable_selection_extension(),
             DisableSelectionExtension => self.disable_selection_extension(),
             EnterInsertMode(direction) => return self.enter_insert_mode(direction, context),
-            Insert(string) => return self.insert(&string, context),
+            Insert(string) => return self.insert(&string, context, EditHistoryKind::Coarse),
             #[cfg(test)]
             MatchLiteral(literal) => return self.match_literal(&literal, context),
             EnterNormalMode => self.enter_normal_mode(context)?,
@@ -440,6 +440,7 @@ impl Component for Editor {
             DuplicateVertically(direction) => return self.duplicate_vertically(context, direction),
             CoarseUndo => return self.coarse_undo(context),
             CoarseRedo => return self.coarse_redo(context),
+            InsertChar(c) => return self.insert_char(context, c),
         }
         Ok(Dispatches::default())
     }
@@ -1571,17 +1572,14 @@ impl Editor {
             .chain(dispatches))
     }
 
-    pub fn apply_edit_transaction(
+    fn apply_edit_transaction_with_edit_history_kind(
         &mut self,
         edit_transaction: EditTransaction,
         context: &Context,
+        kind: EditHistoryKind,
     ) -> anyhow::Result<Dispatches> {
         // Apply the transaction to the buffer
         let last_visible_line = self.last_visible_line(context);
-        let kind = match self.mode {
-            Mode::Insert => EditHistoryKind::Fine,
-            _ => EditHistoryKind::Coarse,
-        };
         let (new_selection_set, dispatches, diff_edits) =
             self.buffer.borrow_mut().apply_edit_transaction(
                 &edit_transaction,
@@ -1627,6 +1625,18 @@ impl Editor {
             .chain(dispatches);
 
         Ok(dispatches)
+    }
+
+    pub fn apply_edit_transaction(
+        &mut self,
+        edit_transaction: EditTransaction,
+        context: &Context,
+    ) -> anyhow::Result<Dispatches> {
+        self.apply_edit_transaction_with_edit_history_kind(
+            edit_transaction,
+            context,
+            EditHistoryKind::Coarse,
+        )
     }
 
     pub fn get_document_did_change_dispatch(&mut self) -> Dispatches {
@@ -1819,7 +1829,12 @@ impl Editor {
         Ok(self.copy().chain(self.change(context)?))
     }
 
-    pub fn insert(&mut self, s: &str, context: &Context) -> anyhow::Result<Dispatches> {
+    pub fn insert(
+        &mut self,
+        s: &str,
+        context: &Context,
+        kind: EditHistoryKind,
+    ) -> anyhow::Result<Dispatches> {
         let edit_transaction = EditTransaction::from_action_groups(
             self.selection_set
                 .map(|selection| {
@@ -1847,7 +1862,7 @@ impl Editor {
                 .into(),
         );
 
-        self.apply_edit_transaction(edit_transaction, context)
+        self.apply_edit_transaction_with_edit_history_kind(edit_transaction, context, kind)
     }
 
     pub fn get_request_params(&self) -> Option<RequestParams> {
@@ -4748,6 +4763,10 @@ impl Editor {
             |accumulated_dispatches, dispatches| Ok(accumulated_dispatches?.chain(dispatches)),
         )
     }
+
+    fn insert_char(&mut self, context: &Context, c: char) -> Result<Dispatches, anyhow::Error> {
+        self.insert(&c.to_string(), context, EditHistoryKind::Fine)
+    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
@@ -4807,6 +4826,7 @@ pub enum DispatchEditor {
     SelectLine(Movement),
     Backspace,
     Insert(String),
+    InsertChar(char),
     MoveToLineStart,
     MoveToLineEnd,
     #[cfg(test)]

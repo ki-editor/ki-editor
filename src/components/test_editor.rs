@@ -1,5 +1,5 @@
 use crate::app::{Dimension, LocalSearchConfigUpdate, Scope};
-use crate::buffer::BufferOwner;
+use crate::buffer::{BufferOwner, EditHistoryKind};
 use crate::char_index_range::CharIndexRange;
 use crate::clipboard::Texts;
 use crate::components::editor::Reveal;
@@ -2378,7 +2378,7 @@ fn tree_sitter_should_not_reparse_in_insert_mode() -> anyhow::Result<()> {
     let _ = editor.enter_insert_mode(Direction::End, &context)?;
 
     let current_range = editor.buffer().tree().unwrap().root_node().range();
-    let _ = editor.insert("fn hello() {}", &context)?;
+    let _ = editor.insert("fn hello() {}", &context, EditHistoryKind::Coarse)?;
     // Modifying the content in insert mode should not cause the tree to be reparsed
     let new_range = editor.buffer().tree().unwrap().root_node().range();
     assert_eq!(current_range, new_range);
@@ -6317,7 +6317,7 @@ fn add_cursor_to_all_selections_should_not_toggle_reveal_if_all_cursors_are_with
 }
 
 #[test]
-fn coarse_undo_redo() -> anyhow::Result<()> {
+fn coarse_undo_redo_with_basic_text_insertion() -> anyhow::Result<()> {
     execute_test(move |s| {
         Box::new([
             App(OpenFile {
@@ -6337,6 +6337,28 @@ fn coarse_undo_redo() -> anyhow::Result<()> {
             Editor(DispatchEditor::FineUndo),
             Expect(CurrentComponentContent("hello world ab")),
             Editor(DispatchEditor::FineRedo),
+            Expect(CurrentComponentContent("hello world abc")),
+        ])
+    })
+}
+#[test]
+/// Only typing should be treated as Fine actions
+fn coarse_undo_redo_with_insert_mode_actions() -> anyhow::Result<()> {
+    execute_test(move |s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("hello world ".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, LineFull)),
+            Editor(EnterInsertMode(Direction::End)),
+            App(HandleKeyEvents(keys!("a b c").to_vec())),
+            Expect(CurrentComponentContent("hello world abc")),
+            Editor(DeleteWordBackward { short: false }),
+            Expect(CurrentComponentContent("hello world")),
+            Editor(CoarseUndo),
             Expect(CurrentComponentContent("hello world abc")),
         ])
     })
