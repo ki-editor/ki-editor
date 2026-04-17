@@ -1174,7 +1174,11 @@ impl Buffer {
         Ok(start..end)
     }
 
-    pub fn redo(&mut self, last_visible_line: usize) -> Result<UndoRedoReturn, anyhow::Error> {
+    pub fn redo(
+        &mut self,
+        last_visible_line: usize,
+        reparse_tree: bool,
+    ) -> Result<UndoRedoReturn, anyhow::Error> {
         if let Some(history) = self.redo_stack.pop() {
             let diff_edits = history.unnormalized_edits.clone();
 
@@ -1191,7 +1195,9 @@ impl Buffer {
                     Ok(dispatches.chain(self.apply_edit(&edit, last_visible_line)?))
                 },
             )?;
-            self.reparse_tree()?;
+            if reparse_tree {
+                self.reparse_tree()?;
+            }
 
             let selection_set = history.old_state.selection_set.clone();
             let kind = history.kind.clone();
@@ -1204,7 +1210,11 @@ impl Buffer {
         }
     }
 
-    pub fn undo(&mut self, last_visible_line: usize) -> Result<UndoRedoReturn, anyhow::Error> {
+    pub fn undo(
+        &mut self,
+        last_visible_line: usize,
+        reparse_tree: bool,
+    ) -> Result<UndoRedoReturn, anyhow::Error> {
         if let Some(history) = self.undo_stack.pop() {
             let diff_edits = history.unnormalized_edits.clone();
 
@@ -1221,7 +1231,9 @@ impl Buffer {
                     Ok(dispatches.chain(self.apply_edit(&edit, last_visible_line)?))
                 },
             )?;
-            self.reparse_tree()?;
+            if reparse_tree {
+                self.reparse_tree()?;
+            }
 
             let selection_set = history.old_state.selection_set.clone();
             let kind = history.kind.clone();
@@ -1487,7 +1499,7 @@ fn f(
                 assert_ne!(buffer.rope.to_string(), original);
 
                 // Undo the buffer
-                buffer.undo(0).unwrap();
+                buffer.undo(0, true).unwrap();
 
                 let content = buffer.rope.to_string();
 

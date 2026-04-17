@@ -273,12 +273,7 @@ impl Component for Editor {
                     .chain(self.get_document_did_change_dispatch())
                     .chain(dispatches));
             }
-            FineUndo => {
-                return Ok(self
-                    .undo(context)?
-                    .map(|(dispatches, _)| dispatches)
-                    .unwrap_or_default())
-            }
+            FineUndo => return self.fine_undo(context),
             KillLine(direction) => return self.kill_line(direction, context),
             #[cfg(test)]
             Reset => self.reset(),
@@ -290,12 +285,7 @@ impl Component for Editor {
             MoveToLineStart => return self.move_to_line_start(context),
             MoveToLineEnd => return self.move_to_line_end(),
             SelectLine(movement) => return self.select_line(movement, context),
-            FineRedo => {
-                return Ok(self
-                    .redo(context)?
-                    .map(|(dispatches, _)| dispatches)
-                    .unwrap_or_default())
-            }
+            FineRedo => return self.fine_redo(context),
             DeleteOne => return self.delete_one(context, false),
             CutOne => return self.delete_one(context, true),
             Change => return self.change(context),
@@ -1655,15 +1645,17 @@ impl Editor {
     pub fn undo(
         &mut self,
         context: &Context,
+        reparse_tree: bool,
     ) -> anyhow::Result<Option<(Dispatches, EditHistoryKind)>> {
-        self.undo_or_redo(true, context)
+        self.undo_or_redo(true, context, reparse_tree)
     }
 
     pub fn redo(
         &mut self,
         context: &Context,
+        reparse_tree: bool,
     ) -> anyhow::Result<Option<(Dispatches, EditHistoryKind)>> {
-        self.undo_or_redo(false, context)
+        self.undo_or_redo(false, context, reparse_tree)
     }
 
     pub fn swap_cursor(&mut self, context: &Context) {
@@ -3222,14 +3214,15 @@ impl Editor {
         &mut self,
         undo: bool,
         context: &Context,
+        reparse_tree: bool,
     ) -> Result<Option<(Dispatches, EditHistoryKind)>, anyhow::Error> {
         let last_visible_line = self.last_visible_line(context);
 
         // Call the appropriate buffer method to perform undo/redo
         let result = if undo {
-            self.buffer_mut().undo(last_visible_line)
+            self.buffer_mut().undo(last_visible_line, reparse_tree)
         } else {
-            self.buffer_mut().redo(last_visible_line)
+            self.buffer_mut().redo(last_visible_line, reparse_tree)
         }?;
 
         // Create dispatches for document changes and buffer edit transaction
@@ -4705,7 +4698,7 @@ impl Editor {
     }
 
     fn coarse_undo(&mut self, context: &Context) -> Result<Dispatches, anyhow::Error> {
-        let Some((first_dispatches, edit_history_kind)) = self.undo(context)? else {
+        let Some((first_dispatches, edit_history_kind)) = self.undo(context, false)? else {
             return Ok(Dispatches::default());
         };
 
@@ -4714,7 +4707,7 @@ impl Editor {
         }
 
         // If edit_history_kind is Fine: keep undoing until the next edit history on the stack is a Coarse one
-        std::iter::from_fn(|| {
+        let dispatches = std::iter::from_fn(|| {
             let last_edit_history_is_fine = self
                 .buffer()
                 .peek_undo_stack()
@@ -4722,20 +4715,22 @@ impl Editor {
                 .unwrap_or(false);
 
             if last_edit_history_is_fine {
-                self.undo(context).ok().flatten()
+                self.undo(context, false).ok().flatten()
             } else {
                 None
             }
         })
         .map(|(dispatches, _)| dispatches)
-        .fold(
-            Ok(first_dispatches),
-            |accumulated_dispatches, dispatches| Ok(accumulated_dispatches?.chain(dispatches)),
-        )
+        .fold(first_dispatches, |accumulated_dispatches, dispatches| {
+            accumulated_dispatches.chain(dispatches)
+        });
+
+        self.buffer_mut().reparse_tree()?;
+        Ok(dispatches)
     }
 
     fn coarse_redo(&mut self, context: &Context) -> Result<Dispatches, anyhow::Error> {
-        let Some((first_dispatches, edit_history_kind)) = self.redo(context)? else {
+        let Some((first_dispatches, edit_history_kind)) = self.redo(context, false)? else {
             return Ok(Dispatches::default());
         };
 
@@ -4744,7 +4739,7 @@ impl Editor {
         }
 
         // If edit_history_kind is Fine: keep redoing until the next edit history on the stack is a Coarse one
-        std::iter::from_fn(|| {
+        let dispatches = std::iter::from_fn(|| {
             let last_edit_history_is_fine = self
                 .buffer()
                 .peek_redo_stack()
@@ -4752,20 +4747,35 @@ impl Editor {
                 .unwrap_or(false);
 
             if last_edit_history_is_fine {
-                self.redo(context).ok().flatten()
+                self.redo(context, false).ok().flatten()
             } else {
                 None
             }
         })
         .map(|(dispatches, _)| dispatches)
-        .fold(
-            Ok(first_dispatches),
-            |accumulated_dispatches, dispatches| Ok(accumulated_dispatches?.chain(dispatches)),
-        )
+        .fold(first_dispatches, |accumulated_dispatches, dispatches| {
+            accumulated_dispatches.chain(dispatches)
+        });
+        self.buffer_mut().reparse_tree()?;
+        Ok(dispatches)
     }
 
     fn insert_char(&mut self, context: &Context, c: char) -> Result<Dispatches, anyhow::Error> {
         self.insert(&c.to_string(), context, EditHistoryKind::Fine)
+    }
+
+    fn fine_undo(&mut self, context: &Context) -> Result<Dispatches, anyhow::Error> {
+        Ok(self
+            .undo(context, true)?
+            .map(|(dispatches, _)| dispatches)
+            .unwrap_or_default())
+    }
+
+    fn fine_redo(&mut self, context: &Context) -> Result<Dispatches, anyhow::Error> {
+        Ok(self
+            .redo(context, true)?
+            .map(|(dispatches, _)| dispatches)
+            .unwrap_or_default())
     }
 }
 
