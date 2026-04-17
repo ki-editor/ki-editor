@@ -550,6 +550,7 @@ impl Buffer {
         reparse_tree: bool,
         update_undo_stack: bool,
         last_visible_line: usize,
+        kind: EditHistoryKind,
     ) -> Result<(SelectionSet, Dispatches, Vec<ki_protocol_types::DiffEdit>), anyhow::Error> {
         let new_selection_set = edit_transaction
             .non_empty_selections()
@@ -593,6 +594,7 @@ impl Buffer {
                 inverted_unnormalized_edits: applied_vscode_edits.clone(),
                 old_state: current_buffer_state,
                 new_state: new_buffer_state,
+                kind,
             });
 
             // Clear the redo stack when a new edit is made
@@ -848,6 +850,7 @@ impl Buffer {
             true,
             true,
             last_visible_line,
+            EditHistoryKind::Coarse,
         )?;
         Ok(dispatches)
     }
@@ -1093,6 +1096,7 @@ impl Buffer {
             true,
             true,
             last_visible_line,
+            EditHistoryKind::Coarse,
         )?;
         let after = self.content();
         let modified = before != after;
@@ -1190,10 +1194,11 @@ impl Buffer {
             self.reparse_tree()?;
 
             let selection_set = history.old_state.selection_set.clone();
+            let kind = history.kind.clone();
             self.undo_stack.push(history.inverse());
 
             // Return both the selection set and the applied transaction
-            Ok(Some((dispatches, selection_set, diff_edits, edits)))
+            Ok(Some((dispatches, selection_set, diff_edits, edits, kind)))
         } else {
             Ok(None)
         }
@@ -1219,13 +1224,22 @@ impl Buffer {
             self.reparse_tree()?;
 
             let selection_set = history.old_state.selection_set.clone();
+            let kind = history.kind.clone();
             self.redo_stack.push(history.inverse());
 
             // Return both the selection set and the applied transaction
-            Ok(Some((dispatches, selection_set, diff_edits, edits)))
+            Ok(Some((dispatches, selection_set, diff_edits, edits, kind)))
         } else {
             Ok(None)
         }
+    }
+
+    pub fn peek_undo_stack(&self) -> Option<&EditHistory> {
+        self.undo_stack.last()
+    }
+
+    pub fn peek_redo_stack(&self) -> Option<&EditHistory> {
+        self.redo_stack.last()
     }
 
     pub fn line_to_char_range(&self, line: usize) -> anyhow::Result<CharIndexRange> {
@@ -1553,7 +1567,7 @@ fn f(
     }
 
     mod patch_edit {
-        use crate::edit::EditTransaction;
+        use crate::{buffer::EditHistoryKind, edit::EditTransaction};
 
         use super::*;
         fn run_test(old: &str, new: &str) -> anyhow::Result<EditTransaction> {
@@ -1568,6 +1582,7 @@ fn f(
                 true,
                 true,
                 0,
+                EditHistoryKind::Coarse,
             )?;
 
             // Expect the content to be the same as the 2nd files
@@ -1688,12 +1703,12 @@ impl std::fmt::Display for BufferState {
     }
 }
 
-// New structure to store edits and their inverses for undo/redo
 #[derive(Clone)]
 pub struct EditHistory {
     pub edit_transaction: EditTransaction,
     pub old_state: BufferState,
     pub new_state: BufferState,
+    pub kind: EditHistoryKind,
 
     /// This is required by VS Code because VS Code will offset the edits on their end.
     unnormalized_edits: Vec<ki_protocol_types::DiffEdit>,
@@ -1703,6 +1718,13 @@ pub struct EditHistory {
     /// without relying on the pre-edited buffer.
     inverted_unnormalized_edits: Vec<ki_protocol_types::DiffEdit>,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum EditHistoryKind {
+    Coarse,
+    Fine,
+}
+
 impl EditHistory {
     fn inverse(self) -> EditHistory {
         EditHistory {
@@ -1711,6 +1733,7 @@ impl EditHistory {
             new_state: self.old_state,
             inverted_unnormalized_edits: self.unnormalized_edits,
             unnormalized_edits: self.inverted_unnormalized_edits,
+            kind: self.kind,
         }
     }
 }
@@ -1720,4 +1743,5 @@ type UndoRedoReturn = Option<(
     SelectionSet,
     Vec<ki_protocol_types::DiffEdit>,
     Vec<Edit>,
+    EditHistoryKind,
 )>;

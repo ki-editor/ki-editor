@@ -1284,8 +1284,15 @@ pub fn keymap_actions(
             Dispatch::ToEditor(AlignSelections(Direction::End)),
         ),
         Keybinding::new_undocumented("T", "Raise", Dispatch::ToEditor(Replace(Movement::Expand))),
-        Keybinding::new_undocumented("z", "Undo", Dispatch::ToEditor(Undo)),
-        Keybinding::new_undocumented("Z", "Redo", Dispatch::ToEditor(Redo)),
+        Keybinding::momentary_layer(MomentaryLayer {
+            key: "z",
+            name: "Undo/Redo".to_string(),
+            config: KeymapLegendConfig {
+                title: "Undo/Redo".to_string(),
+                keymap: undo_redo_keymap(),
+            },
+            on_tap: None,
+        }),
         Keybinding::new_undocumented("enter", "Save", Dispatch::SaveFile),
         Keybinding::new_undocumented("shift+enter", "Save As", Dispatch::OpenSaveAsPrompt),
         Keybinding::new_undocumented(
@@ -1306,6 +1313,15 @@ pub fn keymap_actions(
         normal_mode_override.clone(),
     ))
     .collect_vec()
+}
+
+pub fn undo_redo_keymap() -> Keymap {
+    Keymap::new(&[
+        Keybinding::new_undocumented("j", "<< Undo", Dispatch::ToEditor(CoarseUndo)),
+        Keybinding::new_undocumented("l", "Redo >>", Dispatch::ToEditor(CoarseRedo)),
+        Keybinding::new_undocumented("u", "< Undo", Dispatch::ToEditor(FineUndo)),
+        Keybinding::new_undocumented("o", "Redo >", Dispatch::ToEditor(FineRedo)),
+    ])
 }
 
 pub fn keymap_actions_overridable(

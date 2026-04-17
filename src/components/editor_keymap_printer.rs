@@ -21,7 +21,7 @@ use crate::{
         multicursor_menu_keymap, multicursor_momentary_layer_keymap, normal_mode_keymap,
         paste_keymap, secondary_selection_modes_keymap_legend_config,
         space_context_keymap_legend_config, space_editor_keymap_legend_config,
-        space_keymap_legend_config, space_pick_keymap_legend_config, swap_keymap,
+        space_keymap_legend_config, space_pick_keymap_legend_config, swap_keymap, undo_redo_keymap,
     },
 };
 use comfy_table::{
@@ -380,6 +380,7 @@ impl KeymapPrintSections {
             KeymapPrintSection::from_keymap("Cut".to_string(), &cut_keymap()),
             KeymapPrintSection::from_keymap("Swap".to_string(), &swap_keymap()),
             KeymapPrintSection::from_keymap("Delete".to_string(), &delete_keymap()),
+            KeymapPrintSection::from_keymap("Undo/Redo".to_string(), &undo_redo_keymap()),
             KeymapPrintSection::from_keymap("Insert".to_string(), &insert_keymap()),
             KeymapPrintSection::from_keymap("Buffer".to_string(), &buffer_keymap(false)),
             KeymapPrintSection::from_keymap(

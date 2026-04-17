@@ -823,12 +823,12 @@ fn multi_raise() -> anyhow::Result<()> {
             Expect(CurrentSelectedTexts(&["a", "b"])),
             Editor(Replace(Expand)),
             Expect(CurrentComponentContent("fn f(){ let x = a; let y = b; }")),
-            Editor(Undo),
+            Editor(FineUndo),
             Expect(CurrentComponentContent(
                 "fn f(){ let x = S(a); let y = S(b); }",
             )),
             Expect(CurrentSelectedTexts(&["a", "b"])),
-            Editor(Redo),
+            Editor(FineRedo),
             Expect(CurrentComponentContent("fn f(){ let x = a; let y = b; }")),
             Expect(CurrentSelectedTexts(&["a", "b"])),
         ])
@@ -2228,12 +2228,12 @@ fn update_mark_position_with_undo_and_redo() -> anyhow::Result<()> {
             // Expect mark position is updated (still selects "spim")
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Mark)),
             Expect(CurrentSelectedTexts(&["spim"])),
-            Editor(Undo),
+            Editor(FineUndo),
             Expect(CurrentComponentContent("foo bar spim")),
             // Expect mark position is updated (still selects "spim")
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Mark)),
             Expect(CurrentSelectedTexts(&["spim"])),
-            Editor(Redo),
+            Editor(FineRedo),
             // Expect mark position is updated (still selects "spim")
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Mark)),
             Expect(CurrentSelectedTexts(&["spim"])),
@@ -2576,7 +2576,7 @@ fn undo_till_empty_should_not_crash_in_insert_mode() -> anyhow::Result<()> {
             Editor(EnterInsertMode(Direction::Start)),
             Editor(PasteWithMovement(GetGapMovement::Right)),
             Expect(CurrentComponentContent("foo")),
-            Editor(Undo),
+            Editor(FineUndo),
             Expect(CurrentComponentContent("")),
         ])
     })
@@ -4273,18 +4273,18 @@ fn undo_redo_1() -> anyhow::Result<()> {
             Editor(DeleteWithMovement(Right)),
             Editor(DeleteWithMovement(Right)),
             Expect(CurrentComponentContent("")),
-            Editor(Undo),
+            Editor(FineUndo),
             Expect(CurrentComponentContent("bar")),
             Expect(CurrentSelectedTexts(&["bar"])),
-            Editor(Undo),
+            Editor(FineUndo),
             Expect(CurrentComponentContent("foo bar")),
             Expect(CurrentSelectedTexts(&["foo"])),
-            Editor(Redo),
+            Editor(FineRedo),
             Expect(CurrentComponentContent("bar")),
             Expect(CurrentSelectedTexts(&["bar"])),
-            Editor(Redo),
+            Editor(FineRedo),
             Expect(CurrentComponentContent("")),
-            Editor(Undo),
+            Editor(FineUndo),
             Expect(CurrentComponentContent("bar")),
             Expect(CurrentSelectedTexts(&["bar"])),
         ])
@@ -4306,15 +4306,15 @@ fn undo_redo_should_clear_redo_stack_upon_new_edits() -> anyhow::Result<()> {
             Editor(DeleteWithMovement(Right)),
             Editor(DeleteWithMovement(Left)),
             Expect(CurrentComponentContent("")),
-            Editor(Undo),
+            Editor(FineUndo),
             Expect(CurrentComponentContent("bar")),
             Expect(CurrentSelectedTexts(&["bar"])),
             Editor(Copy),
             Editor(PasteWithMovement(GetGapMovement::Right)),
             Expect(CurrentComponentContent("barbar")),
-            Editor(Undo),
-            Editor(Redo),
-            Editor(Redo),
+            Editor(FineUndo),
+            Editor(FineRedo),
+            Editor(FineRedo),
             Expect(CurrentComponentContent("barbar")),
         ])
     })
@@ -4335,8 +4335,8 @@ fn undo_redo_multicursor() -> anyhow::Result<()> {
             Editor(EnterInsertMode(Direction::End)),
             App(HandleKeyEvents(keys!("x").to_vec())),
             Expect(CurrentComponentContent("foox barx")),
-            Editor(Undo),
-            Editor(Redo),
+            Editor(FineUndo),
+            Editor(FineRedo),
             Editor(EnterNormalMode),
             Expect(CurrentSelectedTexts(&["x", "x"])),
             Editor(SetSelectionMode(IfCurrentNotFound::LookBackward, Word)),
@@ -6314,4 +6314,30 @@ fn add_cursor_to_all_selections_should_not_toggle_reveal_if_all_cursors_are_with
     run_test(5, None)?;
     run_test(4, Some(Reveal::Cursor))?;
     Ok(())
+}
+
+#[test]
+fn coarse_undo_redo() -> anyhow::Result<()> {
+    execute_test(move |s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("hello world ".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, LineFull)),
+            Editor(EnterInsertMode(Direction::End)),
+            App(HandleKeyEvents(keys!("a b c").to_vec())),
+            Expect(CurrentComponentContent("hello world abc")),
+            Editor(DispatchEditor::CoarseUndo),
+            Expect(CurrentComponentContent("hello world ")),
+            Editor(DispatchEditor::CoarseRedo),
+            Expect(CurrentComponentContent("hello world abc")),
+            Editor(DispatchEditor::FineUndo),
+            Expect(CurrentComponentContent("hello world ab")),
+            Editor(DispatchEditor::FineRedo),
+            Expect(CurrentComponentContent("hello world abc")),
+        ])
+    })
 }

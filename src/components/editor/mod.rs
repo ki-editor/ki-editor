@@ -8,7 +8,7 @@ use super::{
 };
 use crate::{
     app::{Dimension, Dispatch, Dispatches, RequestParams, Scope, ToHostApp},
-    buffer::{Buffer, Line},
+    buffer::{Buffer, EditHistoryKind, Line},
     char_index_range::{range_intersects, CharIndexRange},
     clipboard::Texts,
     components::component::{Component, RenderTitleMode},
@@ -273,9 +273,11 @@ impl Component for Editor {
                     .chain(self.get_document_did_change_dispatch())
                     .chain(dispatches));
             }
-            Undo => {
-                let dispatches = self.undo(context);
-                return dispatches;
+            FineUndo => {
+                return Ok(self
+                    .undo(context)?
+                    .map(|(dispatches, _)| dispatches)
+                    .unwrap_or_default())
             }
             KillLine(direction) => return self.kill_line(direction, context),
             #[cfg(test)]
@@ -288,7 +290,12 @@ impl Component for Editor {
             MoveToLineStart => return self.move_to_line_start(context),
             MoveToLineEnd => return self.move_to_line_end(),
             SelectLine(movement) => return self.select_line(movement, context),
-            Redo => return self.redo(context),
+            FineRedo => {
+                return Ok(self
+                    .redo(context)?
+                    .map(|(dispatches, _)| dispatches)
+                    .unwrap_or_default())
+            }
             DeleteOne => return self.delete_one(context, false),
             CutOne => return self.delete_one(context, true),
             Change => return self.change(context),
@@ -431,6 +438,8 @@ impl Component for Editor {
                 return self.duplicate_with_movement(context, get_gap_movement)
             }
             DuplicateVertically(direction) => return self.duplicate_vertically(context, direction),
+            CoarseUndo => return self.coarse_undo(context),
+            CoarseRedo => return self.coarse_redo(context),
         }
         Ok(Dispatches::default())
     }
@@ -1569,6 +1578,10 @@ impl Editor {
     ) -> anyhow::Result<Dispatches> {
         // Apply the transaction to the buffer
         let last_visible_line = self.last_visible_line(context);
+        let kind = match self.mode {
+            Mode::Insert => EditHistoryKind::Fine,
+            _ => EditHistoryKind::Coarse,
+        };
         let (new_selection_set, dispatches, diff_edits) =
             self.buffer.borrow_mut().apply_edit_transaction(
                 &edit_transaction,
@@ -1576,6 +1589,7 @@ impl Editor {
                 self.mode != Mode::Insert,
                 true,
                 last_visible_line,
+                kind,
             )?;
 
         // Create a BufferEditTransaction dispatch for external integrations
@@ -1628,11 +1642,17 @@ impl Editor {
         .into()
     }
 
-    pub fn undo(&mut self, context: &Context) -> anyhow::Result<Dispatches> {
+    pub fn undo(
+        &mut self,
+        context: &Context,
+    ) -> anyhow::Result<Option<(Dispatches, EditHistoryKind)>> {
         self.undo_or_redo(true, context)
     }
 
-    pub fn redo(&mut self, context: &Context) -> anyhow::Result<Dispatches> {
+    pub fn redo(
+        &mut self,
+        context: &Context,
+    ) -> anyhow::Result<Option<(Dispatches, EditHistoryKind)>> {
         self.undo_or_redo(false, context)
     }
 
@@ -2123,6 +2143,7 @@ impl Editor {
                         true,
                         true,
                         self.last_visible_line(context),
+                        EditHistoryKind::Coarse,
                     )
                     .is_err()
                 {
@@ -3182,7 +3203,11 @@ impl Editor {
         });
     }
 
-    fn undo_or_redo(&mut self, undo: bool, context: &Context) -> Result<Dispatches, anyhow::Error> {
+    fn undo_or_redo(
+        &mut self,
+        undo: bool,
+        context: &Context,
+    ) -> Result<Option<(Dispatches, EditHistoryKind)>, anyhow::Error> {
         let last_visible_line = self.last_visible_line(context);
 
         // Call the appropriate buffer method to perform undo/redo
@@ -3193,8 +3218,8 @@ impl Editor {
         }?;
 
         // Create dispatches for document changes and buffer edit transaction
-        let dispatches = match result {
-            Some((dispatches, selection_set, diff_edits, edits)) => {
+        let (dispatches, edit_history_kind) = match result {
+            Some((dispatches, selection_set, diff_edits, edits, edit_history_kind)) => {
                 // Update selection set
                 let update_selection_dispatches =
                     self.update_selection_set(selection_set, false, context);
@@ -3211,11 +3236,13 @@ impl Editor {
                     Dispatches::default()
                 };
 
-                dispatches
+                let dispatches = dispatches
                     .chain(update_selection_dispatches)
-                    .chain(dispatch)
+                    .chain(dispatch);
+
+                (dispatches, edit_history_kind)
             }
-            Option::None => Dispatches::default(),
+            Option::None => return Ok(None),
         };
 
         // Add document did change dispatch
@@ -3226,7 +3253,7 @@ impl Editor {
 
         log::trace!("undo_or_redo: Returning dispatches");
 
-        Ok(dispatches)
+        Ok(Some((dispatches, edit_history_kind)))
     }
 
     #[cfg(test)]
@@ -4661,6 +4688,66 @@ impl Editor {
     pub fn cycle_primary_selection_to_last(&mut self) {
         self.selection_set.cycle_primary_selection_to_last();
     }
+
+    fn coarse_undo(&mut self, context: &Context) -> Result<Dispatches, anyhow::Error> {
+        let Some((first_dispatches, edit_history_kind)) = self.undo(context)? else {
+            return Ok(Dispatches::default());
+        };
+
+        if edit_history_kind == EditHistoryKind::Coarse {
+            return Ok(first_dispatches);
+        }
+
+        // If edit_history_kind is Fine: keep undoing until the next edit history on the stack is a Coarse one
+        std::iter::from_fn(|| {
+            let last_edit_history_is_fine = self
+                .buffer()
+                .peek_undo_stack()
+                .map(|history| history.kind == EditHistoryKind::Fine)
+                .unwrap_or(false);
+
+            if last_edit_history_is_fine {
+                self.undo(context).ok().flatten()
+            } else {
+                None
+            }
+        })
+        .map(|(dispatches, _)| dispatches)
+        .fold(
+            Ok(first_dispatches),
+            |accumulated_dispatches, dispatches| Ok(accumulated_dispatches?.chain(dispatches)),
+        )
+    }
+
+    fn coarse_redo(&mut self, context: &Context) -> Result<Dispatches, anyhow::Error> {
+        let Some((first_dispatches, edit_history_kind)) = self.redo(context)? else {
+            return Ok(Dispatches::default());
+        };
+
+        if edit_history_kind == EditHistoryKind::Coarse {
+            return Ok(first_dispatches);
+        }
+
+        // If edit_history_kind is Fine: keep redoing until the next edit history on the stack is a Coarse one
+        std::iter::from_fn(|| {
+            let last_edit_history_is_fine = self
+                .buffer()
+                .peek_redo_stack()
+                .map(|history| history.kind == EditHistoryKind::Fine)
+                .unwrap_or(false);
+
+            if last_edit_history_is_fine {
+                self.redo(context).ok().flatten()
+            } else {
+                None
+            }
+        })
+        .map(|(dispatches, _)| dispatches)
+        .fold(
+            Ok(first_dispatches),
+            |accumulated_dispatches, dispatches| Ok(accumulated_dispatches?.chain(dispatches)),
+        )
+    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
@@ -4739,8 +4826,8 @@ pub enum DispatchEditor {
     ReplacePattern {
         config: crate::context::LocalSearchConfig,
     },
-    Undo,
-    Redo,
+    FineUndo,
+    FineRedo,
     KillLine(Direction),
     #[cfg(test)]
     Reset,
@@ -4825,6 +4912,8 @@ pub enum DispatchEditor {
     PasteVertically(Direction),
     DuplicateWithMovement(GetGapMovement),
     DuplicateVertically(Direction),
+    CoarseUndo,
+    CoarseRedo,
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]

@@ -234,7 +234,7 @@ fn saving_a_file_should_not_refreshes_the_buffer_due_to_incoming_file_modified_n
             Editor(Save),
             WaitForDuration(Duration::from_secs(2)),
             WaitForAppMessage(regex!("FileWatcherEvent.*ContentModified")),
-            Editor(Undo),
+            Editor(FineUndo),
             Expect(CurrentSelectedTexts(&["mod"])),
         ])
     })
