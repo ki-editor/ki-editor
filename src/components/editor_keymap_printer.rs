@@ -380,7 +380,7 @@ impl KeymapPrintSections {
             KeymapPrintSection::from_keymap("Cut".to_string(), &cut_keymap()),
             KeymapPrintSection::from_keymap("Swap".to_string(), &swap_keymap()),
             KeymapPrintSection::from_keymap("Delete".to_string(), &delete_keymap()),
-            KeymapPrintSection::from_keymap("Undo/Redo".to_string(), &undo_redo_keymap()),
+            KeymapPrintSection::from_keymap("Undo-Redo".to_string(), &undo_redo_keymap()),
             KeymapPrintSection::from_keymap("Insert".to_string(), &insert_keymap()),
             KeymapPrintSection::from_keymap("Buffer".to_string(), &buffer_keymap(false)),
             KeymapPrintSection::from_keymap(
