@@ -63,6 +63,9 @@ pub struct Buffer {
 
     /// Timestamp of the file when we last read/wrote it
     last_synced_time: Option<SystemTime>,
+
+    #[cfg(test)]
+    pub tree_reparsed_count: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -111,6 +114,8 @@ impl Buffer {
             batch_id: SyntaxHighlightRequestBatchId::default(),
             cached_hunks: None,
             last_synced_time: None,
+            #[cfg(test)]
+            tree_reparsed_count: 0,
         }
     }
 
@@ -722,6 +727,11 @@ impl Buffer {
         if let Some(tree) = self.tree.as_ref() {
             parser.set_language(&tree.language())?;
             self.tree = parser.parse(self.rope.to_string(), None);
+
+            #[cfg(test)]
+            {
+                self.tree_reparsed_count += 1;
+            }
         }
         Ok(())
     }

@@ -217,6 +217,7 @@ pub enum ExpectKind {
     GlobalMultiCursorActivated(bool),
     AppCursorPosition(Position),
     CurrentMarks(Vec<(AbsolutePath, Vec<CharIndexRange>)>),
+    CurrentTreeReparsedCount(usize),
 }
 fn log<T: std::fmt::Debug>(s: T) {
     if !is_ci::cached() {
@@ -699,6 +700,14 @@ impl ExpectKind {
                     .filter(|(_, marks)| !marks.is_empty())
                     .sorted_by_key(|(path, _)| path.clone())
                     .collect_vec(),
+            ),
+            CurrentTreeReparsedCount(expected) => contextualize(
+                expected,
+                &app.get_current_editor()
+                    .borrow()
+                    .editor()
+                    .buffer()
+                    .tree_reparsed_count,
             ),
         })
     }

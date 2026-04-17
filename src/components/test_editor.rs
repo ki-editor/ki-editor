@@ -6341,6 +6341,7 @@ fn coarse_undo_redo_with_basic_text_insertion() -> anyhow::Result<()> {
         ])
     })
 }
+
 #[test]
 /// Only typing should be treated as Fine actions
 fn coarse_undo_redo_with_insert_mode_actions() -> anyhow::Result<()> {
@@ -6360,6 +6361,33 @@ fn coarse_undo_redo_with_insert_mode_actions() -> anyhow::Result<()> {
             Expect(CurrentComponentContent("hello world")),
             Editor(CoarseUndo),
             Expect(CurrentComponentContent("hello world abc")),
+        ])
+    })
+}
+
+#[test]
+fn each_coarse_undo_or_redo_should_only_reparse_the_syntax_tree_once() -> anyhow::Result<()> {
+    execute_test(move |s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("hello world ".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, LineFull)),
+            Editor(EnterInsertMode(Direction::End)),
+            App(HandleKeyEvents(keys!("a b c").to_vec())),
+            Expect(CurrentComponentContent("hello world abc")),
+            Expect(ExpectKind::CurrentTreeReparsedCount(0)),
+            Editor(CoarseUndo),
+            Expect(CurrentComponentContent("hello world ")),
+            // Expect the reparsed count is only incremented by one
+            Expect(ExpectKind::CurrentTreeReparsedCount(1)),
+            Editor(CoarseRedo),
+            Expect(CurrentComponentContent("hello world abc")),
+            // Expect the reparsed count is only incremented by one
+            Expect(ExpectKind::CurrentTreeReparsedCount(2)),
         ])
     })
 }
