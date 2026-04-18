@@ -1291,7 +1291,7 @@ pub fn keymap_actions(
                 title: "Undo/Redo".to_string(),
                 keymap: undo_redo_keymap(),
             },
-            on_tap: None,
+            on_tap: Some(OnTap::new("Coarse Undo", Dispatch::ToEditor(CoarseUndo))),
         }),
         Keybinding::new_undocumented("enter", "Save", Dispatch::SaveFile),
         Keybinding::new_undocumented("shift+enter", "Save As", Dispatch::OpenSaveAsPrompt),
@@ -1303,6 +1303,11 @@ pub fn keymap_actions(
         Keybinding::new_undocumented("L", "Indent", Dispatch::ToEditor(Indent)),
         Keybinding::new_undocumented("J", "Dedent", Dispatch::ToEditor(Dedent)),
         Keybinding::new_undocumented("*", "Keyboard", Dispatch::OpenKeyboardLayoutPrompt),
+        Keybinding::new(
+            "Z",
+            name_and_doc!("Coarse Redo"),
+            Dispatch::ToEditor(CoarseRedo),
+        ),
     ]
     .into_iter()
     .chain(keymap_actions_overridable(
