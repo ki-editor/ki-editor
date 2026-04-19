@@ -6417,3 +6417,29 @@ fn syntax_tree_should_be_reparsed_after_coarse_undo_or_redo() -> anyhow::Result<
         ])
     })
 }
+
+#[test]
+fn coarse_undo_redo_should_not_group_insertions_iniated_in_different_insert_session(
+) -> anyhow::Result<()> {
+    execute_test(move |s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("foo ".to_string())),
+            Editor(EnterInsertMode(Direction::End)),
+            // Insert Session one
+            App(HandleKeyEvents(keys!("a b c esc").to_vec())),
+            Editor(EnterInsertMode(Direction::End)),
+            // Insert Session two
+            App(HandleKeyEvents(keys!("space d e f esc").to_vec())),
+            Expect(CurrentComponentContent("foo abc def")),
+            Editor(CoarseUndo),
+            Expect(CurrentComponentContent("foo abc")),
+            Editor(CoarseRedo),
+            Expect(CurrentComponentContent("foo abc def")),
+        ])
+    })
+}

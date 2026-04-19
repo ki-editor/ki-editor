@@ -8,7 +8,7 @@ use super::{
 };
 use crate::{
     app::{Dimension, Dispatch, Dispatches, RequestParams, Scope, ToHostApp},
-    buffer::{Buffer, EditHistoryKind, Line},
+    buffer::{Buffer, EditHistoryKind, InsertSession, Line},
     char_index_range::{range_intersects, CharIndexRange},
     clipboard::Texts,
     components::component::{Component, RenderTitleMode},
@@ -471,6 +471,8 @@ pub struct Editor {
     visible_line_ranges: Option<Vec<Range<usize>>>,
 
     pub incremental_search_matches: Option<Vec<Range<usize>>>,
+
+    insert_session: InsertSession,
 }
 
 #[derive(Clone, Default)]
@@ -731,6 +733,7 @@ impl Editor {
             reveal: None,
             visible_line_ranges: None,
             incremental_search_matches: None,
+            insert_session: InsertSession::next(),
         }
     }
 
@@ -777,6 +780,7 @@ impl Editor {
             reveal: None,
             visible_line_ranges: None,
             incremental_search_matches: None,
+            insert_session: InsertSession::next(),
         }
     }
 
@@ -2028,6 +2032,7 @@ impl Editor {
         );
         self.mode = Mode::Insert;
         self.cursor_direction = Direction::Start;
+        self.insert_session.increment();
         Ok(Dispatches::one(Dispatch::RequestSignatureHelp))
     }
 
@@ -4712,7 +4717,7 @@ impl Editor {
             let last_edit_history_is_fine = self
                 .buffer()
                 .peek_undo_stack()
-                .map(|history| history.kind == EditHistoryKind::Fine)
+                .map(|history| history.kind == edit_history_kind)
                 .unwrap_or(false);
 
             if last_edit_history_is_fine {
@@ -4745,7 +4750,7 @@ impl Editor {
             let last_edit_history_is_fine = self
                 .buffer()
                 .peek_redo_stack()
-                .map(|history| history.kind == EditHistoryKind::Fine)
+                .map(|history| history.kind == edit_history_kind)
                 .unwrap_or(false);
 
             if last_edit_history_is_fine {
@@ -4763,7 +4768,13 @@ impl Editor {
     }
 
     fn insert_char(&mut self, context: &Context, c: char) -> Result<Dispatches, anyhow::Error> {
-        self.insert(&c.to_string(), context, EditHistoryKind::Fine)
+        self.insert(
+            &c.to_string(),
+            context,
+            EditHistoryKind::Fine {
+                insert_session: self.insert_session.clone(),
+            },
+        )
     }
 
     fn fine_undo(&mut self, context: &Context) -> Result<Dispatches, anyhow::Error> {

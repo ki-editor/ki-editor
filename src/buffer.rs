@@ -26,6 +26,7 @@ use ropey::Rope;
 use shared::process_command::SpawnCommandError;
 use shared::{absolute_path::AbsolutePath, language::Language};
 use std::ops::Range;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::SystemTime;
 use tree_sitter::{Node, Parser, Tree};
 #[cfg(test)]
@@ -1744,7 +1745,21 @@ pub struct EditHistory {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EditHistoryKind {
     Coarse,
-    Fine,
+    Fine { insert_session: InsertSession },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InsertSession(usize);
+
+impl InsertSession {
+    pub fn next() -> Self {
+        static COUNTER: AtomicUsize = AtomicUsize::new(0);
+        InsertSession(COUNTER.fetch_add(1, Ordering::Relaxed))
+    }
+
+    pub fn increment(&mut self) {
+        self.0 = self.0 + 1
+    }
 }
 
 impl EditHistory {
