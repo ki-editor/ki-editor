@@ -248,10 +248,7 @@ impl Keybinding {
             key,
             name: name.into(),
             documentation: None,
-            dispatch: Dispatch::ShowAppKeymapLegendWithReleaseKey(
-                config,
-                ReleaseKey::new(key, on_tap),
-            ),
+            dispatch: Dispatch::ShowAppMomentaryLayer(config, ReleaseKey::new(key, on_tap)),
             event: parse_key_event(key).unwrap(),
         }
     }
@@ -268,10 +265,7 @@ impl Keybinding {
             key,
             name: name.into(),
             documentation: None,
-            dispatch: Dispatch::ShowKeymapLegendWithReleaseKey(
-                config,
-                ReleaseKey::new(key, on_tap),
-            ),
+            dispatch: Dispatch::ShowMomentaryLayer(config, ReleaseKey::new(key, on_tap)),
             event: parse_key_event(key).unwrap(),
         }
     }
@@ -427,7 +421,7 @@ mod test_keymap_legend {
                     owner: BufferOwner::User,
                     focus: true,
                 }),
-                App(ShowKeymapLegend(KeymapLegendConfig {
+                App(ShowMenu(KeymapLegendConfig {
                     title: "".to_string(),
                     keymap: Keymap::new(&[]),
                 })),
@@ -627,7 +621,7 @@ Release hold: Conichihuahua
                     focus: true,
                 }),
                 Editor(SetContent("".to_string())),
-                App(ShowKeymapLegendWithReleaseKey(
+                App(ShowMomentaryLayer(
                     KeymapLegendConfig {
                         title: "LEGEND_TITLE".to_string(),
                         keymap: Keymap::new(&[]),
@@ -664,7 +658,7 @@ Release hold: Conichihuahua
                     focus: true,
                 }),
                 Editor(SetContent("".to_string())),
-                App(ShowKeymapLegendWithReleaseKey(
+                App(ShowMomentaryLayer(
                     KeymapLegendConfig {
                         title: "LEGEND_TITLE".to_string(),
                         keymap: Keymap::new(&[Keybinding::new_undocumented(

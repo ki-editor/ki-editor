@@ -3947,7 +3947,7 @@ impl Editor {
     }
 
     fn show_help(&self) -> Result<Dispatches, anyhow::Error> {
-        Ok(Dispatches::one(Dispatch::ShowKeymapLegend(
+        Ok(Dispatches::one(Dispatch::ShowMenu(
             self.get_current_keymap_legend_config(),
         )))
     }
@@ -4469,9 +4469,9 @@ impl Editor {
 
     fn press_space(&self, context: &Context) -> Dispatches {
         match self.mode {
-            Mode::Normal => Dispatches::one(Dispatch::ShowKeymapLegend(
-                space_keymap_legend_config(self, context),
-            )),
+            Mode::Normal => Dispatches::one(Dispatch::ShowMenu(space_keymap_legend_config(
+                self, context,
+            ))),
             Mode::Insert => Dispatches::default(),
             _ => Dispatches::one(Dispatch::ToEditor(EnterNormalMode)),
         }

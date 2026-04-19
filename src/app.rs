@@ -11,7 +11,7 @@ use crate::{
         editor_keymap::KeyboardLayout,
         editor_keymap_printer::KeymapDisplayOption,
         file_explorer::FileExplorer,
-        keymap_legend::{Keybinding, Keymap, KeymapLegendConfig, ReleaseKey},
+        keymap_legend::{Keybinding, Keymap, KeymapLegendConfig, OnTap, ReleaseKey},
         prompt::{
             Prompt, PromptConfig, PromptHistoryKey, PromptItems, PromptItemsBackgroundTask,
             PromptOnChangeDispatch, PromptOnEnter,
@@ -59,7 +59,7 @@ use crate::{
     ui_tree::{ComponentKind, KindedComponent},
 };
 use anyhow::ensure;
-use event::{event::Event, KeyEventKind};
+use event::{event::Event, KeyEvent, KeyEventKind};
 use indexmap::IndexMap;
 use itertools::{Either, Itertools};
 use my_proc_macros::NamedVariant;
@@ -1014,7 +1014,7 @@ impl<T: Frontend> App<T> {
             Dispatch::ApplyWorkspaceEdit(workspace_edit) => {
                 self.apply_workspace_edit(workspace_edit)?;
             }
-            Dispatch::ShowKeymapLegend(keymap_legend_config) => {
+            Dispatch::ShowMenu(keymap_legend_config) => {
                 // HACK: Close keymap legend if present
                 // Only used for multicursor menu atm
                 self.layout.close_keymap_legend();
@@ -1025,7 +1025,7 @@ impl<T: Frontend> App<T> {
                 )))?;
                 self.show_keymap_legend(false, keymap_legend_config, None);
             }
-            Dispatch::ShowKeymapLegendWithReleaseKey(keymap_legend_config, release_key) => {
+            Dispatch::ShowMomentaryLayer(keymap_legend_config, release_key) => {
                 self.handle_dispatch_editor(DispatchEditor::SetKeymapOverride(Some(
                     EditorKeymapOverride::MomentaryLayer(MomentaryLayerKeymapOverride::new(
                         KeymapOverrideScope::Editor,
@@ -1035,7 +1035,26 @@ impl<T: Frontend> App<T> {
                 )))?;
                 self.show_keymap_legend(false, keymap_legend_config, Some(release_key));
             }
-            Dispatch::ShowAppKeymapLegendWithReleaseKey(keymap_legend_config, release_key) => {
+            Dispatch::ShowJointMomentaryLayer(
+                swap_key,
+                active_config,
+                release_key,
+                inactive_config,
+                inactive_tap,
+            ) => {
+                self.handle_dispatch_editor(DispatchEditor::SetKeymapOverride(Some(
+                    EditorKeymapOverride::MomentaryLayer(MomentaryLayerKeymapOverride::new_joint(
+                        KeymapOverrideScope::Editor,
+                        release_key.clone(),
+                        swap_key,
+                        active_config.clone(),
+                        inactive_config,
+                        inactive_tap,
+                    )),
+                )))?;
+                self.show_keymap_legend(false, active_config, Some(release_key));
+            }
+            Dispatch::ShowAppMomentaryLayer(keymap_legend_config, release_key) => {
                 self.keymap_override = Some(AppKeymapOverride::MomentaryLayer(
                     MomentaryLayerKeymapOverride::new(
                         KeymapOverrideScope::App,
@@ -1044,6 +1063,11 @@ impl<T: Frontend> App<T> {
                     ),
                 ));
                 self.show_keymap_legend(true, keymap_legend_config, Some(release_key));
+            }
+            Dispatch::ShowKeymapLegend(on_root, keymap_legend_config, release_key) => {
+                // HACK: used for joint MoLs
+                self.layout.close_keymap_legend();
+                self.show_keymap_legend(on_root, keymap_legend_config, release_key);
             }
             #[cfg(test)]
             Dispatch::Custom(_) => unreachable!(),
@@ -2072,7 +2096,7 @@ impl<T: Frontend> App<T> {
     }
 
     fn open_yes_no_prompt(&mut self, prompt: YesNoPrompt) -> anyhow::Result<()> {
-        self.handle_dispatch(Dispatch::ShowKeymapLegend(KeymapLegendConfig {
+        self.handle_dispatch(Dispatch::ShowMenu(KeymapLegendConfig {
             title: prompt.title.to_string(),
             keymap: Keymap::new(&[
                 Keybinding::new_undocumented("d", "Yes", *prompt.yes),
@@ -3792,10 +3816,17 @@ pub enum Dispatch {
     SetQuickfixList(QuickfixListType),
     GotoQuickfixListItem(Movement),
     ApplyWorkspaceEdit(WorkspaceEdit),
-    ShowKeymapLegend(KeymapLegendConfig),
-    /// This means showing a momentary layer.
-    ShowKeymapLegendWithReleaseKey(KeymapLegendConfig, ReleaseKey),
-    ShowAppKeymapLegendWithReleaseKey(KeymapLegendConfig, ReleaseKey),
+    ShowMenu(KeymapLegendConfig),
+    ShowMomentaryLayer(KeymapLegendConfig, ReleaseKey),
+    ShowJointMomentaryLayer(
+        KeyEvent,
+        KeymapLegendConfig,
+        ReleaseKey,
+        KeymapLegendConfig,
+        Option<OnTap>,
+    ),
+    ShowAppMomentaryLayer(KeymapLegendConfig, ReleaseKey),
+    ShowKeymapLegend(bool, KeymapLegendConfig, Option<ReleaseKey>),
     RemainOnlyCurrentComponent,
 
     #[cfg(test)]
