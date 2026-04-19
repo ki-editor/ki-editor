@@ -4698,7 +4698,7 @@ impl Editor {
     }
 
     fn coarse_undo(&mut self, context: &Context) -> Result<Dispatches, anyhow::Error> {
-        let Some((first_dispatches, edit_history_kind)) = self.undo(context, false)? else {
+        let Some((first_dispatches, edit_history_kind)) = self.undo(context, true)? else {
             return Ok(Dispatches::default());
         };
 
@@ -4730,7 +4730,7 @@ impl Editor {
     }
 
     fn coarse_redo(&mut self, context: &Context) -> Result<Dispatches, anyhow::Error> {
-        let Some((first_dispatches, edit_history_kind)) = self.redo(context, false)? else {
+        let Some((first_dispatches, edit_history_kind)) = self.redo(context, true)? else {
             return Ok(Dispatches::default());
         };
 

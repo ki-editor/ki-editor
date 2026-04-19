@@ -6391,3 +6391,29 @@ fn each_coarse_undo_or_redo_should_only_reparse_the_syntax_tree_once() -> anyhow
         ])
     })
 }
+
+#[test]
+fn syntax_tree_should_be_reparsed_after_coarse_undo_or_redo() -> anyhow::Result<()> {
+    execute_test(move |s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("fn main() {}\nhello world".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
+            Editor(Indent),
+            Expect(CurrentComponentContent("    fn main() {}\nhello world")),
+            Editor(CoarseUndo),
+            Expect(CurrentComponentContent("fn main() {}\nhello world")),
+            Expect(CurrentSelectedTexts(&["fn main() {}"])),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
+            Expect(CurrentSelectedTexts(&["fn main() {}"])),
+            Editor(CoarseRedo),
+            Expect(CurrentComponentContent("    fn main() {}\nhello world")),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
+            Expect(CurrentSelectedTexts(&["fn main() {}"])),
+        ])
+    })
+}
