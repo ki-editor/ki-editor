@@ -27,7 +27,7 @@
         ],
         [
             { "normal": "Undo/Redo", "alted": null, "shifted": "Coarse Redo" },
-            { "normal": "≡ Cut", "alted": null, "shifted": null },
+            { "normal": null, "alted": null, "shifted": null },
             { "normal": "≡ Copy", "alted": null, "shifted": null },
             { "normal": "≡ Delete", "alted": null, "shifted": null },
             { "normal": "≡ Paste", "alted": null, "shifted": null },

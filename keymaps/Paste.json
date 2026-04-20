@@ -31,7 +31,7 @@
             { "normal": null, "alted": null, "shifted": null },
             { "normal": null, "alted": null, "shifted": null },
             { "normal": null, "alted": null, "shifted": null },
-            { "normal": null, "alted": null, "shifted": null },
+            { "normal": "Replace Cut", "alted": null, "shifted": null },
             { "normal": "Replace w/ pattern", "alted": null, "shifted": null },
             { "normal": null, "alted": null, "shifted": null },
             { "normal": null, "alted": null, "shifted": null },
