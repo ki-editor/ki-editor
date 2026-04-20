@@ -567,7 +567,7 @@ foo(bar, 1 + 1, spam)
                     .trim(),
                     file_extension: "js",
                     prepare_events: &[],
-                    events: keys!("d c release-c l v space b release-v k l k l b release-b"),
+                    events: keys!("d c release-c l b n release-b k l k l b release-b"),
                     expectations: Box::new([CurrentComponentContent( "foo(bar, 1 + 1, spam)\nfoo(bar, 3 * 10, spam)", )]),
                     terminal_height: None,
                     similar_vim_combos: &["p"],
@@ -2564,9 +2564,7 @@ And drop on the deck and flop like a fish?
             content: "<Parent><Child><Grandson/></Child></Parent>".trim(),
             file_extension: "js",
             prepare_events: keys!("d k l k l"),
-            events: keys!(
-                "c release-c i v space b release-v i v space b release-v k l b release-b"
-            ),
+            events: keys!("c release-c i b n release-b i b n release-b k l b release-b"),
             expectations: Box::new([CurrentComponentContent(
                 "<Child><Parent><Grandson/></Parent></Child>",
             )]),
@@ -2579,9 +2577,7 @@ And drop on the deck and flop like a fish?
             content: "foo(bar(yo, spam(baz), baz), bomb)".trim(),
             file_extension: "js",
             prepare_events: keys!("n d s enter d"),
-            events: keys!(
-                "c release-c i i v space b release-v i i v space b release-v k l k l b release-b"
-            ),
+            events: keys!("c release-c i i b n release-b i i b n release-b k l k l b release-b"),
             expectations: Box::new([CurrentComponentContent(
                 "bar(yo, foo(spam(baz), bomb), baz)",
             )]),

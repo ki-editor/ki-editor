@@ -1539,6 +1539,11 @@ pub fn paste_keymap() -> Keymap {
                 "Paste v",
                 Dispatch::ToEditor(PasteVertically(Direction::End)),
             ),
+            Keybinding::new_undocumented(
+                "n",
+                "Replace Cut",
+                Dispatch::ToEditor(ReplaceWithCopiedText { cut: true }),
+            ),
         ]
         .as_ref(),
     )
@@ -1593,47 +1598,38 @@ pub fn duplicate_keymap() -> Keymap {
 }
 
 pub fn cut_keymap() -> Keymap {
-    Keymap::new(
-        &[
-            Keybinding::new_undocumented(
-                "j",
-                "<< Cut",
-                Dispatch::ToEditor(CutWithMovement(Movement::Left)),
-            ),
-            Keybinding::new_undocumented(
-                "l",
-                "Cut >>",
-                Dispatch::ToEditor(CutWithMovement(Movement::Right)),
-            ),
-            Keybinding::new_undocumented(
-                "u",
-                "< Cut",
-                Dispatch::ToEditor(CutWithMovement(Movement::Previous)),
-            ),
-            Keybinding::new_undocumented(
-                "o",
-                "Cut >",
-                Dispatch::ToEditor(CutWithMovement(Movement::Next)),
-            ),
-            Keybinding::new_undocumented(
-                "y",
-                "|< Cut",
-                Dispatch::ToEditor(CutWithMovement(Movement::First)),
-            ),
-            Keybinding::new_undocumented(
-                "p",
-                "Cut >|",
-                Dispatch::ToEditor(CutWithMovement(Movement::Last)),
-            ),
-        ]
-        .into_iter()
-        .chain(Some(Keybinding::new_undocumented(
-            "b",
-            "Replace Cut",
-            Dispatch::ToEditor(ReplaceWithCopiedText { cut: true }),
-        )))
-        .collect_vec(),
-    )
+    Keymap::new(&[
+        Keybinding::new_undocumented(
+            "j",
+            "<< Cut",
+            Dispatch::ToEditor(CutWithMovement(Movement::Left)),
+        ),
+        Keybinding::new_undocumented(
+            "l",
+            "Cut >>",
+            Dispatch::ToEditor(CutWithMovement(Movement::Right)),
+        ),
+        Keybinding::new_undocumented(
+            "u",
+            "< Cut",
+            Dispatch::ToEditor(CutWithMovement(Movement::Previous)),
+        ),
+        Keybinding::new_undocumented(
+            "o",
+            "Cut >",
+            Dispatch::ToEditor(CutWithMovement(Movement::Next)),
+        ),
+        Keybinding::new_undocumented(
+            "y",
+            "|< Cut",
+            Dispatch::ToEditor(CutWithMovement(Movement::First)),
+        ),
+        Keybinding::new_undocumented(
+            "p",
+            "Cut >|",
+            Dispatch::ToEditor(CutWithMovement(Movement::Last)),
+        ),
+    ])
 }
 
 pub fn buffer_keymap(is_alted: bool) -> Keymap {
