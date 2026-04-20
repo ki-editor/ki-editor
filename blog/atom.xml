@@ -2,11 +2,34 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
     <id>https://ki-editor.org/blog</id>
     <title>Ki Editor Blog</title>
-    <updated>2026-01-10T00:00:00.000Z</updated>
+    <updated>2026-04-19T00:00:00.000Z</updated>
     <generator>https://github.com/jpmonette/feed</generator>
     <link rel="alternate" href="https://ki-editor.org/blog"/>
     <subtitle>Ki Editor Blog</subtitle>
     <icon>https://ki-editor.org/img/favicon.ico</icon>
+    <entry>
+        <title type="html"><![CDATA[Loosening Definitions]]></title>
+        <id>https://ki-editor.org/blog/loosening-definitions</id>
+        <link href="https://ki-editor.org/blog/loosening-definitions"/>
+        <updated>2026-04-19T00:00:00.000Z</updated>
+        <summary type="html"><![CDATA[Ki is a terminal text editor which uses a special "Selection Mode" to define a small number of powerful, easily memorable, and extremely ergonomic keybindings. In Selection Mode your left hand switches which objects you're currently navigating by, be that letters, words, lines or elements within the programming language the file you're editing is written in. Meanwhile your right hand moves the cursor between the specified objects via an expanded variation of the ijkl movement scheme. Ki also uses a modified version of familiar bindings like z (Undo), x (Cut), and c (Copy), which when combined with the movement (ijkl) keys can engage in additional, more powerful actions.]]></summary>
+        <content type="html"><![CDATA[<p>Ki is a terminal text editor which uses a special "Selection Mode" to define a small number of powerful, easily memorable, and extremely ergonomic keybindings. In Selection Mode your left hand switches which objects you're currently navigating by, be that letters, words, lines or elements within the programming language the file you're editing is written in. Meanwhile your right hand moves the cursor between the specified objects via an expanded variation of the ijkl movement scheme. Ki also uses a modified version of familiar bindings like z (Undo), x (Cut), and c (Copy), which when combined with the movement (ijkl) keys can engage in additional, more powerful actions.</p>
+<p>Hi. I'm Alice Alysia. I have an admission to make! I'm... a Ki addict. In fact, going against all common sense, I'm writing this blog post in ki right now. I'm guessing most of you are too! You may be wondering why I just described Ki to you, and it's because Ki is surprisingly difficult to describe, despite how self explanatory it begins to feel once you start using it. I've been thinking about this odd disconnect for a while. Ki is simple. Much simpler than many, many other text editors, even those notorious for their simplicity. Yet explaining it feels complicated. I think the reason why is the exact reason more seasoned users may feel like I actually lied a few times during the above explanation. Because I say "an expanded variation of the ijkl movement scheme" but what I mean is:</p>
+<p>On a QWERTY keyboard</p>
+<table><thead><tr><th>Key</th><th>Binding</th></tr></thead><tbody><tr><td>Y/P</td><td>First/Last</td></tr><tr><td>U/O</td><td>Prev/Next (Granular)</td></tr><tr><td>J/L</td><td>Prev/Next (Neutral)</td></tr><tr><td>I/K</td><td>Up/Down (Fastest)</td></tr></tbody></table>
+<p>The above keys are positional, and as such, simply maintain their physical position on other layouts despite being different letters.</p>
+<p>This can introduce some... unintentional behaviour, and also makes the editor harder to describe. As a user's fist interaction with it will be in line mode. The default selection mode immediately frustrates the ijkl bindings concept because while it is, strictly speaking, still true that we are using ijkl bindings, those bindings don't do what a user would immediately assume. The assumption a user may have is that i/k will go up/down 1 line, while the other directional bindings will perhaps be used in more interesting ways. More interestingly though, is how the commitment to the above table can result in a lot of inefficiencies. Several modes have duplicate bindings, while missing fairly useful bindings. Take the character mode for example. Presently, we have bindings for up, down, left right, and jump to start/end of... word. Not line, paragraph, or file, but word.</p>
+<p>Finding answers to these problems however, isn't easy. Particularly because while our current bindings are easy to write down. They're not so easy to solve these problems with. So what's the answer? Well, the short version is to be more willing to break our own rules.</p>
+<p>While we don't want to remove any sense of logic from our bindings, we do want to let ourselves go with the flow a bit more. Hence, we now have the following, slightly adjusted philosophy:</p>
+<table><thead><tr><th>Key</th><th>Binding</th></tr></thead><tbody><tr><td>Y/P</td><td>First/Last</td></tr><tr><td>U/O</td><td>Prev/Next (Flexible)</td></tr><tr><td>J/L</td><td>Prev/Next (Common)</td></tr><tr><td>I/K</td><td>Up/Down (Gridwise)</td></tr></tbody></table>
+<p>In practice, this means that in some modes, u/o will be used for bindings that are more granular than j/l currently are, but from time to time, we may instead make u/o move in a more pronounced way than j/l does. Using our character example from above, this <em>could</em> mean having u/o move to the start/end of a word, to allow y/p to become the start/end of line options. Given, this is just an example. Not something set in stone.</p>
+<p>Getting the philosophical change out of the way was necessary before we could begin considering more complex changes like the functionality of things like word and line mode, but with this done, I'm sure you can see the freedom this introduces, and the ways this can make ki an easier to understand editor, that is also far, far more powerful!</p>]]></content>
+        <author>
+            <name>Alice Alysia</name>
+            <uri>https://codeberg.org/alicealysia</uri>
+        </author>
+        <category label="documentation" term="documentation"/>
+    </entry>
     <entry>
         <title type="html"><![CDATA[Evolution of Delete]]></title>
         <id>https://ki-editor.org/blog/evoluation-of-delete</id>
