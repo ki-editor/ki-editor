@@ -41,7 +41,7 @@ use crate::{
         completion::CompletionItem,
         goto_definition_response::GotoDefinitionResponse,
         manager::LspManager,
-        process::{FromEditor, LspNotification, ResponseContext},
+        process::{CallHierarchyDirection, FromEditor, LspNotification, ResponseContext},
         symbols::Symbols,
         workspace_edit::WorkspaceEdit,
     },
@@ -845,6 +845,36 @@ impl<T: Frontend> App<T> {
                         },
                     )?;
                     self.send_integration_event(IntegrationEvent::RequestLspReferences);
+                }
+            }
+            Dispatch::RequestIncomingCalls(scope) => {
+                if let Some(params) = self.get_request_params() {
+                    let params = params
+                        .set_kind(Some(scope))
+                        .set_description("Incoming Calls");
+                    self.lsp_manager().send_message(
+                        params.path.clone(),
+                        FromEditor::TextDocumentPrepareCallHierarchy {
+                            params,
+                            direction: CallHierarchyDirection::Incoming,
+                        },
+                    )?;
+                    self.send_integration_event(IntegrationEvent::RequestLspIncomingCalls);
+                }
+            }
+            Dispatch::RequestOutgoingCalls(scope) => {
+                if let Some(params) = self.get_request_params() {
+                    let params = params
+                        .set_kind(Some(scope))
+                        .set_description("Outgoing Calls");
+                    self.lsp_manager().send_message(
+                        params.path.clone(),
+                        FromEditor::TextDocumentPrepareCallHierarchy {
+                            params,
+                            direction: CallHierarchyDirection::Outgoing,
+                        },
+                    )?;
+                    self.send_integration_event(IntegrationEvent::RequestLspOutgoingCalls);
                 }
             }
             Dispatch::RequestHover => {
@@ -1764,6 +1794,32 @@ impl<T: Frontend> App<T> {
             LspNotification::Progress { message } => {
                 self.context.update_lsp_progress(message);
                 Ok(())
+            }
+            LspNotification::CallHierarchyIncomingCalls(context, calls) => {
+                let items = calls
+                    .into_iter()
+                    .map(|call| {
+                        Location::try_from(lsp_types::Location {
+                            uri: call.from.uri,
+                            range: call.from.selection_range,
+                        })
+                        .map(QuickfixListItem::from)
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                self.set_quickfix_list_type(context, QuickfixListType::Items(items))
+            }
+            LspNotification::CallHierarchyOutgoingCalls(context, calls) => {
+                let items = calls
+                    .into_iter()
+                    .map(|call| {
+                        Location::try_from(lsp_types::Location {
+                            uri: call.to.uri,
+                            range: call.to.selection_range,
+                        })
+                        .map(QuickfixListItem::from)
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                self.set_quickfix_list_type(context, QuickfixListType::Items(items))
             }
         }
     }
@@ -3772,6 +3828,8 @@ pub enum Dispatch {
         scope: Scope,
         include_declaration: bool,
     },
+    RequestIncomingCalls(Scope),
+    RequestOutgoingCalls(Scope),
     PrepareRename,
     RequestCodeAction {
         diagnostics: Vec<lsp_types::Diagnostic>,

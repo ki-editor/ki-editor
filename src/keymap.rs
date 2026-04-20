@@ -218,6 +218,16 @@ fn secondary_selection_modes_keybindings(
             name_and_doc!("Type"),
             Dispatch::RequestTypeDefinitions(scope),
         ),
+        Keybinding::new(
+            "z",
+            name_and_doc!("In Calls"),
+            Dispatch::RequestIncomingCalls(scope),
+        ),
+        Keybinding::new(
+            "Z",
+            name_and_doc!("Out Calls"),
+            Dispatch::RequestOutgoingCalls(scope),
+        ),
     ];
     let scope_specific_keybindings = match scope {
         Scope::Local => [("Y", "Int", r"\d+")]
