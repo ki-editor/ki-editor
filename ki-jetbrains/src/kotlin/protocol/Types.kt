@@ -259,6 +259,12 @@ sealed class OutputMessage {
 	@SerialName("lsp.workspaceSymbols")
 	object RequestLspWorkspaceSymbols: OutputMessage()
 	@Serializable
+	@SerialName("lsp.incomingCalls")
+	object RequestLspIncomingCalls: OutputMessage()
+	@Serializable
+	@SerialName("lsp.outgoingCalls")
+	object RequestLspOutgoingCalls: OutputMessage()
+	@Serializable
 	@SerialName("editor.syncBufferRequest")
 	data class SyncBufferRequest(val params: OutputMessageSyncBufferRequestInner): OutputMessage()
 	@Serializable

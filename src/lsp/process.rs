@@ -57,6 +57,7 @@ struct LspServerProcess {
     current_working_directory: AbsolutePath,
     next_request_id: RequestId,
     pending_response_requests: HashMap<RequestId, PendingResponseRequest>,
+    pending_call_hierarchy_directions: HashMap<RequestId, CallHierarchyDirection>,
     app_message_sender: crossbeam_channel::Sender<AppMessage>,
 
     sender: Sender<LspServerProcessMessage>,
@@ -64,6 +65,12 @@ struct LspServerProcess {
 }
 
 type RequestId = u64;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CallHierarchyDirection {
+    Incoming,
+    Outgoing,
+}
 
 #[derive(Debug)]
 struct PendingResponseRequest {
@@ -89,6 +96,8 @@ pub enum LspNotification {
     WorkspaceSymbols(Symbols),
     CompletionItemResolve(Box<lsp_types::CompletionItem>),
     Progress { message: String },
+    CallHierarchyIncomingCalls(ResponseContext, Vec<lsp_types::CallHierarchyIncomingCall>),
+    CallHierarchyOutgoingCalls(ResponseContext, Vec<lsp_types::CallHierarchyOutgoingCall>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -170,6 +179,10 @@ pub enum FromEditor {
     CompletionItemResolve {
         completion_item: Box<lsp_types::CompletionItem>,
         params: RequestParams,
+    },
+    TextDocumentPrepareCallHierarchy {
+        params: RequestParams,
+        direction: CallHierarchyDirection,
     },
 }
 
@@ -280,6 +293,7 @@ impl LspServerProcess {
             current_working_directory,
             next_request_id: 0,
             pending_response_requests: HashMap::new(),
+            pending_call_hierarchy_directions: HashMap::new(),
             server_capabilities: None,
             app_message_sender: app_message_sender.clone(),
             sender: sender.clone(),
@@ -421,6 +435,9 @@ impl LspServerProcess {
                         declaration: Some(GotoCapability {
                             dynamic_registration: Some(true),
                             link_support: None,
+                        }),
+                        call_hierarchy: Some(CallHierarchyClientCapabilities {
+                            dynamic_registration: Some(true),
                         }),
                         ..TextDocumentClientCapabilities::default()
                     }),
@@ -931,6 +948,51 @@ impl LspServerProcess {
 
                             self.send_to_app(AppMessage::LspNotification(Box::new(
                                 LspNotification::WorkspaceSymbols(symbols),
+                            )));
+                        }
+                    }
+                    "textDocument/prepareCallHierarchy" => {
+                        let payload: <lsp_request!("textDocument/prepareCallHierarchy") as Request>::Result =
+                            serde_json::from_value(response)?;
+
+                        if let Some(item) = payload.and_then(|items| items.into_iter().next()) {
+                            let direction = self
+                                .pending_call_hierarchy_directions
+                                .remove(&request_id)
+                                .unwrap_or(CallHierarchyDirection::Incoming);
+                            match direction {
+                                CallHierarchyDirection::Incoming => {
+                                    self.call_hierarchy_incoming_calls(response_context, item)?;
+                                }
+                                CallHierarchyDirection::Outgoing => {
+                                    self.call_hierarchy_outgoing_calls(response_context, item)?;
+                                }
+                            }
+                        }
+                    }
+                    "callHierarchy/incomingCalls" => {
+                        let payload: <lsp_request!("callHierarchy/incomingCalls") as Request>::Result =
+                            serde_json::from_value(response)?;
+
+                        if let Some(calls) = payload {
+                            self.send_to_app(AppMessage::LspNotification(Box::new(
+                                LspNotification::CallHierarchyIncomingCalls(
+                                    response_context,
+                                    calls,
+                                ),
+                            )));
+                        }
+                    }
+                    "callHierarchy/outgoingCalls" => {
+                        let payload: <lsp_request!("callHierarchy/outgoingCalls") as Request>::Result =
+                            serde_json::from_value(response)?;
+
+                        if let Some(calls) = payload {
+                            self.send_to_app(AppMessage::LspNotification(Box::new(
+                                LspNotification::CallHierarchyOutgoingCalls(
+                                    response_context,
+                                    calls,
+                                ),
                             )));
                         }
                     }
@@ -1550,6 +1612,62 @@ impl LspServerProcess {
         )
     }
 
+    fn text_document_prepare_call_hierarchy(
+        &mut self,
+        params: RequestParams,
+        direction: CallHierarchyDirection,
+    ) -> anyhow::Result<()> {
+        if !self.has_capability(|c| c.call_hierarchy_provider.is_some()) {
+            return Ok(());
+        }
+        let id = self.next_request_id;
+        self.send_request::<lsp_request!("textDocument/prepareCallHierarchy")>(
+            params.context,
+            Some(params.path.clone()),
+            CallHierarchyPrepareParams {
+                text_document_position_params: TextDocumentPositionParams {
+                    position: params.position.into(),
+                    text_document: path_buf_to_text_document_identifier(params.path)?,
+                },
+                work_done_progress_params: WorkDoneProgressParams::default(),
+            },
+        )?;
+        self.pending_call_hierarchy_directions.insert(id, direction);
+        Ok(())
+    }
+
+    fn call_hierarchy_incoming_calls(
+        &mut self,
+        context: ResponseContext,
+        item: lsp_types::CallHierarchyItem,
+    ) -> anyhow::Result<()> {
+        self.send_request::<lsp_request!("callHierarchy/incomingCalls")>(
+            context,
+            None,
+            CallHierarchyIncomingCallsParams {
+                item,
+                work_done_progress_params: WorkDoneProgressParams::default(),
+                partial_result_params: PartialResultParams::default(),
+            },
+        )
+    }
+
+    fn call_hierarchy_outgoing_calls(
+        &mut self,
+        context: ResponseContext,
+        item: lsp_types::CallHierarchyItem,
+    ) -> anyhow::Result<()> {
+        self.send_request::<lsp_request!("callHierarchy/outgoingCalls")>(
+            context,
+            None,
+            CallHierarchyOutgoingCallsParams {
+                item,
+                work_done_progress_params: WorkDoneProgressParams::default(),
+                partial_result_params: PartialResultParams::default(),
+            },
+        )
+    }
+
     fn handle_from_editor(&mut self, from_editor: &FromEditor) {
         lsp_info!(
             self.lsp_command(),
@@ -1615,6 +1733,9 @@ impl LspServerProcess {
                 completion_item,
                 params,
             } => self.completion_item_resolve(params, *completion_item),
+            FromEditor::TextDocumentPrepareCallHierarchy { params, direction } => {
+                self.text_document_prepare_call_hierarchy(params, direction)
+            }
         }
         .unwrap_or_else(|error| {
             lsp_info!(
@@ -1778,6 +1899,7 @@ mod test_lsp_server_process {
             current_working_directory: std::env::current_dir()?.try_into()?,
             next_request_id: 0,
             pending_response_requests: HashMap::new(),
+            pending_call_hierarchy_directions: HashMap::new(),
             app_message_sender: app_sender.clone(),
             sender,
             progress_notification_manager: ProgressNotificationManager::new(

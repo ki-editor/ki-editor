@@ -328,6 +328,8 @@ impl EmbeddedApp {
             IntegrationEvent::SyncBufferRequest { path } => self.request_buffer_content(path)?,
             IntegrationEvent::ShowInfo { info } => self.show_info(info)?,
             IntegrationEvent::RequestLspWorkspaceSymbols => self.request_lsp_workspace_symbols()?,
+            IntegrationEvent::RequestLspIncomingCalls => self.request_lsp_incoming_calls()?,
+            IntegrationEvent::RequestLspOutgoingCalls => self.request_lsp_outgoing_calls()?,
         }
 
         Ok(())
@@ -783,6 +785,22 @@ impl EmbeddedApp {
         self.send_notification(OutputMessageWrapper {
             id: 0,
             message: OutputMessage::RequestLspWorkspaceSymbols,
+            error: None,
+        })
+    }
+
+    fn request_lsp_incoming_calls(&self) -> anyhow::Result<()> {
+        self.send_notification(OutputMessageWrapper {
+            id: 0,
+            message: OutputMessage::RequestLspIncomingCalls,
+            error: None,
+        })
+    }
+
+    fn request_lsp_outgoing_calls(&self) -> anyhow::Result<()> {
+        self.send_notification(OutputMessageWrapper {
+            id: 0,
+            message: OutputMessage::RequestLspOutgoingCalls,
             error: None,
         })
     }

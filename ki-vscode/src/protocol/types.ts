@@ -149,6 +149,8 @@ export type OutputMessage =
 	| { tag: "lsp.codeAction", params?: undefined }
 	| { tag: "lsp.documentSymbols", params?: undefined }
 	| { tag: "lsp.workspaceSymbols", params?: undefined }
+	| { tag: "lsp.incomingCalls", params?: undefined }
+	| { tag: "lsp.outgoingCalls", params?: undefined }
 	| { tag: "editor.syncBufferRequest", params: {
 	uri: string;
 }}
