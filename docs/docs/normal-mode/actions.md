@@ -38,16 +38,6 @@ This is most useful when you want to search for the current selection with some 
 
 ## Modifications
 
-### `Raise`
-
-This is one of my favorite actions, it only works for [syntax node](selection-modes/primary.md#syntax) selection modes.
-
-This replaces the parent node of the current node, with the current node.
-
-<TutorialFallback filename="raise"/>
-
-Note: Raise should never cause any syntax errors, if it does that's a bug.
-
 ### `Open`
 
 Open next to current selection.

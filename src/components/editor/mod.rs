@@ -63,7 +63,6 @@ pub enum Mode {
     Insert,
     MultiCursor,
     Swap,
-    Replace,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug, Eq)]
@@ -315,7 +314,6 @@ impl Component for Editor {
                 return Ok(self.select_line_at(index, context)?.into_vec().into())
             }
             Surround(open, close) => return self.surround(open, close, context),
-            EnterReplaceMode => self.enter_replace_mode(),
             SwapCursor => self.swap_cursor(context),
             SetDecorations(decorations) => self.buffer_mut().set_decorations(&decorations),
             MoveCharacterBack => self.selection_set.move_left(&self.cursor_direction),
@@ -1976,7 +1974,6 @@ impl Editor {
                 self.selection_set.mode().clone(),
             ),
             Mode::Swap => self.swap(movement, context),
-            Mode::Replace => self.eat(&movement, context),
             Mode::MultiCursor => self
                 .add_cursor(
                     &movement.into_movement_applicandum(self.selection_set.sticky_column_index()),
@@ -2989,7 +2986,6 @@ impl Editor {
                 Mode::Insert => "INST".to_string(),
                 Mode::MultiCursor => "MULTI".to_string(),
                 Mode::Swap => "SWAP".to_string(),
-                Mode::Replace => "RPLCE".to_string(),
             },
         }
     }
@@ -3349,10 +3345,6 @@ impl Editor {
             .apply_edit_transaction(edit_transaction, context)?
             .chain(self.enter_insert_mode(Direction::Start, context)?);
         Ok(dispatches)
-    }
-
-    fn enter_replace_mode(&mut self) {
-        self.mode = Mode::Replace;
     }
 
     pub fn scroll_offset(&self) -> usize {
@@ -4847,7 +4839,6 @@ pub enum DispatchEditor {
     OpenVertically(Direction),
     EnterNormalMode,
     EnterSwapMode,
-    EnterReplaceMode,
     CursorAddToAllSelections,
     CyclePrimarySelection(Direction),
     CursorKeepPrimaryOnly,
