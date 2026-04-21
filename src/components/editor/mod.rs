@@ -334,7 +334,7 @@ impl Component for Editor {
             DeleteSurround(enclosure) => return self.delete_surround(enclosure, context),
             ChangeSurround { from, to } => return self.change_surround(from, Some(to), context),
             ReplaceWithPattern => return self.replace_with_pattern(context),
-            Replace(movement) => return self.replace_with_movement(&movement, context),
+            Eat(movement) => return self.eat(&movement, context),
             ApplyPositionalEdits(edits) => {
                 return self.apply_positional_edits(
                     edits
@@ -1976,7 +1976,7 @@ impl Editor {
                 self.selection_set.mode().clone(),
             ),
             Mode::Swap => self.swap(movement, context),
-            Mode::Replace => self.replace_with_movement(&movement, context),
+            Mode::Replace => self.eat(&movement, context),
             Mode::MultiCursor => self
                 .add_cursor(
                     &movement.into_movement_applicandum(self.selection_set.sticky_column_index()),
@@ -2627,12 +2627,8 @@ impl Editor {
         self.apply_edit_transaction(edit_transaction, context)
     }
 
-    /// Replace the parent node of the current node with the current node
-    pub fn replace_with_movement(
-        &mut self,
-        movement: &Movement,
-        context: &Context,
-    ) -> anyhow::Result<Dispatches> {
+    /// Replace the <movement> selection with the current selection
+    pub fn eat(&mut self, movement: &Movement, context: &Context) -> anyhow::Result<Dispatches> {
         let buffer = self.buffer.borrow().clone();
         let edit_transactions = self.selection_set.map(|selection| {
             let get_edit_transaction =
@@ -4882,7 +4878,7 @@ pub enum DispatchEditor {
         from: EnclosureKind,
         to: EnclosureKind,
     },
-    Replace(Movement),
+    Eat(Movement),
     ApplyPositionalEdits(Vec<CompletionItemEdit>),
     ReplaceWithPreviousCopiedText,
     ReplaceWithNextCopiedText,

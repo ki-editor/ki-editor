@@ -1,0 +1,1 @@
+Replace everything after the end of the current selection until the end of the `>` selection.

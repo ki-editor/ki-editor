@@ -21,11 +21,11 @@ impl MomentaryLayerBaseTrait for JointMomentaryLayer {
             std::mem::swap(&mut self.active, &mut self.inactive);
             Ok((
                 false,
-                Dispatches::one(Dispatch::ShowKeymapLegend(
-                    false,
-                    self.active.config.clone(),
-                    Some(ReleaseKey::new(self.tap_key, self.active.tap.clone())),
-                )),
+                Dispatches::one(Dispatch::ShowKeymapLegend {
+                    on_root: false,
+                    keymap_legend_config: self.active.config.clone(),
+                    release_key: Some(ReleaseKey::new(self.tap_key, self.active.tap.clone())),
+                }),
             ))
         } else {
             self.active.handle_press(key_event)

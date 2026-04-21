@@ -1,0 +1,1 @@
+Replace everything before the start of the current selection down to the start of the `<<` selection.

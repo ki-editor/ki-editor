@@ -888,19 +888,22 @@ pub fn multicursor_momentary_layer_keymap(editor: &Editor) -> Keymap {
 pub fn keymap_sub_modes(editor: &Editor) -> Vec<Keybinding> {
     [
         Some(Keybinding::new_undocumented(
-            "~",
-            "Replace",
-            Dispatch::ToEditor(EnterReplaceMode),
-        )),
-        Some(Keybinding::momentary_layer(MomentaryLayer {
-            key: "t",
-            name: "≡ Swap".to_string(),
-            config: KeymapLegendConfig {
-                title: "≡ Swap".to_string(),
-                keymap: swap_keymap(),
+            "t",
+            "≡ Swap",
+            Dispatch::ShowJointMomentaryLayer {
+                swap_key: key!("space"),
+                active_config: KeymapLegendConfig {
+                    title: "≡ Swap".to_string(),
+                    keymap: swap_keymap(),
+                },
+                release_key: ReleaseKey::new("t", None),
+                inactive_config: KeymapLegendConfig {
+                    title: "≡ Cut".to_string(),
+                    keymap: eat_keymap(),
+                },
+                inactive_tap: None,
             },
-            on_tap: None,
-        })),
+        )),
         Some(Keybinding::new_undocumented(
             "backslash",
             "Leader",
@@ -1281,7 +1284,6 @@ pub fn keymap_actions(
             "Align →",
             Dispatch::ToEditor(AlignSelections(Direction::End)),
         ),
-        Keybinding::new_undocumented("T", "Raise", Dispatch::ToEditor(Replace(Movement::Expand))),
         Keybinding::momentary_layer(MomentaryLayer {
             key: "z",
             name: "Undo/Redo".to_string(),
@@ -1361,28 +1363,28 @@ pub fn keymap_actions_overridable(
         Keybinding::new_undocumented(
             "v",
             "≡ Delete",
-            Dispatch::ShowJointMomentaryLayer(
-                key!("space"),
-                KeymapLegendConfig {
+            Dispatch::ShowJointMomentaryLayer {
+                swap_key: key!("space"),
+                active_config: KeymapLegendConfig {
                     title: "≡ Delete".to_string(),
                     keymap: delete_keymap(),
                 },
-                ReleaseKey::new(
+                release_key: ReleaseKey::new(
                     "v",
                     Some(OnTap::new(
                         "Delete One",
                         Dispatch::ToEditor(DispatchEditor::DeleteOne),
                     )),
                 ),
-                KeymapLegendConfig {
+                inactive_config: KeymapLegendConfig {
                     title: "≡ Cut".to_string(),
                     keymap: cut_keymap(),
                 },
-                Some(OnTap::new(
+                inactive_tap: Some(OnTap::new(
                     "Cut One",
                     Dispatch::ToEditor(DispatchEditor::CutOne),
                 )),
-            ),
+            },
         )
         .override_keymap(normal_mode_override.delete.as_ref(), none_if_no_override),
         Keybinding::new_undocumented(
@@ -1487,6 +1489,51 @@ pub fn swap_keymap() -> Keymap {
                 use_current_selection_mode: true,
                 prior_change: Some(PriorChange::EnterSwapMode),
             }),
+        ),
+    ])
+}
+
+pub fn eat_keymap() -> Keymap {
+    Keymap::new(&[
+        Keybinding::new(
+            "i",
+            name_and_doc!("Eat ^"),
+            Dispatch::ToEditor(DispatchEditor::Eat(Movement::Up)),
+        ),
+        Keybinding::new(
+            "j",
+            name_and_doc!("<< Eat"),
+            Dispatch::ToEditor(DispatchEditor::Eat(Movement::Left)),
+        ),
+        Keybinding::new(
+            "l",
+            name_and_doc!("Eat >>"),
+            Dispatch::ToEditor(DispatchEditor::Eat(Movement::Right)),
+        ),
+        Keybinding::new(
+            "k",
+            name_and_doc!("Eat v"),
+            Dispatch::ToEditor(DispatchEditor::Eat(Movement::Down)),
+        ),
+        Keybinding::new(
+            "u",
+            name_and_doc!("< Eat"),
+            Dispatch::ToEditor(DispatchEditor::Eat(Movement::Previous)),
+        ),
+        Keybinding::new(
+            "y",
+            name_and_doc!("|< Eat"),
+            Dispatch::ToEditor(DispatchEditor::Eat(Movement::First)),
+        ),
+        Keybinding::new(
+            "p",
+            name_and_doc!("Eat >|"),
+            Dispatch::ToEditor(DispatchEditor::Eat(Movement::Last)),
+        ),
+        Keybinding::new(
+            "o",
+            name_and_doc!("Eat >"),
+            Dispatch::ToEditor(DispatchEditor::Eat(Movement::Next)),
         ),
     ])
 }

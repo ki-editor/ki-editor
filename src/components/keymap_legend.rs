@@ -1,5 +1,6 @@
 use event::{parse_key_event, KeyEvent, KeyEventKind};
 use itertools::Itertools;
+use my_proc_macros::key;
 use std::borrow::Cow;
 
 use crate::{
@@ -368,15 +369,25 @@ impl KeymapLegend {
             layout,
         );
 
-        if let Some(on_tap) = self
-            .release_key
-            .as_ref()
-            .and_then(|release_key| release_key.on_tap.clone())
-        {
-            format!("{content}\nRelease hold: {}", on_tap.description)
-        } else {
-            content
-        }
+        // Show space keybinding, if any
+        let space_keybinding = self
+            .config
+            .keymap()
+            .iter()
+            .find(|keybinding| keybinding.event == key!("space"))
+            .map(|keybinding| format!("Space: {}", keybinding.name));
+
+        let on_tap = self.release_key.as_ref().and_then(|release_key| {
+            let description = release_key.on_tap.as_ref()?.description;
+            Some(format!("Release hold: {}", description))
+        });
+
+        Some(content)
+            .into_iter()
+            .chain(space_keybinding)
+            .chain(on_tap)
+            .collect_vec()
+            .join("\n")
     }
 }
 
@@ -565,6 +576,48 @@ mod test_keymap_legend {
             .to_string();
         let expected = "Window is too small to display keymap legend :(";
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn space_keybinding_should_be_displayed() {
+        let mut keymap_legend = KeymapLegend::new(
+            KeymapLegendConfig {
+                title: "".to_string(),
+                keymap: Keymap::new(&[Keybinding::new_undocumented(
+                    "space",
+                    "Hello world",
+                    Dispatch::Null,
+                )]),
+            },
+            None,
+        );
+
+        let _ = keymap_legend
+            .handle_dispatch_editor(
+                &Context::default(),
+                DispatchEditor::SetRectangle(Rectangle {
+                    origin: Position::default(),
+                    width: 100,
+                    height: 100,
+                }),
+            )
+            .unwrap();
+
+        assert_eq!(
+            keymap_legend.display(None),
+            "
+╭───┬───┬───┬───┬───┬───┬───┬───┬───┬───┬───╮
+│   ┆   ┆   ┆   ┆   ┆ ∅ ┆   ┆   ┆   ┆   ┆   │
+├╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┤
+│   ┆   ┆   ┆   ┆   ┆ ∅ ┆   ┆   ┆   ┆   ┆   │
+├╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┤
+│   ┆   ┆   ┆   ┆   ┆ ∅ ┆   ┆   ┆   ┆   ┆   │
+╰───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───╯
+* Pick Keyboard    \\ Leader
+Space: Hello world
+"
+            .trim()
+        );
     }
 
     #[test]

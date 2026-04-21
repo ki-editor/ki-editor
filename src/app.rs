@@ -1065,13 +1065,13 @@ impl<T: Frontend> App<T> {
                 )))?;
                 self.show_keymap_legend(false, keymap_legend_config, Some(release_key));
             }
-            Dispatch::ShowJointMomentaryLayer(
+            Dispatch::ShowJointMomentaryLayer {
                 swap_key,
                 active_config,
                 release_key,
                 inactive_config,
                 inactive_tap,
-            ) => {
+            } => {
                 self.handle_dispatch_editor(DispatchEditor::SetKeymapOverride(Some(
                     EditorKeymapOverride::MomentaryLayer(MomentaryLayerKeymapOverride::new_joint(
                         KeymapOverrideScope::Editor,
@@ -1094,7 +1094,11 @@ impl<T: Frontend> App<T> {
                 ));
                 self.show_keymap_legend(true, keymap_legend_config, Some(release_key));
             }
-            Dispatch::ShowKeymapLegend(on_root, keymap_legend_config, release_key) => {
+            Dispatch::ShowKeymapLegend {
+                on_root,
+                keymap_legend_config,
+                release_key,
+            } => {
                 // HACK: used for joint MoLs
                 self.layout.close_keymap_legend();
                 self.show_keymap_legend(on_root, keymap_legend_config, release_key);
@@ -3876,15 +3880,19 @@ pub enum Dispatch {
     ApplyWorkspaceEdit(WorkspaceEdit),
     ShowMenu(KeymapLegendConfig),
     ShowMomentaryLayer(KeymapLegendConfig, ReleaseKey),
-    ShowJointMomentaryLayer(
-        KeyEvent,
-        KeymapLegendConfig,
-        ReleaseKey,
-        KeymapLegendConfig,
-        Option<OnTap>,
-    ),
+    ShowJointMomentaryLayer {
+        swap_key: KeyEvent,
+        active_config: KeymapLegendConfig,
+        release_key: ReleaseKey,
+        inactive_config: KeymapLegendConfig,
+        inactive_tap: Option<OnTap>,
+    },
     ShowAppMomentaryLayer(KeymapLegendConfig, ReleaseKey),
-    ShowKeymapLegend(bool, KeymapLegendConfig, Option<ReleaseKey>),
+    ShowKeymapLegend {
+        on_root: bool,
+        keymap_legend_config: KeymapLegendConfig,
+        release_key: Option<ReleaseKey>,
+    },
     RemainOnlyCurrentComponent,
 
     #[cfg(test)]
