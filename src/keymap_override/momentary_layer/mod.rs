@@ -110,6 +110,7 @@ impl MomentaryLayerKeymapOverride {
         Self {
             override_scope,
             base: MomentaryLayerBase::Joint(JointMomentaryLayer {
+                scope: override_scope,
                 tap_key: release_key.key(),
                 active: SimpleMomentaryLayer {
                     config: active_config,

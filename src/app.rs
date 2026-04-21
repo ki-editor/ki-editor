@@ -1066,23 +1066,37 @@ impl<T: Frontend> App<T> {
                 self.show_keymap_legend(false, keymap_legend_config, Some(release_key));
             }
             Dispatch::ShowJointMomentaryLayer(
+                scope,
                 swap_key,
                 active_config,
                 release_key,
                 inactive_config,
                 inactive_tap,
             ) => {
-                self.handle_dispatch_editor(DispatchEditor::SetKeymapOverride(Some(
-                    EditorKeymapOverride::MomentaryLayer(MomentaryLayerKeymapOverride::new_joint(
-                        KeymapOverrideScope::Editor,
-                        release_key.clone(),
-                        swap_key,
-                        active_config.clone(),
-                        inactive_config,
-                        inactive_tap,
-                    )),
-                )))?;
-                self.show_keymap_legend(false, active_config, Some(release_key));
+                let keymap_override = MomentaryLayerKeymapOverride::new_joint(
+                    scope,
+                    release_key.clone(),
+                    swap_key,
+                    active_config.clone(),
+                    inactive_config,
+                    inactive_tap,
+                );
+                match scope {
+                    KeymapOverrideScope::App => {
+                        self.keymap_override =
+                            Some(AppKeymapOverride::MomentaryLayer(keymap_override));
+                    }
+                    KeymapOverrideScope::Editor => {
+                        self.handle_dispatch_editor(DispatchEditor::SetKeymapOverride(Some(
+                            EditorKeymapOverride::MomentaryLayer(keymap_override),
+                        )))?;
+                    }
+                }
+                self.show_keymap_legend(
+                    scope == KeymapOverrideScope::App,
+                    active_config,
+                    Some(release_key),
+                );
             }
             Dispatch::ShowAppMomentaryLayer(keymap_legend_config, release_key) => {
                 self.keymap_override = Some(AppKeymapOverride::MomentaryLayer(
@@ -1094,10 +1108,17 @@ impl<T: Frontend> App<T> {
                 ));
                 self.show_keymap_legend(true, keymap_legend_config, Some(release_key));
             }
-            Dispatch::ShowKeymapLegend(on_root, keymap_legend_config, release_key) => {
+            Dispatch::ShowKeymapLegend(scope, keymap_legend_config, release_key) => {
                 // HACK: used for joint MoLs
-                self.layout.close_keymap_legend();
-                self.show_keymap_legend(on_root, keymap_legend_config, release_key);
+                match scope {
+                    KeymapOverrideScope::App => self.layout.close_app_keymap_legend(),
+                    KeymapOverrideScope::Editor => self.layout.close_keymap_legend(),
+                }
+                self.show_keymap_legend(
+                    scope == KeymapOverrideScope::App,
+                    keymap_legend_config,
+                    release_key,
+                );
             }
             #[cfg(test)]
             Dispatch::Custom(_) => unreachable!(),
@@ -3877,6 +3898,7 @@ pub enum Dispatch {
     ShowMenu(KeymapLegendConfig),
     ShowMomentaryLayer(KeymapLegendConfig, ReleaseKey),
     ShowJointMomentaryLayer(
+        KeymapOverrideScope,
         KeyEvent,
         KeymapLegendConfig,
         ReleaseKey,
@@ -3884,7 +3906,7 @@ pub enum Dispatch {
         Option<OnTap>,
     ),
     ShowAppMomentaryLayer(KeymapLegendConfig, ReleaseKey),
-    ShowKeymapLegend(bool, KeymapLegendConfig, Option<ReleaseKey>),
+    ShowKeymapLegend(KeymapOverrideScope, KeymapLegendConfig, Option<ReleaseKey>),
     RemainOnlyCurrentComponent,
 
     #[cfg(test)]
