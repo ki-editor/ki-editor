@@ -13,6 +13,7 @@ use crate::{
     },
     context::{Context, LocalSearchConfigMode, Search},
     git::DiffMode,
+    keymap_override::KeymapOverrideScope,
     list::grep::RegexConfig,
     name_and_doc, name_and_doc2,
     quickfix_list::{DiagnosticSeverityRange, QuickfixListType},
@@ -1362,6 +1363,7 @@ pub fn keymap_actions_overridable(
             "v",
             "≡ Delete",
             Dispatch::ShowJointMomentaryLayer(
+                KeymapOverrideScope::Editor,
                 key!("space"),
                 KeymapLegendConfig {
                     title: "≡ Delete".to_string(),
@@ -1406,27 +1408,30 @@ pub fn keymap_other_movements() -> Vec<Keybinding> {
     [
         Keybinding::new_undocumented("alt+k", "Scroll ↓", Dispatch::ToEditor(ScrollPageDown)),
         Keybinding::new_undocumented("alt+i", "Scroll ↑", Dispatch::ToEditor(ScrollPageUp)),
-        Keybinding::app_momentary_layer(MomentaryLayer {
-            key: "q",
-            name: "≡ Move Hist".to_string(),
-            config: KeymapLegendConfig {
-                title: "≡ Move Hist".to_string(),
-                keymap: movement_history_keymap(),
-            },
-            on_tap: None,
-        }),
-        Keybinding::app_momentary_layer(MomentaryLayer {
-            key: "e",
-            name: "≡ Buffer".to_string(),
-            config: KeymapLegendConfig {
-                title: "≡ Buffer".to_string(),
-                keymap: buffer_keymap(false),
-            },
-            on_tap: Some(OnTap::new(
-                "Toggle Selection Mark",
-                Dispatch::ToggleSelectionMark,
-            )),
-        }),
+        Keybinding::new_undocumented(
+            "e",
+            "≡ Buffer",
+            Dispatch::ShowJointMomentaryLayer(
+                KeymapOverrideScope::App,
+                key!("space"),
+                KeymapLegendConfig {
+                    title: "≡ Buffer".to_string(),
+                    keymap: buffer_keymap(false),
+                },
+                ReleaseKey::new(
+                    "e",
+                    Some(OnTap::new(
+                        "Toggle Selection Mark",
+                        Dispatch::ToggleSelectionMark,
+                    )),
+                ),
+                KeymapLegendConfig {
+                    title: "≡ Move Hist".to_string(),
+                    keymap: movement_history_keymap(),
+                },
+                None,
+            ),
+        ),
         Keybinding::new_undocumented("?", "⇋ Anchor", Dispatch::ToEditor(SwapExtensionAnchor)),
         Keybinding::new_undocumented(
             "/",

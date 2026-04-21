@@ -3,12 +3,14 @@ use event::KeyEvent;
 use crate::{
     app::{Dispatch, Dispatches},
     components::keymap_legend::ReleaseKey,
+    keymap_override::KeymapOverrideScope,
 };
 
 use super::{simple::SimpleMomentaryLayer, MomentaryLayerBaseTrait};
 
 #[derive(Debug, Clone, PartialEq)]
 pub(super) struct JointMomentaryLayer {
+    pub(super) scope: KeymapOverrideScope,
     pub(super) tap_key: &'static str,
     pub(super) swap_key: KeyEvent,
     pub(super) active: SimpleMomentaryLayer,
@@ -22,7 +24,7 @@ impl MomentaryLayerBaseTrait for JointMomentaryLayer {
             Ok((
                 false,
                 Dispatches::one(Dispatch::ShowKeymapLegend(
-                    false,
+                    self.scope,
                     self.active.config.clone(),
                     Some(ReleaseKey::new(self.tap_key, self.active.tap.clone())),
                 )),
