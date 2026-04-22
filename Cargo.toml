@@ -121,6 +121,7 @@ serde_path_to_error = "0.1.20"
 tracing-subscriber.workspace = true
 tracing-log.workspace = true
 crossbeam-channel = "0.5.15"
+const_format = "0.2.36"
 
 [dev-dependencies]
 serial_test = "~3.2.0"
@@ -147,3 +148,6 @@ dbg_macro = "warn"
 semicolon_if_nothing_returned = "warn"
 default_trait_access = "warn"
 single_match = "allow"
+
+[package.metadata.cargo-machete]
+ignored = ["const_format"] # Used by my_proc_macros for doc_format in a cursed fashion

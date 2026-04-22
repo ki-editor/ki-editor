@@ -163,41 +163,6 @@ pub struct Keybinding {
     dispatch: Dispatch,
 }
 
-pub struct KeybindingNameAndDoc {
-    pub name: &'static str,
-    pub doc: &'static str,
-}
-
-#[macro_export]
-macro_rules! name_and_doc {
-    ($name:expr) => {
-        $crate::components::keymap_legend::KeybindingNameAndDoc {
-            name: $name,
-            doc: include_str!(concat!(
-                env!("CARGO_MANIFEST_DIR"),
-                "/reference/",
-                $name,
-                ".md"
-            )),
-        }
-    };
-}
-
-#[macro_export]
-macro_rules! name_and_doc2 {
-    ($name:expr, $doc_name:expr) => {
-        $crate::components::keymap_legend::KeybindingNameAndDoc {
-            name: $name,
-            doc: include_str!(concat!(
-                env!("CARGO_MANIFEST_DIR"),
-                "/reference/",
-                $doc_name,
-                ".md"
-            )),
-        }
-    };
-}
-
 impl Keybinding {
     pub fn new_undocumented(
         key: &'static str,
@@ -215,7 +180,8 @@ impl Keybinding {
 
     pub fn new(
         key: &'static str,
-        KeybindingNameAndDoc { name, doc }: KeybindingNameAndDoc,
+        name: &'static str,
+        doc: &'static str,
         dispatch: Dispatch,
     ) -> Keybinding {
         Keybinding {

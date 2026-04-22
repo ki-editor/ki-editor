@@ -1,8 +1,15 @@
 extern crate proc_macro;
+
 use event::parse_key_event;
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{parse_macro_input, ItemEnum};
+use syn::{
+    braced,
+    parse::{Parse, ParseStream},
+    parse_macro_input,
+    punctuated::Punctuated,
+    Ident, ItemEnum, LitStr, Token,
+};
 
 #[proc_macro]
 pub fn key(input: TokenStream) -> TokenStream {
@@ -81,4 +88,65 @@ pub fn derive_named_variant(input: TokenStream) -> TokenStream {
             }
         }
     })
+}
+
+struct DocFormatKV {
+    name: Ident,
+    value: LitStr,
+}
+
+struct DocFormatInput {
+    file_name: LitStr,
+    inputs: Punctuated<DocFormatKV, Token![,]>,
+}
+
+impl Parse for DocFormatKV {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let name = input.parse()?;
+        let _: Token![:] = input.parse()?;
+        let value = input.parse()?;
+        Ok(Self { name, value })
+    }
+}
+
+impl Parse for DocFormatInput {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let file_name = input.parse()?;
+        if input.is_empty() {
+            return Ok(Self {
+                file_name,
+                inputs: Punctuated::new(),
+            });
+        }
+        let _: Token![,] = input.parse()?;
+        let inner;
+        braced!(inner in input);
+        let inputs = inner.parse_terminated(DocFormatKV::parse, Token![,])?;
+        Ok(Self { file_name, inputs })
+    }
+}
+
+#[proc_macro]
+pub fn doc_format(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as DocFormatInput);
+
+    let content = std::fs::read_to_string(
+        std::env::var("CARGO_MANIFEST_DIR").expect("No CARGO_MANIFEST_DIR")
+            + "/reference/"
+            + &input.file_name.value(),
+    )
+    .expect("Failed to read file");
+
+    let names = input.inputs.iter().map(|kv| &kv.name);
+    let values = input.inputs.iter().map(|kv| &kv.value);
+
+    quote!({
+        #(
+            #[allow(non_upper_case_globals)]
+            const #names: &str = #values;
+        )*
+
+        ::const_format::formatcp!( #content )
+    })
+    .into()
 }

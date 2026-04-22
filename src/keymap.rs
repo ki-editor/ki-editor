@@ -14,7 +14,6 @@ use crate::{
     context::{Context, LocalSearchConfigMode, Search},
     git::DiffMode,
     list::grep::RegexConfig,
-    name_and_doc, name_and_doc2,
     quickfix_list::{DiagnosticSeverityRange, QuickfixListType},
     scripting::custom_keymap,
     selection::SelectionMode,
@@ -25,7 +24,7 @@ use crate::{
 
 use convert_case::Case;
 use itertools::Itertools;
-use my_proc_macros::key;
+use my_proc_macros::{doc_format, key};
 use DispatchEditor::*;
 use SelectionMode::*;
 
@@ -159,27 +158,32 @@ fn secondary_selection_modes_keybindings(
     let diagnostics_keybindings = [
         Keybinding::new(
             "a",
-            name_and_doc!("All"),
+            "All",
+            doc_format!("space/lsp_all.md", { severity: "Info" }),
             severity_to_dispatch(DiagnosticSeverityRange::All),
         ),
         Keybinding::new(
             "s",
-            name_and_doc!("Error"),
+            "Error",
+            doc_format!("space/lsp_severity.md", { severity: "Error" }),
             severity_to_dispatch(DiagnosticSeverityRange::Error),
         ),
         Keybinding::new(
             "q",
-            name_and_doc!("Hint"),
+            "Hint",
+            doc_format!("space/lsp_severity.md", { severity: "Hint" }),
             severity_to_dispatch(DiagnosticSeverityRange::Hint),
         ),
         Keybinding::new(
             "Q",
-            name_and_doc!("Info"),
+            "Info",
+            doc_format!("space/lsp_severity.md", { severity: "Info" }),
             severity_to_dispatch(DiagnosticSeverityRange::Information),
         ),
         Keybinding::new(
             "w",
-            name_and_doc!("Warn"),
+            "Warn",
+            doc_format!("space/lsp_severity.md", { severity: "Warn" }),
             severity_to_dispatch(DiagnosticSeverityRange::Warning),
         ),
     ];
@@ -187,22 +191,26 @@ fn secondary_selection_modes_keybindings(
     let lsp_keybindings = [
         Keybinding::new(
             "x",
-            name_and_doc!("Def"),
+            "Def",
+            doc_format!("Def.md"),
             Dispatch::RequestDefinitions(scope),
         ),
         Keybinding::new(
             "X",
-            name_and_doc!("Decl"),
+            "Decl",
+            doc_format!("Decl.md"),
             Dispatch::RequestDeclarations(scope),
         ),
         Keybinding::new(
             "b",
-            name_and_doc!("Impl"),
+            "Impl",
+            doc_format!("Impl.md"),
             Dispatch::RequestImplementations(scope),
         ),
         Keybinding::new(
             "v",
-            name_and_doc!("Ref-"),
+            "Ref-",
+            doc_format!("Ref-.md"),
             Dispatch::RequestReferences {
                 include_declaration: false,
                 scope,
@@ -210,7 +218,8 @@ fn secondary_selection_modes_keybindings(
         ),
         Keybinding::new(
             "V",
-            name_and_doc!("Ref+"),
+            "Ref+",
+            doc_format!("Ref+.md"),
             Dispatch::RequestReferences {
                 include_declaration: true,
                 scope,
@@ -218,17 +227,20 @@ fn secondary_selection_modes_keybindings(
         ),
         Keybinding::new(
             "c",
-            name_and_doc!("Type"),
+            "Type",
+            doc_format!("Type.md"),
             Dispatch::RequestTypeDefinitions(scope),
         ),
         Keybinding::new(
             "z",
-            name_and_doc!("In Calls"),
+            "In Calls",
+            doc_format!("In Calls.md"),
             Dispatch::RequestIncomingCalls(scope),
         ),
         Keybinding::new(
             "Z",
-            name_and_doc!("Out Calls"),
+            "Out Calls",
+            doc_format!("Out Calls.md"),
             Dispatch::RequestOutgoingCalls(scope),
         ),
     ];
@@ -962,7 +974,8 @@ pub fn keymap_core_movements(prior_change: Option<PriorChange>) -> Vec<Keybindin
     [
         Keybinding::new(
             "j",
-            name_and_doc2!("<<", "Left"),
+            "<<",
+            doc_format!("Left.md"),
             Dispatch::ToEditor(MoveSelectionWithPriorChange(Movement::Left, prior_change)),
         ),
         Keybinding::new_undocumented(
@@ -1305,7 +1318,8 @@ pub fn keymap_actions(
         Keybinding::new_undocumented("*", "Keyboard", Dispatch::OpenKeyboardLayoutPrompt),
         Keybinding::new(
             "Z",
-            name_and_doc!("Coarse Redo"),
+            "Coarse Redo",
+            doc_format!("Coarse Redo.md"),
             Dispatch::ToEditor(CoarseRedo),
         ),
     ]
@@ -1324,22 +1338,26 @@ pub fn undo_redo_keymap() -> Keymap {
     Keymap::new(&[
         Keybinding::new(
             "j",
-            name_and_doc!("Coarse Undo"),
+            "Coarse Undo",
+            doc_format!("Coarse Undo.md"),
             Dispatch::ToEditor(CoarseUndo),
         ),
         Keybinding::new(
             "l",
-            name_and_doc!("Coarse Redo"),
+            "Coarse Redo",
+            doc_format!("Coarse Redo.md"),
             Dispatch::ToEditor(CoarseRedo),
         ),
         Keybinding::new(
             "u",
-            name_and_doc!("Fine Undo"),
+            "Fine Undo",
+            doc_format!("Fine Undo.md"),
             Dispatch::ToEditor(FineUndo),
         ),
         Keybinding::new(
             "o",
-            name_and_doc!("Fine Redo"),
+            "Fine Redo",
+            doc_format!("Fine Redo.md"),
             Dispatch::ToEditor(FineRedo),
         ),
     ])
@@ -1497,42 +1515,50 @@ pub fn eat_keymap() -> Keymap {
     Keymap::new(&[
         Keybinding::new(
             "i",
-            name_and_doc!("Eat ^"),
+            "Eat ^",
+            doc_format!("eat/movement.md", { movement: "^", old: "foo bar\n[bar] baz", new: "[bar] baz" }),
             Dispatch::ToEditor(DispatchEditor::Eat(Movement::Up)),
         ),
         Keybinding::new(
             "j",
-            name_and_doc!("<< Eat"),
+            "<< Eat",
+            doc_format!("eat/movement.md", { movement: "<<", old: "foo / [bar]", new: "[bar]" }),
             Dispatch::ToEditor(DispatchEditor::Eat(Movement::Left)),
         ),
         Keybinding::new(
             "l",
-            name_and_doc!("Eat >>"),
+            "Eat >>",
+            doc_format!("eat/movement.md", { movement: ">>", old: "[foo] / bar", new: "[foo]" }),
             Dispatch::ToEditor(DispatchEditor::Eat(Movement::Right)),
         ),
         Keybinding::new(
             "k",
-            name_and_doc!("Eat v"),
+            "Eat v",
+            doc_format!("eat/movement.md", { movement: "v", old: "[foo] bar\nbar baz", new: "[foo] baz" }),
             Dispatch::ToEditor(DispatchEditor::Eat(Movement::Down)),
         ),
         Keybinding::new(
             "u",
-            name_and_doc!("< Eat"),
+            "< Eat",
+            doc_format!("eat/movement.md", { movement: "<", old: "foo / [bar]", new: "foo [bar]" }),
             Dispatch::ToEditor(DispatchEditor::Eat(Movement::Previous)),
         ),
         Keybinding::new(
             "y",
-            name_and_doc!("|< Eat"),
+            "|< Eat",
+            doc_format!("eat/movement.md", { movement: "|<", old: "foo bar [baz]", new: "[baz]" }),
             Dispatch::ToEditor(DispatchEditor::Eat(Movement::First)),
         ),
         Keybinding::new(
             "p",
-            name_and_doc!("Eat >|"),
+            "Eat >|",
+            doc_format!("eat/movement.md", { movement: ">|", old: "[foo] bar baz", new: "[foo]" }),
             Dispatch::ToEditor(DispatchEditor::Eat(Movement::Last)),
         ),
         Keybinding::new(
             "o",
-            name_and_doc!("Eat >"),
+            "Eat >",
+            doc_format!("eat/movement.md", { movement: ">", old: "[foo] / bar", new: "[foo] bar" }),
             Dispatch::ToEditor(DispatchEditor::Eat(Movement::Next)),
         ),
     ])
