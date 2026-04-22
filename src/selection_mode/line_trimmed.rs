@@ -366,7 +366,7 @@ baz",
     }
 
     #[test]
-    fn prev_next_movement() -> Result<(), anyhow::Error> {
+    fn up_down_movement() -> Result<(), anyhow::Error> {
         execute_test(|s| {
             Box::new([
                 App(OpenFile {
@@ -380,13 +380,13 @@ baz",
                     SelectionMode::Line,
                 )),
                 Expect(CurrentSelectedTexts(&["a"])),
-                Editor(MoveSelection(Movement::Next)),
+                Editor(MoveSelection(Movement::Down)),
                 Expect(CurrentSelectedTexts(&[""])),
-                Editor(MoveSelection(Movement::Next)),
+                Editor(MoveSelection(Movement::Down)),
                 Expect(CurrentSelectedTexts(&["b"])),
-                Editor(MoveSelection(Movement::Previous)),
+                Editor(MoveSelection(Movement::Up)),
                 Expect(CurrentSelectedTexts(&[""])),
-                Editor(MoveSelection(Movement::Previous)),
+                Editor(MoveSelection(Movement::Up)),
                 Expect(CurrentSelectedTexts(&["a"])),
             ])
         })
@@ -586,7 +586,7 @@ foo
     }
 
     #[test]
-    fn able_to_move_up_when_at_last_empty_line() -> anyhow::Result<()> {
+    fn able_to_move_prev_when_at_last_empty_line() -> anyhow::Result<()> {
         execute_test(|s| {
             Box::new([
                 App(OpenFile {
@@ -611,7 +611,7 @@ hello
                 Editor(MoveSelection(Movement::Next)),
                 Expect(CurrentSelectedTexts(&[""])),
                 Expect(ExpectKind::EditorCursorPosition(Position::new(4, 0))),
-                Editor(MoveSelection(Movement::Up)),
+                Editor(MoveSelection(Movement::Previous)),
                 Expect(CurrentSelectedTexts(&[""])),
                 Editor(MoveSelection(Movement::Left)),
                 Expect(CurrentSelectedTexts(&["world"])),
@@ -647,7 +647,7 @@ hello
     }
 
     #[test]
-    fn empty_line_navigation_using_prev_next() -> anyhow::Result<()> {
+    fn empty_line_navigation_using_up_down() -> anyhow::Result<()> {
         execute_test(|s| {
             Box::new([
                 App(OpenFile {
@@ -660,11 +660,11 @@ hello
                     IfCurrentNotFound::LookForward,
                     SelectionMode::Line,
                 )),
-                Editor(MoveSelection(Movement::Next)),
+                Editor(MoveSelection(Movement::Down)),
                 Expect(EditorCursorPosition(Position::new(1, 0))),
-                Editor(MoveSelection(Movement::Next)),
+                Editor(MoveSelection(Movement::Down)),
                 Expect(EditorCursorPosition(Position::new(2, 0))),
-                Editor(MoveSelection(Movement::Previous)),
+                Editor(MoveSelection(Movement::Up)),
                 Expect(EditorCursorPosition(Position::new(1, 0))),
             ])
         })
