@@ -53,9 +53,9 @@ For example:
 
 <TutorialFallback filename="open"/>
 
-### `Insert`
+### `Open`
 
-Activates the [≡ Insert](../momentary-layers/insert-mol.mdx).
+Activates the [≡ Open](../momentary-layers/open-mol.mdx).
 
 ### `Delete`
 
@@ -185,9 +185,13 @@ Hold to activate the [≡ Copy](../momentary-layers/duplicate-mol.mdx)
 
 Activates the [≡ Paste](../momentary-layers/paste-mol.mdx).
 
+### `Change`
+
+Deletes the current selection(s) and enter the Insert mode.
+
 ### `Change X`
 
-This is similar to [Change](../momentary-layers/insert-mol.mdx#tap-action-change), but it copies the deleted text into the clipboard.Like `ctrl+x` in Windows and `cmd+x` in macOS.
+This is similar to Change, but it copies the deleted text into the clipboard.Like `ctrl+x` in Windows and `cmd+x` in macOS.
 
 ### `Replace`
 

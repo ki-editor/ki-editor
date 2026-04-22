@@ -4345,7 +4345,7 @@ fn global_search_should_not_change_dirty_status() -> anyhow::Result<()> {
 }
 
 #[test]
-fn release_insert_mol_should_not_close_popups() -> anyhow::Result<()> {
+fn release_open_mol_should_not_close_popups() -> anyhow::Result<()> {
     execute_test(|s| {
         fn signature_help() -> LspNotification {
             LspNotification::SignatureHelp(Some(crate::lsp::signature_help::SignatureHelp {
@@ -4365,7 +4365,7 @@ fn release_insert_mol_should_not_close_popups() -> anyhow::Result<()> {
             }),
             Editor(SetContent("f()".to_string())),
             Editor(MatchLiteral("f()".to_string())),
-            App(HandleKeyEvents(keys!("f").to_vec())),
+            App(HandleKeyEvents(keys!("x").to_vec())),
             Expect(ExpectKind::ComponentsOrder(vec![
                 ComponentKind::SuggestiveEditor,
                 ComponentKind::KeymapLegend,
@@ -4377,7 +4377,7 @@ fn release_insert_mol_should_not_close_popups() -> anyhow::Result<()> {
                 ComponentKind::EditorInfo,
                 ComponentKind::KeymapLegend,
             ])),
-            App(HandleKeyEvents(keys!("release-f").to_vec())),
+            App(HandleKeyEvents(keys!("release-x").to_vec())),
             Expect(ExpectKind::ComponentsOrder(vec![
                 ComponentKind::SuggestiveEditor,
                 ComponentKind::EditorInfo,

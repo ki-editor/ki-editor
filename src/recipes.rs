@@ -2627,7 +2627,7 @@ fn insert() -> RecipeGroup {
                 content: "foo bar spam".trim(),
                 file_extension: "md",
                 prepare_events: keys!("s l"),
-                events: keys!("f h release-f x"),
+                events: keys!("x h release-x x"),
                 expectations: Box::new([CurrentComponentContent("foo xbar spam")]),
                 terminal_height: Some(10),
                 similar_vim_combos: &[],
@@ -2638,7 +2638,7 @@ fn insert() -> RecipeGroup {
                 content: "foo bar spam".trim(),
                 file_extension: "md",
                 prepare_events: keys!("s l"),
-                events: keys!("f ; release-f x"),
+                events: keys!("x ; release-x x"),
                 expectations: Box::new([CurrentComponentContent("foo barx spam")]),
                 terminal_height: Some(10),
                 similar_vim_combos: &[],
@@ -2658,7 +2658,7 @@ fn open() -> RecipeGroup {
                 content: "foo, bar spam".trim(),
                 file_extension: "md",
                 prepare_events: &[],
-                events: keys!("s l f u release-f x"),
+                events: keys!("s l x u release-x x"),
                 expectations: Box::new([CurrentComponentContent("foo, x bar spam")]),
                 terminal_height: Some(10),
                 similar_vim_combos: &[],
@@ -2669,7 +2669,7 @@ fn open() -> RecipeGroup {
                 content: "foo, bar spam".trim(),
                 file_extension: "md",
                 prepare_events: &[],
-                events: keys!("s l f j release-f x"),
+                events: keys!("s l x j release-x x"),
                 expectations: Box::new([CurrentComponentContent("foo, x, bar spam")]),
                 terminal_height: Some(10),
                 similar_vim_combos: &[],
@@ -2680,7 +2680,7 @@ fn open() -> RecipeGroup {
                 content: "foo, bar spam".trim(),
                 file_extension: "md",
                 prepare_events: &[],
-                events: keys!("s l f o release-f x"),
+                events: keys!("s l x o release-x x"),
                 expectations: Box::new([CurrentComponentContent("foo, bar x spam")]),
                 terminal_height: Some(10),
                 similar_vim_combos: &[],
@@ -2691,7 +2691,7 @@ fn open() -> RecipeGroup {
                 content: "foo, bar spam".trim(),
                 file_extension: "md",
                 prepare_events: &[],
-                events: keys!("s l f l release-f x"),
+                events: keys!("s l x l release-x x"),
                 expectations: Box::new([CurrentComponentContent("foo, bar, x spam")]),
                 terminal_height: Some(10),
                 similar_vim_combos: &[],
@@ -2702,7 +2702,7 @@ fn open() -> RecipeGroup {
                 content: "def foo(bar: Bar, spam: Spam): pass",
                 file_extension: "py",
                 prepare_events: keys!("n d s p a m enter"),
-                events: keys!("d f l release-f x esc f j release-f y"),
+                events: keys!("d x l release-x x esc x j release-x y"),
                 expectations: Box::new([CurrentComponentContent(
                     "def foo(bar: Bar, spam: Spam, y, x): pass",
                 )]),
@@ -2722,7 +2722,7 @@ function foo() {
                 .trim(),
                 file_extension: "js",
                 prepare_events: keys!("n d l e t space y enter"),
-                events: keys!("d f l release-f l e t space z"),
+                events: keys!("d x l release-x l e t space z"),
                 expectations: Box::new([CurrentComponentContent(
                     "function foo() {
   let x = hello();
@@ -2744,7 +2744,7 @@ fn foo() {
                 .trim(),
                 file_extension: "md",
                 prepare_events: &[],
-                events: keys!("a l f i release-f y esc f k release-f x"),
+                events: keys!("a l x i release-x y esc x k release-x x"),
                 expectations: Box::new([CurrentComponentContent(
                     "fn foo() {
     y
