@@ -1,8 +1,9 @@
 use std::ops::Not;
 
 use crate::{
-    char_index_range::CharIndexRange, components::editor::IfCurrentNotFound, selection::CharIndex,
-    selection_mode::ApplyMovementResult,
+    char_index_range::CharIndexRange,
+    components::editor::IfCurrentNotFound,
+    selection::{CharIndex, Selection},
 };
 
 use super::{ByteRange, PositionBasedSelectionMode};
@@ -106,11 +107,7 @@ impl PositionBasedSelectionMode for LineTrimmed {
         get_line(buffer, cursor_char_index, if_current_not_found)
     }
 
-    fn down(
-        &self,
-        params: &super::SelectionModeParams,
-        _sticky_column_index: Option<usize>,
-    ) -> anyhow::Result<Option<ApplyMovementResult>> {
+    fn next(&self, params: &super::SelectionModeParams) -> anyhow::Result<Option<Selection>> {
         let buffer = params.buffer;
         let start_char_index = {
             let cursor_char_index = params.cursor_char_index();
@@ -146,13 +143,13 @@ impl PositionBasedSelectionMode for LineTrimmed {
                         IfCurrentNotFound::LookForward,
                     )?
                     .and_then(|byte_range| {
-                        Some(ApplyMovementResult::from_selection(
+                        Some(
                             params.current_selection.clone().set_range(
                                 buffer
                                     .byte_range_to_char_index_range(byte_range.range())
                                     .ok()?,
                             ),
-                        ))
+                        )
                     }));
             } else {
                 line_index += 1;
@@ -161,11 +158,7 @@ impl PositionBasedSelectionMode for LineTrimmed {
         Ok(None)
     }
 
-    fn up(
-        &self,
-        params: &super::SelectionModeParams,
-        _sticky_column_index: Option<usize>,
-    ) -> anyhow::Result<Option<ApplyMovementResult>> {
+    fn previous(&self, params: &super::SelectionModeParams) -> anyhow::Result<Option<Selection>> {
         let buffer = params.buffer;
         let start_char_index = {
             let cursor_char_index = params
@@ -205,13 +198,13 @@ impl PositionBasedSelectionMode for LineTrimmed {
                         IfCurrentNotFound::LookBackward,
                     )?
                     .and_then(|byte_range| {
-                        Some(ApplyMovementResult::from_selection(
+                        Some(
                             params.current_selection.clone().set_range(
                                 buffer
                                     .byte_range_to_char_index_range(byte_range.range())
                                     .ok()?,
                             ),
-                        ))
+                        )
                     }));
             } else if line_index == 0 {
                 break;

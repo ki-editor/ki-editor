@@ -1,17 +1,12 @@
+use crate::selection::Selection;
 use crate::{components::editor::IfCurrentNotFound, selection::CharIndex};
-
-use crate::selection_mode::ApplyMovementResult;
 
 use super::{ByteRange, PositionBasedSelectionMode};
 
 pub struct LineFull;
 
 impl PositionBasedSelectionMode for LineFull {
-    fn up(
-        &self,
-        params: &super::SelectionModeParams,
-        _sticky_column_index: Option<usize>,
-    ) -> anyhow::Result<Option<ApplyMovementResult>> {
+    fn previous(&self, params: &super::SelectionModeParams) -> anyhow::Result<Option<Selection>> {
         let buffer = params.buffer;
         let start_char_index = {
             let cursor_char_index = params
@@ -51,13 +46,13 @@ impl PositionBasedSelectionMode for LineFull {
                         IfCurrentNotFound::LookBackward,
                     )?
                     .and_then(|byte_range| {
-                        Some(ApplyMovementResult::from_selection(
+                        Some(
                             params.current_selection.clone().set_range(
                                 buffer
                                     .byte_range_to_char_index_range(byte_range.range())
                                     .ok()?,
                             ),
-                        ))
+                        )
                     }));
             } else if line_index == 0 {
                 break;
@@ -68,11 +63,7 @@ impl PositionBasedSelectionMode for LineFull {
         Ok(None)
     }
 
-    fn down(
-        &self,
-        params: &super::SelectionModeParams,
-        _sticky_column_index: Option<usize>,
-    ) -> anyhow::Result<Option<ApplyMovementResult>> {
+    fn next(&self, params: &super::SelectionModeParams) -> anyhow::Result<Option<Selection>> {
         let buffer = params.buffer;
         let start_char_index = {
             let cursor_char_index = params.cursor_char_index();
@@ -103,9 +94,7 @@ impl PositionBasedSelectionMode for LineFull {
         while line_index < buffer.len_lines() {
             if let Ok(slice) = buffer.get_line_by_line_index(line_index) {
                 if slice.chars().all(|char| char.is_whitespace()) {
-                    return Ok(self
-                        .to_index(params, line_index)?
-                        .map(ApplyMovementResult::from_selection));
+                    return self.to_index(params, line_index);
                 } else {
                     line_index += 1;
                 }

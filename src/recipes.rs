@@ -128,7 +128,7 @@ baz"
                 .trim(),
                 file_extension: "md",
                 prepare_events: &[],
-                events: keys!("a i i i k k"),
+                events: keys!("a u u u o o"),
                 expectations: Box::new([CurrentSelectedTexts(&[
                     "",
                 ])]),
