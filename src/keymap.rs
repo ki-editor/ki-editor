@@ -910,7 +910,7 @@ pub fn keymap_sub_modes(editor: &Editor) -> Vec<Keybinding> {
                 },
                 release_key: ReleaseKey::new("t", None),
                 inactive_config: KeymapLegendConfig {
-                    title: "≡ Cut".to_string(),
+                    title: "≡ Eat".to_string(),
                     keymap: eat_keymap(),
                 },
                 inactive_tap: None,
@@ -1368,14 +1368,16 @@ pub fn keymap_actions_overridable(
     none_if_no_override: bool,
 ) -> Vec<Keybinding> {
     [
+        Keybinding::new_undocumented("f", "Change", Dispatch::ToEditor(DispatchEditor::Change))
+            .override_keymap(normal_mode_override.delete.as_ref(), none_if_no_override),
         Keybinding::momentary_layer(MomentaryLayer {
-            key: "f",
-            name: "≡ Insert".to_string(),
+            key: "x",
+            name: "≡ Open".to_string(),
             config: KeymapLegendConfig {
-                title: "≡ Insert".to_string(),
-                keymap: insert_keymap(),
+                title: "≡ Open".to_string(),
+                keymap: open_keymap(),
             },
-            on_tap: Some(OnTap::new("Change", Dispatch::ToEditor(Change))),
+            on_tap: None,
         })
         .override_keymap(normal_mode_override.change.as_ref(), none_if_no_override),
         Keybinding::new_undocumented(
@@ -1836,7 +1838,7 @@ pub fn delete_keymap() -> Keymap {
     ])
 }
 
-pub fn insert_keymap() -> Keymap {
+pub fn open_keymap() -> Keymap {
     Keymap::new(
         &[
             Keybinding::new_undocumented(
