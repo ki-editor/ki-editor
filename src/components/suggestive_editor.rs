@@ -82,7 +82,7 @@ impl Component for SuggestiveEditor {
         if self.editor.mode == Mode::Insert && self.completion_dropdown_opened() {
             let translated_event = context
                 .keyboard_layout()
-                .translate_key_event_to_qwerty(event.clone());
+                .translate_key_event_to_qwerty(event);
             if let Some(keymap) = completion_item_keymap().get(&translated_event) {
                 log::info!("dispatches = {:?}", keymap.get_dispatches());
                 return Ok(keymap.get_dispatches());
@@ -100,7 +100,7 @@ impl Component for SuggestiveEditor {
         // relevant completions.
         Ok(self
             .editor
-            .handle_key_event(context, event.clone())?
+            .handle_key_event(context, event)?
             .chain(match event {
                 key!("esc") => [
                     Dispatch::CloseDropdown,
@@ -1188,15 +1188,19 @@ impl Decoration {
 pub fn completion_item_keymap() -> Keymap {
     Keymap::new(&[
         Keybinding::new_undocumented(
-            alted("l"),
+            alted(key!("l")),
             "Comp →",
             Dispatch::MoveToCompletionItem(Direction::End),
         ),
         Keybinding::new_undocumented(
-            alted("j"),
+            alted(key!("j")),
             "← Comp",
             Dispatch::MoveToCompletionItem(Direction::Start),
         ),
-        Keybinding::new_undocumented(alted("x"), "Replace Comp", Dispatch::SelectCompletionItem),
+        Keybinding::new_undocumented(
+            key!("alt+x"),
+            "Replace Comp",
+            Dispatch::SelectCompletionItem,
+        ),
     ])
 }

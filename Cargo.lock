@@ -666,7 +666,6 @@ dependencies = [
 name = "event"
 version = "0.1.0"
 dependencies = [
- "convert_case 0.6.0",
  "crossterm",
  "pretty_assertions",
 ]
