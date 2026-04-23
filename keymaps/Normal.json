@@ -26,7 +26,11 @@
             { "normal": "Insert →", "alted": "⇋ Align View", "shifted": null }
         ],
         [
-            { "normal": "Undo/Redo", "alted": null, "shifted": "Coarse Redo" },
+            {
+                "normal": "≡ Undo/Redo",
+                "alted": null,
+                "shifted": "Coarse Redo"
+            },
             { "normal": "≡ Open", "alted": null, "shifted": null },
             { "normal": "≡ Copy", "alted": null, "shifted": null },
             { "normal": "≡ Delete", "alted": null, "shifted": null },
