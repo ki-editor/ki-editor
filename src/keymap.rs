@@ -1369,7 +1369,7 @@ pub fn keymap_actions_overridable(
 ) -> Vec<Keybinding> {
     [
         Keybinding::new_undocumented("f", "Change", Dispatch::ToEditor(DispatchEditor::Change))
-            .override_keymap(normal_mode_override.delete.as_ref(), none_if_no_override),
+            .override_keymap(normal_mode_override.change.as_ref(), none_if_no_override),
         Keybinding::momentary_layer(MomentaryLayer {
             key: "x",
             name: "≡ Open".to_string(),
@@ -1379,7 +1379,7 @@ pub fn keymap_actions_overridable(
             },
             on_tap: None,
         })
-        .override_keymap(normal_mode_override.change.as_ref(), none_if_no_override),
+        .override_keymap(normal_mode_override.cut.as_ref(), none_if_no_override),
         Keybinding::new_undocumented(
             "v",
             "≡ Delete",
