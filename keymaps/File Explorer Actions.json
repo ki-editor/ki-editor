@@ -27,7 +27,7 @@
         ],
         [
             { "normal": null, "alted": null, "shifted": null },
-            { "normal": null, "alted": null, "shifted": null },
+            { "normal": "Refresh", "alted": null, "shifted": null },
             { "normal": null, "alted": null, "shifted": null },
             { "normal": "Delete Paths", "alted": null, "shifted": null },
             { "normal": "Dup Path", "alted": null, "shifted": null },

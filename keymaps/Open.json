@@ -1,35 +1,35 @@
 {
-    "name": "Insert",
+    "name": "Open",
     "rows": [
         [
             { "normal": null, "alted": null, "shifted": null },
             { "normal": null, "alted": null, "shifted": null },
-            { "normal": null, "alted": "≡ Buffer", "shifted": null },
-            { "normal": null, "alted": null, "shifted": null },
-            { "normal": null, "alted": null, "shifted": null },
-            { "normal": null, "alted": "Line ←", "shifted": null },
-            { "normal": null, "alted": null, "shifted": null },
-            { "normal": null, "alted": null, "shifted": null },
-            { "normal": null, "alted": null, "shifted": null },
-            { "normal": null, "alted": "Line →", "shifted": null }
-        ],
-        [
             { "normal": null, "alted": null, "shifted": null },
             { "normal": null, "alted": null, "shifted": null },
             { "normal": null, "alted": null, "shifted": null },
             { "normal": null, "alted": null, "shifted": null },
-            { "normal": null, "alted": null, "shifted": null },
-            { "normal": null, "alted": null, "shifted": null },
-            { "normal": null, "alted": null, "shifted": null },
-            { "normal": null, "alted": null, "shifted": null },
-            { "normal": null, "alted": null, "shifted": null },
+            { "normal": "< Open", "alted": null, "shifted": null },
+            { "normal": "Open ^", "alted": null, "shifted": null },
+            { "normal": "Open >", "alted": null, "shifted": null },
             { "normal": null, "alted": null, "shifted": null }
         ],
         [
             { "normal": null, "alted": null, "shifted": null },
             { "normal": null, "alted": null, "shifted": null },
             { "normal": null, "alted": null, "shifted": null },
-            { "normal": null, "alted": "Delete", "shifted": null },
+            { "normal": null, "alted": null, "shifted": null },
+            { "normal": null, "alted": null, "shifted": null },
+            { "normal": "< Insert", "alted": null, "shifted": null },
+            { "normal": "<< Open", "alted": null, "shifted": null },
+            { "normal": "Open v", "alted": null, "shifted": null },
+            { "normal": "Open >>", "alted": null, "shifted": null },
+            { "normal": "Insert >", "alted": null, "shifted": null }
+        ],
+        [
+            { "normal": null, "alted": null, "shifted": null },
+            { "normal": null, "alted": null, "shifted": null },
+            { "normal": null, "alted": null, "shifted": null },
+            { "normal": null, "alted": null, "shifted": null },
             { "normal": null, "alted": null, "shifted": null },
             { "normal": null, "alted": null, "shifted": null },
             { "normal": null, "alted": null, "shifted": null },
