@@ -4,7 +4,7 @@
         [
             { "normal": "≡ Move Hist", "alted": null, "shifted": null },
             { "normal": "SUBWORD", "alted": null, "shifted": "CHAR" },
-            { "normal": "≡ Buffer", "alted": null, "shifted": null },
+            { "normal": "≡ Buffer", "alted": null, "shifted": "PARAGRAPH" },
             { "normal": "≡ Multi-cursor", "alted": null, "shifted": null },
             { "normal": "≡ Swap", "alted": null, "shifted": null },
             { "normal": "|<", "alted": null, "shifted": "← Align" },

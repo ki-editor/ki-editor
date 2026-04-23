@@ -4,7 +4,7 @@
         [
             { "normal": null, "alted": null, "shifted": null },
             { "normal": "SUBWORD", "alted": null, "shifted": "CHAR" },
-            { "normal": null, "alted": null, "shifted": null },
+            { "normal": null, "alted": null, "shifted": "PARAGRAPH" },
             { "normal": null, "alted": null, "shifted": null },
             { "normal": null, "alted": null, "shifted": null },
             { "normal": null, "alted": null, "shifted": null },
