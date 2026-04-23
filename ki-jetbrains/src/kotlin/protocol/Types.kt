@@ -347,6 +347,9 @@ sealed class SelectionMode {
 	@Serializable
 	@SerialName("BigWord")
 	object BigWord: SelectionMode()
+	@Serializable
+	@SerialName("Paragraph")
+	object Paragraph: SelectionMode()
 }
 
 @Serializable

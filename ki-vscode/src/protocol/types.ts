@@ -195,7 +195,8 @@ export type SelectionMode =
 	| { tag: "Diagnostic", params: DiagnosticKind }
 	| { tag: "GitHunk", params?: undefined }
 	| { tag: "LocalQuickfix", params?: undefined }
-	| { tag: "BigWord", params?: undefined };
+	| { tag: "BigWord", params?: undefined }
+	| { tag: "Paragraph", params?: undefined };
 
 export interface SelectionModeParams {
 	mode: SelectionMode;
