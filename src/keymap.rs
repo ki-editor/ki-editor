@@ -1299,9 +1299,9 @@ pub fn keymap_actions(
         ),
         Keybinding::momentary_layer(MomentaryLayer {
             key: "z",
-            name: "Undo/Redo".to_string(),
+            name: "≡ Undo/Redo".to_string(),
             config: KeymapLegendConfig {
-                title: "Undo/Redo".to_string(),
+                title: "≡ Undo/Redo".to_string(),
                 keymap: undo_redo_keymap(),
             },
             on_tap: Some(OnTap::new("Coarse Undo", Dispatch::ToEditor(CoarseUndo))),
