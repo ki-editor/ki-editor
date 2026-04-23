@@ -478,6 +478,7 @@ pub enum SelectionMode {
     Mark,
     LineFull,
     BigWord,
+    Paragraph,
 }
 impl SelectionMode {
     pub fn is_node(&self) -> bool {
@@ -508,6 +509,7 @@ impl SelectionMode {
             SelectionMode::Subword => "SUBWORD".to_string(),
             SelectionMode::Word => "WORD".to_string(),
             SelectionMode::BigWord => "WORD*".to_string(),
+            SelectionMode::Paragraph => "PARA".to_string(),
         }
     }
 
@@ -566,6 +568,7 @@ impl SelectionMode {
             SelectionMode::LocalQuickfix { .. } => Box::new(IterBased(
                 selection_mode::LocalQuickfix::new(params, quickfix_list_items),
             )),
+            SelectionMode::Paragraph => Box::new(PositionBased(selection_mode::Paragraph)),
         })
     }
 
@@ -577,6 +580,7 @@ impl SelectionMode {
                 | SelectionMode::BigWord
                 | SelectionMode::Line
                 | SelectionMode::LineFull
+                | SelectionMode::Paragraph
                 | SelectionMode::Character
                 | SelectionMode::SyntaxNode
                 | SelectionMode::SyntaxNodeFine

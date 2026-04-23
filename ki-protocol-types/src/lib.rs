@@ -77,6 +77,7 @@ pub enum SelectionMode {
     GitHunk,
     LocalQuickfix,
     BigWord,
+    Paragraph,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

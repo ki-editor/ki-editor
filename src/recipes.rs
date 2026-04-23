@@ -1040,6 +1040,50 @@ snake_case 99 PascalCase
             .to_vec(),
         },
         RecipeGroup {
+            filename: "paragraph",
+            recipes: [
+                Recipe {
+                    description: "Paragraph (left/right)",
+                    content: "
+foo
+bar
+
+spam
+baz
+
+lol"
+                    .trim(),
+                    file_extension: "md",
+                    prepare_events: &[],
+                    events: keys!("E l l j j"),
+                    expectations: Box::new([CurrentSelectedTexts(&["foo\nbar\n"])]),
+                    terminal_height: None,
+                    similar_vim_combos: &[],
+                    only: false,
+                },
+                Recipe {
+                    description: "Paragraph (next/previous)",
+                    content: "
+foo
+bar
+
+spam
+baz
+
+lol"
+                    .trim(),
+                    file_extension: "md",
+                    prepare_events: &[],
+                    events: keys!("E o o o o u u u u"),
+                    expectations: Box::new([CurrentSelectedTexts(&["foo\nbar\n"])]),
+                    terminal_height: None,
+                    similar_vim_combos: &[],
+                    only: false,
+                },
+            ]
+            .to_vec(),
+        },
+        RecipeGroup {
             filename: "word",
             recipes: [
                 Recipe {

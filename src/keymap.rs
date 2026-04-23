@@ -1080,6 +1080,7 @@ pub fn keymap_primary_selection_modes(
         Keybinding::new_undocumented("S", "WORD*", selection_mode_to_dispatch(BigWord)),
         Keybinding::new_undocumented("w", "SUBWORD", selection_mode_to_dispatch(Subword)),
         Keybinding::new_undocumented("W", "CHAR", selection_mode_to_dispatch(Character)),
+        Keybinding::new_undocumented("E", "PARAGRAPH", selection_mode_to_dispatch(Paragraph)),
     ]
     .into()
 }

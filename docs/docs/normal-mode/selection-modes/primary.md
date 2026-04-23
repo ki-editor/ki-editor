@@ -176,6 +176,30 @@ This is useful for renaming identifiers, especially if we only want to change a 
 
 <TutorialFallback filename="subword"/>
 
+## `Paragraph`
+
+A paragraph is a contiguous run of non-empty lines. Each paragraph selection includes its trailing newline character (if present). Empty lines act as insignificant separators between paragraphs.
+
+For example, given:
+
+```
+foo
+bar
+
+baz
+qux
+```
+
+There are two paragraphs: `foo\nbar\n` and `baz\nqux`.
+
+| Movement      | Meaning                                                    |
+| ------------- | ---------------------------------------------------------- |
+| Left/Right    | Move to the previous/next paragraph (skipping empty lines) |
+| Previous/Next | Move to the nearest empty line or paragraph above/below    |
+| First/Last    | Move to the first/last paragraph of the current file       |
+
+<TutorialFallback filename="paragraph"/>
+
 ## `Char`
 
 Character.
