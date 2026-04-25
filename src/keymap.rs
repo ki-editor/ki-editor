@@ -355,7 +355,7 @@ pub fn normal_mode_keymap_legend_config(
             &normal_mode_keymap(editor, normal_mode_override, prior_change)
                 .into_iter()
                 .chain(Some(Keybinding::new_undocumented(
-                    "f",
+                    "g",
                     "Extend",
                     Dispatch::ShowMenu(extend_mode_keymap_legend_config(editor)),
                 )))
@@ -521,7 +521,7 @@ pub fn space_context_keymap_legend_config(editor: &Editor) -> KeymapLegendConfig
                 }
             }),
             Keybinding::new_undocumented("s", "Hover", Dispatch::RequestHover),
-            Keybinding::new_undocumented("g", "Rename", Dispatch::PrepareRename),
+            Keybinding::new_undocumented("f", "Rename", Dispatch::PrepareRename),
             Keybinding::new_undocumented(
                 "g",
                 "Revert Hunk@",
@@ -811,7 +811,7 @@ pub fn keymap_surround() -> Keymap {
             Dispatch::ShowMenu(surround_keymap_legend_config()),
         ),
         Keybinding::new_undocumented(
-            "g",
+            "f",
             "Change Surround",
             Dispatch::ShowMenu(change_surround_from_keymap_legend_config()),
         ),
@@ -900,23 +900,6 @@ pub fn multicursor_momentary_layer_keymap(editor: &Editor) -> Keymap {
 pub fn keymap_sub_modes(editor: &Editor) -> Vec<Keybinding> {
     [
         Some(Keybinding::new_undocumented(
-            "t",
-            "≡ Swap",
-            Dispatch::ShowJointMomentaryLayer {
-                swap_key: key!("space"),
-                active_config: KeymapLegendConfig {
-                    title: "≡ Swap".to_string(),
-                    keymap: swap_keymap(),
-                },
-                release_key: ReleaseKey::new("t", None),
-                inactive_config: KeymapLegendConfig {
-                    title: "≡ Eat".to_string(),
-                    keymap: eat_keymap(),
-                },
-                inactive_tap: None,
-            },
-        )),
-        Some(Keybinding::new_undocumented(
             "backslash",
             "Leader",
             Dispatch::ShowMenu(leader_keymap_legend_config()),
@@ -951,7 +934,8 @@ pub fn keymap_overridable(
 
 fn keymap_clipboard_related_actions(normal_mode_override: NormalModeOverride) -> Vec<Keybinding> {
     [
-        Keybinding::new_undocumented("G", "Change X", Dispatch::ToEditor(ChangeCut)),
+        Keybinding::new_undocumented("F", "Change X", Dispatch::ToEditor(ChangeCut)),
+        Keybinding::new_undocumented("f", "Change", Dispatch::ToEditor(Change)),
         Keybinding::momentary_layer(MomentaryLayer {
             key: "c",
             name: "≡ Copy".to_string(),
@@ -1323,6 +1307,15 @@ pub fn keymap_actions(
             doc_format!("Coarse Redo.md"),
             Dispatch::ToEditor(CoarseRedo),
         ),
+        Keybinding::momentary_layer(MomentaryLayer {
+            key: "t",
+            name: "≡ Open".to_string(),
+            config: KeymapLegendConfig {
+                title: "≡ Open".to_string(),
+                keymap: open_keymap(),
+            },
+            on_tap: None,
+        }),
     ]
     .into_iter()
     .chain(keymap_actions_overridable(
@@ -1369,32 +1362,27 @@ pub fn keymap_actions_overridable(
     none_if_no_override: bool,
 ) -> Vec<Keybinding> {
     [
-        Keybinding::momentary_layer(MomentaryLayer {
-            key: "x",
-            name: "≡ Cut".to_string(),
-            config: KeymapLegendConfig {
-                title: "≡ Cut".to_string(),
-                keymap: cut_keymap(),
+        Keybinding::new_undocumented(
+            "x",
+            "≡ Cut/Swap",
+            Dispatch::ShowJointMomentaryLayer {
+                swap_key: key!("space"),
+                active_config: KeymapLegendConfig {
+                    title: "≡ Cut".to_string(),
+                    keymap: cut_keymap(),
+                },
+                release_key: ReleaseKey::new("x", None),
+                inactive_config: KeymapLegendConfig {
+                    title: "≡ Swap".to_string(),
+                    keymap: swap_keymap(),
+                },
+                inactive_tap: None,
             },
-            on_tap: Some(OnTap::new(
-                "Cut",
-                Dispatch::ToEditor(DispatchEditor::CutOne),
-            )),
-        })
+        )
         .override_keymap(normal_mode_override.cut.as_ref(), none_if_no_override),
-        Keybinding::momentary_layer(MomentaryLayer {
-            key: "g",
-            name: "≡ Open".to_string(),
-            config: KeymapLegendConfig {
-                title: "≡ Open".to_string(),
-                keymap: open_keymap(),
-            },
-            on_tap: Some(OnTap::new("Change", Dispatch::ToEditor(Change))),
-        })
-        .override_keymap(normal_mode_override.change.as_ref(), none_if_no_override),
         Keybinding::new_undocumented(
             "v",
-            "≡ Delete",
+            "≡ Delete/Eat",
             Dispatch::ShowJointMomentaryLayer {
                 swap_key: key!("space"),
                 active_config: KeymapLegendConfig {
@@ -1409,13 +1397,10 @@ pub fn keymap_actions_overridable(
                     )),
                 ),
                 inactive_config: KeymapLegendConfig {
-                    title: "≡ Cut".to_string(),
-                    keymap: cut_keymap(),
+                    title: "≡ Eat".to_string(),
+                    keymap: eat_keymap(),
                 },
-                inactive_tap: Some(OnTap::new(
-                    "Cut One",
-                    Dispatch::ToEditor(DispatchEditor::CutOne),
-                )),
+                inactive_tap: None,
             },
         )
         .override_keymap(normal_mode_override.delete.as_ref(), none_if_no_override),
