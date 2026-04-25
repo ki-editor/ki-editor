@@ -1371,7 +1371,13 @@ pub fn keymap_actions_overridable(
                     title: "≡ Cut".to_string(),
                     keymap: cut_keymap(),
                 },
-                release_key: ReleaseKey::new("x", None),
+                release_key: ReleaseKey::new(
+                    "x",
+                    Some(OnTap::new(
+                        "Cut One",
+                        Dispatch::ToEditor(DispatchEditor::CutOne),
+                    )),
+                ),
                 inactive_config: KeymapLegendConfig {
                     title: "≡ Swap".to_string(),
                     keymap: swap_keymap(),
