@@ -691,11 +691,10 @@ pub fn normal_mode_keymap(
         .unwrap_or_default();
     keymap_core_movements(prior_change)
         .into_iter()
-        .chain(keymap_sub_modes(editor))
         .chain(keymap_other_movements())
         .chain(keymap_primary_selection_modes(editor, prior_change))
         .chain(keymap_secondary_selection_modes_init(editor, prior_change))
-        .chain(keymap_actions(&normal_mode_override, false, prior_change))
+        .chain(keymap_actions(&normal_mode_override, false, editor))
         .chain(keymap_others())
         .chain(keymap_universal())
         .collect_vec()
@@ -897,28 +896,6 @@ pub fn multicursor_momentary_layer_keymap(editor: &Editor) -> Keymap {
         .collect_vec(),
     )
 }
-pub fn keymap_sub_modes(editor: &Editor) -> Vec<Keybinding> {
-    [
-        Some(Keybinding::new_undocumented(
-            "backslash",
-            "Leader",
-            Dispatch::ShowMenu(leader_keymap_legend_config()),
-        )),
-        Some(Keybinding::momentary_layer(MomentaryLayer {
-            key: "r",
-            name: "≡ Multi-cursor".to_string(),
-            config: KeymapLegendConfig {
-                title: "≡ Multi-cursor".to_string(),
-                keymap: multicursor_momentary_layer_keymap(editor),
-            },
-            on_tap: None,
-        })),
-    ]
-    .into_iter()
-    .flatten()
-    .collect_vec()
-}
-
 pub fn keymap_overridable(
     normal_mode_override: &NormalModeOverride,
     none_if_no_override: bool,
@@ -1266,7 +1243,7 @@ pub fn insert_mode_delete_keymap() -> Keymap {
 pub fn keymap_actions(
     normal_mode_override: &NormalModeOverride,
     none_if_no_override: bool,
-    _prior_change: Option<PriorChange>,
+    editor: &Editor,
 ) -> Vec<Keybinding> {
     [
         Keybinding::new_undocumented("I", "Join", Dispatch::ToEditor(JoinSelection)),
@@ -1312,6 +1289,20 @@ pub fn keymap_actions(
             config: KeymapLegendConfig {
                 title: "≡ Open".to_string(),
                 keymap: open_keymap(),
+            },
+            on_tap: None,
+        }),
+        Keybinding::new_undocumented(
+            "backslash",
+            "Leader",
+            Dispatch::ShowMenu(leader_keymap_legend_config()),
+        ),
+        Keybinding::momentary_layer(MomentaryLayer {
+            key: "r",
+            name: "≡ Multi-cursor".to_string(),
+            config: KeymapLegendConfig {
+                title: "≡ Multi-cursor".to_string(),
+                keymap: multicursor_momentary_layer_keymap(editor),
             },
             on_tap: None,
         }),

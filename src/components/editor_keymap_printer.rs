@@ -325,7 +325,11 @@ impl KeymapPrintSections {
             ),
             KeymapPrintSection::from_keymap(
                 "Actions".to_string(),
-                &Keymap::new(&keymap_actions(&NormalModeOverride::default(), false, None)),
+                &Keymap::new(&keymap_actions(
+                    &NormalModeOverride::default(),
+                    false,
+                    &editor,
+                )),
             ),
             KeymapPrintSection::from_keymap(
                 "Other Movements".to_string(),
