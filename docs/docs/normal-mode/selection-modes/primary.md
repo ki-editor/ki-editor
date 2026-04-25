@@ -104,7 +104,7 @@ The meaningless selections are empty lines.
 
 | Movement      | Meaning                                                   |
 | ------------- | --------------------------------------------------------- |
-| Previous/Next | Move to the nearest empty lines above/below               |
+| Previous/Next | Move to the nearest empty line above/below                |
 | Up/Down       | Move to all kinds of line portions                        |
 | First/Last    | Move to the first/last non-empty line of the current file |
 | Left/Right    | Move to the previous/next non-empty line                  |

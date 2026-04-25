@@ -108,112 +108,48 @@ impl PositionBasedSelectionMode for LineTrimmed {
     }
 
     fn next(&self, params: &super::SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        let buffer = params.buffer;
-        let start_char_index = {
-            let cursor_char_index = params.cursor_char_index();
-            // If current line is already an empty line,
-            // find the next group of empty lines
-            if buffer
-                .get_line_by_char_index(cursor_char_index)?
-                .chars()
-                .all(|char| char.is_whitespace())
-            {
-                let mut index = cursor_char_index;
-                loop {
-                    if index > CharIndex(buffer.len_chars().saturating_sub(1)) {
-                        return Ok(None);
-                    } else if buffer.char(index)?.is_whitespace() {
-                        index = index + 1;
-                    } else {
-                        break index;
-                    }
-                }
-            } else {
-                cursor_char_index
-            }
-        };
-
-        let mut line_index = buffer.char_to_line(start_char_index)?;
-        while let Ok(slice) = buffer.get_line_by_line_index(line_index) {
-            if slice.chars().all(|char| char.is_whitespace()) {
-                return Ok(self
-                    .get_current_selection_by_cursor(
-                        params.buffer,
-                        buffer.line_to_char(line_index)?,
-                        IfCurrentNotFound::LookForward,
-                    )?
-                    .and_then(|byte_range| {
-                        Some(
-                            params.current_selection.clone().set_range(
-                                buffer
-                                    .byte_range_to_char_index_range(byte_range.range())
-                                    .ok()?,
-                            ),
-                        )
-                    }));
-            } else {
-                line_index += 1;
-            }
-        }
-        Ok(None)
+        scan_for_empty_line(self, params, IfCurrentNotFound::LookForward)
     }
 
     fn previous(&self, params: &super::SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        let buffer = params.buffer;
-        let start_char_index = {
-            let cursor_char_index = params
-                .cursor_char_index()
-                .min(CharIndex(buffer.len_chars()) - 1);
-
-            // If current line is already an empty line,
-            // find the previous group of empty lines
-            if buffer
-                .get_line_by_char_index(cursor_char_index)?
-                .chars()
-                .all(|char| char.is_whitespace())
-            {
-                let mut index = cursor_char_index;
-                loop {
-                    if buffer.char(index)?.is_whitespace() {
-                        if index == CharIndex(0) {
-                            return Ok(None);
-                        } else {
-                            index = index - 1;
-                        }
-                    } else {
-                        break index;
-                    }
-                }
-            } else {
-                cursor_char_index
-            }
-        };
-        let mut line_index = buffer.char_to_line(start_char_index)?;
-        while let Ok(slice) = buffer.get_line_by_line_index(line_index) {
-            if slice.chars().all(|char| char.is_whitespace()) {
-                return Ok(self
-                    .get_current_selection_by_cursor(
-                        params.buffer,
-                        buffer.line_to_char(line_index)?,
-                        IfCurrentNotFound::LookBackward,
-                    )?
-                    .and_then(|byte_range| {
-                        Some(
-                            params.current_selection.clone().set_range(
-                                buffer
-                                    .byte_range_to_char_index_range(byte_range.range())
-                                    .ok()?,
-                            ),
-                        )
-                    }));
-            } else if line_index == 0 {
-                break;
-            } else {
-                line_index -= 1;
-            }
-        }
-        Ok(None)
+        scan_for_empty_line(self, params, IfCurrentNotFound::LookBackward)
     }
+}
+
+fn scan_for_empty_line(
+    selection_mode: &LineTrimmed,
+    params: &super::SelectionModeParams,
+    if_current_not_found: IfCurrentNotFound,
+) -> anyhow::Result<Option<Selection>> {
+    let buffer = params.buffer;
+    let current_line_index = buffer.char_to_line(params.cursor_char_index())?;
+    let lines: Box<dyn Iterator<Item = usize>> = match if_current_not_found {
+        IfCurrentNotFound::LookForward => Box::new((current_line_index + 1)..buffer.len_chars()),
+        IfCurrentNotFound::LookBackward => Box::new((0..current_line_index).rev()),
+    };
+    for line_index in lines {
+        let Ok(slice) = buffer.get_line_by_line_index(line_index) else {
+            break;
+        };
+        if slice.chars().all(|char| char.is_whitespace()) {
+            return Ok(selection_mode
+                .get_current_selection_by_cursor(
+                    params.buffer,
+                    buffer.line_to_char(line_index)?,
+                    if_current_not_found,
+                )?
+                .and_then(|byte_range| {
+                    Some(
+                        params.current_selection.clone().set_range(
+                            buffer
+                                .byte_range_to_char_index_range(byte_range.range())
+                                .ok()?,
+                        ),
+                    )
+                }));
+        }
+    }
+    Ok(None)
 }
 
 fn get_line(
