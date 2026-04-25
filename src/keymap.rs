@@ -935,7 +935,6 @@ pub fn keymap_overridable(
 fn keymap_clipboard_related_actions(normal_mode_override: NormalModeOverride) -> Vec<Keybinding> {
     [
         Keybinding::new_undocumented("F", "Change X", Dispatch::ToEditor(ChangeCut)),
-        Keybinding::new_undocumented("f", "Change", Dispatch::ToEditor(Change)),
         Keybinding::momentary_layer(MomentaryLayer {
             key: "c",
             name: "≡ Copy".to_string(),
@@ -1362,6 +1361,8 @@ pub fn keymap_actions_overridable(
     none_if_no_override: bool,
 ) -> Vec<Keybinding> {
     [
+        Keybinding::new_undocumented("f", "Change", Dispatch::ToEditor(Change))
+            .override_keymap(normal_mode_override.change.as_ref(), none_if_no_override),
         Keybinding::new_undocumented(
             "x",
             "≡ Cut/Swap",

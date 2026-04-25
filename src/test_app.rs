@@ -4365,7 +4365,7 @@ fn release_open_mol_should_not_close_popups() -> anyhow::Result<()> {
             }),
             Editor(SetContent("f()".to_string())),
             Editor(MatchLiteral("f()".to_string())),
-            App(HandleKeyEvents(keys!("x").to_vec())),
+            App(HandleKeyEvents(keys!("t").to_vec())),
             Expect(ExpectKind::ComponentsOrder(vec![
                 ComponentKind::SuggestiveEditor,
                 ComponentKind::KeymapLegend,
@@ -4377,7 +4377,7 @@ fn release_open_mol_should_not_close_popups() -> anyhow::Result<()> {
                 ComponentKind::EditorInfo,
                 ComponentKind::KeymapLegend,
             ])),
-            App(HandleKeyEvents(keys!("release-x").to_vec())),
+            App(HandleKeyEvents(keys!("release-t").to_vec())),
             Expect(ExpectKind::ComponentsOrder(vec![
                 ComponentKind::SuggestiveEditor,
                 ComponentKind::EditorInfo,
