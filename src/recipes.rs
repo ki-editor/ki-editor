@@ -1147,9 +1147,9 @@ camelCase , kebab-case : snake_case
             filename: "char",
             recipes: [
                 Recipe {
-                    description: "Char: up/down/left/right movement",
+                    description: "Character: up/down/left/right movement",
                     content: "
-camel 
+camel
 snake
 "
                     .trim(),
@@ -1162,12 +1162,23 @@ snake
                     only: false,
                 },
                 Recipe {
-                    description: "Char: first/last movement (first/last char of current subword)",
-                    content: "campHelloDun".trim(),
+                    description: "Character: First/Last",
+                    content: "  hello\nworld",
                     file_extension: "md",
-                    prepare_events: keys!("n d h e l l o enter"),
+                    prepare_events: &[],
                     events: keys!("W p y"),
-                    expectations: Box::new([CurrentSelectedTexts(&["H"])]),
+                    expectations: Box::new([CurrentSelectedTexts(&[" "])]),
+                    terminal_height: None,
+                    similar_vim_combos: &[],
+                    only: false,
+                },
+                Recipe {
+                    description: "Character: Previous/Next",
+                    content: "  hello\nworld",
+                    file_extension: "md",
+                    prepare_events: &[],
+                    events: keys!("W o u"),
+                    expectations: Box::new([CurrentSelectedTexts(&["h"])]),
                     terminal_height: None,
                     similar_vim_combos: &[],
                     only: false,

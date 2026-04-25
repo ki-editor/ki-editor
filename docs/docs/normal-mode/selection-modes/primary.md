@@ -206,6 +206,9 @@ Character.
 
 In this selection mode, the movements behave like the usual editor, where [Left/Right](./../core-movements.md#--leftright) means left/right, and so on.
 
-[First/Last](./../core-movements.md#--firstlast) means the first/last character of the current word.
+| Movement      | Meaning                                                                    |
+| ------------- | -------------------------------------------------------------------------- |
+| First/Last    | First/last character of the current line (last may be a newline character) |
+| Previous/Next | First/last non-whitespace character of the current line                    |
 
 <TutorialFallback filename="char"/>
