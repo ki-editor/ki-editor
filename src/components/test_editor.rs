@@ -3550,7 +3550,7 @@ fn select_next_line_when_cursor_is_at_last_space_of_current_line() -> anyhow::Re
             }),
             Editor(SetContent("abc \n yo".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Character)),
-            Editor(MoveSelection(Last)),
+            Editor(MoveSelection(Next)),
             Editor(MoveSelection(Right)),
             Expect(CurrentSelectedTexts(&[" "])),
             Editor(MoveSelection(Left)),
