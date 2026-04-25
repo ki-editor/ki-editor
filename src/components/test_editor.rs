@@ -3572,13 +3572,13 @@ fn first_last_char() -> anyhow::Result<()> {
                 owner: BufferOwner::User,
                 focus: true,
             }),
-            Editor(SetContent("babyHelloCamp".to_string())),
+            Editor(SetContent(" babyHelloCamp\n".to_string())),
             Editor(MatchLiteral("Hello".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Character)),
             Editor(MoveSelection(Last)),
-            Expect(CurrentSelectedTexts(&["o"])),
+            Expect(CurrentSelectedTexts(&["\n"])),
             Editor(MoveSelection(First)),
-            Expect(CurrentSelectedTexts(&["H"])),
+            Expect(CurrentSelectedTexts(&[" "])),
         ])
     })
 }
