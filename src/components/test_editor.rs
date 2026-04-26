@@ -1941,8 +1941,8 @@ fn quickfix_list_items_updated_by_edit() -> anyhow::Result<()> {
             }),
             Editor(SetContent(
                 "
-fn main() { 
-  let x = 123 
+fn main() {
+  let x = 123
 }
 "
                 .trim()
@@ -2044,6 +2044,63 @@ fn syntax_highlight_spans_updated_by_edit() -> anyhow::Result<()> {
             Expect(ExpectKind::HighlightSpans(
                 38..133,
                 StyleKey::Syntax(IndexedHighlightGroup::from_str("comment").unwrap()),
+            )),
+        ])
+    })
+}
+
+#[test]
+fn syntax_highlight_doc_comment() -> anyhow::Result<()> {
+    let options = RunTestOptions {
+        enable_lsp: false,
+        enable_syntax_highlighting: true,
+        enable_file_watcher: false,
+    };
+    execute_test_custom(options, |s| {
+        let theme = Theme::default();
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            App(SetTheme(theme.clone())),
+            Editor(SetContent(
+                "
+/// Doc comment.
+fn main() { let foo = 1; }
+                "
+                .trim()
+                .to_string(),
+            )),
+            Editor(SetLanguage(Box::new(
+                crate::config::from_extension("rs").unwrap(),
+            ))),
+            Editor(SetRectangle(Rectangle {
+                origin: Position::default(),
+                width: 29,
+                height: 2,
+            })),
+            WaitForAppMessage(regex!("SyntaxHighlightResponse")),
+            Expect(ExpectKind::HighlightSpans(
+                0..2,
+                StyleKey::Syntax(IndexedHighlightGroup::from_str("comment.documentation").unwrap()),
+            )),
+            Expect(ExpectKind::HighlightSpans(
+                2..3,
+                StyleKey::Syntax(IndexedHighlightGroup::from_str("comment.documentation").unwrap()),
+            )),
+            Expect(ExpectKind::HighlightSpans(
+                3..17,
+                StyleKey::Syntax(IndexedHighlightGroup::from_str("comment.documentation").unwrap()),
+            )),
+            Expect(ExpectKind::HighlightSpans(
+                17..19,
+                StyleKey::Syntax(IndexedHighlightGroup::from_str("keyword.function").unwrap()),
+            )),
+            Expect(ExpectKind::HighlightSpans(
+                42..43,
+                StyleKey::Syntax(IndexedHighlightGroup::from_str("punctuation.bracket").unwrap()),
             )),
         ])
     })
@@ -5624,7 +5681,7 @@ fn save_conflict_resolved_by_force_reload() -> anyhow::Result<()> {
                 "@@ -1,7 +1,7 @@
 -ours
  mod foo;
- 
+\u{0020}
  fn main() {
      foo::foo();
      println!(\"Hello, world!\");
@@ -5681,7 +5738,7 @@ fn save_conflict_resolved_by_force_save() -> anyhow::Result<()> {
                 "@@ -1,7 +1,7 @@
 +ours
  mod foo;
- 
+\u{0020}
  fn main() {
      foo::foo();
      println!(\"Hello, world!\");
