@@ -3896,11 +3896,8 @@ bar
 
 
 spam
+
 baz
-
-
-bomb
-bam
 "
                 .trim()
                 .to_string(),
@@ -3909,14 +3906,16 @@ bam
             Expect(CurrentSelectedTexts(&["foo"])),
             Editor(MoveSelection(Next)),
             Expect(CurrentSelectedTexts(&[""])),
-            Editor(MoveSelection(Up)),
-            Expect(CurrentSelectedTexts(&["bar"])),
-            Editor(MoveSelection(Down)),
             Editor(MoveSelection(Next)),
-            Editor(MoveSelection(Up)),
-            Expect(CurrentSelectedTexts(&["baz"])),
+            Expect(CurrentSelectedTexts(&[""])),
+            Editor(MoveSelection(Next)),
+            Expect(CurrentSelectedTexts(&[""])),
             Editor(MoveSelection(Down)),
+            Expect(CurrentSelectedTexts(&["baz"])),
             Editor(MoveSelection(Previous)),
+            Expect(CurrentSelectedTexts(&[""])),
+            Editor(MoveSelection(Previous)),
+            Expect(CurrentSelectedTexts(&[""])),
             Editor(MoveSelection(Down)),
             Expect(CurrentSelectedTexts(&["spam"])),
         ])
