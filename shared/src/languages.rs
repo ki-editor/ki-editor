@@ -48,6 +48,8 @@ pub fn languages() -> HashMap<String, Language> {
         ("idris", idris()),
         ("haskell", haskell()),
         ("javascript", javascript()),
+        ("qml", qml()),
+        ("qmldir", qmldir()),
         ("javascriptreact", javascriptreact()),
         ("svelte", svelte()),
         ("json", json()),
@@ -686,6 +688,39 @@ fn javascript() -> Language {
     }
 }
 
+fn qml() -> Language {
+    Language {
+        extensions: to_vec(&["qml"]),
+        formatter: None,
+        lsp_command: Some(LspCommand {
+            command: Command::new("qmlls6", &[]),
+            ..LspCommand::default()
+        }),
+        lsp_language_id: Some(LanguageId::new("qmljs")),
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "qmljs".to_string(),
+            kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::QmlJs),
+        }),
+        line_comment_prefix: Some("//".to_string()),
+        block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
+        ..Language::new()
+    }
+}
+
+fn qmldir() -> Language {
+    Language {
+        file_names: to_vec(&["qmldir"]),
+        formatter: None,
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "qmldir".to_string(),
+            kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::QmlDir),
+        }),
+        line_comment_prefix: Some("//".to_string()),
+        block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
+        ..Language::new()
+    }
+}
+
 fn javascriptreact() -> Language {
     Language {
         extensions: to_vec(&["jsx"]),
@@ -1270,7 +1305,8 @@ fn scala() -> Language {
 mod test {
     #[test]
     fn test_languages_match_nvim_treesitter_languages() {
-        const MISSING_NVIM_HIGHLIGHTS: &[&str] = &["dune", "ki_quickfix", "tsq", "jj description"];
+        const MISSING_NVIM_HIGHLIGHTS: &[&str] =
+            &["dune", "ki_quickfix", "tsq", "jj description", "qml"];
 
         // This test is a major consistency check.
         // First, we check that all builtin languages were searched for in nvim-treesitter.
