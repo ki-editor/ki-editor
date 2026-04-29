@@ -141,7 +141,7 @@ fn c() -> Language {
 fn make() -> Language {
     Language {
         file_names: to_vec(&["Makefile", "makefile", "GNUmakefile"]),
-        formatter: Some(Command::new("mbake", &[])),
+        formatter: Some(Command::new("mbake", &["format", "--stdin"])),
         lsp_language_id: Some(LanguageId::new("make")),
         tree_sitter_grammar_config: Some(GrammarConfig {
             id: "make".to_string(),
