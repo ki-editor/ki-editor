@@ -85,7 +85,7 @@ pub(super) fn from_theme_content(theme: ThemeContent) -> Theme {
             [
                 to_style(Boolean, get("boolean")),
                 to_style(Comment, get("comment")),
-                to_style(CommentDocumentation, get("comment.documentation")),
+                to_style(CommentDocumentation, get("comment.doc")),
                 to_style(Constant, get("constant")),
                 to_style(ConstantBuiltin, get("constant")),
                 to_style(Function, get("function")),
