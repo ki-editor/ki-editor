@@ -75,6 +75,7 @@ pub fn languages() -> HashMap<String, Language> {
         ("typescriptreact", typescriptreact()),
         ("xml", xml()),
         ("yaml", yaml()),
+        ("kdl", kdl()),
         ("zig", zig()),
         ("clojure", clojure()),
         ("scala", scala()),
@@ -1187,6 +1188,19 @@ fn yaml() -> Language {
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::YAML),
         }),
         line_comment_prefix: Some("#".to_string()),
+        ..Language::new()
+    }
+}
+
+fn kdl() -> Language {
+    Language {
+        extensions: to_vec(&["kdl"]),
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "kdl".to_string(),
+            kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Kdl),
+        }),
+        line_comment_prefix: Some("//".to_string()),
+        block_comment_affixes: Some(("/-".to_string(), "}".to_string())),
         ..Language::new()
     }
 }
