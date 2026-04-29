@@ -16,6 +16,7 @@ pub fn languages() -> HashMap<String, Language> {
         ("fish", fish()),
         ("unison", unison()),
         ("c", c()),
+        ("make", make()),
         ("racket", racket()),
         ("scheme", scheme()),
         ("commonlisp", commonlisp()),
@@ -133,6 +134,20 @@ fn c() -> Language {
         }),
         line_comment_prefix: Some("//".to_string()),
         block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
+        ..Language::new()
+    }
+}
+
+fn make() -> Language {
+    Language {
+        file_names: to_vec(&["Makefile", "makefile", "GNUmakefile"]),
+        formatter: Some(Command::new("mbake", &[])),
+        lsp_language_id: Some(LanguageId::new("make")),
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "make".to_string(),
+            kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Make),
+        }),
+        line_comment_prefix: Some("#".to_string()),
         ..Language::new()
     }
 }
