@@ -2689,7 +2689,7 @@ fn delete_surround() -> Result<(), anyhow::Error> {
             }),
             Editor(SetContent("(hello (world))".to_string())),
             Editor(MatchLiteral("rl".to_string())),
-            App(HandleKeyEvents(keys!(", v m").to_vec())),
+            App(HandleKeyEvents(keys!(", g m").to_vec())),
             Expect(CurrentSelectedTexts(&["world"])),
             Expect(CurrentSelectionMode(SelectionMode::Custom)),
             Expect(CurrentComponentContent("(hello world)")),
@@ -6104,7 +6104,7 @@ fn test_paste_mol() -> anyhow::Result<()> {
             Editor(SetContent("foo bar spam".to_string())),
             Editor(MatchLiteral("bar".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
-            App(HandleKeyEvents(keys!("c release-c b l release-b").to_vec())),
+            App(HandleKeyEvents(keys!("c release-c v l release-v").to_vec())),
             Expect(CurrentSelectedTexts(&["bar"])),
             Expect(CurrentComponentContent("foo bar bar spam")),
         ])
