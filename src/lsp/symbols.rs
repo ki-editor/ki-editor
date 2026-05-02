@@ -5,7 +5,7 @@ use crate::{
     quickfix_list::Location,
 };
 use lsp_types::{DocumentSymbolResponse, SymbolKind};
-use shared::{absolute_path::AbsolutePath, icons::get_icon_config};
+use shared::absolute_path::AbsolutePath;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Symbols {
@@ -172,12 +172,13 @@ pub struct Symbol {
 }
 impl Symbol {
     pub fn display(&self) -> String {
-        let icon = get_icon_config()
+        let icon = crate::config::AppConfig::singleton()
+            .icon_config()
             .completion
             .get(&format!("{:?}", self.kind))
-            .cloned()
+            .map(|s| s.as_str())
             .unwrap_or_default();
-        format!("{} {}", icon, self.name)
+        shared::icons::format_with_icon(icon, &self.name)
     }
 }
 

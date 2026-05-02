@@ -25,6 +25,7 @@
             }
         }
     },
+    "icon_style": "nerd-font",
     "leader_keymap": [
         [
             {
