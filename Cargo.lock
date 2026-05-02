@@ -1397,7 +1397,6 @@ dependencies = [
  "nucleo",
  "nucleo-matcher",
  "nvim-treesitter-highlight-queries",
- "once_cell",
  "pretty_assertions",
  "quickcheck",
  "quickcheck_macros",
