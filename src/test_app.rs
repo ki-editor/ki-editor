@@ -3195,9 +3195,7 @@ fn pasting_when_clipboard_html_is_set_by_other_app() -> Result<(), anyhow::Error
                     owner: BufferOwner::User,
                     focus: true,
                 }),
-                App(Dispatch::SetSystemClipboardContent {
-                    content: "hello",
-                }),
+                App(Dispatch::SetSystemClipboardContent { content: "hello" }),
                 Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Character)),
                 Editor(SetContent("".to_string())),
                 Editor(PasteWithMovement(GetGapMovement::Right)),
