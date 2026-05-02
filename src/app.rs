@@ -1132,12 +1132,11 @@ impl<T: Frontend> App<T> {
             Dispatch::SetClipboardContent {
                 copied_texts: contents,
             } => {
-                self.context
-                    .set_clipboard_content(contents.clone())
-                    .or_else(|_| {
-                        let mut frontend = self.frontend.lock().unwrap();
-                        frontend.set_clipboard_with_osc52(&contents.to_text())
-                    })?;
+                self.context.set_clipboard_content(contents.clone());
+                self.frontend
+                    .lock()
+                    .unwrap()
+                    .set_clipboard_with_osc52(&contents.to_text())?;
             }
             Dispatch::AddKillRingEntry { texts } => self.context.add_kill_ring_entry(texts),
             Dispatch::SetGlobalMode(mode) => self.set_global_mode(mode)?,
@@ -1268,8 +1267,8 @@ impl<T: Frontend> App<T> {
             } => self.open_search_prompt_with_current_selection(scope, prior_change)?,
             Dispatch::ShowGlobalInfo(info) => self.show_global_info(info),
             #[cfg(test)]
-            Dispatch::SetSystemClipboardHtml { html, alt_text } => {
-                self.set_system_clipboard_html(html, alt_text)?;
+            Dispatch::SetSystemClipboardContent { content } => {
+                self.set_system_clipboard_content(content)?;
             }
             Dispatch::AddQuickfixListEntries(locations) => {
                 self.add_quickfix_list_entries(locations)?;
@@ -3308,8 +3307,8 @@ impl<T: Frontend> App<T> {
     }
 
     #[cfg(test)]
-    fn set_system_clipboard_html(&self, html: &str, alt_text: &str) -> anyhow::Result<()> {
-        Ok(arboard::Clipboard::new()?.set_html(html, Some(alt_text))?)
+    fn set_system_clipboard_content(&self, content: &str) -> anyhow::Result<()> {
+        Ok(arboard::Clipboard::new()?.set_text(content)?)
     }
 
     fn restore_session(&mut self) {
@@ -4014,9 +4013,8 @@ pub enum Dispatch {
     },
     ShowGlobalInfo(Info),
     #[cfg(test)]
-    SetSystemClipboardHtml {
-        html: &'static str,
-        alt_text: &'static str,
+    SetSystemClipboardContent {
+        content: &'static str,
     },
     AddQuickfixListEntries(Vec<Match>),
     AppliedEdits {

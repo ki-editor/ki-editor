@@ -391,9 +391,9 @@ impl Context {
         self.clipboard.get(history_offset)
     }
 
-    pub fn set_clipboard_content(&mut self, contents: Texts) -> anyhow::Result<()> {
+    pub fn set_clipboard_content(&mut self, contents: Texts) {
         self.kill_ring.add(contents.clone());
-        self.clipboard.set(contents)
+        self.clipboard.set(contents);
     }
 
     pub fn mode(&self) -> Option<GlobalMode> {
