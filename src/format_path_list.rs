@@ -105,7 +105,14 @@ pub fn get_formatted_paths(
             } else {
                 let file_dirty = is_dirty(path);
                 let bracket = if file_dirty { "[÷]" } else { "[-]" };
-                format!(" {} {} ", bracket, shared::icons::format_with_icon(path.icon(icon_config), &format_path_string(path)))
+                format!(
+                    " {} {} ",
+                    bracket,
+                    shared::icons::format_with_icon(
+                        path.icon(icon_config),
+                        &format_path_string(path)
+                    )
+                )
             }
         })
         .collect();

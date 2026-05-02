@@ -1,8 +1,8 @@
 use std::ops::Range;
 
+use crate::config::AppConfig;
 use itertools::Itertools;
 use lsp_types::CompletionItemKind;
-use crate::config::AppConfig;
 
 use crate::{
     app::{Dispatch, Dispatches},

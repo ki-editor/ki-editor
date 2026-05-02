@@ -135,9 +135,11 @@ impl From<AbsolutePath> for DropdownItem {
             let icon = value.icon(icon_config);
             format_with_icon(icon, &name)
         })
-        .set_group(value.parent().ok().flatten().map(|parent| {
-            format_with_icon(&icon_config.folder, &parent.try_display_relative())
-        }))
+        .set_group(
+            value.parent().ok().flatten().map(|parent| {
+                format_with_icon(&icon_config.folder, &parent.try_display_relative())
+            }),
+        )
         .set_dispatches(Dispatches::one(crate::app::Dispatch::OpenFile {
             path: value,
             owner: BufferOwner::User,
