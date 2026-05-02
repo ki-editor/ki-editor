@@ -345,18 +345,22 @@ impl Tree {
             .iter()
             .map(|node| {
                 let icon_config = crate::config::AppConfig::singleton().icon_config();
-                let content = match &node.kind {
-                    NodeKind::File => {
-                        shared::icons::format_with_icon(node.path.icon(icon_config), &node.name)
+                let format = |icon: &str, text: &str| {
+                    if icon.is_empty() {
+                        text.to_string()
+                    } else {
+                        format!("{icon}  {text}")
                     }
+                };
+                let content = match &node.kind {
+                    NodeKind::File => format(node.path.icon(icon_config), &node.name),
                     NodeKind::Directory { open, children } => {
                         let icon = if *open {
                             icon_config.folder_expanded.as_str()
                         } else {
                             icon_config.folder.as_str()
                         };
-                        let head =
-                            shared::icons::format_with_icon(icon, &format!("{}{}", node.name, "/"));
+                        let head = format(icon, &format!("{}{}", node.name, "/"));
 
                         let tail = if *open {
                             children
