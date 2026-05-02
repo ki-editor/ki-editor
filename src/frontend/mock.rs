@@ -75,7 +75,10 @@ impl super::Frontend for MockFrontend {
         self.previous_screen = previous_screen;
     }
 
-    fn set_clipboard_with_osc52(&mut self, _content: &str) -> anyhow::Result<()> {
+    fn set_clipboard_with_osc52(&mut self, content: &str) -> anyhow::Result<()> {
+        // In tests there is no real terminal to receive OSC52, so write to arboard
+        // directly so that get_from_system_clipboard() returns the same content.
+        let _ = arboard::Clipboard::new().and_then(|mut c| c.set_text(content));
         Ok(())
     }
 
