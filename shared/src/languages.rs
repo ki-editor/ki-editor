@@ -86,7 +86,7 @@ fn bash() -> Language {
     Language {
         extensions: to_vec(&["sh", "bash"]),
         file_names: to_vec(&[".bashrc", ".bash_profile", "bashrc", "bash_profile"]),
-        formatter: Some(Command::new("shfmt", &[".sh", ".bash"])),
+        formatter: Some(Command::new("shfmt", &[])),
         lsp_command: Some(LspCommand {
             command: Command::new("bash-language-server", &["start"]),
             ..LspCommand::default()
