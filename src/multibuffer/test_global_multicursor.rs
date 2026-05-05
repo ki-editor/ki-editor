@@ -675,7 +675,7 @@ fn simple_normal_mode_action_should_not_be_duplicated() -> Result<(), anyhow::Er
             WaitForAppMessage(regex!("GlobalSearchFinished")),
             App(AddCursorToAllSelections),
             // Enter word selection mode, then delete right
-            App(HandleKeyEvents(keys!("s g l release-g").to_vec())),
+            App(HandleKeyEvents(keys!("s r l release-r").to_vec())),
             App(SaveAll),
             Expect(FileContent(s.main_rs(), "// xxx yyy\n".to_string())),
             Expect(FileContent(s.foo_rs(), "// aaa bbb\n".to_string())),

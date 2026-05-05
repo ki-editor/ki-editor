@@ -355,7 +355,7 @@ pub fn normal_mode_keymap_legend_config(
             &normal_mode_keymap(editor, normal_mode_override, prior_change)
                 .into_iter()
                 .chain(Some(Keybinding::new_undocumented(
-                    "b",
+                    "g",
                     "Extend",
                     Dispatch::ShowMenu(extend_mode_keymap_legend_config(editor)),
                 )))
@@ -672,7 +672,7 @@ pub fn extend_mode_keymap_legend_config(editor: &Editor) -> KeymapLegendConfig {
             &normal_mode_keymap(editor, None, Some(PriorChange::EnableSelectionExtension))
                 .into_iter()
                 .chain(Some(Keybinding::new_undocumented(
-                    "b",
+                    "g",
                     "Select All",
                     Dispatch::ToEditor(SelectAll),
                 )))
@@ -800,7 +800,7 @@ pub fn keymap_surround() -> Keymap {
     }
     Keymap::new(&[
         Keybinding::new_undocumented(
-            "g",
+            "r",
             "Delete Surround",
             Dispatch::ShowMenu(delete_surround_keymap_legend_config()),
         ),
@@ -1298,7 +1298,7 @@ pub fn keymap_actions(
             Dispatch::ShowMenu(leader_keymap_legend_config()),
         ),
         Keybinding::momentary_layer(MomentaryLayer {
-            key: "r",
+            key: "b",
             name: "≡ Multi-cursor".to_string(),
             config: KeymapLegendConfig {
                 title: "≡ Multi-cursor".to_string(),
@@ -1379,7 +1379,7 @@ pub fn keymap_actions_overridable(
         )
         .override_keymap(normal_mode_override.cut.as_ref(), none_if_no_override),
         Keybinding::new_undocumented(
-            "g",
+            "r",
             "≡ Delete/Eat",
             Dispatch::ShowJointMomentaryLayer {
                 swap_key: key!("space"),
@@ -1388,7 +1388,7 @@ pub fn keymap_actions_overridable(
                     keymap: delete_keymap(),
                 },
                 release_key: ReleaseKey::new(
-                    "g",
+                    "r",
                     Some(OnTap::new(
                         "Delete One",
                         Dispatch::ToEditor(DispatchEditor::DeleteOne),
