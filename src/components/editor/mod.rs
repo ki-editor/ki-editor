@@ -1269,9 +1269,11 @@ impl Editor {
     }
 
     pub fn copy(&mut self) -> Dispatches {
-        Dispatches::one(Dispatch::SetClipboardContent {
+        let dispatches = Dispatches::one(Dispatch::SetClipboardContent {
             copied_texts: self.get_current_texts(),
-        })
+        });
+        self.disable_selection_extension();
+        dispatches
     }
 
     fn get_current_texts(&self) -> Texts {
