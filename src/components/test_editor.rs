@@ -2746,7 +2746,7 @@ fn delete_surround() -> Result<(), anyhow::Error> {
             }),
             Editor(SetContent("(hello (world))".to_string())),
             Editor(MatchLiteral("rl".to_string())),
-            App(HandleKeyEvents(keys!(", g m").to_vec())),
+            App(HandleKeyEvents(keys!(", r m").to_vec())),
             Expect(CurrentSelectedTexts(&["world"])),
             Expect(CurrentSelectionMode(SelectionMode::Custom)),
             Expect(CurrentComponentContent("(hello world)")),
@@ -4805,7 +4805,7 @@ fuor
             Expect(CurrentSelectedTexts(&["foo", "for", "fuor"])),
             // Keep only selections matching `r/f.o`
             App(HandleKeyEvents(
-                keys!("r space i release-r r / f . o enter").to_vec(),
+                keys!("b space i release-b r / f . o enter").to_vec(),
             )),
             Expect(CurrentSelectedTexts(&["foo", "fuor"])),
         ])
