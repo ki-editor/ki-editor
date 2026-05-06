@@ -2319,7 +2319,6 @@ dependencies = [
  "log",
  "lsp-types",
  "nvim-treesitter-highlight-queries",
- "once_cell",
  "quickcheck",
  "quickcheck_macros",
  "regex",

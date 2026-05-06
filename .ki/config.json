@@ -25,6 +25,7 @@
             }
         }
     },
+    "icon_style": "emoji",
     "leader_keymap": [
         [
             {

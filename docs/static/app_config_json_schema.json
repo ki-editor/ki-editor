@@ -22,6 +22,10 @@
             },
             "default": {}
         },
+        "icon_style": {
+            "$ref": "#/$defs/IconStyle",
+            "default": "emoji"
+        },
         "indent_char": {
             "$ref": "#/$defs/IndentChar"
         },
@@ -180,6 +184,26 @@
                     },
                     "additionalProperties": false,
                     "required": ["FromSource"]
+                }
+            ]
+        },
+        "IconStyle": {
+            "description": "Controls which icon set is used throughout the UI.",
+            "oneOf": [
+                {
+                    "description": "Emoji icons (default). No special font required.",
+                    "type": "string",
+                    "const": "emoji"
+                },
+                {
+                    "description": "Nerd Font icons. Requires a Nerd Font (<https://www.nerdfonts.com/>) to be installed.",
+                    "type": "string",
+                    "const": "nerd-font"
+                },
+                {
+                    "description": "Disable icons entirely.",
+                    "type": "string",
+                    "const": "none"
                 }
             ]
         },

@@ -63,7 +63,6 @@ fancy-regex.workspace = true
 lsp-types.workspace = true
 log.workspace = true
 ropey = "1.6.1"
-once_cell.workspace = true
 serde_json.workspace = true
 serde.workspace = true
 tree-sitter.workspace = true
@@ -121,6 +120,7 @@ tracing-subscriber.workspace = true
 tracing-log.workspace = true
 crossbeam-channel = "0.5.15"
 const_format = "0.2.36"
+once_cell.workspace = true
 
 [dev-dependencies]
 serial_test = "~3.2.0"
