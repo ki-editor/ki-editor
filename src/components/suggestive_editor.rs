@@ -42,12 +42,15 @@ pub enum SuggestiveEditorFilter {
 
 impl From<CompletionItem> for DropdownItem {
     fn from(item: CompletionItem) -> Self {
-        DropdownItem::new(format!("{} {}", item.emoji(), item.label()))
-            .set_info(item.info())
-            .set_dispatches(item.dispatches())
-            .set_on_focused(Dispatches::one(Dispatch::ResolveCompletionItem(
-                item.completion_item(),
-            )))
+        DropdownItem::new(shared::icons::format_with_icon(
+            &item.emoji(),
+            &item.label(),
+        ))
+        .set_info(item.info())
+        .set_dispatches(item.dispatches())
+        .set_on_focused(Dispatches::one(Dispatch::ResolveCompletionItem(
+            item.completion_item(),
+        )))
     }
 }
 

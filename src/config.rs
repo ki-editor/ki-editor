@@ -27,6 +27,7 @@ pub struct AppConfig {
     indent_char: char,
     indent_width: usize,
     show_key_in_keymap: bool,
+    icon_config: shared::icons::IconsConfig,
 }
 
 #[derive(Deserialize, Serialize, JsonSchema)]
@@ -42,6 +43,8 @@ pub struct RawConfig {
     indent_char: IndentChar,
     indent_width: usize,
     show_key_in_keymap: bool,
+    #[serde(default)]
+    icon_style: shared::icons::IconStyle,
 }
 
 #[derive(Deserialize, Serialize, JsonSchema)]
@@ -95,6 +98,7 @@ impl TryFrom<RawConfig> for AppConfig {
             },
             indent_width: value.indent_width,
             show_key_in_keymap: value.show_key_in_keymap,
+            icon_config: shared::icons::build_icon_config(&value.icon_style),
         })
     }
 }
@@ -259,6 +263,10 @@ impl AppConfig {
 
     pub fn show_key_in_keymap(&self) -> bool {
         self.show_key_in_keymap
+    }
+
+    pub fn icon_config(&self) -> &shared::icons::IconsConfig {
+        &self.icon_config
     }
 }
 
