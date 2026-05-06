@@ -259,7 +259,7 @@ impl SelectionSet {
         Ok(())
     }
     #[cfg(test)]
-    pub fn escape_highlight_mode(&mut self) {
+    pub fn escape_extended_selection(&mut self) {
         self.apply_mut(|selection| selection.disable_extension());
     }
 

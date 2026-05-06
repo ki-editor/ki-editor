@@ -825,7 +825,7 @@ impl Editor {
 
     #[cfg(test)]
     pub fn reset(&mut self) {
-        self.selection_set.escape_highlight_mode();
+        self.selection_set.escape_extended_selection();
     }
 
     pub fn update_selection_set(
@@ -1822,7 +1822,10 @@ impl Editor {
     }
 
     pub fn change_cut(&mut self, context: &Context) -> anyhow::Result<Dispatches> {
-        Ok(self.copy().chain(self.change(context)?))
+        Ok(Dispatches::one(Dispatch::SetClipboardContent {
+            copied_texts: self.get_current_texts(),
+        })
+        .chain(self.change(context)?))
     }
 
     pub fn insert(
