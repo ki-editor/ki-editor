@@ -49,14 +49,19 @@ pub fn build_icon_config(style: &IconStyle) -> IconsConfig {
     config
 }
 
-/// Format `text` with a leading icon, omitting the icon (and the separating
-/// space) when `icon` is empty.
+/// Format `text` with a leading icon.  When `icon` is empty a single space is
+/// used as an alignment placeholder so that columns line up in lists that mix
+/// iconised and plain entries.  Pass `icon` as the empty string only when a
+/// specific icon is unavailable but icons are generally enabled; use
+/// [`format_without_icon`] when the icon feature is fully disabled.
 pub fn format_with_icon(icon: &str, text: &str) -> String {
-    if icon.is_empty() {
-        text.to_string()
-    } else {
-        format!("{icon} {text}")
-    }
+    format!("{icon} {text}")
+}
+
+/// Format `text` without any icon or alignment space.  Use this when the icon
+/// feature is fully disabled (`icon_style: none`).
+pub fn format_without_icon(text: &str) -> String {
+    text.to_string()
 }
 
 const ZERO_WIDTH_JOINER: char = '\u{200D}';
