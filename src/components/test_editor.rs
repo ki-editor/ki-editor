@@ -429,6 +429,26 @@ fn test_delete_extended_selection_whole_file() -> anyhow::Result<()> {
 }
 
 #[test]
+fn test_copy_disables_selection_extension() -> anyhow::Result<()> {
+    execute_test(move |s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("who lives in a pineapple".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Editor(EnableSelectionExtension),
+            Editor(MoveSelection(Right)),
+            Expect(CurrentSelectedTexts(&["who lives"])),
+            Editor(Copy),
+            Expect(SelectionExtensionEnabled(false)),
+        ])
+    })
+}
+
+#[test]
 fn test_delete_word_short_backward_from_middle_of_file() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
