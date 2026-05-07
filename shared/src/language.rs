@@ -110,6 +110,7 @@ pub enum CargoLinkedTreesitterLanguage {
     FSharp,
     Scala,
     Devicetree,
+    Just,
 }
 
 impl CargoLinkedTreesitterLanguage {
@@ -164,6 +165,7 @@ impl CargoLinkedTreesitterLanguage {
             CargoLinkedTreesitterLanguage::FSharp => tree_sitter_fsharp::LANGUAGE_FSHARP.into(),
             CargoLinkedTreesitterLanguage::Scala => tree_sitter_scala::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::Devicetree => tree_sitter_devicetree::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::Just => tree_sitter_just::LANGUAGE.into(),
         }
     }
 
@@ -222,6 +224,7 @@ impl CargoLinkedTreesitterLanguage {
             CargoLinkedTreesitterLanguage::Devicetree => {
                 Some(tree_sitter_devicetree::HIGHLIGHTS_QUERY)
             }
+            CargoLinkedTreesitterLanguage::Just => None,
         }
     }
 }
