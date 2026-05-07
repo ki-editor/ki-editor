@@ -714,14 +714,11 @@ fn julia() -> Language {
 
 fn just() -> Language {
     Language {
-        file_names: to_vec(&["justfile"]),
+        file_names: to_vec(&["justfile", "Justfile"]),
+        extensions: to_vec(&["just"]),
         tree_sitter_grammar_config: Some(GrammarConfig {
             id: "just".to_string(),
-            kind: GrammarConfigKind::FromSource {
-                url: "https://github.com/IndianBoy42/tree-sitter-just".to_string(),
-                commit: "main".to_string(),
-                subpath: None,
-            },
+            kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Just),
         }),
         line_comment_prefix: Some("#".to_string()),
         ..Language::new()
