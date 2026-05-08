@@ -65,6 +65,7 @@ codebook-tree-sitter-latex = "0.6.1"
 tree-sitter-devicetree = "0.15.0"
 tree-sitter-make = "1.1.1"
 tree-sitter-just = "0.2.0"
+tree-sitter-zsh = "0.63.3"
 
 
 [dev-dependencies]
