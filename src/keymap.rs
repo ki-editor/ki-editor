@@ -914,9 +914,9 @@ fn keymap_clipboard_related_actions(normal_mode_override: NormalModeOverride) ->
         Keybinding::new_undocumented("F", "Change X", Dispatch::ToEditor(ChangeCut)),
         Keybinding::momentary_layer(MomentaryLayer {
             key: "c",
-            name: "≡ Dup".to_string(),
+            name: "Copy/≡ Dup".to_string(),
             config: KeymapLegendConfig {
-                title: "≡ Dup".to_string(),
+                title: "Copy/≡ Dup".to_string(),
                 keymap: duplicate_keymap(),
             },
             on_tap: Some(OnTap::new("Copy", Dispatch::ToEditor(Copy))),
