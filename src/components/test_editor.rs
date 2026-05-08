@@ -6238,6 +6238,32 @@ fn delete_one_extended_selection() -> anyhow::Result<()> {
 }
 
 #[test]
+fn cut_one_extended_selection() -> anyhow::Result<()> {
+    // Regression test for https://github.com/ki-editor/ki-editor/issues/1597
+    // Cut One with an extended selection should copy AND delete the entire extended selection.
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("abc\ndef".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+            Editor(EnableSelectionExtension),
+            Editor(MoveSelection(Down)),
+            Expect(CurrentSelectedTexts(&["abc\ndef"])),
+            Editor(CutOne),
+            // Both lines should be deleted, not just the last one
+            Expect(CurrentComponentContent("")),
+            // The clipboard should contain the full extended selection
+            Editor(ReplaceWithCopiedText { cut: false }),
+            Expect(CurrentComponentContent("abc\ndef")),
+        ])
+    })
+}
+
+#[test]
 fn handle_repeated_arrow_keys_in_insert_mode() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
