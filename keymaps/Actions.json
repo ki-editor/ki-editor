@@ -32,7 +32,7 @@
                 "shifted": "Coarse Redo"
             },
             { "normal": "≡ Cut/Swap", "alted": null, "shifted": null },
-            { "normal": "≡ Dup", "alted": null, "shifted": null },
+            { "normal": "Copy/≡ Dup", "alted": null, "shifted": null },
             { "normal": "≡ Paste", "alted": null, "shifted": null },
             { "normal": "≡ Multi-cursor", "alted": null, "shifted": null },
             { "normal": null, "alted": null, "shifted": null },
