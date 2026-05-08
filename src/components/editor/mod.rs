@@ -1091,13 +1091,18 @@ impl Editor {
         movement: Movement,
         cut: bool,
     ) -> anyhow::Result<Dispatches> {
+        // Capture texts before building the edit transaction, so that the extended
+        // selection range is used for both the clipboard and the kill ring.
+        let current_texts = self.get_current_texts();
         let initial_dispatches: Dispatches = if cut {
-            self.copy()
+            Dispatches::one(Dispatch::SetClipboardContent {
+                copied_texts: current_texts.clone(),
+            })
         } else {
             Dispatches::default()
         }
         .append(Dispatch::AddKillRingEntry {
-            texts: self.get_current_texts(),
+            texts: current_texts,
         });
         let edit_transaction = EditTransaction::from_action_groups({
             let buffer = self.buffer();
@@ -1737,13 +1742,20 @@ impl Editor {
     }
 
     pub fn delete_one(&mut self, context: &Context, cut: bool) -> anyhow::Result<Dispatches> {
+        // Capture texts before building the edit transaction, so that the extended
+        // selection range is used for both the clipboard and the kill ring.
+        // (Calling `self.copy()` has a side effect of disabling selection extension,
+        // which would cause the subsequent edit transaction to use the wrong range.)
+        let current_texts = self.get_current_texts();
         let initial_dispatches: Dispatches = if cut {
-            self.copy()
+            Dispatches::one(Dispatch::SetClipboardContent {
+                copied_texts: current_texts.clone(),
+            })
         } else {
             Dispatches::default()
         }
         .append(Dispatch::AddKillRingEntry {
-            texts: self.get_current_texts(),
+            texts: current_texts,
         });
 
         let edit_transaction = EditTransaction::from_action_groups(
