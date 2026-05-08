@@ -13,6 +13,7 @@ fn to_vec(slice: &[&'static str]) -> Vec<String> {
 pub fn languages() -> HashMap<String, Language> {
     [
         ("bash", bash()),
+        ("zsh", zsh()),
         ("fish", fish()),
         ("unison", unison()),
         ("c", c()),
@@ -95,6 +96,28 @@ fn bash() -> Language {
         tree_sitter_grammar_config: Some(GrammarConfig {
             id: "bash".to_string(),
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Bash),
+        }),
+        line_comment_prefix: Some("#".to_string()),
+        ..Language::new()
+    }
+}
+
+fn zsh() -> Language {
+    Language {
+        extensions: to_vec(&["zsh"]),
+        file_names: to_vec(&[".zshrc", ".zprofile", ".zshenv", ".zlogout"]),
+        // There is no formatter and lsp for zsh but since zsh is a superset pretty close to bash
+        // we can mostly use the bash one as-is.
+        // For example, helix just consider all zsh files to just be bash.
+        formatter: Some(Command::new("shfmt", &[])),
+        lsp_command: Some(LspCommand {
+            command: Command::new("bash-language-server", &["start"]),
+            ..LspCommand::default()
+        }),
+        lsp_language_id: Some(LanguageId::new("zsh")),
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "zsh".to_string(),
+            kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Zsh),
         }),
         line_comment_prefix: Some("#".to_string()),
         ..Language::new()
