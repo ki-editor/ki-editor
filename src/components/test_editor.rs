@@ -5684,7 +5684,10 @@ fn save_conflict_resolved_by_force_reload() -> anyhow::Result<()> {
                 "sed",
                 [
                     "-i".to_string(),
-                    "$a\\theirs".to_string(),
+                    "".to_string(),
+                    r#"$a\
+theirs"#
+                        .to_string(),
                     s.main_rs().display_absolute(),
                 ]
                 .to_vec(),
@@ -5741,7 +5744,10 @@ fn save_conflict_resolved_by_force_save() -> anyhow::Result<()> {
                 "sed",
                 [
                     "-i".to_string(),
-                    "$a\\theirs".to_string(),
+                    "".to_string(),
+                    r#"$a\
+theirs"#
+                        .to_string(),
                     s.main_rs().display_absolute(),
                 ]
                 .to_vec(),
@@ -5797,7 +5803,10 @@ fn save_conflict_resolved_by_3_way_merge() -> anyhow::Result<()> {
                 "sed",
                 [
                     "-i".to_string(),
-                    "$a\\theirs".to_string(),
+                    "".to_string(),
+                    r#"$a\
+theirs"#
+                        .to_string(),
                     s.main_rs().display_absolute(),
                 ]
                 .to_vec(),
@@ -5834,11 +5843,14 @@ fn gracefully_reload_buffer_when_there_is_conflict() -> anyhow::Result<()> {
             Editor(EnterInsertMode(Direction::Start)),
             App(HandleKeyEvents(keys!("o u r s enter").to_vec())),
             Shell(
-                //sed -i '$a\theirs' filename
+                //sed -i '$a\\ntheirs' filename
                 "sed",
                 [
                     "-i".to_string(),
-                    "$a\\theirs".to_string(),
+                    "".to_string(),
+                    r#"$a\
+theirs"#
+                        .to_string(),
                     s.main_rs().display_absolute(),
                 ]
                 .to_vec(),
