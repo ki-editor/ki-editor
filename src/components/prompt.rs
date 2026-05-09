@@ -846,6 +846,7 @@ mod test_prompt {
                 App(RevealInExplorer(s.main_rs())),
                 Expect(FileExplorerContent(
                     "
+ - ../
  - 📁  .git/ :
  - 🙈  .gitignore
  - 🔒  Cargo.lock
