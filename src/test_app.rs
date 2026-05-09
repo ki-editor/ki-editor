@@ -19,7 +19,7 @@ use std::{
     cell::RefCell,
     path::PathBuf,
     rc::Rc,
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, Once},
     time::Duration,
 };
 pub use Dispatch::*;
@@ -918,6 +918,12 @@ fn execute_test_helper(
     assert_last_step_is_expect: bool,
     options: RunTestOptions,
 ) -> anyhow::Result<TestOutput> {
+    static SET_ENV_VAR: Once = Once::new();
+    SET_ENV_VAR.call_once(|| {
+        // Safety: Since it's wrapped in a `Once`, it's guarantee that it's never going to be executed twice per process.
+        unsafe { std::env::set_var("RUST_BACKTRACE", "0") };
+    });
+
     let callback = |mut app: App<MockFrontend>, temp_dir: AbsolutePath| {
         let steps = {
             callback(State {
