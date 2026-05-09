@@ -4489,6 +4489,7 @@ fn saving_content_of_pathless_buffer_into_a_new_file_using_shift_enter() -> anyh
             App(OpenFileExplorer),
             Expect(CurrentComponentContent(
                 "
+ - ../
  - 📁  .git/ :
  - 🙈  .gitignore
  - 🔒  Cargo.lock
@@ -4508,6 +4509,7 @@ fn saving_content_of_pathless_buffer_into_a_new_file_using_shift_enter() -> anyh
             )),
             Expect(CurrentComponentContent(
                 "
+ - ../
  - 📁  .git/ :
  - 🙈  .gitignore
  - 🔒  Cargo.lock

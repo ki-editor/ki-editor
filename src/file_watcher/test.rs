@@ -169,7 +169,8 @@ fn path_modified_under_a_non_expanded_folder_should_not_refresh_explorer(
             App(RevealInExplorer(s.gitignore())),
             // Expect "src" folder is not expanded,
             Expect(CurrentComponentContent(
-                " - 📁  .git/ :
+                " - ../
+ - 📁  .git/ :
  - 🙈  .gitignore
  - 🔒  Cargo.lock
  - 📄  Cargo.toml
