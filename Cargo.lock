@@ -2338,6 +2338,7 @@ dependencies = [
  "tree-sitter-heex",
  "tree-sitter-html",
  "tree-sitter-javascript",
+ "tree-sitter-jjdescription",
  "tree-sitter-json",
  "tree-sitter-julia",
  "tree-sitter-just",
@@ -2901,6 +2902,15 @@ name = "tree-sitter-javascript"
 version = "0.23.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bf40bf599e0416c16c125c3cec10ee5ddc7d1bb8b0c60fa5c4de249ad34dc1b1"
+dependencies = [
+ "cc",
+ "tree-sitter-language",
+]
+
+[[package]]
+name = "tree-sitter-jjdescription"
+version = "1.0.3"
+source = "git+https://github.com/irevoire/tree-sitter-jjdescription/?rev=671e0d6#671e0d6aadd7a2de93533be8474e72c786c746fe"
 dependencies = [
  "cc",
  "tree-sitter-language",
