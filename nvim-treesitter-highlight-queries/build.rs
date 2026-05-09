@@ -67,9 +67,10 @@ const INCLUDED_NVIM_TREESITTER_LANGUAGES: &[&str] = &[
     "xml",
     "yaml",
     "zig",
+    "jj description",
 ];
 
-const MISSING_NVIM_HIGHLIGHTS: &[&str] = &["dune", "ki_quickfix", "tsq"];
+const MISSING_NVIM_HIGHLIGHTS: &[&str] = &["dune", "ki_quickfix", "tsq", "jj description"];
 
 fn main() {
     let compiled_highlight_query_path = std::path::PathBuf::from(

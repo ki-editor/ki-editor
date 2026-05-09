@@ -86,6 +86,7 @@ pub enum CargoLinkedTreesitterLanguage {
     Markdown,
     Go,
     Lua,
+    JjDescription,
     Gleam,
     Bash,
     Zsh,
@@ -168,6 +169,9 @@ impl CargoLinkedTreesitterLanguage {
             CargoLinkedTreesitterLanguage::Scala => tree_sitter_scala::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::Devicetree => tree_sitter_devicetree::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::Just => tree_sitter_just::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::JjDescription => {
+                tree_sitter_jjdescription::LANGUAGE.into()
+            }
         }
     }
 
@@ -228,6 +232,9 @@ impl CargoLinkedTreesitterLanguage {
                 Some(tree_sitter_devicetree::HIGHLIGHTS_QUERY)
             }
             CargoLinkedTreesitterLanguage::Just => None,
+            CargoLinkedTreesitterLanguage::JjDescription => {
+                Some(tree_sitter_jjdescription::HIGHLIGHTS_QUERY)
+            }
         }
     }
 }

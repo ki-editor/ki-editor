@@ -35,6 +35,7 @@ pub fn languages() -> HashMap<String, Language> {
         ("gitconfig", gitconfig()),
         ("gitignore", gitignore()),
         ("gitrebase", gitrebase()),
+        ("jjdescription", jjdescription()),
         ("gleam", gleam()),
         ("go", go()),
         ("graphql", graphql()),
@@ -455,6 +456,18 @@ fn gitrebase() -> Language {
             },
         }),
         line_comment_prefix: Some("#".to_string()),
+        ..Language::new()
+    }
+}
+
+fn jjdescription() -> Language {
+    Language {
+        extensions: to_vec(&["jjdescription"]),
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "jj description".to_string(),
+            kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::JjDescription),
+        }),
+        line_comment_prefix: Some("JJ".to_string()),
         ..Language::new()
     }
 }
@@ -1230,7 +1243,7 @@ fn scala() -> Language {
 mod test {
     #[test]
     fn test_languages_match_nvim_treesitter_languages() {
-        const MISSING_NVIM_HIGHLIGHTS: &[&str] = &["dune", "ki_quickfix", "tsq"];
+        const MISSING_NVIM_HIGHLIGHTS: &[&str] = &["dune", "ki_quickfix", "tsq", "jj description"];
 
         // This test is a major consistency check.
         // First, we check that all builtin languages were searched for in nvim-treesitter.
