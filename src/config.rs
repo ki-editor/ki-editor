@@ -201,17 +201,21 @@ impl AppConfig {
     pub fn load_from_current_directory() -> anyhow::Result<Self> {
         let workspace_dir = ki_workspace_directory()?;
         let workspace_config = |extension: &str| workspace_dir.join(format!("config.{extension}"));
+        #[cfg(not(test))]
         let global_config =
             |extension: &str| ki_global_directory().join(format!("config.{extension}"));
-        let config: RawConfig =
-            figment::Figment::from(providers::Serialized::defaults(&RawConfig::default()))
-                .merge(providers::Json::file(global_config("json")))
-                .merge(providers::Yaml::file(global_config("yaml")))
-                .merge(providers::Toml::file(global_config("toml")))
-                .merge(providers::Json::file(workspace_config("json")))
-                .merge(providers::Yaml::file(workspace_config("yaml")))
-                .merge(providers::Toml::file(workspace_config("toml")))
-                .extract()?;
+        let config = figment::Figment::from(providers::Serialized::defaults(&RawConfig::default()));
+        #[cfg(not(test))]
+        let config = config
+            .merge(providers::Json::file(global_config("json")))
+            .merge(providers::Yaml::file(global_config("yaml")))
+            .merge(providers::Toml::file(global_config("toml")));
+
+        let config: RawConfig = config
+            .merge(providers::Json::file(workspace_config("json")))
+            .merge(providers::Yaml::file(workspace_config("yaml")))
+            .merge(providers::Toml::file(workspace_config("toml")))
+            .extract()?;
         config.try_into()
     }
 

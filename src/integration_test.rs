@@ -36,8 +36,11 @@ impl TestRunner {
         let path = tempfile::tempdir()?.keep();
         std::fs::create_dir_all(path.clone())?;
 
-        let options = fs_extra::dir::CopyOptions::new();
-        fs_extra::dir::copy(MOCK_REPO_PATH, path.clone(), &options)?;
+        std::process::Command::new("cp")
+            .arg("-r")
+            .arg(MOCK_REPO_PATH)
+            .arg(&path)
+            .output()?;
 
         let temp_dir = AbsolutePath::try_from(path)?
             // Need to canonicalize because MacOS uses symlinks for tempdirs

@@ -125,7 +125,6 @@ once_cell.workspace = true
 [dev-dependencies]
 serial_test = "~3.2.0"
 pretty_assertions = "1.3.0"
-fs_extra = "1.3.0"
 quickcheck.workspace = true
 quickcheck_macros.workspace = true
 tree-sitter-rust = "0.24.0"
