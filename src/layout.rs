@@ -315,8 +315,7 @@ impl Layout {
     pub fn refresh_file_explorer(&self, context: &Context) -> Result<(), anyhow::Error> {
         // dropping dispatch as this is a buffer with no path and
         // refresh dispatches are related to file dirty status
-        let _ = self
-            .background_file_explorer
+        self.background_file_explorer
             .borrow_mut()
             .refresh(context)?;
         Ok(())

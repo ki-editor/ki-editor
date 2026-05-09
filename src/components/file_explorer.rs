@@ -148,7 +148,7 @@ impl FileExplorer {
             match node.kind {
                 NodeKind::ParentDirectory => {
                     self.tree = Tree::new(&node.path)?;
-                    let _ = self.refresh_editor(context)?;
+                    self.refresh_editor(context)?;
                     Ok(Vec::new().into())
                 }
                 NodeKind::File => Ok([
@@ -166,7 +166,7 @@ impl FileExplorer {
                     self.tree = tree.toggle(&node.path, |open| !open);
                     // dropping dispatch as this is a buffer with no path and
                     // refresh dispatches are related to file dirty status
-                    let _ = self.refresh_editor(context)?;
+                    self.refresh_editor(context)?;
                     Ok(Vec::new().into())
                 }
             }
