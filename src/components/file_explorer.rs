@@ -212,7 +212,7 @@ fn get_nodes(path: &AbsolutePath) -> anyhow::Result<Vec<Node>> {
                 kind,
             })
         })
-        .sorted_by(|a, b| a.name.cmp(&b.name))
+        .sorted_by(|a, b| a.kind.cmp(&b.kind).then(a.name.cmp(&b.name)))
         .collect())
 }
 
@@ -478,7 +478,6 @@ struct Node {
 }
 #[derive(Clone)]
 enum NodeKind {
-    File,
     /// The virtual "../" entry that navigates to the parent directory.
     ParentDirectory,
     Directory {
@@ -486,6 +485,34 @@ enum NodeKind {
         /// Should be populated lazily
         children: Option<Tree>,
     },
+    File,
+}
+
+impl NodeKind {
+    fn sort_order(&self) -> u8 {
+        match self {
+            NodeKind::ParentDirectory => 0,
+            NodeKind::Directory { .. } => 1,
+            NodeKind::File => 2,
+        }
+    }
+}
+
+impl PartialEq for NodeKind {
+    fn eq(&self, other: &Self) -> bool {
+        self.sort_order() == other.sort_order()
+    }
+}
+impl Eq for NodeKind {}
+impl PartialOrd for NodeKind {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+impl Ord for NodeKind {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.sort_order().cmp(&other.sort_order())
+    }
 }
 
 impl Component for FileExplorer {
@@ -527,18 +554,18 @@ mod test_file_explorer {
                     "
  - ../
  - 📁  .git/ :
- - 🙈  .gitignore
- - 🔒  Cargo.lock
- - 📄  Cargo.toml
  - 📂  src/ :
    - 🦀  foo.rs
    - 📘  hello.ts
    - 🦀  main.rs
+ - 🙈  .gitignore
+ - 🔒  Cargo.lock
+ - 📄  Cargo.toml
 "
                     .trim_matches('\n')
                     .to_string(),
                 )),
-                Expect(CurrentSelectedTexts(&["   - 🦀  main.rs"])),
+                Expect(CurrentSelectedTexts(&["   - 🦀  main.rs\n"])),
                 App(RevealInExplorer(s.foo_rs())),
                 Expect(CurrentSelectedTexts(&["   - 🦀  foo.rs\n"])),
             ])
@@ -577,13 +604,13 @@ mod test_file_explorer {
                     "
  - ../
  - 📁  .git/ :
- - 🙈  .gitignore
- - 🔒  Cargo.lock
- - 📄  Cargo.toml
  - 📂  src/ :
    - 🦀  foo.rs
    - 📘  hello.ts
    - 🦀  main.rs
+ - 🙈  .gitignore
+ - 🔒  Cargo.lock
+ - 📄  Cargo.toml
 "
                     .trim_matches('\n')
                     .to_string(),
@@ -600,11 +627,11 @@ mod test_file_explorer {
                     "
  - ../
  - 📁  .git/ :
- - 🙈  .gitignore
  - 📂  src/ :
    - 🦀  foo.rs
    - 📘  hello.ts
    - 🦀  main.rs
+ - 🙈  .gitignore
 "
                     .trim_matches('\n')
                     .to_string(),
@@ -621,13 +648,13 @@ mod test_file_explorer {
                     "
  - ../
  - 📁  .git/ :
- - 🙈  .gitignore
- - 🔒  Cargo.lock
- - 📄  Cargo.toml
  - 📂  src/ :
    - 🦀  foo.rs
    - 📘  hello.ts
    - 🦀  main.rs
+ - 🙈  .gitignore
+ - 🔒  Cargo.lock
+ - 📄  Cargo.toml
 "
                     .trim_matches('\n')
                     .to_string(),
@@ -647,11 +674,11 @@ mod test_file_explorer {
                     "
  - ../
  - 📁  .git/ :
- - 🙈  .gitignore
  - 📂  src/ :
    - 🦀  foo.rs
    - 📘  hello.ts
    - 🦀  main.rs
+ - 🙈  .gitignore
 "
                     .trim_matches('\n')
                     .to_string(),
@@ -669,13 +696,13 @@ mod test_file_explorer {
                     "
  - ../
  - 📁  .git/ :
- - 🙈  .gitignore
- - 🔒  Cargo.lock
- - 📄  Cargo.toml
  - 📂  src/ :
    - 🦀  foo.rs
    - 📘  hello.ts
    - 🦀  main.rs
+ - 🙈  .gitignore
+ - 🔒  Cargo.lock
+ - 📄  Cargo.toml
 "
                     .trim_matches('\n')
                     .to_string(),
@@ -709,13 +736,13 @@ mod test_file_explorer {
                     "
  - ../
  - 📁  .git/ :
- - 🙈  .gitignore
- - 🔒  Cargo.lock
- - 📄  Cargo.toml
  - 📂  src/ :
    - 🦀  foo.rs
    - 📘  hello.ts
    - 🦀  main.rs
+ - 🙈  .gitignore
+ - 🔒  Cargo.lock
+ - 📄  Cargo.toml
 "
                     .trim_matches('\n')
                     .to_string(),
@@ -749,13 +776,13 @@ mod test_file_explorer {
                     "
  - ../
  - 📁  .git/ :
- - 🙈  .gitignore
- - 📄  Cargo.lock.x
- - 📄  Cargo.toml.x
  - 📂  src/ :
    - 🦀  foo.rs
    - 📘  hello.ts
    - 🦀  main.rs
+ - 🙈  .gitignore
+ - 📄  Cargo.lock.x
+ - 📄  Cargo.toml.x
 "
                     .trim_matches('\n')
                     .to_string(),
@@ -818,12 +845,12 @@ mod test_file_explorer {
                 Expect(CurrentComponentContent(
                     " - ../
  - 📁  .git/ :
- - 🙈  .gitignore
- - 🔒  Cargo.lock
- - 📄  Cargo.toml
  - 📂  src/ :
    - 🦀  foo.rs
-   - 📘  hello.ts",
+   - 📘  hello.ts
+ - 🙈  .gitignore
+ - 🔒  Cargo.lock
+ - 📄  Cargo.toml",
                 )),
             ])
         })
@@ -856,10 +883,10 @@ mod test_file_explorer {
                 Expect(CurrentComponentContent(
                     " - ../
  - 📁  .git/ :
+ - 📁  src/ :
  - 🙈  .gitignore
  - 🔒  Cargo.lock
- - 📄  Cargo.toml
- - 📁  src/ :",
+ - 📄  Cargo.toml",
                 )),
                 Expect(CurrentSelectedTexts(&[" - 🙈  .gitignore\n"])),
             ])
