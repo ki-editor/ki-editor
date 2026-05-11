@@ -66,6 +66,7 @@ const INCLUDED_NVIM_TREESITTER_LANGUAGES: &[&str] = &[
     "unison",
     "xml",
     "yaml",
+    "kdl",
     "zig",
     "jj description",
 ];

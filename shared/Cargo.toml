@@ -67,6 +67,7 @@ tree-sitter-make = "1.1.1"
 tree-sitter-just = "0.2.0"
 tree-sitter-zsh = "0.63.3"
 tree-sitter-jjdescription = { git = "https://github.com/irevoire/tree-sitter-jjdescription/", rev = "671e0d6" }
+tree-sitter-kdl = { git = "https://github.com/tree-sitter-grammars/tree-sitter-kdl", rev = "7dbf219" }
 
 
 [dev-dependencies]
