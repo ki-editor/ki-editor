@@ -355,7 +355,7 @@ pub fn normal_mode_keymap_legend_config(
             &normal_mode_keymap(editor, normal_mode_override, prior_change)
                 .into_iter()
                 .chain(Some(Keybinding::new_undocumented(
-                    "g",
+                    "f",
                     "Extend",
                     Dispatch::ShowMenu(extend_mode_keymap_legend_config(editor)),
                 )))
@@ -672,7 +672,7 @@ pub fn extend_mode_keymap_legend_config(editor: &Editor) -> KeymapLegendConfig {
             &normal_mode_keymap(editor, None, Some(PriorChange::EnableSelectionExtension))
                 .into_iter()
                 .chain(Some(Keybinding::new_undocumented(
-                    "g",
+                    "f",
                     "Select All",
                     Dispatch::ToEditor(SelectAll),
                 )))
@@ -911,7 +911,7 @@ pub fn keymap_overridable(
 
 fn keymap_clipboard_related_actions(normal_mode_override: NormalModeOverride) -> Vec<Keybinding> {
     [
-        Keybinding::new_undocumented("F", "Change X", Dispatch::ToEditor(ChangeCut)),
+        Keybinding::new_undocumented("G", "Change X", Dispatch::ToEditor(ChangeCut)),
         Keybinding::momentary_layer(MomentaryLayer {
             key: "c",
             name: "Copy/≡ Dup".to_string(),
@@ -1270,7 +1270,7 @@ pub fn keymap_actions(
         Keybinding::new_undocumented("enter", "Save", Dispatch::SaveFile),
         Keybinding::new_undocumented("shift+enter", "Save As", Dispatch::OpenSaveAsPrompt),
         Keybinding::new_undocumented(
-            "G",
+            "F",
             "Transform",
             Dispatch::ShowMenu(transform_keymap_legend_config()),
         ),
@@ -1283,15 +1283,6 @@ pub fn keymap_actions(
             doc_format!("Coarse Redo.md"),
             Dispatch::ToEditor(CoarseRedo),
         ),
-        Keybinding::momentary_layer(MomentaryLayer {
-            key: "t",
-            name: "≡ Open".to_string(),
-            config: KeymapLegendConfig {
-                title: "≡ Open".to_string(),
-                keymap: open_keymap(),
-            },
-            on_tap: None,
-        }),
         Keybinding::new_undocumented(
             "backslash",
             "Leader",
@@ -1352,8 +1343,19 @@ pub fn keymap_actions_overridable(
     none_if_no_override: bool,
 ) -> Vec<Keybinding> {
     [
-        Keybinding::new_undocumented("f", "Change", Dispatch::ToEditor(Change))
-            .override_keymap(normal_mode_override.change.as_ref(), none_if_no_override),
+        Keybinding::momentary_layer(MomentaryLayer {
+            key: "g",
+            name: "≡ Open".to_string(),
+            config: KeymapLegendConfig {
+                title: "≡ Open".to_string(),
+                keymap: open_keymap(),
+            },
+            on_tap: Some(OnTap::new(
+                "Change",
+                Dispatch::ToEditor(DispatchEditor::Change),
+            )),
+        })
+        .override_keymap(normal_mode_override.change.as_ref(), none_if_no_override),
         Keybinding::new_undocumented(
             "x",
             "≡ Cut/Swap",
