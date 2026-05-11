@@ -552,7 +552,7 @@ Local search (Literal)   │Completion
             )),
             App(HandleKeyEvents(keys!("enter").to_vec())),
             Expect(CurrentSelectedTexts(&["bar", "bar"])),
-            App(HandleKeyEvents(keys!("f release-f z").to_vec())),
+            App(HandleKeyEvents(keys!("g release-g z").to_vec())),
             App(SaveAll),
             Expect(FileContent(s.main_rs(), "// foo x z\n".to_string())),
             Expect(FileContent(s.foo_rs(), "// foo y z\n".to_string())),
