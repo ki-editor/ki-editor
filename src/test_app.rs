@@ -4491,10 +4491,10 @@ fn saving_content_of_pathless_buffer_into_a_new_file_using_shift_enter() -> anyh
                 "
  - ../
  - 📁  .git/ :
+ - 📁  src/ :
  - 🙈  .gitignore
  - 🔒  Cargo.lock
  - 📄  Cargo.toml
- - 📁  src/ :
 "
                 .trim_start_matches("\n"),
             )),
@@ -4511,10 +4511,10 @@ fn saving_content_of_pathless_buffer_into_a_new_file_using_shift_enter() -> anyh
                 "
  - ../
  - 📁  .git/ :
+ - 📁  src/ :
  - 🙈  .gitignore
  - 🔒  Cargo.lock
  - 📄  Cargo.toml
- - 📁  src/ :
 "
                 .trim_start_matches("\n"),
             )),

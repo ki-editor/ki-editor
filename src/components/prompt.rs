@@ -848,13 +848,13 @@ mod test_prompt {
                     "
  - ../
  - 📁  .git/ :
- - 🙈  .gitignore
- - 🔒  Cargo.lock
- - 📄  Cargo.toml
  - 📂  src/ :
    - 🦀  foo.rs
    - 📘  hello.ts
    - 🦀  main.rs
+ - 🙈  .gitignore
+ - 🔒  Cargo.lock
+ - 📄  Cargo.toml
 "
                     .trim_matches('\n')
                     .to_string(),
