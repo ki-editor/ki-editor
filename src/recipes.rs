@@ -840,7 +840,7 @@ def foo():
                     content: "[{\"x\": 123}, true, {\"y\": {}}]".trim(),
                     file_extension: "json",
                     prepare_events: keys!("w o"),
-                    events: keys!("d x space l l release-x"),
+                    events: keys!("d t l l release-t"),
                     expectations: Box::new([
                         CurrentSelectedTexts(&["{\"x\": 123}"]),
                         CurrentComponentContent("[true, {\"y\": {}}, {\"x\": 123}]"),
@@ -854,7 +854,7 @@ def foo():
                     content: "<x><y>foo</y><div/></x>".trim(),
                     file_extension: "xml",
                     prepare_events: keys!("w o o o"),
-                    events: keys!("d k x space l release-x"),
+                    events: keys!("d k t l release-t"),
                     expectations: Box::new([
                         CurrentSelectedTexts(&["<y>foo</y>"]),
                         CurrentComponentContent("<x><div/><y>foo</y></x>"),
@@ -868,7 +868,7 @@ def foo():
                     content: "fn main(foo: F, bar: B, spam: S, zap: Z) {}".trim(),
                     file_extension: "rs",
                     prepare_events: keys!("n d s p a m enter"),
-                    events: keys!("d x space y release-x"),
+                    events: keys!("d t y release-t"),
                     expectations: Box::new([
                         CurrentSelectedTexts(&["spam: S"]),
                         CurrentComponentContent("fn main(spam: S, foo: F, bar: B, zap: Z) {}"),
@@ -882,7 +882,7 @@ def foo():
                     content: "fn main(foo: F, bar: B, spam: S, zap: Z) {}".trim(),
                     file_extension: "rs",
                     prepare_events: keys!("n d b a r enter"),
-                    events: keys!("d x space p release-x"),
+                    events: keys!("d t p release-t"),
                     expectations: Box::new([
                         CurrentSelectedTexts(&["bar: B"]),
                         CurrentComponentContent("fn main(foo: F, spam: S, zap: Z, bar: B) {}"),
@@ -896,7 +896,7 @@ def foo():
                     content: "if(condition) { x(bar(baz)) } else { 'hello world' }".trim(),
                     file_extension: "js",
                     prepare_events: keys!("n d x enter"),
-                    events: keys!("d x space m release-x ' d"),
+                    events: keys!("d t m release-t ' d"),
                     expectations: Box::new([CurrentComponentContent(
                         "if(condition) { 'hello world' } else { x(bar(baz)) }",
                     )]),
@@ -929,7 +929,7 @@ impl<C> Iterator for PostorderTraverse<C>
                     file_extension: "rs",
                     prepare_events: &[],
                     events: keys!(
-                        "n d { enter d x space m release-x { k"
+                        "n d { enter d t m release-t { k"
                     ),
                     expectations: Box::new([]),
                     terminal_height: None,
@@ -941,7 +941,7 @@ impl<C> Iterator for PostorderTraverse<C>
                     content: "[{\"x\": 123}, true, {\"y\": {}}, false]".trim(),
                     file_extension: "json",
                     prepare_events: keys!("w o"),
-                    events: keys!("d f l x space l l j release-x"),
+                    events: keys!("d f l t l l j release-t"),
                     expectations: Box::new([
                         CurrentSelectedTexts(&["{\"x\": 123}, true"]),
                         CurrentComponentContent("[{\"y\": {}}, {\"x\": 123}, true, false]"),
@@ -955,7 +955,7 @@ impl<C> Iterator for PostorderTraverse<C>
                     content: "foo\nbar\nspam\nbaz".trim(),
                     file_extension: "md",
                     prepare_events: &[],
-                    events: keys!("a f l x space l l j release-x"),
+                    events: keys!("a f l t l l j release-t"),
                     expectations: Box::new([
                         CurrentSelectedTexts(&["foo\nbar"]),
                         CurrentComponentContent("spam\nfoo\nbar\nbaz"),
@@ -969,7 +969,7 @@ impl<C> Iterator for PostorderTraverse<C>
                     content: "foo bar spam baz".trim(),
                     file_extension: "md",
                     prepare_events: &[],
-                    events: keys!("w f l x space l l j release-x"),
+                    events: keys!("w f l t l l j release-t"),
                     expectations: Box::new([
                         CurrentSelectedTexts(&["foo bar"]),
                         CurrentComponentContent("spam foo bar baz"),
@@ -983,7 +983,7 @@ impl<C> Iterator for PostorderTraverse<C>
                     content: "foo bar spam\nxxx yyy zzzz".trim(),
                     file_extension: "md",
                     prepare_events: &[],
-                    events: keys!("s l x space k i k release-x"),
+                    events: keys!("s l t k i k release-t"),
                     expectations: Box::new([
                         CurrentComponentContent("foo yyy spam\nxxx bar zzzz"),
                     ]),
@@ -2387,7 +2387,7 @@ betty bought some butter, so betty bought some better butter
             .trim(),
             file_extension: "rs",
             prepare_events: &[],
-            events: keys!("a l f s x space j j j j j j release-x"),
+            events: keys!("a l f s t j j j j j j release-t"),
             expectations: Box::new([CurrentComponentContent("betty bought some butter, **but the butter was bitter** so betty bought some better\nbutter")]),
             terminal_height: Some(10),
             similar_vim_combos: &[],
@@ -2539,7 +2539,7 @@ foo bar spam",
             content: "[{\"a\": b}, \"c\", [], {}]".trim(),
             file_extension: "json",
             prepare_events: keys!("w o"),
-            events: keys!("d f l x space p"),
+            events: keys!("d f l t p release-t"),
             expectations: Box::new([CurrentComponentContent("[[], {}, {\"a\": b}, \"c\"]")]),
             terminal_height: None,
             similar_vim_combos: &[],
