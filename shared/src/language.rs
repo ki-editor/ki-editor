@@ -75,6 +75,7 @@ pub enum CargoLinkedTreesitterLanguage {
     OCamlInterface,
     Rust,
     Graphql,
+    Gnuplot,
     Javascript,
     JSX,
     Svelte,
@@ -133,6 +134,7 @@ impl CargoLinkedTreesitterLanguage {
             }
             CargoLinkedTreesitterLanguage::Rust => tree_sitter_rust::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::Graphql => tree_sitter_graphql::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::Gnuplot => tree_sitter_gnuplot::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::Javascript => tree_sitter_javascript::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::JSX => tree_sitter_javascript::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::Svelte => tree_sitter_svelte_ng::LANGUAGE.into(),
@@ -193,6 +195,7 @@ impl CargoLinkedTreesitterLanguage {
             }
             CargoLinkedTreesitterLanguage::Rust => Some(tree_sitter_rust::HIGHLIGHTS_QUERY),
             CargoLinkedTreesitterLanguage::Graphql => None,
+            CargoLinkedTreesitterLanguage::Gnuplot => Some(tree_sitter_gnuplot::HIGHLIGHTS_QUERY),
             CargoLinkedTreesitterLanguage::Javascript => {
                 Some(tree_sitter_javascript::HIGHLIGHT_QUERY)
             }

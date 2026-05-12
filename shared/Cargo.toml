@@ -68,7 +68,7 @@ tree-sitter-just = "0.2.0"
 tree-sitter-zsh = "0.63.3"
 tree-sitter-jjdescription = { git = "https://github.com/irevoire/tree-sitter-jjdescription/", rev = "671e0d6" }
 tree-sitter-kdl = { git = "https://github.com/tree-sitter-grammars/tree-sitter-kdl", rev = "7dbf219" }
-
+tree-sitter-gnuplot = { git = "https://github.com/dpezto/tree-sitter-gnuplot", rev = "29586d4" }
 
 [dev-dependencies]
 quickcheck.workspace = true

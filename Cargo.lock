@@ -2331,6 +2331,7 @@ dependencies = [
  "tree-sitter-fish",
  "tree-sitter-fsharp",
  "tree-sitter-gleam",
+ "tree-sitter-gnuplot",
  "tree-sitter-go",
  "tree-sitter-graphql",
  "tree-sitter-haskell",
@@ -2821,6 +2822,15 @@ name = "tree-sitter-gleam"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f0175c53793bda5d444360dd5add25463d18d66afb7f521d6791e2fc61bf2fb3"
+dependencies = [
+ "cc",
+ "tree-sitter-language",
+]
+
+[[package]]
+name = "tree-sitter-gnuplot"
+version = "0.0.1"
+source = "git+https://github.com/dpezto/tree-sitter-gnuplot?rev=29586d4#29586d47b9363c29bf02cc4d1b45c4379adf6317"
 dependencies = [
  "cc",
  "tree-sitter-language",
