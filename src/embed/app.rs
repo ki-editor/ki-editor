@@ -45,7 +45,7 @@ impl EmbeddedApp {
             log::set_max_level(log_level);
         }
 
-        let frontend = std::rc::Rc::new(std::sync::Mutex::new(Crossterm::new()?));
+        let frontend = std::rc::Rc::new(std::sync::Mutex::new(Crossterm::new()));
 
         let status_line_components = vec![];
 

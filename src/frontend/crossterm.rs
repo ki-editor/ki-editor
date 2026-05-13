@@ -17,11 +17,11 @@ impl MyWriter for std::io::Stdout {
 }
 
 impl Crossterm {
-    pub fn new() -> anyhow::Result<Crossterm> {
-        Ok(Crossterm {
+    pub fn new() -> Crossterm {
+        Crossterm {
             stdout: Box::new(io::stdout()),
             previous_screen: Screen::default(),
-        })
+        }
     }
 }
 
