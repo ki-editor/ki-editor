@@ -24,6 +24,7 @@ const INCLUDED_NVIM_TREESITTER_LANGUAGES: &[&str] = &[
     "gitignore",
     "gleam",
     "go",
+    "gnuplot",
     "graphql",
     "hare",
     "haskell",
@@ -71,7 +72,8 @@ const INCLUDED_NVIM_TREESITTER_LANGUAGES: &[&str] = &[
     "jj description",
 ];
 
-const MISSING_NVIM_HIGHLIGHTS: &[&str] = &["dune", "ki_quickfix", "tsq", "jj description"];
+const MISSING_NVIM_HIGHLIGHTS: &[&str] =
+    &["dune", "ki_quickfix", "tsq", "jj description", "gnuplot"];
 
 fn main() {
     let compiled_highlight_query_path = std::path::PathBuf::from(

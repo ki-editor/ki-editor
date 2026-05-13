@@ -39,6 +39,7 @@ pub fn languages() -> HashMap<String, Language> {
         ("gleam", gleam()),
         ("go", go()),
         ("graphql", graphql()),
+        ("gnuplot", gnuplot()),
         ("hare", hare()),
         ("hcl", hcl()),
         ("heex", heex()),
@@ -525,6 +526,18 @@ fn graphql() -> Language {
         tree_sitter_grammar_config: Some(GrammarConfig {
             id: "graphql".to_string(),
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Graphql),
+        }),
+        line_comment_prefix: Some("#".to_string()),
+        ..Language::new()
+    }
+}
+
+fn gnuplot() -> Language {
+    Language {
+        extensions: to_vec(&["gnu", "gnuplot", "gp", "plot", "plt"]),
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "gnuplot".to_string(),
+            kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Gnuplot),
         }),
         line_comment_prefix: Some("#".to_string()),
         ..Language::new()
