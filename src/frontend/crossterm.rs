@@ -16,6 +16,12 @@ impl MyWriter for std::io::Stdout {
     }
 }
 
+impl Default for Crossterm {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Crossterm {
     pub fn new() -> Crossterm {
         Crossterm {
