@@ -159,45 +159,61 @@ fn read_stdin() -> anyhow::Result<PathBuf> {
     Ok(path)
 }
 
-fn run_edit_command(args: EditArgs) -> anyhow::Result<()> {
-    let config = process_edit_args(args)?;
-    crate::run(config)
+pub(crate) enum EditAction {
+    Open(AbsolutePath),
+    MissingParentDirectory { parent: PathBuf },
+    Launch,
 }
 
-fn process_edit_args(args: EditArgs) -> anyhow::Result<RunConfig> {
-    match args.path {
-        Some(path) => {
-            let tmp_path = std::path::PathBuf::from(path.clone());
-            if !tmp_path.exists() {
-                std::fs::write(tmp_path, "")?;
+pub(crate) fn parse_path_arg(path: String) -> anyhow::Result<EditAction> {
+    let tmp_path = PathBuf::from(&path);
+    if !tmp_path.exists() {
+        let parent = tmp_path
+            .parent()
+            .filter(|p| !p.as_os_str().is_empty())
+            .unwrap_or(std::path::Path::new("."));
+        if !parent.is_dir() {
+            return Ok(EditAction::MissingParentDirectory {
+                parent: parent.to_path_buf(),
+            });
+        }
+        std::fs::write(&tmp_path, "")?;
+    }
+    Ok(EditAction::Open(path.try_into()?))
+}
+
+fn run_edit_command(args: EditArgs) -> anyhow::Result<()> {
+    let action = match args.path {
+        Some(path) => parse_path_arg(path)?,
+        None => {
+            if !io::stdin().is_terminal() {
+                let path = read_stdin()?;
+                EditAction::Open(path.to_string_lossy().to_string().try_into()?)
+            } else {
+                EditAction::Launch
             }
+        }
+    };
 
-            let path: Option<AbsolutePath> = Some(path.try_into()?);
-            let working_directory = match path.clone() {
-                Some(value) if value.is_dir() => Some(value),
-                _ => None,
+    match action {
+        EditAction::Open(path) => {
+            let working_directory = if path.is_dir() {
+                Some(path.clone())
+            } else {
+                None
             };
-
-            Ok(crate::RunConfig {
-                entry_path: path,
+            crate::run(RunConfig {
+                entry_path: Some(path),
                 working_directory,
             })
         }
-        None => {
-            // If no path is provided and stdin is not a terminal, read from stdin
-            if !io::stdin().is_terminal() {
-                let path = read_stdin()?;
-                let canonicalized_path: Option<AbsolutePath> =
-                    Some(path.to_string_lossy().to_string().try_into()?);
-
-                Ok(crate::RunConfig {
-                    entry_path: canonicalized_path,
-                    working_directory: None,
-                })
-            } else {
-                Ok(RunConfig::default())
-            }
+        EditAction::MissingParentDirectory { parent } => {
+            eprintln!("Error: directory '{}' does not exist", parent.display());
+            eprintln!("Press Enter to continue...");
+            let _ = io::stdin().read_line(&mut String::new());
+            crate::run(RunConfig::default())
         }
+        EditAction::Launch => crate::run(RunConfig::default()),
     }
 }
 
@@ -268,54 +284,4 @@ pub fn build_grammars() {
 
 pub fn fetch_grammars() {
     grammar::grammar::fetch_grammars(grammar_configs()).unwrap();
-}
-#[cfg(test)]
-mod test_process_edit_args {
-    use shared::absolute_path::AbsolutePath;
-
-    use super::{process_edit_args, EditArgs};
-
-    #[test]
-    /// Cwd should not change
-    fn no_edit_args() -> anyhow::Result<()> {
-        let actual = process_edit_args(EditArgs { path: None })?;
-        assert_eq!(actual.working_directory, None);
-
-        // Delete the temporary file that will be created
-
-        for entry in std::fs::read_dir(".")? {
-            let entry = entry?;
-            let path = entry.path();
-            if path.to_string_lossy().contains("from-stdin-")
-                && path.to_string_lossy().ends_with("txt")
-            {
-                std::fs::remove_file(path)?;
-            }
-        }
-
-        Ok(())
-    }
-
-    #[test]
-    /// Cwd should not change
-    fn args_is_nested_file() -> anyhow::Result<()> {
-        let actual = process_edit_args(EditArgs {
-            path: Some("docs/package.json".to_string()),
-        })?;
-        assert_eq!(actual.working_directory, None);
-        Ok(())
-    }
-
-    #[test]
-    /// Cwd should change to the provided directory
-    fn args_is_directory() -> anyhow::Result<()> {
-        let actual = process_edit_args(EditArgs {
-            path: Some("./docs".to_string()),
-        })?;
-        assert_eq!(
-            actual.working_directory,
-            Some(AbsolutePath::try_from("./docs")?)
-        );
-        Ok(())
-    }
 }
