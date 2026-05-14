@@ -1,9 +1,10 @@
 {
     "scripts": {
-        "check": "biome check .",
-        "fix": "biome check --fix --unsafe"
+        "check": "biome check . && prettier --check \"**/*.md\"",
+        "fix": "biome check --fix --unsafe && prettier --write \"**/*.md\""
     },
     "devDependencies": {
-        "@biomejs/biome": "1.9.4"
+        "@biomejs/biome": "1.9.4",
+        "@fsouza/prettierd": "^0.27.0"
     }
 }

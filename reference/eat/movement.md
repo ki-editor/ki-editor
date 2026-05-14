@@ -12,4 +12,4 @@ becomes:
 {new}
 ```
 
-Also, in syntax selection mode, some checks are done to ensure the result is still syntactically valid. 
+Also, in syntax selection mode, some checks are done to ensure the result is still syntactically valid.
