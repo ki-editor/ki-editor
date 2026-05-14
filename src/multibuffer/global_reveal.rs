@@ -79,13 +79,13 @@ impl<T: Frontend> App<T> {
             self.multibuffer = None;
             Ok(())
         } else if self.context.mode() == Some(GlobalMode::QuickfixListItem) {
-            self.active_global_reveal_selections()
+            self.activate_global_reveal_selections()
         } else {
             self.handle_dispatch_editor(DispatchEditor::ToggleReveal(Reveal::CurrentSelectionMode))
         }
     }
 
-    fn active_global_reveal_selections(&mut self) -> anyhow::Result<()> {
+    fn activate_global_reveal_selections(&mut self) -> anyhow::Result<()> {
         let grouped_ranges = self
             .quickfix_list()
             .items()
