@@ -2397,6 +2397,11 @@ impl<T: Frontend> App<T> {
     }
 
     pub fn set_global_mode(&mut self, mode: Option<GlobalMode>) -> anyhow::Result<()> {
+        if mode.is_none() && self.multibuffer.is_some() {
+            // Don't allow unsetting the global mode when Global Reveal is active;
+            // otherwise the user won't be able to navigate between files using Left/Right.
+            return Ok(());
+        }
         self.context.set_mode(mode.clone());
         if let Some(GlobalMode::QuickfixListItem) = mode {
             self.goto_quickfix_list_item(Movement::Current(IfCurrentNotFound::LookForward))?;

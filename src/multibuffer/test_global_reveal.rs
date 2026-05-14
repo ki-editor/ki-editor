@@ -1,9 +1,10 @@
 use lazy_regex::regex;
-use my_proc_macros::keys;
+use my_proc_macros::{key, keys};
 
 use crate::{
     app::{Dimension, Dispatch::*, Scope},
     components::editor::{DispatchEditor::*, IfCurrentNotFound, Movement},
+    context::GlobalMode,
     grid::StyleKey,
     test_app::{execute_test, ExpectKind::*, Step::*},
 };
@@ -232,6 +233,44 @@ src/foo.rs
                 .trim_matches('\n')
                 .to_string(),
             )),
+        ])
+    })
+}
+
+#[test]
+fn pressing_esc_should_not_exit_quickfix_mode_when_global_reveal_is_active(
+) -> Result<(), anyhow::Error> {
+    execute_test(|s| {
+        Box::new([
+            App(TerminalDimensionChanged(Dimension {
+                width: 100,
+                height: 5,
+            })),
+            App(SetFileContent(
+                s.foo_rs(),
+                "// x \n// qux1 qux2".to_string(),
+            )),
+            App(SetFileContent(
+                s.main_rs(),
+                "// x \n// qux3 qux4".to_string(),
+            )),
+            App(OpenSearchPrompt {
+                scope: Scope::Global,
+                if_current_not_found: IfCurrentNotFound::LookForward,
+            }),
+            App(HandleKeyEvents(keys!("r / q u x . enter").to_vec())),
+            WaitForAppMessage(regex!("GlobalSearchFinished")),
+            App(ToggleRevealSelections),
+            Expect(CurrentGlobalMode(Some(GlobalMode::QuickfixListItem))),
+            App(HandleKeyEvents(keys!("esc").to_vec())),
+            // After pressing Esc, expect the global mode to remain
+            // because Global Reveal is still active.
+            Expect(CurrentGlobalMode(Some(GlobalMode::QuickfixListItem))),
+            App(ToggleRevealSelections),
+            App(HandleKeyEvents(keys!("esc").to_vec())),
+            // After pressing Esc, expect the global mode to be None
+            // because Global Reveal is no longer active.
+            Expect(CurrentGlobalMode(None)),
         ])
     })
 }
