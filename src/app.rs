@@ -1692,7 +1692,9 @@ impl<T: Frontend> App<T> {
             self.request_syntax_highlight(component_id, batch_id, language, content)?;
         }
         if self.enable_lsp {
-            self.lsp_manager().open_file(path.clone())?;
+            if let Err(err) = self.lsp_manager().open_file(path.clone()) {
+                log::error!("Failed to notify/initialize LSP for {path:?} due to {err:?}")
+            }
         }
 
         self.send_file_watcher_input(FileWatcherInput::SyncOpenedPaths(
