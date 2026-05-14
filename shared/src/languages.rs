@@ -725,7 +725,7 @@ fn svelte() -> Language {
 
 fn json() -> Language {
     Language {
-        extensions: to_vec(&["json"]),
+        extensions: to_vec(&["json", "gyp"]),
         formatter: Some(Command::new("prettierd", &[".json"])),
         tree_sitter_grammar_config: Some(GrammarConfig {
             id: "json".to_string(),
