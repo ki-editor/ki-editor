@@ -271,13 +271,13 @@ impl<T: Frontend> App<T> {
             .collect::<anyhow::Result<Vec<_>>>()?;
 
         if !files.is_empty() {
+            self.set_global_mode(None)?;
+
             self.multibuffer = Some(Multibuffer::GlobalMulticursor(GlobalMulticursor {
                 // We'll just assume the first file is the focused file, for simplicity purposes
                 files,
                 focused_file_index: 0,
             }));
-
-            self.set_global_mode(None)?;
 
             self.handle_dispatch_editor(DispatchEditor::SetSelectionMode(
                 IfCurrentNotFound::LookForward,
