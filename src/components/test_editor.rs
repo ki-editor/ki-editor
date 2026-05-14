@@ -1,4 +1,4 @@
-use crate::app::{Dimension, LocalSearchConfigUpdate, Scope};
+use crate::app::{Dimension, HistoryNavigationMovement, LocalSearchConfigUpdate, Scope};
 use crate::buffer::{BufferOwner, EditHistoryKind};
 use crate::char_index_range::CharIndexRange;
 use crate::clipboard::Texts;
@@ -4860,13 +4860,13 @@ fn main() {
             Editor(MoveSelection(Left)),
             Editor(MoveSelection(Left)),
             Expect(CurrentSelectedTexts(&["fn main() {"])),
-            App(MovementHistoryNavigation(Previous)),
+            App(MovementHistoryNavigation(HistoryNavigationMovement::FineBack)),
             Expect(CurrentSelectedTexts(&["foo();"])),
-            App(MovementHistoryNavigation(Previous)),
+            App(MovementHistoryNavigation(HistoryNavigationMovement::FineBack)),
             Expect(CurrentSelectedTexts(&["bar();"])),
-            App(MovementHistoryNavigation(Next)),
+            App(MovementHistoryNavigation(HistoryNavigationMovement::FineForward)),
             Expect(CurrentSelectedTexts(&["foo();"])),
-            App(MovementHistoryNavigation(Next)),
+            App(MovementHistoryNavigation(HistoryNavigationMovement::FineForward)),
             Expect(CurrentSelectedTexts(&["fn main() {"])),
         ])
     })
