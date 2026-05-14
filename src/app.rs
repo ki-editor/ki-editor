@@ -1693,7 +1693,7 @@ impl<T: Frontend> App<T> {
         }
         if self.enable_lsp {
             if let Err(err) = self.lsp_manager().open_file(path.clone()) {
-                log::error!("Failed to notify/initialize LSP for {path:?} due to {err:?}")
+                log::error!("Failed to notify/initialize LSP for {path:?} due to {err:?}");
             }
         }
 
