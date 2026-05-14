@@ -1,5 +1,5 @@
 use lazy_regex::regex;
-use my_proc_macros::{key, keys};
+use my_proc_macros::keys;
 
 use crate::{
     app::{Dimension, Dispatch::*, Scope},
