@@ -3063,13 +3063,19 @@ impl<T: Frontend> App<T> {
         Ok(())
     }
 
-    fn movement_history_navigation(&mut self, movement: Movement) -> anyhow::Result<()> {
+    fn movement_history_navigation(
+        &mut self,
+        movement: HistoryNavigationMovement,
+    ) -> anyhow::Result<()> {
         match movement {
-            Movement::Left => self.navigate_back(),
-            Movement::Right => self.navigate_forward(),
-            Movement::Previous => self.handle_dispatch_editor(DispatchEditor::GoBack),
-            Movement::Next => self.handle_dispatch_editor(DispatchEditor::GoForward),
-            _ => Ok(()),
+            HistoryNavigationMovement::CoarseBack => self.navigate_back(),
+            HistoryNavigationMovement::CoarseForward => self.navigate_forward(),
+            HistoryNavigationMovement::FineBack => {
+                self.handle_dispatch_editor(DispatchEditor::GoBack)
+            }
+            HistoryNavigationMovement::FineForward => {
+                self.handle_dispatch_editor(DispatchEditor::GoForward)
+            }
         }
     }
 
@@ -3823,6 +3829,18 @@ impl Dispatches {
     }
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub enum HistoryNavigationMovement {
+    /// Navigate back across files (coarse)
+    CoarseBack,
+    /// Navigate forward across files (coarse)
+    CoarseForward,
+    /// Navigate back within a file (fine)
+    FineBack,
+    /// Navigate forward within a file (fine)
+    FineForward,
+}
+
 #[must_use]
 #[derive(Clone, Debug, PartialEq, NamedVariant)]
 /// Dispatch are for child component to request action from the root node
@@ -4002,7 +4020,7 @@ pub enum Dispatch {
     SelectCompletionItem,
     SetKeyboardLayout(KeyboardLayout),
     OpenKeyboardLayoutPrompt,
-    MovementHistoryNavigation(Movement),
+    MovementHistoryNavigation(HistoryNavigationMovement),
     ToggleSelectionMark,
     ToggleFileMark,
     SetFileDirtyStatus {

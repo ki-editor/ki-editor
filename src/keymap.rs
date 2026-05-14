@@ -1,5 +1,5 @@
 use crate::{
-    app::{Dispatch, FilePickerKind, Scope},
+    app::{Dispatch, FilePickerKind, HistoryNavigationMovement, Scope},
     components::{
         editor::{
             Direction, DispatchEditor, Editor, IfCurrentNotFound, Movement, PriorChange, Reveal,
@@ -1778,22 +1778,22 @@ pub fn movement_history_keymap() -> Keymap {
         Keybinding::new_undocumented(
             "j",
             "<< Move Hist",
-            Dispatch::MovementHistoryNavigation(Movement::Left),
+            Dispatch::MovementHistoryNavigation(HistoryNavigationMovement::CoarseBack),
         ),
         Keybinding::new_undocumented(
             "l",
             "Move Hist >>",
-            Dispatch::MovementHistoryNavigation(Movement::Right),
+            Dispatch::MovementHistoryNavigation(HistoryNavigationMovement::CoarseForward),
         ),
         Keybinding::new_undocumented(
             "u",
             "< Move Hist",
-            Dispatch::MovementHistoryNavigation(Movement::Previous),
+            Dispatch::MovementHistoryNavigation(HistoryNavigationMovement::FineBack),
         ),
         Keybinding::new_undocumented(
             "o",
             "Move Hist >",
-            Dispatch::MovementHistoryNavigation(Movement::Next),
+            Dispatch::MovementHistoryNavigation(HistoryNavigationMovement::FineForward),
         ),
     ])
 }
