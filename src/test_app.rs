@@ -43,8 +43,8 @@ use crate::layout::BufferContentsMap;
 
 use crate::{
     app::{
-        App, Dimension, Dispatch, HistoryNavigationMovement, LocalSearchConfigUpdate, RequestParams,
-        Scope, StatusLineComponent,
+        App, Dimension, Dispatch, HistoryNavigationMovement, LocalSearchConfigUpdate,
+        RequestParams, Scope, StatusLineComponent,
     },
     buffer::{Buffer, BufferOwner},
     char_index_range::CharIndexRange,
@@ -3268,18 +3268,26 @@ fn test_navigate_back_from_open_file() -> anyhow::Result<()> {
                 focus: true,
             }),
             Expect(CurrentComponentPath(Some(s.foo_rs()))),
-            App(MovementHistoryNavigation(HistoryNavigationMovement::CoarseBack)),
+            App(MovementHistoryNavigation(
+                HistoryNavigationMovement::CoarseBack,
+            )),
             Expect(CurrentComponentPath(Some(s.main_rs()))),
-            App(MovementHistoryNavigation(HistoryNavigationMovement::CoarseForward)),
+            App(MovementHistoryNavigation(
+                HistoryNavigationMovement::CoarseForward,
+            )),
             Expect(CurrentComponentPath(Some(s.foo_rs()))),
-            App(MovementHistoryNavigation(HistoryNavigationMovement::CoarseBack)),
+            App(MovementHistoryNavigation(
+                HistoryNavigationMovement::CoarseBack,
+            )),
             Expect(CurrentComponentPath(Some(s.main_rs()))),
             App(OpenFile {
                 path: s.gitignore(),
                 owner: BufferOwner::User,
                 focus: true,
             }),
-            App(MovementHistoryNavigation(HistoryNavigationMovement::CoarseBack)),
+            App(MovementHistoryNavigation(
+                HistoryNavigationMovement::CoarseBack,
+            )),
             Expect(CurrentComponentPath(Some(s.main_rs()))),
         ])
     })
@@ -3302,9 +3310,13 @@ fn test_navigate_back_from_go_to_location() -> anyhow::Result<()> {
                 range: CharIndexRange::default(),
             })),
             Expect(CurrentComponentPath(Some(s.gitignore()))),
-            App(MovementHistoryNavigation(HistoryNavigationMovement::CoarseBack)),
+            App(MovementHistoryNavigation(
+                HistoryNavigationMovement::CoarseBack,
+            )),
             Expect(CurrentComponentPath(Some(s.foo_rs()))),
-            App(MovementHistoryNavigation(HistoryNavigationMovement::CoarseBack)),
+            App(MovementHistoryNavigation(
+                HistoryNavigationMovement::CoarseBack,
+            )),
             Expect(CurrentComponentPath(Some(s.main_rs()))),
         ])
     })
@@ -3336,7 +3348,9 @@ fn test_navigate_back_from_quickfix_list() -> anyhow::Result<()> {
                 ),
             ))),
             Expect(CurrentComponentPath(Some(s.foo_rs()))),
-            App(MovementHistoryNavigation(HistoryNavigationMovement::CoarseBack)),
+            App(MovementHistoryNavigation(
+                HistoryNavigationMovement::CoarseBack,
+            )),
             Expect(CurrentComponentPath(Some(s.main_rs()))),
         ])
     })
@@ -3853,7 +3867,9 @@ fn navigate_back_should_skip_files_that_were_renamed_or_deleted() -> anyhow::Res
                 focus: true,
             }),
             App(DeletePaths(NonEmpty::new(s.main_rs()))),
-            App(MovementHistoryNavigation(HistoryNavigationMovement::CoarseBack)),
+            App(MovementHistoryNavigation(
+                HistoryNavigationMovement::CoarseBack,
+            )),
             Expect(NoError),
         ])
     })
@@ -3873,10 +3889,14 @@ fn navigate_forward_should_skip_files_that_were_renamed_or_deleted() -> anyhow::
                 owner: BufferOwner::User,
                 focus: true,
             }),
-            App(MovementHistoryNavigation(HistoryNavigationMovement::CoarseBack)),
+            App(MovementHistoryNavigation(
+                HistoryNavigationMovement::CoarseBack,
+            )),
             Expect(CurrentPath(s.main_rs())),
             App(DeletePaths(NonEmpty::new(s.hello_ts()))),
-            App(MovementHistoryNavigation(HistoryNavigationMovement::CoarseForward)),
+            App(MovementHistoryNavigation(
+                HistoryNavigationMovement::CoarseForward,
+            )),
             Expect(NoError),
         ])
     })

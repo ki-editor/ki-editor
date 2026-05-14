@@ -4860,13 +4860,21 @@ fn main() {
             Editor(MoveSelection(Left)),
             Editor(MoveSelection(Left)),
             Expect(CurrentSelectedTexts(&["fn main() {"])),
-            App(MovementHistoryNavigation(HistoryNavigationMovement::FineBack)),
+            App(MovementHistoryNavigation(
+                HistoryNavigationMovement::FineBack,
+            )),
             Expect(CurrentSelectedTexts(&["foo();"])),
-            App(MovementHistoryNavigation(HistoryNavigationMovement::FineBack)),
+            App(MovementHistoryNavigation(
+                HistoryNavigationMovement::FineBack,
+            )),
             Expect(CurrentSelectedTexts(&["bar();"])),
-            App(MovementHistoryNavigation(HistoryNavigationMovement::FineForward)),
+            App(MovementHistoryNavigation(
+                HistoryNavigationMovement::FineForward,
+            )),
             Expect(CurrentSelectedTexts(&["foo();"])),
-            App(MovementHistoryNavigation(HistoryNavigationMovement::FineForward)),
+            App(MovementHistoryNavigation(
+                HistoryNavigationMovement::FineForward,
+            )),
             Expect(CurrentSelectedTexts(&["fn main() {"])),
         ])
     })
