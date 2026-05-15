@@ -86,6 +86,8 @@
                 "Graphql",
                 "Gnuplot",
                 "Javascript",
+                "QmlJs",
+                "QmlDir",
                 "JSX",
                 "Svelte",
                 "JSON",
