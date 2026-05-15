@@ -15,10 +15,10 @@ For directly downloading the latest release binaries refer to [Latest master bui
 
 Thank you [Zulip Chat](https://zulip.com/) for the generosity of free Cloud hosting for [Ki Editor community chat room](https://ki-editor.zulipchat.com/).
 
-<a href="https://www.star-history.com/#ki-editor/ki-editor&type=date&legend=top-left">
+<!-- <a href="https://www.star-history.com/#ki-editor/ki-editor&type=date&legend=top-left">
  <picture>
    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=ki-editor/ki-editor&type=date&theme=dark&legend=top-left" />
    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=ki-editor/ki-editor&type=date&legend=top-left" />
    <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=ki-editor/ki-editor&type=date&legend=top-left" />
  </picture>
-</a>
+</a> -->
