@@ -30,7 +30,7 @@
         mkRustToolchain = targets:
           pkgs.rust-bin.stable."1.89.0".default.override {
             inherit targets;
-            extensions = ["rust-src"];
+            extensions = ["rust-src" "rust-analyzer"];
           };
 
         # Shared base dependencies across all environments
@@ -333,7 +333,8 @@
 
         devShells.default = pkgs.mkShell {
           packages =
-            commonNativeBuildInputs
+            [rustToolchain]
+            ++ commonNativeBuildInputs
             ++ platformBuildInputs
             ++ devOnlyPackages;
 
