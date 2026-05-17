@@ -54,6 +54,21 @@ impl KeymapOverrideTrait for MomentaryLayerKeymapOverride {
         let key_event = context
             .keyboard_layout()
             .translate_key_event_to_qwerty(key_event);
+
+        // Non-KKP fallback: a second press of the MoL key acts as a tap.
+        // On KKP terminals this branch is unreachable because the layer is
+        // already closed by the release event before a second press arrives.
+        if key_event.code == self.release_key.code
+            && key_event.modifiers == self.release_key.modifiers
+        {
+            let dispatches = self.close_dispatches();
+            return Ok(if !self.other_keys_pressed {
+                dispatches.chain(self.base.inner().tap()?)
+            } else {
+                dispatches
+            });
+        }
+
         let (key_press, dispatches) = self.base.inner().handle_press(key_event)?;
         self.other_keys_pressed |= key_press;
         Ok(dispatches)

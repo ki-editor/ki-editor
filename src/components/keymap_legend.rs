@@ -707,4 +707,79 @@ Release hold: Conichihuahua
             ])
         })
     }
+
+    #[test]
+    /// On non-KKP terminals, double-tapping the MoL key (pressing it again while
+    /// the layer is open, with no other keys pressed) fires the on_tap action.
+    fn double_tap_triggers_on_tap() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                Editor(SetContent("".to_string())),
+                App(ShowMomentaryLayer(
+                    KeymapLegendConfig {
+                        title: "LEGEND_TITLE".to_string(),
+                        keymap: Keymap::new(&[]),
+                    },
+                    ReleaseKey::new(
+                        "b",
+                        Some(OnTap::new(
+                            "",
+                            Dispatch::ToEditor(SetContent("on tapped!".to_string())),
+                        )),
+                    ),
+                )),
+                Expect(AppGridContains("LEGEND_TITLE")),
+                // Second press of the MoL key — simulates double-tap on non-KKP terminal
+                App(HandleKeyEvent(key!("b"))),
+                Expect(CurrentComponentContent("on tapped!")),
+                Expect(Not(Box::new(AppGridContains("LEGEND_TITLE")))),
+            ])
+        })
+    }
+
+    #[test]
+    /// On non-KKP terminals, pressing the MoL key again after having used the layer
+    /// (other keys were pressed) should close the layer without firing on_tap.
+    fn double_tap_after_using_layer_closes_without_tap() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                Editor(SetContent("".to_string())),
+                App(ShowMomentaryLayer(
+                    KeymapLegendConfig {
+                        title: "LEGEND_TITLE".to_string(),
+                        keymap: Keymap::new(&[Keybinding::new_undocumented(
+                            "x",
+                            "",
+                            Dispatch::ToEditor(Insert("hello".to_string())),
+                        )]),
+                    },
+                    ReleaseKey::new(
+                        "b",
+                        Some(OnTap::new(
+                            "",
+                            Dispatch::ToEditor(SetContent("on tapped!".to_string())),
+                        )),
+                    ),
+                )),
+                // Use a layer action so other_keys_pressed becomes true
+                App(HandleKeyEvent(key!("x"))),
+                // Second press of the MoL key
+                App(HandleKeyEvent(key!("b"))),
+                // Layer should be closed
+                Expect(Not(Box::new(AppGridContains("LEGEND_TITLE")))),
+                // on_tap must NOT have fired — content is from the layer action, not the tap
+                Expect(CurrentComponentContent("hello")),
+            ])
+        })
+    }
 }
