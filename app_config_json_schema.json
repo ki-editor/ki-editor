@@ -124,6 +124,7 @@
                 "Clojure",
                 "FSharp",
                 "Scala",
+                "Glsl",
                 "Devicetree",
                 "Just"
             ]
