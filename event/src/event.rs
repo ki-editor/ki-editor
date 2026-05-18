@@ -23,7 +23,7 @@ impl From<crossterm::event::Event> for Event {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum KeyEventKind {
     Press,
     Release,
@@ -45,7 +45,7 @@ impl From<crossterm::event::KeyEventKind> for KeyEventKind {
 /// The `crossterm` crate does not support this out of the box.
 ///
 /// It also replaces Repeat events with Press events
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash)]
 pub struct KeyEvent {
     pub code: crossterm::event::KeyCode,
     pub modifiers: KeyModifiers,
@@ -75,7 +75,7 @@ impl KeyEvent {
 
     pub fn to_rust_code(&self) -> String {
         format!(
-            "event::KeyEvent {{ code: crossterm::event::KeyCode::{:#?}, modifiers: event::KeyModifiers::{:#?}, kind: event::KeyEventKind::{:#?} }}",
+            "event::KeyEvent {{ code: crossterm::event::KeyCode::{:#?}, modifiers: event::{:#?}, kind: event::KeyEventKind::{:#?} }}",
             self.code, self.modifiers, self.kind
         )
     }
@@ -105,22 +105,10 @@ impl KeyEvent {
             // Add more cases as needed
             _ => String::from("Unknown"),
         };
-        let modifier = if self.modifiers != KeyModifiers::None {
-            use convert_case::{Case, Casing};
-            Some(
-                format!("{:?}", self.modifiers)
-                    .to_case(Case::Lower)
-                    .split(" ")
-                    .collect::<Vec<_>>()
-                    .join("+")
-                    .to_string(),
-            )
-        } else {
-            None
-        };
+        let modifier = self.modifiers.display();
         let modified = format!(
             "{}{key_code}",
-            if let Some(modifier) = modifier {
+            if !modifier.is_empty() {
                 format!("{modifier}+")
             } else {
                 "".to_string()
@@ -151,116 +139,69 @@ impl From<crossterm::event::KeyEvent> for KeyEvent {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum KeyModifiers {
-    None,
-    Ctrl,
-    Alt,
-    Shift,
-    CtrlAlt,
-    CtrlShift,
-    AltShift,
-    CtrlAltShift,
-    Unknown,
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
+pub struct KeyModifiers {
+    pub shift: bool,
+    pub ctrl: bool,
+    pub alt: bool,
 }
 
 impl KeyModifiers {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn set_ctrl(self, ctrl: bool) -> Self {
+        Self { ctrl, ..self }
+    }
+
+    pub fn set_alt(self, alt: bool) -> Self {
+        Self { alt, ..self }
+    }
+
     pub(crate) fn add_shift(self, shift: bool) -> Self {
-        use KeyModifiers::*;
         if !shift {
             return self;
         }
-        match self {
-            None => Shift,
-            Ctrl => CtrlShift,
-            Alt => AltShift,
-            CtrlAlt => CtrlAltShift,
-            Unknown => Shift,
-            _ => self,
-        }
-    }
-
-    pub(crate) fn remove_shift(self, shift: bool) -> Self {
-        use KeyModifiers::*;
-        if shift {
-            return self;
-        }
-        match self {
-            Shift => None,
-            CtrlShift => Ctrl,
-            AltShift => Alt,
-            CtrlAltShift => CtrlAlt,
-            _ => self,
+        Self {
+            shift: true,
+            ..self
         }
     }
 
     pub fn set_shift(self, shift: bool) -> Self {
-        if shift {
-            self.add_shift(shift)
-        } else {
-            self.remove_shift(shift)
-        }
+        Self { shift, ..self }
     }
 
     pub fn display(&self) -> String {
-        match self {
-            KeyModifiers::None => "".to_string(),
-            _ => format!("{self:?}")
-                .to_lowercase()
-                .split(" ")
-                .collect::<Vec<_>>()
-                .join("+")
-                .to_string(),
-        }
+        [
+            self.ctrl.then_some("ctrl"),
+            self.alt.then_some("alt"),
+            self.shift.then_some("shift"),
+        ]
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>()
+        .join("+")
     }
 }
 
 impl From<crossterm::event::KeyModifiers> for KeyModifiers {
     fn from(value: crossterm::event::KeyModifiers) -> Self {
-        use crossterm::event::KeyModifiers;
-        if value == KeyModifiers::NONE {
-            self::KeyModifiers::None
-        } else if value == KeyModifiers::CONTROL {
-            self::KeyModifiers::Ctrl
-        } else if value == KeyModifiers::ALT {
-            self::KeyModifiers::Alt
-        } else if value == KeyModifiers::SHIFT {
-            self::KeyModifiers::Shift
-        } else if value == KeyModifiers::CONTROL | KeyModifiers::ALT {
-            self::KeyModifiers::CtrlAlt
-        } else if value == KeyModifiers::CONTROL | KeyModifiers::SHIFT {
-            self::KeyModifiers::CtrlShift
-        } else if value == KeyModifiers::ALT | KeyModifiers::SHIFT {
-            self::KeyModifiers::AltShift
-        } else if value == KeyModifiers::CONTROL | KeyModifiers::ALT | KeyModifiers::SHIFT {
-            self::KeyModifiers::CtrlAltShift
-        } else {
-            self::KeyModifiers::Unknown
+        Self {
+            shift: value.contains(crossterm::event::KeyModifiers::SHIFT),
+            ctrl: value.contains(crossterm::event::KeyModifiers::CONTROL),
+            alt: value.contains(crossterm::event::KeyModifiers::ALT),
         }
     }
 }
 
 impl From<HashSet<KeyModifiers>> for KeyModifiers {
     fn from(value: HashSet<KeyModifiers>) -> Self {
-        use KeyModifiers::*;
-        if value == HashSet::from([None]) || value.is_empty() {
-            None
-        } else if value == HashSet::from([Ctrl]) {
-            Ctrl
-        } else if value == HashSet::from([Alt]) {
-            Alt
-        } else if value == HashSet::from([Shift]) {
-            Shift
-        } else if value == HashSet::from([Ctrl, Alt]) {
-            CtrlAlt
-        } else if value == HashSet::from([Ctrl, Shift]) {
-            CtrlShift
-        } else if value == HashSet::from([Alt, Shift]) {
-            AltShift
-        } else if value == HashSet::from([Ctrl, Alt, Shift]) {
-            CtrlAltShift
-        } else {
-            Unknown
+        Self {
+            shift: value.iter().any(|x| x.shift),
+            alt: value.iter().any(|x| x.alt),
+            ctrl: value.iter().any(|x| x.ctrl),
         }
     }
 }

@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use crossterm::event::KeyCode;
 use event::KeyEvent;
+use my_proc_macros::key;
 
 pub const KEYMAP_SCORE: [[char; 10]; 3] = [
     // a = Easiest to access
@@ -24,6 +25,45 @@ pub const QWERTY_STR: [[&str; 10]; 3] = [
     ["q", "w", "e", "r", "t", "y", "u", "i", "o", "p"],
     ["a", "s", "d", "f", "g", "h", "j", "k", "l", ";"],
     ["z", "x", "c", "v", "b", "n", "m", ",", ".", "/"],
+];
+
+pub const QWERTY_EVENT: [[KeyEvent; 10]; 3] = [
+    [
+        key!("q"),
+        key!("w"),
+        key!("e"),
+        key!("r"),
+        key!("t"),
+        key!("y"),
+        key!("u"),
+        key!("i"),
+        key!("o"),
+        key!("p"),
+    ],
+    [
+        key!("a"),
+        key!("s"),
+        key!("d"),
+        key!("f"),
+        key!("g"),
+        key!("h"),
+        key!("j"),
+        key!("k"),
+        key!("l"),
+        key!(";"),
+    ],
+    [
+        key!("z"),
+        key!("x"),
+        key!("c"),
+        key!("v"),
+        key!("b"),
+        key!("n"),
+        key!("m"),
+        key!(","),
+        key!("."),
+        key!("/"),
+    ],
 ];
 
 pub const BUILTIN_KEYBOARD_LAYOUTS: &[(&str, KeyboardLayoutKeys)] = &[
@@ -187,84 +227,6 @@ impl KeyboardLayout {
     }
 }
 
-pub fn shifted(c: &str) -> &str {
-    match c {
-        "." => ">",
-        "," => "<",
-        "/" => "?",
-        ";" => ":",
-        "'" => "\"",
-        "[" => "{",
-        "]" => "}",
-        "1" => "!",
-        "2" => "@",
-        "3" => "#",
-        "4" => "$",
-        "5" => "%",
-        "6" => "^",
-        "7" => "&",
-        "8" => "*",
-        "9" => "(",
-        "0" => ")",
-        "-" => "_",
-        "=" => "+",
-        "a" => "A",
-        "b" => "B",
-        "c" => "C",
-        "d" => "D",
-        "e" => "E",
-        "f" => "F",
-        "g" => "G",
-        "h" => "H",
-        "i" => "I",
-        "j" => "J",
-        "k" => "K",
-        "l" => "L",
-        "m" => "M",
-        "n" => "N",
-        "o" => "O",
-        "p" => "P",
-        "q" => "Q",
-        "r" => "R",
-        "s" => "S",
-        "t" => "T",
-        "u" => "U",
-        "v" => "V",
-        "w" => "W",
-        "x" => "X",
-        "y" => "Y",
-        "z" => "Z",
-        // Uppercase letters remain unchanged when shifted
-        "A" => "A",
-        "B" => "B",
-        "C" => "C",
-        "D" => "D",
-        "E" => "E",
-        "F" => "F",
-        "G" => "G",
-        "H" => "H",
-        "I" => "I",
-        "J" => "J",
-        "K" => "K",
-        "L" => "L",
-        "M" => "M",
-        "N" => "N",
-        "O" => "O",
-        "P" => "P",
-        "Q" => "Q",
-        "R" => "R",
-        "S" => "S",
-        "T" => "T",
-        "U" => "U",
-        "V" => "V",
-        "W" => "W",
-        "X" => "X",
-        "Y" => "Y",
-        "Z" => "Z",
-        c => c, // return unchanged if no shift mapping exists
-    }
-}
-
 pub fn shifted_char(c: char) -> char {
     match c {
         '.' => '>',
@@ -343,62 +305,23 @@ pub fn shifted_char(c: char) -> char {
     }
 }
 
-pub fn possibly_alted(c: &str, is_alted: bool) -> &str {
+pub fn shifted(mut key_event: KeyEvent) -> KeyEvent {
+    if let KeyCode::Char(ref mut c) = key_event.code {
+        *c = shifted_char(*c);
+    }
+    key_event.modifiers.shift = true;
+    key_event
+}
+
+pub fn possibly_alted(key_event: KeyEvent, is_alted: bool) -> KeyEvent {
     if is_alted {
-        alted(c)
+        alted(key_event)
     } else {
-        c
+        key_event
     }
 }
 
-pub fn alted(c: &str) -> &str {
-    match c {
-        "." => "alt+.",
-        "," => "alt+,",
-        "/" => "alt+/",
-        ";" => "alt+;",
-        "\"" => "alt+\"",
-        "'" => "alt+'",
-        "[" => "alt+[",
-        "]" => "alt+]",
-        "1" => "alt+1",
-        "2" => "alt+2",
-        "3" => "alt+3",
-        "4" => "alt+4",
-        "5" => "alt+5",
-        "6" => "alt+6",
-        "7" => "alt+7",
-        "8" => "alt+8",
-        "9" => "alt+9",
-        "0" => "alt+0",
-        "-" => "alt+-",
-        "=" => "alt+=",
-        "a" => "alt+a",
-        "b" => "alt+b",
-        "c" => "alt+c",
-        "d" => "alt+d",
-        "e" => "alt+e",
-        "f" => "alt+f",
-        "g" => "alt+g",
-        "h" => "alt+h",
-        "i" => "alt+i",
-        "j" => "alt+j",
-        "k" => "alt+k",
-        "l" => "alt+l",
-        "m" => "alt+m",
-        "n" => "alt+n",
-        "o" => "alt+o",
-        "p" => "alt+p",
-        "q" => "alt+q",
-        "r" => "alt+r",
-        "s" => "alt+s",
-        "t" => "alt+t",
-        "u" => "alt+u",
-        "v" => "alt+v",
-        "w" => "alt+w",
-        "x" => "alt+x",
-        "y" => "alt+y",
-        "z" => "alt+z",
-        c => c, // return unchanged if no shift mapping exists
-    }
+pub fn alted(mut key_event: KeyEvent) -> KeyEvent {
+    key_event.modifiers.alt = true;
+    key_event
 }

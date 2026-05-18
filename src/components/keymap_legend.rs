@@ -1,4 +1,4 @@
-use event::{parse_key_event, KeyEvent, KeyEventKind};
+use event::{KeyEvent, KeyEventKind};
 use itertools::Itertools;
 use my_proc_macros::key;
 use std::borrow::Cow;
@@ -26,7 +26,7 @@ pub struct KeymapLegendConfig {
 }
 
 pub struct MomentaryLayer {
-    pub key: &'static str,
+    pub event: KeyEvent,
     pub name: String,
     pub config: KeymapLegendConfig,
     pub on_tap: Option<OnTap>,
@@ -38,7 +38,6 @@ struct ParsedReleaseKey {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ReleaseKey {
-    key: &'static str,
     key_event: KeyEvent,
     on_tap: Option<OnTap>,
 }
@@ -67,22 +66,15 @@ impl OnTap {
 }
 
 impl ReleaseKey {
-    pub fn new(key: &'static str, on_tap: Option<OnTap>) -> Self {
+    pub fn new(event: KeyEvent, on_tap: Option<OnTap>) -> Self {
         Self {
-            key,
-            key_event: parse_key_event(key)
-                .unwrap()
-                .set_event_kind(KeyEventKind::Release),
+            key_event: event.set_event_kind(KeyEventKind::Release),
             on_tap,
         }
     }
 
-    pub fn key(&self) -> &'static str {
-        self.key
-    }
-
-    pub fn key_event(&self) -> &KeyEvent {
-        &self.key_event
+    pub fn key_event(&self) -> KeyEvent {
+        self.key_event
     }
 
     pub fn on_tap(&self) -> Option<&OnTap> {
@@ -140,7 +132,7 @@ impl KeymapLegendConfig {
 
             let conflicting_keybindings = keymap
                 .iter()
-                .chunk_by(|keymap| &keymap.key)
+                .chunk_by(|keymap| &keymap.event)
                 .into_iter()
                 .map(|(key, keybindings)| (key, keybindings.collect_vec()))
                 .filter(|(_, keybindings)| keybindings.len() > 1)
@@ -156,90 +148,95 @@ impl KeymapLegendConfig {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Keybinding {
-    key: &'static str,
+    event: KeyEvent,
+    action: KeybindingAction,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct KeybindingAction {
     name: Cow<'static, str>,
     documentation: Option<&'static str>,
-    event: KeyEvent,
     dispatch: Dispatch,
 }
 
 impl Keybinding {
-    pub fn new_undocumented(
-        key: &'static str,
-        name: &'static str,
-        dispatch: Dispatch,
-    ) -> Keybinding {
+    pub fn new_undocumented(event: KeyEvent, name: &'static str, dispatch: Dispatch) -> Keybinding {
         Keybinding {
-            key,
-            documentation: None,
-            name: name.into(),
-            dispatch,
-            event: parse_key_event(key).unwrap(),
+            event,
+            action: KeybindingAction {
+                documentation: None,
+                name: name.into(),
+                dispatch,
+            },
         }
     }
 
     pub fn new(
-        key: &'static str,
+        event: KeyEvent,
         name: &'static str,
         doc: &'static str,
         dispatch: Dispatch,
     ) -> Keybinding {
         Keybinding {
-            key,
-            documentation: Some(doc),
-            name: name.into(),
-            dispatch,
-            event: parse_key_event(key).unwrap(),
+            event,
+            action: KeybindingAction {
+                documentation: Some(doc),
+                name: name.into(),
+                dispatch,
+            },
         }
     }
 
-    pub fn new_dynamic(key: &'static str, name: String, dispatch: Dispatch) -> Keybinding {
+    pub fn new_dynamic(event: KeyEvent, name: String, dispatch: Dispatch) -> Keybinding {
         Keybinding {
-            key,
-            documentation: None,
-            name: name.into(),
-            dispatch,
-            event: parse_key_event(key).unwrap(),
+            event,
+            action: KeybindingAction {
+                documentation: None,
+                name: name.into(),
+                dispatch,
+            },
         }
     }
 
     pub fn app_momentary_layer(
         MomentaryLayer {
-            key,
+            event,
             name,
             config,
             on_tap,
         }: MomentaryLayer,
     ) -> Keybinding {
         Keybinding {
-            key,
-            name: name.into(),
-            documentation: None,
-            dispatch: Dispatch::ShowAppMomentaryLayer(config, ReleaseKey::new(key, on_tap)),
-            event: parse_key_event(key).unwrap(),
+            event,
+            action: KeybindingAction {
+                name: name.into(),
+                documentation: None,
+                dispatch: Dispatch::ShowAppMomentaryLayer(config, ReleaseKey::new(event, on_tap)),
+            },
         }
     }
 
     pub fn momentary_layer(
         MomentaryLayer {
-            key,
+            event,
             name,
             config,
             on_tap,
         }: MomentaryLayer,
     ) -> Keybinding {
         Keybinding {
-            key,
-            name: name.into(),
-            documentation: None,
-            dispatch: Dispatch::ShowMomentaryLayer(config, ReleaseKey::new(key, on_tap)),
-            event: parse_key_event(key).unwrap(),
+            event,
+            action: KeybindingAction {
+                name: name.into(),
+                documentation: None,
+                dispatch: Dispatch::ShowMomentaryLayer(config, ReleaseKey::new(event, on_tap)),
+            },
         }
     }
 
     pub fn get_dispatches(&self) -> Dispatches {
-        Dispatches::one(self.dispatch.clone()).append(Dispatch::SetLastActionDescription {
-            long_description: self.name.clone().into_owned(),
+        Dispatches::one(self.action.dispatch.clone()).append(Dispatch::SetLastActionDescription {
+            long_description: self.action.name.clone().into_owned(),
         })
     }
 
@@ -254,9 +251,12 @@ impl Keybinding {
     ) -> Option<Keybinding> {
         match keymap_override {
             Some(keymap_override) => Some(Self {
-                name: keymap_override.description.into(),
-                dispatch: keymap_override.dispatch.clone(),
-                ..self
+                event: self.event,
+                action: KeybindingAction {
+                    name: keymap_override.description.into(),
+                    dispatch: keymap_override.dispatch.clone(),
+                    ..self.action
+                },
             }),
             None => {
                 if none_if_no_override {
@@ -269,7 +269,7 @@ impl Keybinding {
     }
 
     pub fn display(&self) -> String {
-        self.name.clone().into_owned()
+        self.action.name.clone().into_owned()
     }
 }
 
@@ -296,7 +296,7 @@ impl KeymapLegend {
             .keymap()
             .0
             .into_iter()
-            .duplicates_by(|keymap| keymap.key)
+            .duplicates_by(|keymap| keymap.event)
             .collect_vec();
 
         if !duplicates.is_empty() {
@@ -305,7 +305,7 @@ impl KeymapLegend {
                 self.config.title,
                 duplicates
                     .into_iter()
-                    .map(|duplicate| format!("{}: {}", duplicate.key, duplicate.name))
+                    .map(|duplicate| format!("{:?}: {}", duplicate.event, duplicate.action.name))
                     .collect_vec()
             );
             log::info!("{message}");
@@ -341,7 +341,7 @@ impl KeymapLegend {
             .keymap()
             .iter()
             .find(|keybinding| keybinding.event == key!("space"))
-            .map(|keybinding| format!("Space: {}", keybinding.name));
+            .map(|keybinding| format!("Space: {}", keybinding.action.name));
 
         let on_tap = self.release_key.as_ref().and_then(|release_key| {
             let description = release_key.on_tap.as_ref()?.description;
@@ -386,7 +386,7 @@ mod test_keymap_legend {
     use crate::{
         buffer::BufferOwner, components::editor::DispatchEditor, position::Position, test_app::*,
     };
-    use event::KeyEventKind;
+    use event::{parse_key_event, KeyEventKind};
     use my_proc_macros::key;
 
     #[test]
@@ -413,11 +413,11 @@ mod test_keymap_legend {
     fn test_display_positional_full() {
         let keymap = Keymap(
             [
-                Keybinding::new_undocumented("a", "Aloha", Dispatch::Null),
-                Keybinding::new_undocumented("b", "Bomb", Dispatch::Null),
-                Keybinding::new_undocumented("F", "Foo", Dispatch::Null),
-                Keybinding::new_undocumented("c", "Caterpillar", Dispatch::Null),
-                Keybinding::new_undocumented("alt+g", "Gogagg", Dispatch::Null),
+                Keybinding::new_undocumented(key!("a"), "Aloha", Dispatch::Null),
+                Keybinding::new_undocumented(key!("b"), "Bomb", Dispatch::Null),
+                Keybinding::new_undocumented(key!("F"), "Foo", Dispatch::Null),
+                Keybinding::new_undocumented(key!("c"), "Caterpillar", Dispatch::Null),
+                Keybinding::new_undocumented(key!("alt+g"), "Gogagg", Dispatch::Null),
             ]
             .to_vec(),
         );
@@ -475,12 +475,12 @@ mod test_keymap_legend {
     fn test_display_positional_stacked() {
         let keymap = Keymap(
             [
-                Keybinding::new_undocumented("a", "Aloha", Dispatch::Null),
-                Keybinding::new_undocumented("b", "Bomb", Dispatch::Null),
-                Keybinding::new_undocumented("F", "Foo", Dispatch::Null),
-                Keybinding::new_undocumented("c", "Caterpillar", Dispatch::Null),
-                Keybinding::new_undocumented("alt+g", "Gogagg", Dispatch::Null),
-                Keybinding::new_undocumented("alt+l", "Lamp", Dispatch::Null),
+                Keybinding::new_undocumented(key!("a"), "Aloha", Dispatch::Null),
+                Keybinding::new_undocumented(key!("b"), "Bomb", Dispatch::Null),
+                Keybinding::new_undocumented(key!("F"), "Foo", Dispatch::Null),
+                Keybinding::new_undocumented(key!("c"), "Caterpillar", Dispatch::Null),
+                Keybinding::new_undocumented(key!("alt+g"), "Gogagg", Dispatch::Null),
+                Keybinding::new_undocumented(key!("alt+l"), "Lamp", Dispatch::Null),
             ]
             .to_vec(),
         );
@@ -521,12 +521,12 @@ mod test_keymap_legend {
     fn test_display_positional_too_small() {
         let keymap = Keymap(
             [
-                Keybinding::new_undocumented("a", "Aloha", Dispatch::Null),
-                Keybinding::new_undocumented("b", "Bomb", Dispatch::Null),
-                Keybinding::new_undocumented("F", "Foo", Dispatch::Null),
-                Keybinding::new_undocumented("c", "Caterpillar", Dispatch::Null),
-                Keybinding::new_undocumented("alt+g", "Gogagg", Dispatch::Null),
-                Keybinding::new_undocumented("alt+l", "Lamp", Dispatch::Null),
+                Keybinding::new_undocumented(key!("a"), "Aloha", Dispatch::Null),
+                Keybinding::new_undocumented(key!("b"), "Bomb", Dispatch::Null),
+                Keybinding::new_undocumented(key!("F"), "Foo", Dispatch::Null),
+                Keybinding::new_undocumented(key!("c"), "Caterpillar", Dispatch::Null),
+                Keybinding::new_undocumented(key!("alt+g"), "Gogagg", Dispatch::Null),
+                Keybinding::new_undocumented(key!("alt+l"), "Lamp", Dispatch::Null),
             ]
             .to_vec(),
         );
@@ -550,7 +550,7 @@ mod test_keymap_legend {
             KeymapLegendConfig {
                 title: "".to_string(),
                 keymap: Keymap::new(&[Keybinding::new_undocumented(
-                    "space",
+                    key!("space"),
                     "Hello world",
                     Dispatch::Null,
                 )]),
@@ -595,7 +595,7 @@ Space: Hello world
                 keymap: Keymap::new(&[]),
             },
             Some(ReleaseKey::new(
-                "Y",
+                key!("Y"),
                 Some(OnTap::new("Conichihuahua", Dispatch::Null)),
             )),
         );
@@ -646,7 +646,7 @@ Release hold: Conichihuahua
                         keymap: Keymap::new(&[]),
                     },
                     ReleaseKey::new(
-                        "b",
+                        key!("b"),
                         Some(OnTap::new(
                             "",
                             Dispatch::ToEditor(SetContent("on tapped!".to_string())),
@@ -681,12 +681,12 @@ Release hold: Conichihuahua
                     KeymapLegendConfig {
                         title: "LEGEND_TITLE".to_string(),
                         keymap: Keymap::new(&[Keybinding::new_undocumented(
-                            "x",
+                            key!("x"),
                             "",
                             Dispatch::ToEditor(Insert("hello".to_string())),
                         )]),
                     },
-                    ReleaseKey::new("b", None),
+                    ReleaseKey::new(key!("b"), None),
                 )),
                 // Expect the keymap legend is opened
                 Expect(AppGridContains("LEGEND_TITLE")),

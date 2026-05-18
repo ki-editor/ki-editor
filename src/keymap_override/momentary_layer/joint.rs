@@ -9,7 +9,7 @@ use super::{simple::SimpleMomentaryLayer, MomentaryLayerBaseTrait};
 
 #[derive(Debug, Clone, PartialEq)]
 pub(super) struct JointMomentaryLayer {
-    pub(super) tap_key: &'static str,
+    pub(super) tap_key: KeyEvent,
     pub(super) swap_key: KeyEvent,
     pub(super) active: SimpleMomentaryLayer,
     pub(super) inactive: SimpleMomentaryLayer,

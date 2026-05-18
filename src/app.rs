@@ -62,7 +62,7 @@ use anyhow::ensure;
 use event::{event::Event, KeyEvent, KeyEventKind};
 use indexmap::IndexMap;
 use itertools::{Either, Itertools};
-use my_proc_macros::NamedVariant;
+use my_proc_macros::{key, NamedVariant};
 use nonempty::NonEmpty;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -2160,8 +2160,8 @@ impl<T: Frontend> App<T> {
         self.handle_dispatch(Dispatch::ShowMenu(KeymapLegendConfig {
             title: prompt.title.to_string(),
             keymap: Keymap::new(&[
-                Keybinding::new_undocumented("d", "Yes", *prompt.yes),
-                Keybinding::new_undocumented("k", "No", Dispatch::Null),
+                Keybinding::new_undocumented(key!("d"), "Yes", *prompt.yes),
+                Keybinding::new_undocumented(key!("k"), "No", Dispatch::Null),
             ]),
         }))
     }

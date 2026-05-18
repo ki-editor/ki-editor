@@ -115,7 +115,7 @@ pub trait Component: Any + AnyComponent {
             events
                 .iter()
                 .map(|event| -> anyhow::Result<_> {
-                    Ok(self.handle_key_event(&context, event.clone())?.into_vec())
+                    Ok(self.handle_key_event(&context, *event)?.into_vec())
                 })
                 .collect::<Result<Vec<_>, _>>()?
                 .into_iter()
