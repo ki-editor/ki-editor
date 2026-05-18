@@ -35,7 +35,7 @@
             { "normal": null, "alted": null, "shifted": null },
             { "normal": null, "alted": null, "shifted": null },
             { "normal": null, "alted": null, "shifted": null },
-            { "normal": "⇋ Curs", "alted": null, "shifted": "⇋ Anchor" }
+            { "normal": "⇋ Curs", "alted": null, "shifted": null }
         ]
     ],
     "keyboard_layouts": [

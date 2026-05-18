@@ -39,7 +39,7 @@
             { "normal": "Jump", "alted": null, "shifted": "Index" },
             { "normal": "Surround", "alted": null, "shifted": null },
             { "normal": "Parent Line", "alted": null, "shifted": null },
-            { "normal": "⇋ Curs", "alted": "⇋ Window", "shifted": "⇋ Anchor" }
+            { "normal": "⇋ Curs", "alted": "⇋ Window", "shifted": null }
         ]
     ],
     "keyboard_layouts": [
