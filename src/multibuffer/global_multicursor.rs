@@ -326,6 +326,8 @@ impl<T: Frontend> App<T> {
         {
             let focused_file_removed = global_multicursor.delete_cursor()?;
             if focused_file_removed {
+                let new_focused_path = global_multicursor.focused_file()?.path.clone();
+                self.open_file(&new_focused_path, BufferOwner::User, false, true)?;
                 return Ok(());
             }
         }
