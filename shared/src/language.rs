@@ -115,6 +115,7 @@ pub enum CargoLinkedTreesitterLanguage {
     Clojure,
     FSharp,
     Scala,
+    Glsl,
     Devicetree,
     Just,
 }
@@ -180,6 +181,7 @@ impl CargoLinkedTreesitterLanguage {
             CargoLinkedTreesitterLanguage::JjDescription => {
                 tree_sitter_jjdescription::LANGUAGE.into()
             }
+            CargoLinkedTreesitterLanguage::Glsl => tree_sitter_glsl::LANGUAGE_GLSL.into(),
         }
     }
 
@@ -247,6 +249,7 @@ impl CargoLinkedTreesitterLanguage {
             CargoLinkedTreesitterLanguage::JjDescription => {
                 Some(tree_sitter_jjdescription::HIGHLIGHTS_QUERY)
             }
+            CargoLinkedTreesitterLanguage::Glsl => Some(tree_sitter_glsl::HIGHLIGHTS_QUERY),
         }
     }
 }
