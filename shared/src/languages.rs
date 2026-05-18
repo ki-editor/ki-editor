@@ -82,6 +82,7 @@ pub fn languages() -> HashMap<String, Language> {
         ("zig", zig()),
         ("clojure", clojure()),
         ("scala", scala()),
+        ("glsl", glsl()),
     ]
     .into_iter()
     .map(|(str, language)| (str.to_string(), language))
@@ -1294,6 +1295,25 @@ fn scala() -> Language {
         tree_sitter_grammar_config: Some(GrammarConfig {
             id: "scala".to_string(),
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Scala),
+        }),
+        line_comment_prefix: Some("//".to_string()),
+        block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
+        ..Language::new()
+    }
+}
+
+fn glsl() -> Language {
+    Language {
+        extensions: to_vec(&["glsl"]),
+        formatter: Some(Command::new("clang-format", &[])),
+        lsp_command: Some(LspCommand {
+            command: Command::new("glsl_analyzer", &[]),
+            ..LspCommand::default()
+        }),
+        lsp_language_id: Some(LanguageId::new("glsl")),
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "glsl".to_string(),
+            kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Glsl),
         }),
         line_comment_prefix: Some("//".to_string()),
         block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
