@@ -6,6 +6,6 @@ Multi-cursor combinatoric modal editor.
 - For directly downloading the latest release binaries refer to [Latest master build](https://github.com/ki-editor/ki-editor/releases/tag/latest)
 - If you need help, please reach out on [Ki Editor community chat room](https://ki-editor.zulipchat.com/).
 
-[![asciicast](https://asciinema.org/a/1079682.svg)](https://asciinema.org/a/1079682)
+[![asciicast](https://asciinema.org/a/1087449.svg)](https://asciinema.org/a/1087449)
 
 Thank you Zulip Chat for the generosity of free Cloud hosting for Ki Editor community chat room.
