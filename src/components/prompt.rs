@@ -24,7 +24,6 @@ use super::{
     component::Component,
     dropdown_sync::DropdownItem,
     editor::{Editor, Mode},
-    editor_keymap::alted,
     suggestive_editor::{DispatchSuggestiveEditor, SuggestiveEditor, SuggestiveEditorFilter},
 };
 
@@ -398,7 +397,7 @@ impl Component for Prompt {
                     .chain(self.on_cancelled.clone().unwrap_or_default()))
             }
             key!("tab") => self.replace_current_query_with_focused_item(context, event),
-            _ if event.display() == alted("x") => {
+            _ if event.display() == "alt+x" => {
                 self.replace_current_query_with_focused_item(context, event)
             }
             key!("enter") => {

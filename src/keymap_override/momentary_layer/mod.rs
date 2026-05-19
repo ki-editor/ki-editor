@@ -94,7 +94,7 @@ impl MomentaryLayerKeymapOverride {
                 config,
                 tap: release_key.on_tap().cloned(),
             }),
-            release_key: release_key.key_event().clone(),
+            release_key: release_key.key_event(),
             other_keys_pressed: false,
         }
     }
@@ -110,7 +110,7 @@ impl MomentaryLayerKeymapOverride {
         Self {
             override_scope,
             base: MomentaryLayerBase::Joint(JointMomentaryLayer {
-                tap_key: release_key.key(),
+                tap_key: release_key.key_event(),
                 active: SimpleMomentaryLayer {
                     config: active_config,
                     tap: release_key.on_tap().cloned(),
@@ -121,7 +121,7 @@ impl MomentaryLayerKeymapOverride {
                 },
                 swap_key,
             }),
-            release_key: release_key.key_event().clone(),
+            release_key: release_key.key_event(),
             other_keys_pressed: false,
         }
     }

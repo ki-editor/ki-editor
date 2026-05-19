@@ -71,6 +71,7 @@ tree-sitter-kdl = { git = "https://github.com/tree-sitter-grammars/tree-sitter-k
 tree-sitter-gnuplot = { git = "https://github.com/dpezto/tree-sitter-gnuplot", rev = "29586d4" }
 tree-sitter-qmljs = "0.3.0"
 tree-sitter-qmldir = { git = "https://github.com/tree-sitter-grammars/tree-sitter-qmldir", rev = "1fa9200" }
+tree-sitter-glsl = "0.2.0"
 
 [dev-dependencies]
 quickcheck.workspace = true

@@ -9,7 +9,7 @@ use crate::{
     app::Scope,
     components::{
         editor::Editor,
-        editor_keymap::{shifted, KeyboardLayout, QWERTY_STR},
+        editor_keymap::{shifted, KeyboardLayout, QWERTY_EVENT},
         editor_keymap_legend::NormalModeOverride,
     },
     context::Context,
@@ -91,24 +91,19 @@ impl KeymapPrintSection {
     pub fn from_keymap(name: String, keymap: &Keymap) -> Self {
         KeymapPrintSection {
             name,
-            keys: QWERTY_STR
+            keys: QWERTY_EVENT
                 .iter()
                 .map(|row| {
                     row.iter()
                         .map(|cell| Key {
-                            normal: keymap
-                                .iter()
-                                .find(|keymap| keymap.event().display() == *cell)
-                                .cloned(),
+                            normal: keymap.iter().find(|keymap| keymap.event() == cell).cloned(),
                             shifted: keymap
                                 .iter()
-                                .find(|keymap| {
-                                    keymap.event().display().replace("shift+", "") == shifted(cell)
-                                })
+                                .find(|keymap| keymap.event() == &shifted(*cell))
                                 .cloned(),
                             alted: keymap
                                 .iter()
-                                .find(|keymap| keymap.event().display() == alted(cell))
+                                .find(|keymap| keymap.event() == &alted(*cell))
                                 .cloned(),
                         })
                         .collect()
