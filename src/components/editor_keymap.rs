@@ -148,6 +148,15 @@ pub const BUILTIN_KEYBOARD_LAYOUTS: &[(&str, KeyboardLayoutKeys)] = &[
             ['k', 'y', '.', '\'', 'x', 'j', 'v', 'w', 'b', 'z'],
         ],
     ),
+    (
+        "ERGO-L",
+        // Refer https://ergol.org/
+        [
+            ['q', 'c', 'o', 'p', 'w', 'j', 'm', 'd', '’', 'y'],
+            ['a', 's', 'e', 'n', 'f', 'l', 'r', 't', 'i', 'u'],
+            ['z', 'x', '?', 'v', 'b', ':', 'h', 'g', ';', 'k'],
+        ],
+    ),
 ];
 
 pub fn builtin_layout_map() -> HashMap<String, KeyboardLayout> {

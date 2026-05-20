@@ -102,7 +102,11 @@ impl Keymap {
     }
 
     pub fn get(&self, event: &KeyEvent) -> std::option::Option<&Keybinding> {
-        self.0.iter().find(|key| &key.event == event)
+        // We'll just compare the code ignoring `kind` (i.e., press/release/repeat)
+        // Assuming that we won't `kind` need to meaningfully distinguish them
+        self.0
+            .iter()
+            .find(|key| key.event.code == event.code && key.event.modifiers == event.modifiers)
     }
 
     pub fn iter(&self) -> std::slice::Iter<'_, Keybinding> {
