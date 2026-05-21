@@ -1,8 +1,9 @@
-use event::KeyEvent;
-
 use crate::{
     app::Dispatches,
-    components::keymap_legend::{Keybinding, KeymapLegendConfig, OnTap},
+    components::{
+        editor_keymap::CombinedKeyEvent,
+        keymap_legend::{Keybinding, KeymapLegendConfig, OnTap},
+    },
     keymap_override::momentary_layer::MomentaryLayerBaseTrait,
 };
 
@@ -13,7 +14,7 @@ pub(super) struct SimpleMomentaryLayer {
 }
 
 impl MomentaryLayerBaseTrait for SimpleMomentaryLayer {
-    fn handle_press(&mut self, key_event: KeyEvent) -> anyhow::Result<(bool, Dispatches)> {
+    fn handle_press(&mut self, key_event: CombinedKeyEvent) -> anyhow::Result<(bool, Dispatches)> {
         Ok(
             match self
                 .config

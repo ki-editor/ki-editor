@@ -446,14 +446,20 @@ impl<T: Frontend> App<T> {
             }
             event => {
                 let dispatches = match (event, &mut self.keymap_override) {
-                    (Event::Key(key_event), Some(keymap_override)) => match key_event.kind {
-                        KeyEventKind::Press => {
-                            keymap_override.handle_press(&self.context, key_event)
+                    (Event::Key(key_event), Some(keymap_override)) => {
+                        let combined_key_event = self
+                            .context
+                            .keyboard_layout()
+                            .make_combined_key_event(key_event);
+                        match key_event.kind {
+                            KeyEventKind::Press => {
+                                keymap_override.handle_press(&self.context, combined_key_event)
+                            }
+                            KeyEventKind::Release => {
+                                keymap_override.handle_release(&self.context, combined_key_event)
+                            }
                         }
-                        KeyEventKind::Release => {
-                            keymap_override.handle_release(&self.context, key_event)
-                        }
-                    },
+                    }
                     (event, _) => component.borrow_mut().handle_event(&self.context, event),
                 };
 

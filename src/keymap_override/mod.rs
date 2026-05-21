@@ -1,7 +1,6 @@
-use event::KeyEvent;
-
 use crate::{
     app::Dispatches,
+    components::editor_keymap::CombinedKeyEvent,
     context::Context,
     keymap_override::{
         find_one::FindOneCharKeymapOverride, jump::JumpKeymapOverride, menu::MenuKeymapOverride,
@@ -37,13 +36,13 @@ pub trait KeymapOverrideTrait {
     fn handle_press(
         &mut self,
         context: &Context,
-        key_event: KeyEvent,
+        key_event: CombinedKeyEvent,
     ) -> anyhow::Result<Dispatches>;
 
     fn handle_release(
         &mut self,
         context: &Context,
-        key_event: KeyEvent,
+        key_event: CombinedKeyEvent,
     ) -> anyhow::Result<Dispatches> {
         let _ = (context, key_event);
         Ok(Dispatches::default())
@@ -64,7 +63,7 @@ impl KeymapOverrideTrait for AppKeymapOverride {
     fn handle_press(
         &mut self,
         context: &Context,
-        key_event: KeyEvent,
+        key_event: CombinedKeyEvent,
     ) -> anyhow::Result<Dispatches> {
         self.inner().handle_press(context, key_event)
     }
@@ -72,7 +71,7 @@ impl KeymapOverrideTrait for AppKeymapOverride {
     fn handle_release(
         &mut self,
         context: &Context,
-        key_event: KeyEvent,
+        key_event: CombinedKeyEvent,
     ) -> anyhow::Result<Dispatches> {
         self.inner().handle_release(context, key_event)
     }
@@ -95,7 +94,7 @@ impl KeymapOverrideTrait for EditorKeymapOverride {
     fn handle_press(
         &mut self,
         context: &Context,
-        key_event: KeyEvent,
+        key_event: CombinedKeyEvent,
     ) -> anyhow::Result<Dispatches> {
         self.inner().handle_press(context, key_event)
     }
@@ -103,7 +102,7 @@ impl KeymapOverrideTrait for EditorKeymapOverride {
     fn handle_release(
         &mut self,
         context: &Context,
-        key_event: KeyEvent,
+        key_event: CombinedKeyEvent,
     ) -> anyhow::Result<Dispatches> {
         self.inner().handle_release(context, key_event)
     }
