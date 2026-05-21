@@ -293,6 +293,10 @@
           "string": {
             "color": "#5fffff"
           },
+          "string.doc": {
+            "color": "#878787",
+            "font_style": "italic"
+          },
           "string.escape": {
             "color": "#d787d7"
           },

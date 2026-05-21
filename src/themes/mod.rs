@@ -498,6 +498,7 @@ pub enum HighlightName {
     #[strum(serialize = "tag.delimiter")]
     TagDelimiter,
 }
+
 impl HighlightName {
     fn parent(&self) -> Option<HighlightName> {
         // We hardcode the branch instead of deriving it from the string
