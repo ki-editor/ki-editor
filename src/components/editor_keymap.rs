@@ -165,6 +165,12 @@ pub fn builtin_layout_map() -> HashMap<String, KeyboardLayout> {
         .collect()
 }
 
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub struct CombinedKeyEvent {
+    pub original: KeyEvent,
+    pub translated: KeyEvent,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct KeyboardLayout {
     name: String,
@@ -211,8 +217,8 @@ impl KeyboardLayout {
             .unwrap_or(qwerty_char)
     }
 
-    pub fn translate_key_event_to_qwerty(&self, event: KeyEvent) -> KeyEvent {
-        match event.code {
+    pub fn make_combined_key_event(&self, event: KeyEvent) -> CombinedKeyEvent {
+        let qwerty = match event.code {
             KeyCode::Char(pressed_char) => {
                 let translated_char = self.translate_char_to_qwerty(pressed_char);
                 let shift = translated_char.is_uppercase();
@@ -223,6 +229,10 @@ impl KeyboardLayout {
                 }
             }
             _ => event,
+        };
+        CombinedKeyEvent {
+            original: event,
+            translated: qwerty,
         }
     }
 }

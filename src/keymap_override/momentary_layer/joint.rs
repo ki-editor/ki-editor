@@ -2,7 +2,7 @@ use event::KeyEvent;
 
 use crate::{
     app::{Dispatch, Dispatches},
-    components::keymap_legend::ReleaseKey,
+    components::{editor_keymap::CombinedKeyEvent, keymap_legend::ReleaseKey},
 };
 
 use super::{simple::SimpleMomentaryLayer, MomentaryLayerBaseTrait};
@@ -16,8 +16,8 @@ pub(super) struct JointMomentaryLayer {
 }
 
 impl MomentaryLayerBaseTrait for JointMomentaryLayer {
-    fn handle_press(&mut self, key_event: KeyEvent) -> anyhow::Result<(bool, Dispatches)> {
-        if key_event == self.swap_key {
+    fn handle_press(&mut self, key_event: CombinedKeyEvent) -> anyhow::Result<(bool, Dispatches)> {
+        if key_event.translated == self.swap_key {
             std::mem::swap(&mut self.active, &mut self.inactive);
             Ok((
                 false,

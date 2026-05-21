@@ -3,7 +3,10 @@ use itertools::Itertools as _;
 
 use crate::{
     app::{Dispatch, Dispatches},
-    components::editor::{DispatchEditor, Editor, Jump, Movement},
+    components::{
+        editor::{DispatchEditor, Editor, Jump, Movement},
+        editor_keymap::CombinedKeyEvent,
+    },
     context::Context,
     keymap_override::KeymapOverrideTrait,
 };
@@ -17,9 +20,9 @@ impl KeymapOverrideTrait for JumpKeymapOverride {
     fn handle_press(
         &mut self,
         context: &Context,
-        key_event: event::KeyEvent,
+        key_event: CombinedKeyEvent,
     ) -> anyhow::Result<Dispatches> {
-        let c = match key_event.code {
+        let c = match key_event.original.code {
             KeyCode::Char(c) => c,
             KeyCode::Esc => {
                 return Ok(Dispatches::one(Dispatch::ToEditor(

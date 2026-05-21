@@ -5,7 +5,10 @@ use std::borrow::Cow;
 
 use crate::{
     app::{Dispatch, Dispatches},
-    components::{editor_keymap::KeyboardLayout, editor_keymap_printer::KeymapDisplayOption},
+    components::{
+        editor_keymap::{CombinedKeyEvent, KeyboardLayout},
+        editor_keymap_printer::KeymapDisplayOption,
+    },
     config::AppConfig,
     context::Context,
     rectangle::Rectangle,
@@ -101,8 +104,8 @@ impl Keymap {
         Self(keybindings.to_vec())
     }
 
-    pub fn get(&self, event: &KeyEvent) -> std::option::Option<&Keybinding> {
-        self.0.iter().find(|key| &key.event == event)
+    pub fn get(&self, event: &CombinedKeyEvent) -> std::option::Option<&Keybinding> {
+        self.0.iter().find(|key| key.event == event.translated)
     }
 
     pub fn iter(&self) -> std::slice::Iter<'_, Keybinding> {

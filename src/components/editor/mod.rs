@@ -1709,23 +1709,24 @@ impl Editor {
         context: &Context,
         key_event: KeyEvent,
     ) -> anyhow::Result<Dispatches> {
-        let translated_key_event = context
-            .keyboard_layout()
-            .translate_key_event_to_qwerty(key_event);
-        match self.handle_universal_key(&translated_key_event)? {
+        let combined_key_event = context.keyboard_layout().make_combined_key_event(key_event);
+        match self.handle_universal_key(&combined_key_event)? {
             Some(dispatches) => Ok(dispatches),
             None => match &mut self.keymap_override {
                 Some(keymap_override) => match key_event.kind {
-                    KeyEventKind::Press => keymap_override.handle_press(context, key_event),
-                    KeyEventKind::Release => keymap_override.handle_release(context, key_event),
+                    KeyEventKind::Press => {
+                        keymap_override.handle_press(context, combined_key_event)
+                    }
+                    KeyEventKind::Release => {
+                        keymap_override.handle_release(context, combined_key_event)
+                    }
                 },
                 None => {
                     if let Mode::Insert = self.mode {
-                        self.handle_insert_mode(context, key_event)
+                        self.handle_insert_mode(combined_key_event)
                     } else {
-                        let translated_key_event = context
-                            .keyboard_layout()
-                            .translate_key_event_to_qwerty(key_event);
+                        let translated_key_event =
+                            context.keyboard_layout().make_combined_key_event(key_event);
                         let keymap_legend_config = self.get_current_keymap_legend_config();
 
                         if let Some(keybinding) =
@@ -1733,7 +1734,7 @@ impl Editor {
                         {
                             return Ok(keybinding.get_dispatches());
                         }
-                        log::info!("unhandled event: {translated_key_event:?}");
+                        log::info!("unhandled event: {combined_key_event:?}");
                         Ok(vec![].into())
                     }
                 }
