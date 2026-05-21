@@ -1220,10 +1220,11 @@ pub fn insert_mode_keymap_legend_config(include_universal_keymap: bool) -> Keyma
                     "Enter new line",
                     Dispatch::ToEditor(EnterNewline),
                 ),
+                Keybinding::new_undocumented(key!("tab"), "Indent", Dispatch::ToEditor(Indent)),
                 Keybinding::new_undocumented(
-                    key!("tab"),
-                    "Enter tab",
-                    Dispatch::ToEditor(Insert("\t".to_string())),
+                    key!("shift+backtab"),
+                    "Dedent",
+                    Dispatch::ToEditor(Dedent),
                 ),
                 Keybinding::new_undocumented(
                     key!("home"),
