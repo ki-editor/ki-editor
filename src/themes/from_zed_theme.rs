@@ -20,7 +20,7 @@ pub(super) fn from_theme_content(theme: ThemeContent) -> Theme {
         |hex: &str| -> anyhow::Result<_> { Ok(Color::from_hex(hex)?.apply_alpha(background)) };
     let from_some_hex = |hex: &Option<String>| {
         hex.as_ref()
-            .and_then(|hex| Some(Color::from_hex(&hex).ok()?.apply_alpha(background)))
+            .and_then(|hex| Some(Color::from_hex(hex).ok()?.apply_alpha(background)))
     };
     let text_color = from_some_hex(&theme.style.text).unwrap_or_else(|| match theme.appearance {
         AppearanceContent::Light => hex!("#000000"),
@@ -167,7 +167,7 @@ pub(super) fn from_theme_content(theme: ThemeContent) -> Theme {
                 (VariableParameterBuiltin, "variable.parameter.builtin"),
             ]
             .into_iter()
-            .map(|(highlight, name)| {
+            .filter_map(|(highlight, name)| {
                 theme.style.syntax.get(name).map(|style| {
                     (
                         highlight,
@@ -175,7 +175,6 @@ pub(super) fn from_theme_content(theme: ThemeContent) -> Theme {
                     )
                 })
             })
-            .flatten()
             .collect_vec()
         }),
         ui: UiStyles {
