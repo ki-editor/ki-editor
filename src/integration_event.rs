@@ -59,6 +59,8 @@ pub enum IntegrationEvent {
         path: AbsolutePath,
     },
     RequestLspWorkspaceSymbols,
+    RequestLspIncomingCalls,
+    RequestLspOutgoingCalls,
 }
 
 /// Trait for components that can emit integration events

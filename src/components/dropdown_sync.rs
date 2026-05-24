@@ -8,7 +8,7 @@ use crate::{
 use itertools::Itertools;
 
 use nucleo_matcher::Utf32Str;
-use shared::{absolute_path::AbsolutePath, icons::get_icon_config};
+use shared::{absolute_path::AbsolutePath, icons::format_with_icon};
 
 use super::suggestive_editor::{Decoration, Info};
 
@@ -99,8 +99,9 @@ impl DropdownItem {
                 .strip_prefix(working_directory)
                 .map(|path| path.display().to_string())
                 .unwrap_or_else(|_| path.display().to_string());
-            let icon = shared::absolute_path::get_path_icon(&path);
-            format!("{icon} {name}")
+            let icon_config = crate::config::AppConfig::singleton().icon_config();
+            let icon = shared::absolute_path::get_path_icon(&path, icon_config);
+            format_with_icon(icon, &name)
         })
         .set_dispatches(Dispatches::one(crate::app::Dispatch::OpenFileFromPathBuf {
             path,
@@ -123,6 +124,7 @@ impl DropdownItem {
 
 impl From<AbsolutePath> for DropdownItem {
     fn from(value: AbsolutePath) -> Self {
+        let icon_config = crate::config::AppConfig::singleton().icon_config();
         DropdownItem::new({
             let name = value
                 .to_path_buf()
@@ -130,16 +132,14 @@ impl From<AbsolutePath> for DropdownItem {
                 .unwrap_or_default()
                 .to_string_lossy()
                 .to_string();
-            let icon = value.icon();
-            format!("{icon} {name}")
+            let icon = value.icon(icon_config);
+            format_with_icon(icon, &name)
         })
-        .set_group(value.parent().ok().flatten().map(|parent| {
-            format!(
-                "{} {}",
-                get_icon_config().folder,
-                parent.try_display_relative()
-            )
-        }))
+        .set_group(
+            value.parent().ok().flatten().map(|parent| {
+                format_with_icon(&icon_config.folder, &parent.try_display_relative())
+            }),
+        )
         .set_dispatches(Dispatches::one(crate::app::Dispatch::OpenFile {
             path: value,
             owner: BufferOwner::User,

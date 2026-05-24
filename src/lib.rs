@@ -1,4 +1,5 @@
 mod buffer;
+mod multibuffer;
 use tracing_subscriber::filter::LevelFilter;
 
 mod git;
@@ -50,6 +51,8 @@ pub mod surround;
 pub mod syntax_highlight;
 #[cfg(test)]
 mod test_app;
+#[cfg(test)]
+mod test_cli;
 #[cfg(test)]
 mod test_lsp;
 #[cfg(test)]
@@ -130,7 +133,7 @@ pub fn run(config: RunConfig) -> anyhow::Result<()> {
     let syntax_highlighter_sender = syntax_highlight::start_thread(sender.clone());
 
     let app = App::from_channel(
-        Rc::new(Mutex::new(Crossterm::new()?)),
+        Rc::new(Mutex::new(Crossterm::new())),
         config.working_directory.unwrap_or(".".try_into()?),
         sender,
         receiver,

@@ -40,8 +40,8 @@ pub fn divide_viewport<T: Clone + std::fmt::Debug + Eq>(
 
 #[derive(Debug)]
 pub struct ViewportSection<T> {
-    item: T,
-    height: usize,
+    pub item: T,
+    pub height: usize,
 }
 impl<T: Clone> ViewportSection<T> {
     pub fn height(&self) -> usize {

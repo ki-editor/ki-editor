@@ -27,6 +27,7 @@ pub struct AppConfig {
     indent_char: char,
     indent_width: usize,
     show_key_in_keymap: bool,
+    icon_config: shared::icons::IconsConfig,
 }
 
 #[derive(Deserialize, Serialize, JsonSchema)]
@@ -42,6 +43,8 @@ pub struct RawConfig {
     indent_char: IndentChar,
     indent_width: usize,
     show_key_in_keymap: bool,
+    #[serde(default)]
+    icon_style: shared::icons::IconStyle,
 }
 
 #[derive(Deserialize, Serialize, JsonSchema)]
@@ -95,6 +98,7 @@ impl TryFrom<RawConfig> for AppConfig {
             },
             indent_width: value.indent_width,
             show_key_in_keymap: value.show_key_in_keymap,
+            icon_config: shared::icons::build_icon_config(&value.icon_style),
         })
     }
 }
@@ -197,17 +201,21 @@ impl AppConfig {
     pub fn load_from_current_directory() -> anyhow::Result<Self> {
         let workspace_dir = ki_workspace_directory()?;
         let workspace_config = |extension: &str| workspace_dir.join(format!("config.{extension}"));
+        #[cfg(not(test))]
         let global_config =
             |extension: &str| ki_global_directory().join(format!("config.{extension}"));
-        let config: RawConfig =
-            figment::Figment::from(providers::Serialized::defaults(&RawConfig::default()))
-                .merge(providers::Json::file(global_config("json")))
-                .merge(providers::Yaml::file(global_config("yaml")))
-                .merge(providers::Toml::file(global_config("toml")))
-                .merge(providers::Json::file(workspace_config("json")))
-                .merge(providers::Yaml::file(workspace_config("yaml")))
-                .merge(providers::Toml::file(workspace_config("toml")))
-                .extract()?;
+        let config = figment::Figment::from(providers::Serialized::defaults(&RawConfig::default()));
+        #[cfg(not(test))]
+        let config = config
+            .merge(providers::Json::file(global_config("json")))
+            .merge(providers::Yaml::file(global_config("yaml")))
+            .merge(providers::Toml::file(global_config("toml")));
+
+        let config: RawConfig = config
+            .merge(providers::Json::file(workspace_config("json")))
+            .merge(providers::Yaml::file(workspace_config("yaml")))
+            .merge(providers::Toml::file(workspace_config("toml")))
+            .extract()?;
         config.try_into()
     }
 
@@ -259,6 +267,10 @@ impl AppConfig {
 
     pub fn show_key_in_keymap(&self) -> bool {
         self.show_key_in_keymap
+    }
+
+    pub fn icon_config(&self) -> &shared::icons::IconsConfig {
+        &self.icon_config
     }
 }
 

@@ -9,19 +9,19 @@ use crate::{
     app::Scope,
     components::{
         editor::Editor,
-        editor_keymap::{shifted, KeyboardLayout, QWERTY_STR},
+        editor_keymap::{shifted, KeyboardLayout, QWERTY_EVENT},
         editor_keymap_legend::NormalModeOverride,
     },
     context::Context,
     keymap::{
-        buffer_keymap, cut_keymap, delete_keymap, duplicate_keymap, insert_keymap,
+        buffer_keymap, cut_keymap, delete_keymap, duplicate_keymap, eat_keymap,
         insert_mode_delete_keymap, keymap_actions, keymap_core_movements, keymap_other_movements,
         keymap_overridable, keymap_primary_selection_modes, keymap_secondary_selection_modes_init,
         keymap_surround, keymap_transform, keymap_universal, movement_history_keymap,
         multicursor_menu_keymap, multicursor_momentary_layer_keymap, normal_mode_keymap,
-        paste_keymap, secondary_selection_modes_keymap_legend_config,
+        open_keymap, paste_keymap, secondary_selection_modes_keymap_legend_config,
         space_context_keymap_legend_config, space_editor_keymap_legend_config,
-        space_keymap_legend_config, space_pick_keymap_legend_config, swap_keymap,
+        space_keymap_legend_config, space_pick_keymap_legend_config, swap_keymap, undo_redo_keymap,
     },
 };
 use comfy_table::{
@@ -91,24 +91,19 @@ impl KeymapPrintSection {
     pub fn from_keymap(name: String, keymap: &Keymap) -> Self {
         KeymapPrintSection {
             name,
-            keys: QWERTY_STR
+            keys: QWERTY_EVENT
                 .iter()
                 .map(|row| {
                     row.iter()
                         .map(|cell| Key {
-                            normal: keymap
-                                .iter()
-                                .find(|keymap| keymap.event().display() == *cell)
-                                .cloned(),
+                            normal: keymap.iter().find(|keymap| keymap.event() == cell).cloned(),
                             shifted: keymap
                                 .iter()
-                                .find(|keymap| {
-                                    keymap.event().display().replace("shift+", "") == shifted(cell)
-                                })
+                                .find(|keymap| keymap.event() == &shifted(*cell))
                                 .cloned(),
                             alted: keymap
                                 .iter()
-                                .find(|keymap| keymap.event().display() == alted(cell))
+                                .find(|keymap| keymap.event() == &alted(*cell))
                                 .cloned(),
                         })
                         .collect()
@@ -325,7 +320,11 @@ impl KeymapPrintSections {
             ),
             KeymapPrintSection::from_keymap(
                 "Actions".to_string(),
-                &Keymap::new(&keymap_actions(&NormalModeOverride::default(), false, None)),
+                &Keymap::new(&keymap_actions(
+                    &NormalModeOverride::default(),
+                    false,
+                    &editor,
+                )),
             ),
             KeymapPrintSection::from_keymap(
                 "Other Movements".to_string(),
@@ -379,8 +378,10 @@ impl KeymapPrintSections {
             ),
             KeymapPrintSection::from_keymap("Cut".to_string(), &cut_keymap()),
             KeymapPrintSection::from_keymap("Swap".to_string(), &swap_keymap()),
+            KeymapPrintSection::from_keymap("Eat".to_string(), &eat_keymap()),
             KeymapPrintSection::from_keymap("Delete".to_string(), &delete_keymap()),
-            KeymapPrintSection::from_keymap("Insert".to_string(), &insert_keymap()),
+            KeymapPrintSection::from_keymap("Undo-Redo".to_string(), &undo_redo_keymap()),
+            KeymapPrintSection::from_keymap("Open".to_string(), &open_keymap()),
             KeymapPrintSection::from_keymap("Buffer".to_string(), &buffer_keymap(false)),
             KeymapPrintSection::from_keymap(
                 "Movement History".to_string(),

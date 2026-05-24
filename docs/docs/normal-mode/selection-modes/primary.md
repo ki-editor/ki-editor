@@ -24,14 +24,14 @@ There are two Syntax Node selection modes:
 - Coarse: faster movement, lower accuracy
 - Fine: higher accuracy, slower movement
 
-| Movement                                           | Meaning                                              |
-| -------------------------------------------------- | ---------------------------------------------------- |
-| [Left/Right](../core-movements.md#--leftright)     | Next/Previous **named** sibling node                 |
+| Movement                                             | Meaning                                              |
+| ---------------------------------------------------- | ---------------------------------------------------- |
+| [Left/Right](../core-movements.md#--leftright)       | Next/Previous **named** sibling node                 |
 | [Previous/Next](../core-movements.md#--previousnext) | Next/Previous sibling node, including anonymous ones |
-| Up                                                 | Parent node                                          |
-| Down                                               | First **named** child                                |
-| Current                                            | Select the largest node                              |
-| Jump                                               | Jump to largest node                                 |
+| Up                                                   | Parent node                                          |
+| Down                                                 | First **named** child                                |
+| Current                                              | Select the largest node                              |
+| Jump                                                 | Jump to largest node                                 |
 
 ### Largest Node
 
@@ -70,14 +70,14 @@ See more at [https://tree-sitter.github.io/tree-sitter/using-parsers/2-basic-par
 
 Fine Syntax Node.
 
-| Movement                                           | Meaning                                              |
-| -------------------------------------------------- | ---------------------------------------------------- |
-| [Left/Right](../core-movements.md#--leftright)     | Next/Previous **named** sibling node                 |
+| Movement                                             | Meaning                                              |
+| ---------------------------------------------------- | ---------------------------------------------------- |
+| [Left/Right](../core-movements.md#--leftright)       | Next/Previous **named** sibling node                 |
 | [Previous/Next](../core-movements.md#--previousnext) | Next/Previous sibling node, including anonymous ones |
-| Up                                                 | Parent node                                          |
-| Shrink                                             | First child (including anonymous)                    |
-| Current                                            | Smallest node that matches the current selection     |
-| Jump                                               | Jump to smallest node                                |
+| Up                                                   | Parent node                                          |
+| Shrink                                               | First child (including anonymous)                    |
+| Current                                              | Smallest node that matches the current selection     |
+| Jump                                                 | Jump to smallest node                                |
 
 Fine Syntax Node is useful when you start to expand the selection starting from the current smallest node.
 
@@ -104,8 +104,8 @@ The meaningless selections are empty lines.
 
 | Movement      | Meaning                                                   |
 | ------------- | --------------------------------------------------------- |
-| Up/Down       | Move to the nearest empty lines above/below               |
-| Previous/Next | Move to all kinds of line portions                        |
+| Previous/Next | Move to the nearest empty line above/below                |
+| Up/Down       | Move to all kinds of line portions                        |
 | First/Last    | Move to the first/last non-empty line of the current file |
 | Left/Right    | Move to the previous/next non-empty line                  |
 
@@ -142,6 +142,7 @@ If the current selection is selecting `use`, the following table demonstrates ho
 <TutorialFallback filename="word"/>
 
 [^1]: This is possible because even Prompt is an editor, so the Word mode also works there. See [Core Concepts](../../core-concepts.md#2-every-component-is-a-buffereditor)
+
 [^1]: This is possible because even Prompt is an editor, so the Word mode also works there. See [Core Concepts](../../core-concepts.md#2-every-component-is-a-buffereditor)
 
 ## `Word*`
@@ -176,12 +177,39 @@ This is useful for renaming identifiers, especially if we only want to change a 
 
 <TutorialFallback filename="subword"/>
 
+## `Paragraph`
+
+A paragraph is a contiguous run of non-empty lines. Each paragraph selection includes its trailing newline character (if present). Empty lines act as insignificant separators between paragraphs.
+
+For example, given:
+
+```
+foo
+bar
+
+baz
+qux
+```
+
+There are two paragraphs: `foo\nbar\n` and `baz\nqux`.
+
+| Movement      | Meaning                                                    |
+| ------------- | ---------------------------------------------------------- |
+| Left/Right    | Move to the previous/next paragraph (skipping empty lines) |
+| Previous/Next | Move to the nearest empty line or paragraph above/below    |
+| First/Last    | Move to the first/last paragraph of the current file       |
+
+<TutorialFallback filename="paragraph"/>
+
 ## `Char`
 
 Character.
 
 In this selection mode, the movements behave like the usual editor, where [Left/Right](./../core-movements.md#--leftright) means left/right, and so on.
 
-[First/Last](./../core-movements.md#--firstlast) means the first/last character of the current word.
+| Movement      | Meaning                                                                    |
+| ------------- | -------------------------------------------------------------------------- |
+| First/Last    | First/last character of the current line (last may be a newline character) |
+| Previous/Next | First/last non-whitespace character of the current line                    |
 
 <TutorialFallback filename="char"/>

@@ -45,7 +45,7 @@ impl EmbeddedApp {
             log::set_max_level(log_level);
         }
 
-        let frontend = std::rc::Rc::new(std::sync::Mutex::new(Crossterm::new()?));
+        let frontend = std::rc::Rc::new(std::sync::Mutex::new(Crossterm::new()));
 
         let status_line_components = vec![];
 
@@ -328,6 +328,8 @@ impl EmbeddedApp {
             IntegrationEvent::SyncBufferRequest { path } => self.request_buffer_content(path)?,
             IntegrationEvent::ShowInfo { info } => self.show_info(info)?,
             IntegrationEvent::RequestLspWorkspaceSymbols => self.request_lsp_workspace_symbols()?,
+            IntegrationEvent::RequestLspIncomingCalls => self.request_lsp_incoming_calls()?,
+            IntegrationEvent::RequestLspOutgoingCalls => self.request_lsp_outgoing_calls()?,
         }
 
         Ok(())
@@ -469,7 +471,6 @@ impl EmbeddedApp {
             Mode::Insert => ki_protocol_types::EditorMode::Insert,
             Mode::MultiCursor => ki_protocol_types::EditorMode::MultiCursor,
             Mode::Swap => ki_protocol_types::EditorMode::Swap,
-            Mode::Replace => ki_protocol_types::EditorMode::Replace,
         };
 
         self.send_notification(OutputMessageWrapper {
@@ -517,6 +518,9 @@ impl EmbeddedApp {
                 ki_protocol_types::SelectionMode::SyntaxNodeFine
             }
             crate::selection::SelectionMode::BigWord => ki_protocol_types::SelectionMode::BigWord,
+            crate::selection::SelectionMode::Paragraph => {
+                ki_protocol_types::SelectionMode::Paragraph
+            }
             crate::selection::SelectionMode::Diagnostic(kind) => {
                 ki_protocol_types::SelectionMode::Diagnostic(match kind {
                     crate::quickfix_list::DiagnosticSeverityRange::All => {
@@ -783,6 +787,22 @@ impl EmbeddedApp {
         self.send_notification(OutputMessageWrapper {
             id: 0,
             message: OutputMessage::RequestLspWorkspaceSymbols,
+            error: None,
+        })
+    }
+
+    fn request_lsp_incoming_calls(&self) -> anyhow::Result<()> {
+        self.send_notification(OutputMessageWrapper {
+            id: 0,
+            message: OutputMessage::RequestLspIncomingCalls,
+            error: None,
+        })
+    }
+
+    fn request_lsp_outgoing_calls(&self) -> anyhow::Result<()> {
+        self.send_notification(OutputMessageWrapper {
+            id: 0,
+            message: OutputMessage::RequestLspOutgoingCalls,
             error: None,
         })
     }

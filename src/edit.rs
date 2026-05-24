@@ -14,6 +14,7 @@ pub struct Edit {
     pub new: Rope,
     pub old: Rope,
 }
+
 impl Edit {
     pub fn new(rope: &Rope, range: CharIndexRange, new: Rope) -> Self {
         Self {

@@ -129,6 +129,7 @@ impl Theme {
             StyleKey::UiPrimarySelectionSecondaryCursor => {
                 self.ui.primary_selection_secondary_cursor
             }
+            StyleKey::UiPrimarySelectionPrimaryCursor => self.ui.primary_selection_primary_cursor,
             StyleKey::UiSecondarySelectionPrimaryCursor => {
                 self.ui.secondary_selection_primary_cursor
             }
@@ -139,6 +140,10 @@ impl Theme {
                 Style::new().background_color(self.ui.section_divider_background)
             }
             StyleKey::UiFocusedTab => self.ui.focused_tab,
+            StyleKey::FocusedWindowTitle => self.ui.window_title_focused,
+            StyleKey::UnfocusedWindowTitle => self.ui.window_title_unfocused,
+            StyleKey::Default => self.ui.default,
+            StyleKey::GlobalTitle => self.ui.global_title,
         }
     }
 }
@@ -188,8 +193,6 @@ pub struct UiStyles {
     pub section_divider_background: Color,
     pub jump_mark_odd: Style,
     pub jump_mark_even: Style,
-    pub text_foreground: Color,
-    pub background_color: Color,
     pub primary_selection_background: Color,
     pub primary_selection_anchor_background: Color,
     pub primary_selection_secondary_cursor: Style,
@@ -202,6 +205,8 @@ pub struct UiStyles {
     pub line_number: Style,
     pub border: Style,
     pub mark: Style,
+    pub primary_selection_primary_cursor: Style,
+    pub default: Style,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Default)]

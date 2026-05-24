@@ -77,6 +77,7 @@ pub enum SelectionMode {
     GitHunk,
     LocalQuickfix,
     BigWord,
+    Paragraph,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -289,6 +290,10 @@ pub enum OutputMessage {
     RequestLspDocumentSymbols,
     #[serde(rename = "lsp.workspaceSymbols")]
     RequestLspWorkspaceSymbols,
+    #[serde(rename = "lsp.incomingCalls")]
+    RequestLspIncomingCalls,
+    #[serde(rename = "lsp.outgoingCalls")]
+    RequestLspOutgoingCalls,
     #[serde(rename = "editor.syncBufferRequest")]
     SyncBufferRequest { uri: String },
     #[serde(rename = "editor.showInfo")]
@@ -403,6 +408,8 @@ impl MessageMethod for OutputMessage {
             OutputMessage::RequestLspCodeAction => Cow::Borrowed("lsp.codeAction"),
             OutputMessage::RequestLspDocumentSymbols => Cow::Borrowed("lsp.documentSymbols"),
             OutputMessage::RequestLspWorkspaceSymbols => Cow::Borrowed("lsp.workspaceSymbols"),
+            OutputMessage::RequestLspIncomingCalls => Cow::Borrowed("lsp.incomingCalls"),
+            OutputMessage::RequestLspOutgoingCalls => Cow::Borrowed("lsp.outgoingCalls"),
             OutputMessage::SyncBufferRequest { .. } => Cow::Borrowed("editor.requestBufferContent"),
             OutputMessage::ShowInfo { .. } => Cow::Borrowed("editor.showInfo"),
         }

@@ -79,25 +79,26 @@ impl TryFrom<&String> for AbsolutePath {
     }
 }
 
-pub fn get_path_icon(path: &Path) -> &String {
-    let config = crate::icons::get_icon_config();
+pub fn get_path_icon<'a>(path: &Path, config: &'a crate::icons::IconsConfig) -> &'a str {
     path.file_name()
         .and_then(|filename| {
             config
                 .file_names
                 .get(&filename.to_string_lossy().to_string())
+                .map(|s| s.as_str())
         })
         .or_else(|| {
             config
                 .file_extensions
                 .get(path.extension().and_then(|s| s.to_str())?)
+                .map(|s| s.as_str())
         })
-        .unwrap_or(&config.file)
+        .unwrap_or(config.file.as_str())
 }
 
 impl AbsolutePath {
-    pub fn icon(&self) -> &String {
-        get_path_icon(&self.0)
+    pub fn icon<'a>(&self, config: &'a crate::icons::IconsConfig) -> &'a str {
+        get_path_icon(&self.0, config)
     }
     pub fn read(&self) -> anyhow::Result<String> {
         Ok(std::fs::read_to_string(&self.0)?)

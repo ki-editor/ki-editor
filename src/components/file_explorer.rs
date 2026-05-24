@@ -91,24 +91,28 @@ impl FileExplorer {
 
         let tree = std::mem::take(&mut self.tree);
         self.tree = tree.reveal(path)?;
-        let dispatches = self.refresh_editor(context)?;
+        self.refresh_editor(context)?;
         if let Some(index) = self.tree.find_index(path) {
             self.editor_mut().select_line_at(index, context)
         } else {
-            Ok(dispatches)
+            Ok(Dispatches::default())
         }
     }
 
-    pub fn refresh(&mut self, context: &Context) -> anyhow::Result<Dispatches> {
+    pub fn refresh(&mut self, context: &Context) -> anyhow::Result<()> {
         let tree = std::mem::take(&mut self.tree);
         self.tree = tree.refresh(context.current_working_directory())?;
-        let dispatches = self.refresh_editor(context)?;
-        Ok(dispatches)
+        self.refresh_editor(context)?;
+        Ok(())
     }
 
-    fn refresh_editor(&mut self, context: &Context) -> anyhow::Result<Dispatches> {
+    fn refresh_editor(&mut self, context: &Context) -> anyhow::Result<()> {
         let text = self.tree.render();
-        self.editor_mut().set_content(&text, context)
+
+        // We can ignore the Dispatches returned here, since they
+        // are only applicable to an editor with a buffer path.
+        let _ = self.editor_mut().set_content(&text, context)?;
+        Ok(())
     }
 
     fn get_current_node(&self) -> anyhow::Result<Option<Node>> {
@@ -142,6 +146,11 @@ impl FileExplorer {
         if nodes.len() == 1 {
             let node = nodes.first();
             match node.kind {
+                NodeKind::ParentDirectory => {
+                    self.tree = Tree::new(&node.path)?;
+                    self.refresh_editor(context)?;
+                    Ok(Vec::new().into())
+                }
                 NodeKind::File => Ok([
                     Dispatch::CloseCurrentWindow,
                     Dispatch::OpenFile {
@@ -157,7 +166,7 @@ impl FileExplorer {
                     self.tree = tree.toggle(&node.path, |open| !open);
                     // dropping dispatch as this is a buffer with no path and
                     // refresh dispatches are related to file dirty status
-                    let _ = self.refresh_editor(context)?;
+                    self.refresh_editor(context)?;
                     Ok(Vec::new().into())
                 }
             }
@@ -203,7 +212,7 @@ fn get_nodes(path: &AbsolutePath) -> anyhow::Result<Vec<Node>> {
                 kind,
             })
         })
-        .sorted_by(|a, b| a.name.cmp(&b.name))
+        .sorted_by(|a, b| a.kind.cmp(&b.kind).then(a.name.cmp(&b.name)))
         .collect())
 }
 
@@ -225,7 +234,27 @@ enum ContinuationKind {
 impl Tree {
     fn new(working_directory: &AbsolutePath) -> anyhow::Result<Self> {
         let nodes = get_nodes(working_directory)?;
-        Ok(Self { nodes })
+        // Prepend a ".." entry unless we are already at the filesystem root.
+        let parent_node = working_directory
+            .parent()
+            .ok()
+            .flatten()
+            .map(|parent| Node {
+                name: "..".to_string(),
+                path: parent,
+                kind: NodeKind::ParentDirectory,
+            });
+        Ok(Self {
+            nodes: parent_node.into_iter().chain(nodes).collect(),
+        })
+    }
+
+    /// Creates a child tree (inside an open directory). Child trees do not
+    /// show the `..` entry — only the root-level tree does.
+    fn new_child(directory: &AbsolutePath) -> anyhow::Result<Self> {
+        Ok(Self {
+            nodes: get_nodes(directory)?,
+        })
     }
 
     fn map<F>(self, f: F) -> Self
@@ -243,20 +272,22 @@ impl Tree {
     {
         self.map(|node| {
             let kind = match node.kind {
-                NodeKind::File => node.kind,
+                NodeKind::File | NodeKind::ParentDirectory => node.kind,
                 NodeKind::Directory { open, children } => NodeKind::Directory {
                     open: if node.path == *path {
                         change_open(open)
                     } else {
                         open
                     },
-                    children: children.or_else(|| Tree::new(&node.path).ok()).map(|tree| {
-                        if open {
-                            tree.toggle(path, change_open.clone())
-                        } else {
-                            tree
-                        }
-                    }),
+                    children: children
+                        .or_else(|| Tree::new_child(&node.path).ok())
+                        .map(|tree| {
+                            if open {
+                                tree.toggle(path, change_open.clone())
+                            } else {
+                                tree
+                            }
+                        }),
                 },
             };
             Node { kind, ..node }
@@ -276,7 +307,7 @@ impl Tree {
                 },
                 |continuation, node| match continuation.kind {
                     ContinuationKind::Continue => match &node.kind {
-                        NodeKind::File => {
+                        NodeKind::File | NodeKind::ParentDirectory => {
                             let result = f(continuation.state, node);
                             Continuation {
                                 state: result.state,
@@ -341,14 +372,28 @@ impl Tree {
     }
 
     fn render_with_indent(&self, indent: usize) -> String {
+        let indent_str = "  ".repeat(indent);
         self.nodes
             .iter()
             .map(|node| {
+                let icon_config = crate::config::AppConfig::singleton().icon_config();
+                let format = |icon: &str, text: &str| {
+                    if icon.is_empty() {
+                        text.to_string()
+                    } else {
+                        format!("{icon}  {text}")
+                    }
+                };
                 let content = match &node.kind {
-                    NodeKind::File => format!("{}  {}", node.path.icon(), node.name),
+                    NodeKind::File => format(node.path.icon(icon_config), &node.name),
+                    NodeKind::ParentDirectory => "../".to_string(),
                     NodeKind::Directory { open, children } => {
-                        let icon = if *open { "📂" } else { "📁" };
-                        let head = format!("{}  {}{}", icon, node.name, "/");
+                        let icon = if *open {
+                            icon_config.folder_expanded.as_str()
+                        } else {
+                            icon_config.folder.as_str()
+                        };
+                        let head = format(icon, &format!("{}{}", node.name, "/"));
 
                         let tail = if *open {
                             children
@@ -365,7 +410,7 @@ impl Tree {
                         }
                     }
                 };
-                format!("{} - {}", "  ".repeat(indent), content)
+                format!("{indent_str} - {content}")
             })
             .collect::<Vec<_>>()
             .join("\n")
@@ -404,7 +449,7 @@ impl Tree {
         let opened_paths = self.walk_visible(Vec::new(), |result, node| Continuation {
             kind: ContinuationKind::Continue,
             state: match &node.kind {
-                NodeKind::File => result,
+                NodeKind::File | NodeKind::ParentDirectory => result,
                 NodeKind::Directory { open, .. } => {
                     if *open {
                         result
@@ -433,12 +478,41 @@ struct Node {
 }
 #[derive(Clone)]
 enum NodeKind {
-    File,
+    /// The virtual "../" entry that navigates to the parent directory.
+    ParentDirectory,
     Directory {
         open: bool,
         /// Should be populated lazily
         children: Option<Tree>,
     },
+    File,
+}
+
+impl NodeKind {
+    fn sort_order(&self) -> u8 {
+        match self {
+            NodeKind::ParentDirectory => 0,
+            NodeKind::Directory { .. } => 1,
+            NodeKind::File => 2,
+        }
+    }
+}
+
+impl PartialEq for NodeKind {
+    fn eq(&self, other: &Self) -> bool {
+        self.sort_order() == other.sort_order()
+    }
+}
+impl Eq for NodeKind {}
+impl PartialOrd for NodeKind {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+impl Ord for NodeKind {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.sort_order().cmp(&other.sort_order())
+    }
 }
 
 impl Component for FileExplorer {
@@ -478,19 +552,20 @@ mod test_file_explorer {
                 App(RevealInExplorer(s.main_rs())),
                 Expect(FileExplorerContent(
                     "
+ - ../
  - 📁  .git/ :
- - 🙈  .gitignore
- - 🔒  Cargo.lock
- - 📄  Cargo.toml
  - 📂  src/ :
    - 🦀  foo.rs
    - 📘  hello.ts
    - 🦀  main.rs
+ - 🙈  .gitignore
+ - 🔒  Cargo.lock
+ - 📄  Cargo.toml
 "
                     .trim_matches('\n')
                     .to_string(),
                 )),
-                Expect(CurrentSelectedTexts(&["   - 🦀  main.rs"])),
+                Expect(CurrentSelectedTexts(&["   - 🦀  main.rs\n"])),
                 App(RevealInExplorer(s.foo_rs())),
                 Expect(CurrentSelectedTexts(&["   - 🦀  foo.rs\n"])),
             ])
@@ -508,7 +583,7 @@ mod test_file_explorer {
                 }),
                 App(RevealInExplorer(s.main_rs())),
                 Expect(ComponentCount(1)),
-                App(HandleKeyEvents(keys!("f").to_vec())),
+                App(HandleKeyEvents(keys!("g").to_vec())),
                 Expect(ComponentCount(2)),
                 Expect(CurrentComponentTitle("Move paths".to_string())),
                 Editor(Insert("/hello/world.rs".to_string())),
@@ -527,14 +602,15 @@ mod test_file_explorer {
                 App(RevealInExplorer(s.main_rs())),
                 Expect(FileExplorerContent(
                     "
+ - ../
  - 📁  .git/ :
- - 🙈  .gitignore
- - 🔒  Cargo.lock
- - 📄  Cargo.toml
  - 📂  src/ :
    - 🦀  foo.rs
    - 📘  hello.ts
    - 🦀  main.rs
+ - 🙈  .gitignore
+ - 🔒  Cargo.lock
+ - 📄  Cargo.toml
 "
                     .trim_matches('\n')
                     .to_string(),
@@ -549,12 +625,13 @@ mod test_file_explorer {
                 // Expect the two files (Cargo.lock and Cargo.toml) are deleted
                 Expect(FileExplorerContent(
                     "
+ - ../
  - 📁  .git/ :
- - 🙈  .gitignore
  - 📂  src/ :
    - 🦀  foo.rs
    - 📘  hello.ts
    - 🦀  main.rs
+ - 🙈  .gitignore
 "
                     .trim_matches('\n')
                     .to_string(),
@@ -569,14 +646,15 @@ mod test_file_explorer {
                 App(RevealInExplorer(s.main_rs())),
                 Expect(FileExplorerContent(
                     "
+ - ../
  - 📁  .git/ :
- - 🙈  .gitignore
- - 🔒  Cargo.lock
- - 📄  Cargo.toml
  - 📂  src/ :
    - 🦀  foo.rs
    - 📘  hello.ts
    - 🦀  main.rs
+ - 🙈  .gitignore
+ - 🔒  Cargo.lock
+ - 📄  Cargo.toml
 "
                     .trim_matches('\n')
                     .to_string(),
@@ -594,12 +672,13 @@ mod test_file_explorer {
                 // Expect the two files (Cargo.lock and Cargo.toml) are deleted
                 Expect(FileExplorerContent(
                     "
+ - ../
  - 📁  .git/ :
- - 🙈  .gitignore
  - 📂  src/ :
    - 🦀  foo.rs
    - 📘  hello.ts
    - 🦀  main.rs
+ - 🙈  .gitignore
 "
                     .trim_matches('\n')
                     .to_string(),
@@ -615,14 +694,15 @@ mod test_file_explorer {
                 App(RevealInExplorer(s.main_rs())),
                 Expect(FileExplorerContent(
                     "
+ - ../
  - 📁  .git/ :
- - 🙈  .gitignore
- - 🔒  Cargo.lock
- - 📄  Cargo.toml
  - 📂  src/ :
    - 🦀  foo.rs
    - 📘  hello.ts
    - 🦀  main.rs
+ - 🙈  .gitignore
+ - 🔒  Cargo.lock
+ - 📄  Cargo.toml
 "
                     .trim_matches('\n')
                     .to_string(),
@@ -654,14 +734,15 @@ mod test_file_explorer {
                 App(RevealInExplorer(s.main_rs())),
                 Expect(FileExplorerContent(
                     "
+ - ../
  - 📁  .git/ :
- - 🙈  .gitignore
- - 🔒  Cargo.lock
- - 📄  Cargo.toml
  - 📂  src/ :
    - 🦀  foo.rs
    - 📘  hello.ts
    - 🦀  main.rs
+ - 🙈  .gitignore
+ - 🔒  Cargo.lock
+ - 📄  Cargo.toml
 "
                     .trim_matches('\n')
                     .to_string(),
@@ -693,18 +774,44 @@ mod test_file_explorer {
                 // Expect the two files paths are appended with ".x"
                 Expect(FileExplorerContent(
                     "
+ - ../
  - 📁  .git/ :
- - 🙈  .gitignore
- - 📄  Cargo.lock.x
- - 📄  Cargo.toml.x
  - 📂  src/ :
    - 🦀  foo.rs
    - 📘  hello.ts
    - 🦀  main.rs
+ - 🙈  .gitignore
+ - 📄  Cargo.lock.x
+ - 📄  Cargo.toml.x
 "
                     .trim_matches('\n')
                     .to_string(),
                 )),
+            ])
+        })
+    }
+
+    #[test]
+    fn navigate_to_parent_via_dotdot() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                // Change cwd to ./src so the file explorer roots there
+                App(ChangeWorkingDirectory(
+                    s.new_path("src").try_into().unwrap(),
+                )),
+                App(RevealInExplorer(s.main_rs())),
+                Expect(CurrentComponentContent(
+                    " - ../
+ - 🦀  foo.rs
+ - 📘  hello.ts
+ - 🦀  main.rs",
+                )),
+                // Press enter on the ".." line (which is line 0)
+                Editor(MatchLiteral("..".to_owned())),
+                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+                App(HandleKeyEvent(key!("enter"))),
+                // Expect the root has moved up one level (now shows src/ as a child)
+                Expect(CurrentComponentContentMatches(lazy_regex::regex!("src"))),
             ])
         })
     }
@@ -736,13 +843,14 @@ mod test_file_explorer {
                 // Although main.rs is deleted, expects the File Explorer
                 // still renders properly
                 Expect(CurrentComponentContent(
-                    " - 📁  .git/ :
- - 🙈  .gitignore
- - 🔒  Cargo.lock
- - 📄  Cargo.toml
+                    " - ../
+ - 📁  .git/ :
  - 📂  src/ :
    - 🦀  foo.rs
-   - 📘  hello.ts",
+   - 📘  hello.ts
+ - 🙈  .gitignore
+ - 🔒  Cargo.lock
+ - 📄  Cargo.toml",
                 )),
             ])
         })
@@ -765,18 +873,20 @@ mod test_file_explorer {
                 App(RevealInExplorer(s.main_rs())),
                 // Expect the root of the file explorer is `src` now
                 Expect(CurrentComponentContent(
-                    " - 🦀  foo.rs
+                    " - ../
+ - 🦀  foo.rs
  - 📘  hello.ts
  - 🦀  main.rs",
                 )),
                 // Reveal a file which is outside of ./src
                 App(RevealInExplorer(s.gitignore())),
                 Expect(CurrentComponentContent(
-                    " - 📁  .git/ :
+                    " - ../
+ - 📁  .git/ :
+ - 📁  src/ :
  - 🙈  .gitignore
  - 🔒  Cargo.lock
- - 📄  Cargo.toml
- - 📁  src/ :",
+ - 📄  Cargo.toml",
                 )),
                 Expect(CurrentSelectedTexts(&[" - 🙈  .gitignore\n"])),
             ])

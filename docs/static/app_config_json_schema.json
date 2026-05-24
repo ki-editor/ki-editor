@@ -22,6 +22,10 @@
             },
             "default": {}
         },
+        "icon_style": {
+            "$ref": "#/$defs/IconStyle",
+            "default": "emoji"
+        },
         "indent_char": {
             "$ref": "#/$defs/IndentChar"
         },
@@ -80,20 +84,27 @@
                 "OCamlInterface",
                 "Rust",
                 "Graphql",
+                "Gnuplot",
                 "Javascript",
+                "QmlJs",
+                "QmlDir",
                 "JSX",
                 "Svelte",
                 "JSON",
                 "YAML",
                 "HTML",
                 "XML",
+                "Kdl",
                 "Zig",
                 "Markdown",
                 "Go",
                 "Lua",
+                "JjDescription",
                 "Gleam",
                 "Bash",
+                "Zsh",
                 "C",
+                "Make",
                 "CPP",
                 "CSS",
                 "Ruby",
@@ -112,7 +123,10 @@
                 "CSharp",
                 "Clojure",
                 "FSharp",
-                "Scala"
+                "Scala",
+                "Glsl",
+                "Devicetree",
+                "Just"
             ]
         },
         "Command": {
@@ -178,6 +192,26 @@
                     },
                     "additionalProperties": false,
                     "required": ["FromSource"]
+                }
+            ]
+        },
+        "IconStyle": {
+            "description": "Controls which icon set is used throughout the UI.",
+            "oneOf": [
+                {
+                    "description": "Emoji icons (default). No special font required.",
+                    "type": "string",
+                    "const": "emoji"
+                },
+                {
+                    "description": "Nerd Font icons. Requires a Nerd Font (<https://www.nerdfonts.com/>) to be installed.",
+                    "type": "string",
+                    "const": "nerd-font"
+                },
+                {
+                    "description": "Disable icons entirely.",
+                    "type": "string",
+                    "const": "none"
                 }
             ]
         },
@@ -308,6 +342,14 @@
             "properties": {
                 "command": {
                     "$ref": "#/$defs/Command"
+                },
+                "environment": {
+                    "description": "Environment variables to set when spawning the LSP process.\nExample: `{ \"CARGO_TARGET_DIR\": \"target/analyzer\" }`",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    },
+                    "default": {}
                 },
                 "initialization_options": true
             },

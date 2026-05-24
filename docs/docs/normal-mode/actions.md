@@ -38,16 +38,6 @@ This is most useful when you want to search for the current selection with some 
 
 ## Modifications
 
-### `Raise`
-
-This is one of my favorite actions, it only works for [syntax node](selection-modes/primary.md#syntax) selection modes.
-
-This replaces the parent node of the current node, with the current node.
-
-<TutorialFallback filename="raise"/>
-
-Note: Raise should never cause any syntax errors, if it does that's a bug.
-
 ### `Open`
 
 Open next to current selection.
@@ -63,9 +53,9 @@ For example:
 
 <TutorialFallback filename="open"/>
 
-### `Insert`
+### `Open`
 
-Activates the [≡ Insert](../momentary-layers/insert-mol.mdx).
+Activates the [≡ Open](../momentary-layers/open-mol.mdx).
 
 ### `Delete`
 
@@ -154,13 +144,6 @@ File unmarking has two behaviors:
 
 To move between marked files, see [≡ Buffer](../momentary-layers/buffer-mol).
 
-### `Undo`/`Redo`
-
-Notes:
-
-1. Undo/redo works for multi-cursors as well
-2. The current implementation is naive, it undoes/redoes character-by-character, instead of chunk-by-chunk, so it can be mildly frustrating
-
 ### Save
 
 Keybinding: `enter`
@@ -202,9 +185,13 @@ Hold to activate the [≡ Copy](../momentary-layers/duplicate-mol.mdx)
 
 Activates the [≡ Paste](../momentary-layers/paste-mol.mdx).
 
+### `Change`
+
+Deletes the current selection(s) and enter the Insert mode.
+
 ### `Change X`
 
-This is similar to [Change](../momentary-layers/insert-mol.mdx#tap-action-change), but it copies the deleted text into the clipboard.Like `ctrl+x` in Windows and `cmd+x` in macOS.
+This is similar to Change, but it copies the deleted text into the clipboard.Like `ctrl+x` in Windows and `cmd+x` in macOS.
 
 ### `Replace`
 

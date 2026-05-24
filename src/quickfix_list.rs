@@ -630,7 +630,6 @@ src/foo.rs
                     scope: Scope::Global,
                     if_current_not_found: IfCurrentNotFound::LookForward,
                     run_search_after_config_updated: true,
-                    component_id: None,
                 }
             };
             Box::new([
@@ -659,7 +658,6 @@ src/foo.rs
                     scope: Scope::Global,
                     if_current_not_found: IfCurrentNotFound::LookForward,
                     run_search_after_config_updated: true,
-                    component_id: None,
                 }
             };
             Box::new([
@@ -718,7 +716,6 @@ src/foo.rs
                     scope: Scope::Global,
                     if_current_not_found: IfCurrentNotFound::LookForward,
                     run_search_after_config_updated: true,
-                    component_id: None,
                 }
             };
             Box::new([

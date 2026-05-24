@@ -1,12 +1,15 @@
 const INCLUDED_NVIM_TREESITTER_LANGUAGES: &[&str] = &[
     "bash",
+    "zsh",
     "c",
+    "make",
     "c_sharp",
     "clojure",
     "commonlisp",
     "cpp",
     "css",
     "csv",
+    "devicetree",
     "diff",
     "dockerfile",
     "dune",
@@ -21,6 +24,7 @@ const INCLUDED_NVIM_TREESITTER_LANGUAGES: &[&str] = &[
     "gitignore",
     "gleam",
     "go",
+    "gnuplot",
     "graphql",
     "hare",
     "haskell",
@@ -30,6 +34,8 @@ const INCLUDED_NVIM_TREESITTER_LANGUAGES: &[&str] = &[
     "html_tags",
     "idris",
     "javascript",
+    "qmljs",
+    "qmldir",
     "json",
     "jsx",
     "julia",
@@ -63,10 +69,20 @@ const INCLUDED_NVIM_TREESITTER_LANGUAGES: &[&str] = &[
     "unison",
     "xml",
     "yaml",
+    "kdl",
     "zig",
+    "jj description",
+    "glsl",
 ];
 
-const MISSING_NVIM_HIGHLIGHTS: &[&str] = &["dune", "ki_quickfix", "tsq"];
+const MISSING_NVIM_HIGHLIGHTS: &[&str] = &[
+    "dune",
+    "ki_quickfix",
+    "tsq",
+    "jj description",
+    "gnuplot",
+    "qml",
+];
 
 fn main() {
     let compiled_highlight_query_path = std::path::PathBuf::from(

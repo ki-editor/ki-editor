@@ -259,7 +259,7 @@ impl SelectionSet {
         Ok(())
     }
     #[cfg(test)]
-    pub fn escape_highlight_mode(&mut self) {
+    pub fn escape_extended_selection(&mut self) {
         self.apply_mut(|selection| selection.disable_extension());
     }
 
@@ -398,6 +398,22 @@ impl SelectionSet {
         }
     }
 
+    pub fn current_selection_is_first_or_last_selection(&self, direction: &Direction) -> bool {
+        let index = match direction {
+            Direction::Start => 0,
+            Direction::End => self.len() - 1,
+        };
+        self.cursor_index == index
+    }
+
+    pub fn cycle_primary_selection_to_first(&mut self) {
+        self.cursor_index = 0;
+    }
+
+    pub fn cycle_primary_selection_to_last(&mut self) {
+        self.cursor_index = self.len() - 1;
+    }
+
     pub fn is_extended(&self) -> bool {
         self.primary_selection().initial_range.is_some()
     }
@@ -462,6 +478,7 @@ pub enum SelectionMode {
     Mark,
     LineFull,
     BigWord,
+    Paragraph,
 }
 impl SelectionMode {
     pub fn is_node(&self) -> bool {
@@ -492,6 +509,7 @@ impl SelectionMode {
             SelectionMode::Subword => "SUBWORD".to_string(),
             SelectionMode::Word => "WORD".to_string(),
             SelectionMode::BigWord => "WORD*".to_string(),
+            SelectionMode::Paragraph => "PARA".to_string(),
         }
     }
 
@@ -550,6 +568,7 @@ impl SelectionMode {
             SelectionMode::LocalQuickfix { .. } => Box::new(IterBased(
                 selection_mode::LocalQuickfix::new(params, quickfix_list_items),
             )),
+            SelectionMode::Paragraph => Box::new(PositionBased(selection_mode::Paragraph)),
         })
     }
 
@@ -561,6 +580,7 @@ impl SelectionMode {
                 | SelectionMode::BigWord
                 | SelectionMode::Line
                 | SelectionMode::LineFull
+                | SelectionMode::Paragraph
                 | SelectionMode::Character
                 | SelectionMode::SyntaxNode
                 | SelectionMode::SyntaxNodeFine

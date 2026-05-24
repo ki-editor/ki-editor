@@ -104,5 +104,7 @@ Most keybindings in Ki synergize with one another, though a minority of them are
 But lone rangers are not encouraged, they are only added if they are truly crucial.
 
 [^1]: Vim, Neovim, Kakoune and Helix.
+
 [^2]: For example, in Vim, `p` means paste, but to paste in prompt use `ctrl+r` instead.
+
 [^3]: For example, in the [Helix's File Explorer PR](https://github.com/helix-editor/helix/pull/5768), every movement, including scrolling was reimplemented, although they were implemented in the Editor component.

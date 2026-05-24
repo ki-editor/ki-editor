@@ -286,6 +286,18 @@ impl Grid {
     }
 
     pub fn get_cursor_position(&self) -> Option<Position> {
+        #[cfg(test)]
+        {
+            let cursors = self
+                .to_positioned_cells()
+                .into_iter()
+                .filter(|cell| cell.cell.is_cursor)
+                .collect_vec();
+
+            // A grid should not have more than 1 cursor
+            debug_assert!(cursors.len() <= 1);
+        }
+
         self.to_positioned_cells().into_iter().find_map(|cell| {
             if cell.cell.is_cursor {
                 Some(cell.position)
@@ -342,10 +354,10 @@ impl Grid {
         content: &str,
         line_number: RenderContentLineNumber,
         cell_updates: Vec<CellUpdate>,
-        line_updates: Vec<LineUpdate>,
         theme: &Theme,
         cursor_position: Option<Position>,
         git_hunks: &[crate::git::hunk::SimpleHunk],
+        default_style_key: &StyleKey,
     ) -> Grid {
         let Dimension { height, width } = self.dimension();
         let (line_index_start, max_line_number_len, line_number_separator_width) = match line_number
@@ -382,7 +394,6 @@ impl Grid {
                                 column: column_index,
                             },
                             symbol: Some(character),
-                            style: Style::default().foreground_color(theme.ui.text_foreground),
                             ..CellUpdate::default()
                         })
                 })
@@ -391,27 +402,6 @@ impl Grid {
                     should_be_calibrated: true,
                 })
         };
-        let line_updates = line_updates
-            .into_iter()
-            .filter_map(|line_update| {
-                let line = wrapped_lines
-                    .calibrate(Position::new(line_update.line_index, 0))
-                    .ok()?
-                    .first()?
-                    .line;
-                Some((0..width).map(move |column_index| CalibratableCellUpdate {
-                    should_be_calibrated: false,
-                    cell_update: CellUpdate {
-                        style: line_update.style,
-                        position: Position {
-                            line,
-                            column: column_index,
-                        },
-                        ..Default::default()
-                    },
-                }))
-            })
-            .flatten();
         let cell_updates = cell_updates
             .into_iter()
             .map(|cell_update| CalibratableCellUpdate {
@@ -549,7 +539,6 @@ impl Grid {
             }
         };
         let calibrated = content_cell_updates
-            .chain(line_updates)
             .chain(cell_updates)
             .chain(line_numbers)
             .flat_map(|update| {
@@ -616,16 +605,21 @@ impl Grid {
         };
 
         let result_grid = self
-            .set_background_color(theme.ui.background_color)
+            .set_default_style(theme, default_style_key)
             .apply_cell_updates(trimmed);
         debug_assert_eq!(result_grid.dimension().height, height);
         result_grid
     }
 
-    fn set_background_color(mut self, background_color: Color) -> Self {
+    fn set_default_style(mut self, theme: &Theme, default_style_key: &StyleKey) -> Grid {
+        let style = theme.get_style(default_style_key);
+        let background_color = style.background_color.unwrap_or_default();
+        let foreground_color = style.foreground_color.unwrap_or_default();
         for row in self.rows.iter_mut() {
             for cell in row {
                 cell.background_color = background_color;
+                cell.foreground_color = foreground_color;
+                cell.source = Some(default_style_key.clone());
             }
         }
         self
@@ -701,6 +695,11 @@ pub enum StyleKey {
     UiSectionDivider,
     UiFocusedTab,
     UiCursorLineNumber,
+    UiPrimarySelectionPrimaryCursor,
+    FocusedWindowTitle,
+    UnfocusedWindowTitle,
+    Default,
+    GlobalTitle,
 }
 
 impl StyleKey {
@@ -728,13 +727,6 @@ pub fn get_char_width(c: char) -> usize {
     }
 }
 
-#[derive(Clone)]
-pub struct LineUpdate {
-    /// 0-based
-    pub line_index: usize,
-    pub style: Style,
-}
-
 #[cfg(test)]
 mod test_grid {
 
@@ -751,7 +743,7 @@ mod test_grid {
 
     mod render_content {
         use crate::{
-            grid::{Cell, LineUpdate, PositionedCell, RenderContentLineNumber},
+            grid::{RenderContentLineNumber, StyleKey},
             themes::Theme,
         };
 
@@ -772,10 +764,10 @@ mod test_grid {
                     start_line_index: 1,
                 },
                 Vec::new(),
-                Vec::new(),
                 &Theme::default(),
                 None,
                 &[],
+                &StyleKey::Default,
             )
             .to_string();
             assert_eq!(actual, "2│hello");
@@ -795,10 +787,10 @@ mod test_grid {
                     start_line_index: 10,
                 },
                 Vec::new(),
-                Vec::new(),
                 &Theme::default(),
                 None,
                 &[],
+                &StyleKey::Default,
             )
             .to_string();
             assert_eq!(
@@ -825,10 +817,10 @@ mod test_grid {
                     start_line_index: 0,
                 },
                 Vec::new(),
-                Vec::new(),
                 &Theme::default(),
                 None,
                 &[],
+                &StyleKey::Default,
             )
             .to_string();
             assert_eq!(
@@ -864,10 +856,10 @@ mod test_grid {
                     ..Default::default()
                 }]
                 .to_vec(),
-                Vec::new(),
                 &Theme::default(),
                 None,
                 &[],
+                &StyleKey::Default,
             )
             .to_string();
             // Expect a space is inserted between the crab emoji and 'c',
@@ -905,10 +897,10 @@ mod test_grid {
                     ..Default::default()
                 }]
                 .to_vec(),
-                Vec::new(),
                 &Theme::default(),
                 None,
                 &[],
+                &StyleKey::Default,
             )
             .to_string();
             assert_eq!(
@@ -937,56 +929,15 @@ mod test_grid {
                     start_line_index: 1,
                 },
                 [].to_vec(),
-                Vec::new(),
                 &Theme::default(),
                 None,
                 &[],
+                &StyleKey::Default,
             )
             .to_string();
             // Expect there's two extra spaces before '2'
             // Because the number of digits of the last line is 3 ('1', '0', '0')
             assert_eq!(actual, "  2│hello".trim());
-        }
-
-        #[test]
-        /// Line update
-        fn case_6() {
-            let color = hex!("#abcdef");
-            let actual = Grid::new(Dimension {
-                height: 1,
-                width: 10,
-            })
-            .render_content(
-                "hello",
-                RenderContentLineNumber::LineNumber {
-                    max_line_number: 1,
-                    start_line_index: 1,
-                },
-                [].to_vec(),
-                [LineUpdate {
-                    line_index: 0,
-                    style: Style::default().background_color(color),
-                }]
-                .to_vec(),
-                &Theme::default(),
-                None,
-                &[],
-            );
-            assert_eq!(
-                actual
-                    .to_positioned_cells()
-                    .into_iter()
-                    .filter(|cell| cell.cell.background_color == color)
-                    .map(|cell| cell.position.column)
-                    .collect_vec(),
-                (0..10)
-                    .filter(|column| {
-                        // Remove the column index 1, because it is the line number separator
-                        // Which is not affected by the line update
-                        column != &1
-                    })
-                    .collect_vec()
-            );
         }
 
         #[test]
@@ -1005,10 +956,9 @@ mod test_grid {
                         start_line_index: 0,
                     },
                     Vec::new(),
-                    Vec::new(),
                     &Theme {
                         ui: crate::themes::UiStyles {
-                            background_color,
+                            default: Style::new().background_color(background_color),
                             ..Default::default()
                         },
 
@@ -1016,6 +966,7 @@ mod test_grid {
                     },
                     None,
                     &[],
+                    &StyleKey::Default,
                 )
                 .to_positioned_cells();
             assert_eq!(
@@ -1039,10 +990,10 @@ mod test_grid {
                     "hello",
                     RenderContentLineNumber::NoLineNumber,
                     Vec::new(),
-                    Vec::new(),
                     &Theme::default(),
                     None,
                     &[],
+                    &StyleKey::Default,
                 )
                 .to_string();
             assert_eq!("hello", actual);
@@ -1060,10 +1011,10 @@ mod test_grid {
                     "\thel",
                     RenderContentLineNumber::NoLineNumber,
                     Vec::new(),
-                    Vec::new(),
                     &Theme::default(),
                     None,
                     &[],
+                    &StyleKey::Default,
                 )
                 .to_positioned_cells()
                 .into_iter()
@@ -1095,10 +1046,10 @@ x
                         ..Default::default()
                     }]
                     .to_vec(),
-                    Vec::new(),
                     &Theme::default(),
                     None,
                     &[],
+                    &StyleKey::Default,
                 )
                 .to_string();
             assert_eq!(
@@ -1109,43 +1060,6 @@ x
 "
                 .trim()
             );
-        }
-
-        #[test]
-        /// Line update style should take precedence over content style
-        fn case_11() {
-            let grid = Grid::new(Dimension {
-                height: 2,
-                width: 7,
-            });
-            let color = hex!("#bababa");
-            let actual = grid
-                .render_content(
-                    "hello",
-                    RenderContentLineNumber::NoLineNumber,
-                    Vec::new(),
-                    [LineUpdate {
-                        line_index: 0,
-                        style: Style::default().foreground_color(color),
-                    }]
-                    .to_vec(),
-                    &Theme::default(),
-                    None,
-                    &[],
-                )
-                .to_positioned_cells()
-                .into_iter()
-                .filter(|cell| cell.position == Position::new(0, 0))
-                .collect_vec();
-            let expected = PositionedCell {
-                cell: Cell {
-                    symbol: 'h',
-                    foreground_color: color,
-                    ..Default::default()
-                },
-                position: Position::default(),
-            };
-            assert_eq!(actual, [expected].to_vec());
         }
     }
 

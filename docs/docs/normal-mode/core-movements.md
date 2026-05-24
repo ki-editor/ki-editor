@@ -18,23 +18,25 @@ There are 10 movements in total:
 
 <KeymapFallback filename="Movements"/>
 
-## Navigational speed
+## Notions
 
-The following three sets of movements carry different connotations of speeds.
+The following three sets of movements carry different notions.
 
 The navigational experience of these movements in each selection mode should follow this table.
 
-| Movements | Speed                   |
-| --------- | ----------------------- |
-| `<` `>`   | Slowest, granular       |
-| `<<` `>>` | Moderate, commonly used |
-| `^` `v`   | Fastest                 |
+| Movements | Speed    |
+| --------- | -------- |
+| `<` `>`   | Flexible |
+| `<<` `>>` | Common   |
+| `^` `v`   | Gridwise |
+
+Read more about the designs of movements keymap at [Loosening Definitions](/blog/loosening-definitions)
 
 ## Movements
 
 ### `<<` `>>` Left/Right
 
-Left/Right means move to the previous/next **meaningful** selection of the current selection mode.
+Left/Right is the **common** movement, it moves to the previous/next selection in a consistent, predictable way across all selection modes.
 
 For example:
 
@@ -45,7 +47,7 @@ For example:
 
 ### `<` `>` Previous/Next
 
-Previous/Next means move to the previous/next selection of the current selection mode, **without** skipping any selections (generally).
+Previous/Next is the **flexible** movement, its behavior varies by selection mode. It may be more granular or more pronounced than the Common movement, depending on what is most useful in that mode.
 
 For example:
 

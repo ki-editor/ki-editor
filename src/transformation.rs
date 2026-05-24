@@ -13,7 +13,6 @@ pub enum Transformation {
     ReplaceWithCopiedText { copied_texts: Texts },
     RegexReplace { regex: MyRegex, replacement: String },
     NamingConventionAgnosticReplace { search: String, replacement: String },
-    ToggleLineComment { prefix: String },
     ToggleBlockComment { open: String, close: String },
 }
 
@@ -45,9 +44,6 @@ impl std::fmt::Display for Transformation {
                 f,
                 "Naming convention-Agnostic: Replace `{search}` with `{replacement}`",
             ),
-            Transformation::ToggleLineComment { prefix } => {
-                write!(f, "Toggle Line Comment `{prefix}`")
-            }
             Transformation::ToggleBlockComment { open, close } => {
                 write!(f, "Toggle Block Comment `{open} {close}`")
             }
@@ -103,11 +99,6 @@ impl Transformation {
                 search,
                 replacement,
             } => NamingConventionAgnostic::replace(&string, search, replacement),
-            Transformation::ToggleLineComment { prefix } => Ok(if string.starts_with(prefix) {
-                string.trim_start_matches(prefix).trim_start().to_string()
-            } else {
-                format!("{prefix} {string}")
-            }),
             Transformation::ToggleBlockComment { open, close } => {
                 Ok(if string.starts_with(open) && string.ends_with(close) {
                     string
@@ -157,20 +148,6 @@ who lives in a pineapple under the sea? Spongebob Squarepants! absorbent and yel
         assert_eq!(result, "who lives in a pineapple under the sea? Spongebob Squarepants! absorbent and\nyellow and porous is he? Spongebob Squarepants");
     }
 
-    #[test]
-    fn toggle_line_comment() {
-        let transformation = Transformation::ToggleLineComment {
-            prefix: "//".to_string(),
-        };
-        assert_eq!(
-            transformation.apply(0, "hello".to_string()).unwrap(),
-            "// hello"
-        );
-        assert_eq!(
-            transformation.apply(0, "// hello".to_string()).unwrap(),
-            "hello"
-        );
-    }
     #[test]
     fn toggle_block_comment() {
         let transformation = Transformation::ToggleBlockComment {

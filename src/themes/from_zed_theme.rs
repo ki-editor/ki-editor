@@ -63,7 +63,7 @@ pub(super) fn from_theme_content(theme: ThemeContent) -> Theme {
         .text_accent
         .and_then(|hex| from_hex(&hex).ok())
         .unwrap_or(text_color);
-    let window_title_focused_foreground = from_some_hex(theme.style.tab_bar_background);
+    let window_title_focused_foreground = from_some_hex(theme.style.tab_bar_background.clone());
     let window_title_focused = Style::new()
         .set_some_foreground_color(window_title_focused_foreground)
         .set_some_background_color(Some(text_color));
@@ -85,7 +85,7 @@ pub(super) fn from_theme_content(theme: ThemeContent) -> Theme {
             [
                 to_style(Boolean, get("boolean")),
                 to_style(Comment, get("comment")),
-                to_style(CommentDocumentation, get("comment.documentation")),
+                to_style(CommentDocumentation, get("comment.doc")),
                 to_style(Constant, get("constant")),
                 to_style(ConstantBuiltin, get("constant")),
                 to_style(Function, get("function")),
@@ -135,10 +135,12 @@ pub(super) fn from_theme_content(theme: ThemeContent) -> Theme {
             jump_mark_even: Style::new()
                 .background_color(hex!("#84b701"))
                 .foreground_color(hex!("#ffffff")),
-            background_color: background,
-            text_foreground: text_color,
+            default: Style::new()
+                .background_color(background)
+                .foreground_color(text_color),
             primary_selection_background,
             primary_selection_anchor_background: primary_selection_background,
+            primary_selection_primary_cursor: primary_cursor,
             primary_selection_secondary_cursor: secondary_cursor,
             secondary_selection_background: primary_selection_background,
             secondary_selection_anchor_background: primary_selection_background,

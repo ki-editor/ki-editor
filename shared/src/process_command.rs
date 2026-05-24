@@ -1,10 +1,14 @@
 use anyhow::Context;
-use std::io::{Read, Write};
+use std::{
+    collections::HashMap,
+    io::{Read, Write},
+};
 
 #[derive(Debug)]
 pub struct ProcessCommand {
     command: String,
     args: Vec<String>,
+    environment: HashMap<String, String>,
 }
 
 pub enum SpawnCommandResult {
@@ -30,6 +34,19 @@ impl ProcessCommand {
         Self {
             command: command.to_string(),
             args: args.iter().map(|s| s.to_string()).collect(),
+            environment: HashMap::new(),
+        }
+    }
+
+    pub fn with_environment(
+        command: &str,
+        args: &[String],
+        environment: &HashMap<String, String>,
+    ) -> Self {
+        Self {
+            command: command.to_string(),
+            args: args.iter().map(|s| s.to_string()).collect(),
+            environment: environment.clone(),
         }
     }
 
@@ -51,6 +68,7 @@ impl ProcessCommand {
                 .stdin(std::process::Stdio::piped())
                 .stdout(std::process::Stdio::piped())
                 .stderr(std::process::Stdio::piped())
+                .envs(&self.environment)
                 .spawn()
                 .map_err(|e| {
                     anyhow::anyhow!(

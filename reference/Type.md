@@ -1,0 +1,1 @@
+Go to the type of the current selection.

@@ -1,5 +1,5 @@
-use crate::app::{Dimension, LocalSearchConfigUpdate, Scope};
-use crate::buffer::BufferOwner;
+use crate::app::{Dimension, HistoryNavigationMovement, LocalSearchConfigUpdate, Scope};
+use crate::buffer::{BufferOwner, EditHistoryKind};
 use crate::char_index_range::CharIndexRange;
 use crate::clipboard::Texts;
 use crate::components::editor::Reveal;
@@ -59,7 +59,7 @@ fn raise_bottom_node() -> anyhow::Result<()> {
                 SelectionMode::SyntaxNodeFine,
             )),
             Expect(CurrentSelectedTexts(&["x"])),
-            Editor(Replace(Up)),
+            Editor(Eat(Up)),
             Expect(CurrentComponentContent("fn main() { x }")),
         ])
     })
@@ -429,6 +429,26 @@ fn test_delete_extended_selection_whole_file() -> anyhow::Result<()> {
 }
 
 #[test]
+fn test_copy_disables_selection_extension() -> anyhow::Result<()> {
+    execute_test(move |s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("who lives in a pineapple".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Editor(EnableSelectionExtension),
+            Editor(MoveSelection(Right)),
+            Expect(CurrentSelectedTexts(&["who lives"])),
+            Editor(Copy),
+            Expect(SelectionExtensionEnabled(false)),
+        ])
+    })
+}
+
+#[test]
 fn test_delete_word_short_backward_from_middle_of_file() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
@@ -769,9 +789,9 @@ fn raise() -> anyhow::Result<()> {
             Editor(SetContent("fn main() { let x = a.b(c()); }".to_string())),
             Editor(MatchLiteral("c()".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
-            Editor(Replace(Expand)),
+            Editor(Eat(Expand)),
             Expect(CurrentComponentContent("fn main() { let x = c(); }")),
-            Editor(Replace(Expand)),
+            Editor(Eat(Expand)),
             Expect(CurrentComponentContent("fn main() { c() }")),
         ])
     })
@@ -793,7 +813,7 @@ fn raise_preserve_current_node_structure() -> anyhow::Result<()> {
             Editor(SetContent("fn main() { Some((a).b()) }".to_string())),
             Editor(MatchLiteral("(a).b()".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
-            Editor(Replace(Expand)),
+            Editor(Eat(Expand)),
             Expect(CurrentComponentContent("fn main() { (a).b() }")),
         ])
     })
@@ -821,14 +841,14 @@ fn multi_raise() -> anyhow::Result<()> {
             Editor(MoveSelection(Down)),
             Editor(MoveSelection(Right)),
             Expect(CurrentSelectedTexts(&["a", "b"])),
-            Editor(Replace(Expand)),
+            Editor(Eat(Expand)),
             Expect(CurrentComponentContent("fn f(){ let x = a; let y = b; }")),
-            Editor(Undo),
+            Editor(FineUndo),
             Expect(CurrentComponentContent(
                 "fn f(){ let x = S(a); let y = S(b); }",
             )),
             Expect(CurrentSelectedTexts(&["a", "b"])),
-            Editor(Redo),
+            Editor(FineRedo),
             Expect(CurrentComponentContent("fn f(){ let x = a; let y = b; }")),
             Expect(CurrentSelectedTexts(&["a", "b"])),
         ])
@@ -1941,8 +1961,8 @@ fn quickfix_list_items_updated_by_edit() -> anyhow::Result<()> {
             }),
             Editor(SetContent(
                 "
-fn main() { 
-  let x = 123 
+fn main() {
+  let x = 123
 }
 "
                 .trim()
@@ -1978,7 +1998,12 @@ fn main() {
 
 #[test]
 fn syntax_highlight_spans_updated_by_edit() -> anyhow::Result<()> {
-    execute_test(|s| {
+    let options = RunTestOptions {
+        enable_lsp: false,
+        enable_syntax_highlighting: true,
+        enable_file_watcher: false,
+    };
+    execute_test_custom(options, |s| {
         let theme = Theme::default();
         Box::new([
             App(OpenFile {
@@ -2003,7 +2028,7 @@ fn syntax_highlight_spans_updated_by_edit() -> anyhow::Result<()> {
                 width: 100,
                 height: 2,
             })),
-            Editor(ApplySyntaxHighlight),
+            WaitForAppMessage(regex!("SyntaxHighlightResponse")),
             Expect(ExpectKind::HighlightSpans(
                 0..11,
                 StyleKey::Syntax(IndexedHighlightGroup::from_str("comment").unwrap()),
@@ -2045,8 +2070,70 @@ fn syntax_highlight_spans_updated_by_edit() -> anyhow::Result<()> {
 }
 
 #[test]
+fn syntax_highlight_doc_comment() -> anyhow::Result<()> {
+    let options = RunTestOptions {
+        enable_lsp: false,
+        enable_syntax_highlighting: true,
+        enable_file_watcher: false,
+    };
+    execute_test_custom(options, |s| {
+        let theme = Theme::default();
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            App(SetTheme(theme.clone())),
+            Editor(SetContent(
+                "
+/// Doc comment.
+fn main() { let foo = 1; }
+                "
+                .trim()
+                .to_string(),
+            )),
+            Editor(SetLanguage(Box::new(
+                crate::config::from_extension("rs").unwrap(),
+            ))),
+            Editor(SetRectangle(Rectangle {
+                origin: Position::default(),
+                width: 29,
+                height: 2,
+            })),
+            WaitForAppMessage(regex!("SyntaxHighlightResponse")),
+            Expect(ExpectKind::HighlightSpans(
+                0..2,
+                StyleKey::Syntax(IndexedHighlightGroup::from_str("comment.documentation").unwrap()),
+            )),
+            Expect(ExpectKind::HighlightSpans(
+                2..3,
+                StyleKey::Syntax(IndexedHighlightGroup::from_str("comment.documentation").unwrap()),
+            )),
+            Expect(ExpectKind::HighlightSpans(
+                3..17,
+                StyleKey::Syntax(IndexedHighlightGroup::from_str("comment.documentation").unwrap()),
+            )),
+            Expect(ExpectKind::HighlightSpans(
+                17..19,
+                StyleKey::Syntax(IndexedHighlightGroup::from_str("keyword.function").unwrap()),
+            )),
+            Expect(ExpectKind::HighlightSpans(
+                42..43,
+                StyleKey::Syntax(IndexedHighlightGroup::from_str("punctuation.bracket").unwrap()),
+            )),
+        ])
+    })
+}
+
+#[test]
 fn syntax_highlighting() -> anyhow::Result<()> {
-    execute_test(|s| {
+    let options = RunTestOptions {
+        enable_lsp: false,
+        enable_syntax_highlighting: true,
+        enable_file_watcher: false,
+    };
+    execute_test_custom(options, |s| {
         let theme = Theme::default();
         Box::new([
             App(OpenFile {
@@ -2074,7 +2161,7 @@ fn main() { // too long
                 crate::config::from_extension("rs").unwrap(),
             ))),
             Editor(MatchLiteral("bar".to_string())),
-            Editor(ApplySyntaxHighlight),
+            WaitForAppMessage(regex!("SyntaxHighlightResponse")),
             Editor(SetRectangle(Rectangle {
                 origin: Position::default(),
                 width: 21,
@@ -2218,12 +2305,12 @@ fn update_mark_position_with_undo_and_redo() -> anyhow::Result<()> {
             // Expect mark position is updated (still selects "spim")
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Mark)),
             Expect(CurrentSelectedTexts(&["spim"])),
-            Editor(Undo),
+            Editor(FineUndo),
             Expect(CurrentComponentContent("foo bar spim")),
             // Expect mark position is updated (still selects "spim")
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Mark)),
             Expect(CurrentSelectedTexts(&["spim"])),
-            Editor(Redo),
+            Editor(FineRedo),
             // Expect mark position is updated (still selects "spim")
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Mark)),
             Expect(CurrentSelectedTexts(&["spim"])),
@@ -2368,7 +2455,7 @@ fn tree_sitter_should_not_reparse_in_insert_mode() -> anyhow::Result<()> {
     let _ = editor.enter_insert_mode(Direction::End, &context)?;
 
     let current_range = editor.buffer().tree().unwrap().root_node().range();
-    let _ = editor.insert("fn hello() {}", &context)?;
+    let _ = editor.insert("fn hello() {}", &context, EditHistoryKind::Coarse)?;
     // Modifying the content in insert mode should not cause the tree to be reparsed
     let new_range = editor.buffer().tree().unwrap().root_node().range();
     assert_eq!(current_range, new_range);
@@ -2566,7 +2653,7 @@ fn undo_till_empty_should_not_crash_in_insert_mode() -> anyhow::Result<()> {
             Editor(EnterInsertMode(Direction::Start)),
             Editor(PasteWithMovement(GetGapMovement::Right)),
             Expect(CurrentComponentContent("foo")),
-            Editor(Undo),
+            Editor(FineUndo),
             Expect(CurrentComponentContent("")),
         ])
     })
@@ -2679,7 +2766,7 @@ fn delete_surround() -> Result<(), anyhow::Error> {
             }),
             Editor(SetContent("(hello (world))".to_string())),
             Editor(MatchLiteral("rl".to_string())),
-            App(HandleKeyEvents(keys!(", v m").to_vec())),
+            App(HandleKeyEvents(keys!(", r m").to_vec())),
             Expect(CurrentSelectedTexts(&["world"])),
             Expect(CurrentSelectionMode(SelectionMode::Custom)),
             Expect(CurrentComponentContent("(hello world)")),
@@ -2747,21 +2834,18 @@ fn replace_with_pattern() -> Result<(), anyhow::Error> {
                         scope: Scope::Local,
                         if_current_not_found: IfCurrentNotFound::LookForward,
                         run_search_after_config_updated: true,
-                        component_id: None,
                     }),
                     App(UpdateLocalSearchConfig {
                         update: LocalSearchConfigUpdate::Search(search_pattern.to_string()),
                         scope: Scope::Local,
                         if_current_not_found: IfCurrentNotFound::LookForward,
                         run_search_after_config_updated: true,
-                        component_id: None,
                     }),
                     App(UpdateLocalSearchConfig {
                         update: LocalSearchConfigUpdate::Replacement(replace_pattern.to_string()),
                         scope: Scope::Local,
                         if_current_not_found: IfCurrentNotFound::LookForward,
                         run_search_after_config_updated: true,
-                        component_id: None,
                     }),
                     Editor(ReplaceWithPattern),
                     Expect(CurrentComponentContent(expected_content)),
@@ -3543,7 +3627,7 @@ fn select_next_line_when_cursor_is_at_last_space_of_current_line() -> anyhow::Re
             }),
             Editor(SetContent("abc \n yo".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Character)),
-            Editor(MoveSelection(Last)),
+            Editor(MoveSelection(Next)),
             Editor(MoveSelection(Right)),
             Expect(CurrentSelectedTexts(&[" "])),
             Editor(MoveSelection(Left)),
@@ -3565,13 +3649,13 @@ fn first_last_char() -> anyhow::Result<()> {
                 owner: BufferOwner::User,
                 focus: true,
             }),
-            Editor(SetContent("babyHelloCamp".to_string())),
+            Editor(SetContent(" babyHelloCamp\n".to_string())),
             Editor(MatchLiteral("Hello".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Character)),
             Editor(MoveSelection(Last)),
-            Expect(CurrentSelectedTexts(&["o"])),
+            Expect(CurrentSelectedTexts(&["\n"])),
             Editor(MoveSelection(First)),
-            Expect(CurrentSelectedTexts(&["H"])),
+            Expect(CurrentSelectedTexts(&[" "])),
         ])
     })
 }
@@ -3857,16 +3941,16 @@ bam
             )),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, LineFull)),
             Expect(CurrentSelectedTexts(&["foo\n"])),
-            Editor(MoveSelection(Down)),
+            Editor(MoveSelection(Next)),
             Expect(CurrentSelectedTexts(&["\n"])),
             Editor(MoveSelection(Left)),
             Expect(CurrentSelectedTexts(&["bar\n"])),
             Editor(MoveSelection(Right)),
-            Editor(MoveSelection(Down)),
+            Editor(MoveSelection(Next)),
             Editor(MoveSelection(Left)),
             Expect(CurrentSelectedTexts(&["baz\n"])),
             Editor(MoveSelection(Right)),
-            Editor(MoveSelection(Up)),
+            Editor(MoveSelection(Previous)),
             Editor(MoveSelection(Right)),
             Expect(CurrentSelectedTexts(&["spam\n"])),
         ])
@@ -3889,28 +3973,27 @@ bar
 
 
 spam
+
 baz
-
-
-bomb
-bam
 "
                 .trim()
                 .to_string(),
             )),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
             Expect(CurrentSelectedTexts(&["foo"])),
+            Editor(MoveSelection(Next)),
+            Expect(CurrentSelectedTexts(&[""])),
+            Editor(MoveSelection(Next)),
+            Expect(CurrentSelectedTexts(&[""])),
+            Editor(MoveSelection(Next)),
+            Expect(CurrentSelectedTexts(&[""])),
             Editor(MoveSelection(Down)),
+            Expect(CurrentSelectedTexts(&["baz"])),
+            Editor(MoveSelection(Previous)),
             Expect(CurrentSelectedTexts(&[""])),
             Editor(MoveSelection(Previous)),
-            Expect(CurrentSelectedTexts(&["bar"])),
-            Editor(MoveSelection(Next)),
+            Expect(CurrentSelectedTexts(&[""])),
             Editor(MoveSelection(Down)),
-            Editor(MoveSelection(Previous)),
-            Expect(CurrentSelectedTexts(&["baz"])),
-            Editor(MoveSelection(Next)),
-            Editor(MoveSelection(Up)),
-            Editor(MoveSelection(Next)),
             Expect(CurrentSelectedTexts(&["spam"])),
         ])
     })
@@ -4266,18 +4349,18 @@ fn undo_redo_1() -> anyhow::Result<()> {
             Editor(DeleteWithMovement(Right)),
             Editor(DeleteWithMovement(Right)),
             Expect(CurrentComponentContent("")),
-            Editor(Undo),
+            Editor(FineUndo),
             Expect(CurrentComponentContent("bar")),
             Expect(CurrentSelectedTexts(&["bar"])),
-            Editor(Undo),
+            Editor(FineUndo),
             Expect(CurrentComponentContent("foo bar")),
             Expect(CurrentSelectedTexts(&["foo"])),
-            Editor(Redo),
+            Editor(FineRedo),
             Expect(CurrentComponentContent("bar")),
             Expect(CurrentSelectedTexts(&["bar"])),
-            Editor(Redo),
+            Editor(FineRedo),
             Expect(CurrentComponentContent("")),
-            Editor(Undo),
+            Editor(FineUndo),
             Expect(CurrentComponentContent("bar")),
             Expect(CurrentSelectedTexts(&["bar"])),
         ])
@@ -4299,15 +4382,15 @@ fn undo_redo_should_clear_redo_stack_upon_new_edits() -> anyhow::Result<()> {
             Editor(DeleteWithMovement(Right)),
             Editor(DeleteWithMovement(Left)),
             Expect(CurrentComponentContent("")),
-            Editor(Undo),
+            Editor(FineUndo),
             Expect(CurrentComponentContent("bar")),
             Expect(CurrentSelectedTexts(&["bar"])),
             Editor(Copy),
             Editor(PasteWithMovement(GetGapMovement::Right)),
             Expect(CurrentComponentContent("barbar")),
-            Editor(Undo),
-            Editor(Redo),
-            Editor(Redo),
+            Editor(FineUndo),
+            Editor(FineRedo),
+            Editor(FineRedo),
             Expect(CurrentComponentContent("barbar")),
         ])
     })
@@ -4328,8 +4411,8 @@ fn undo_redo_multicursor() -> anyhow::Result<()> {
             Editor(EnterInsertMode(Direction::End)),
             App(HandleKeyEvents(keys!("x").to_vec())),
             Expect(CurrentComponentContent("foox barx")),
-            Editor(Undo),
-            Editor(Redo),
+            Editor(FineUndo),
+            Editor(FineRedo),
             Editor(EnterNormalMode),
             Expect(CurrentSelectedTexts(&["x", "x"])),
             Editor(SetSelectionMode(IfCurrentNotFound::LookBackward, Word)),
@@ -4742,7 +4825,7 @@ fuor
             Expect(CurrentSelectedTexts(&["foo", "for", "fuor"])),
             // Keep only selections matching `r/f.o`
             App(HandleKeyEvents(
-                keys!("r space i release-r r / f . o enter").to_vec(),
+                keys!("b space i release-b r / f . o enter").to_vec(),
             )),
             Expect(CurrentSelectedTexts(&["foo", "fuor"])),
         ])
@@ -4777,13 +4860,21 @@ fn main() {
             Editor(MoveSelection(Left)),
             Editor(MoveSelection(Left)),
             Expect(CurrentSelectedTexts(&["fn main() {"])),
-            App(MovementHistoryNavigation(Previous)),
+            App(MovementHistoryNavigation(
+                HistoryNavigationMovement::FineBack,
+            )),
             Expect(CurrentSelectedTexts(&["foo();"])),
-            App(MovementHistoryNavigation(Previous)),
+            App(MovementHistoryNavigation(
+                HistoryNavigationMovement::FineBack,
+            )),
             Expect(CurrentSelectedTexts(&["bar();"])),
-            App(MovementHistoryNavigation(Next)),
+            App(MovementHistoryNavigation(
+                HistoryNavigationMovement::FineForward,
+            )),
             Expect(CurrentSelectedTexts(&["foo();"])),
-            App(MovementHistoryNavigation(Next)),
+            App(MovementHistoryNavigation(
+                HistoryNavigationMovement::FineForward,
+            )),
             Expect(CurrentSelectedTexts(&["fn main() {"])),
         ])
     })
@@ -4809,6 +4900,50 @@ fn toggle_line_comment() -> anyhow::Result<()> {
             Editor(ToggleLineComment),
             Expect(CurrentSelectedTexts(&["hello world"])),
             Expect(CurrentComponentContent("hello world")),
+        ])
+    })
+}
+
+#[test]
+fn toggle_line_comment_on_multiline_selections() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent(
+                "
+    fn main() {
+        bar();
+    }
+"
+                .trim_matches('\n')
+                .to_string(),
+            )),
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                SelectionMode::SyntaxNode,
+            )),
+            Editor(ToggleLineComment),
+            Expect(CurrentComponentContent(
+                "
+    // fn main() {
+    //     bar();
+    // }
+"
+                .trim_matches('\n'),
+            )),
+            Editor(ToggleLineComment),
+            Expect(CurrentComponentContent(
+                "
+    fn main() {
+        bar();
+    }
+"
+                .trim_matches('\n'),
+            )),
         ])
     })
 }
@@ -5553,12 +5688,10 @@ fn save_conflict_resolved_by_force_reload() -> anyhow::Result<()> {
             Editor(EnterInsertMode(Direction::Start)),
             App(HandleKeyEvents(keys!("o u r s enter").to_vec())),
             Shell(
-                //sed -i '$a\theirs' filename
-                "sed",
+                "sh",
                 [
-                    "-i".to_string(),
-                    "$a\\theirs".to_string(),
-                    s.main_rs().display_absolute(),
+                    "-c".to_string(),
+                    format!("echo 'theirs' >> {}", s.main_rs().display_absolute()),
                 ]
                 .to_vec(),
             ),
@@ -5574,7 +5707,7 @@ fn save_conflict_resolved_by_force_reload() -> anyhow::Result<()> {
                 "@@ -1,7 +1,7 @@
 -ours
  mod foo;
- 
+\u{0020}
  fn main() {
      foo::foo();
      println!(\"Hello, world!\");
@@ -5610,12 +5743,10 @@ fn save_conflict_resolved_by_force_save() -> anyhow::Result<()> {
             Editor(EnterInsertMode(Direction::Start)),
             App(HandleKeyEvents(keys!("o u r s enter").to_vec())),
             Shell(
-                //sed -i '$a\theirs' filename
-                "sed",
+                "sh",
                 [
-                    "-i".to_string(),
-                    "$a\\theirs".to_string(),
-                    s.main_rs().display_absolute(),
+                    "-c".to_string(),
+                    format!("echo 'theirs' >> {}", s.main_rs().display_absolute()),
                 ]
                 .to_vec(),
             ),
@@ -5631,7 +5762,7 @@ fn save_conflict_resolved_by_force_save() -> anyhow::Result<()> {
                 "@@ -1,7 +1,7 @@
 +ours
  mod foo;
- 
+\u{0020}
  fn main() {
      foo::foo();
      println!(\"Hello, world!\");
@@ -5666,12 +5797,10 @@ fn save_conflict_resolved_by_3_way_merge() -> anyhow::Result<()> {
             Editor(EnterInsertMode(Direction::Start)),
             App(HandleKeyEvents(keys!("o u r s enter").to_vec())),
             Shell(
-                //sed -i '$a\theirs' filename
-                "sed",
+                "sh",
                 [
-                    "-i".to_string(),
-                    "$a\\theirs".to_string(),
-                    s.main_rs().display_absolute(),
+                    "-c".to_string(),
+                    format!("echo 'theirs' >> {}", s.main_rs().display_absolute()),
                 ]
                 .to_vec(),
             ),
@@ -5707,12 +5836,10 @@ fn gracefully_reload_buffer_when_there_is_conflict() -> anyhow::Result<()> {
             Editor(EnterInsertMode(Direction::Start)),
             App(HandleKeyEvents(keys!("o u r s enter").to_vec())),
             Shell(
-                //sed -i '$a\theirs' filename
-                "sed",
+                "sh",
                 [
-                    "-i".to_string(),
-                    "$a\\theirs".to_string(),
-                    s.main_rs().display_absolute(),
+                    "-c".to_string(),
+                    format!("echo 'theirs' >> {}", s.main_rs().display_absolute()),
                 ]
                 .to_vec(),
             ),
@@ -6054,7 +6181,7 @@ fn test_paste_mol() -> anyhow::Result<()> {
             Editor(SetContent("foo bar spam".to_string())),
             Editor(MatchLiteral("bar".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
-            App(HandleKeyEvents(keys!("c release-c b l release-b").to_vec())),
+            App(HandleKeyEvents(keys!("c release-c v l release-v").to_vec())),
             Expect(CurrentSelectedTexts(&["bar"])),
             Expect(CurrentComponentContent("foo bar bar spam")),
         ])
@@ -6106,6 +6233,32 @@ fn delete_one_extended_selection() -> anyhow::Result<()> {
             Expect(CurrentSelectedTexts(&["foo bar"])),
             Editor(DeleteOne),
             Expect(CurrentComponentContent(" spam")),
+        ])
+    })
+}
+
+#[test]
+fn cut_one_extended_selection() -> anyhow::Result<()> {
+    // Regression test for https://github.com/ki-editor/ki-editor/issues/1597
+    // Cut One with an extended selection should copy AND delete the entire extended selection.
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("abc\ndef".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+            Editor(EnableSelectionExtension),
+            Editor(MoveSelection(Down)),
+            Expect(CurrentSelectedTexts(&["abc\ndef"])),
+            Editor(CutOne),
+            // Both lines should be deleted, not just the last one
+            Expect(CurrentComponentContent("")),
+            // The clipboard should contain the full extended selection
+            Editor(ReplaceWithCopiedText { cut: false }),
+            Expect(CurrentComponentContent("abc\ndef")),
         ])
     })
 }
@@ -6263,4 +6416,132 @@ fn add_cursor_to_all_selections_should_not_toggle_reveal_if_all_cursors_are_with
     run_test(5, None)?;
     run_test(4, Some(Reveal::Cursor))?;
     Ok(())
+}
+
+#[test]
+fn coarse_undo_redo_with_basic_text_insertion() -> anyhow::Result<()> {
+    execute_test(move |s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("hello world ".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, LineFull)),
+            Editor(EnterInsertMode(Direction::End)),
+            App(HandleKeyEvents(keys!("a b c").to_vec())),
+            Expect(CurrentComponentContent("hello world abc")),
+            Editor(DispatchEditor::CoarseUndo),
+            Expect(CurrentComponentContent("hello world ")),
+            Editor(DispatchEditor::CoarseRedo),
+            Expect(CurrentComponentContent("hello world abc")),
+            Editor(DispatchEditor::FineUndo),
+            Expect(CurrentComponentContent("hello world ab")),
+            Editor(DispatchEditor::FineRedo),
+            Expect(CurrentComponentContent("hello world abc")),
+        ])
+    })
+}
+
+#[test]
+/// Only typing should be treated as Fine actions
+fn coarse_undo_redo_with_insert_mode_actions() -> anyhow::Result<()> {
+    execute_test(move |s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("hello world ".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, LineFull)),
+            Editor(EnterInsertMode(Direction::End)),
+            App(HandleKeyEvents(keys!("a b c").to_vec())),
+            Expect(CurrentComponentContent("hello world abc")),
+            Editor(DeleteWordBackward { short: false }),
+            Expect(CurrentComponentContent("hello world")),
+            Editor(CoarseUndo),
+            Expect(CurrentComponentContent("hello world abc")),
+        ])
+    })
+}
+
+#[test]
+fn each_coarse_undo_or_redo_should_only_reparse_the_syntax_tree_once() -> anyhow::Result<()> {
+    execute_test(move |s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("hello world ".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, LineFull)),
+            Editor(EnterInsertMode(Direction::End)),
+            App(HandleKeyEvents(keys!("a b c").to_vec())),
+            Expect(CurrentComponentContent("hello world abc")),
+            Expect(ExpectKind::CurrentTreeReparsedCount(0)),
+            Editor(CoarseUndo),
+            Expect(CurrentComponentContent("hello world ")),
+            // Expect the reparsed count is only incremented by one
+            Expect(ExpectKind::CurrentTreeReparsedCount(1)),
+            Editor(CoarseRedo),
+            Expect(CurrentComponentContent("hello world abc")),
+            // Expect the reparsed count is only incremented by one
+            Expect(ExpectKind::CurrentTreeReparsedCount(2)),
+        ])
+    })
+}
+
+#[test]
+fn syntax_tree_should_be_reparsed_after_coarse_undo_or_redo() -> anyhow::Result<()> {
+    execute_test(move |s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("fn main() {}\nhello world".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
+            Editor(Indent),
+            Expect(CurrentComponentContent("    fn main() {}\nhello world")),
+            Editor(CoarseUndo),
+            Expect(CurrentComponentContent("fn main() {}\nhello world")),
+            Expect(CurrentSelectedTexts(&["fn main() {}"])),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
+            Expect(CurrentSelectedTexts(&["fn main() {}"])),
+            Editor(CoarseRedo),
+            Expect(CurrentComponentContent("    fn main() {}\nhello world")),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
+            Expect(CurrentSelectedTexts(&["fn main() {}"])),
+        ])
+    })
+}
+
+#[test]
+fn coarse_undo_redo_should_not_group_insertions_iniated_in_different_insert_session(
+) -> anyhow::Result<()> {
+    execute_test(move |s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("foo ".to_string())),
+            Editor(EnterInsertMode(Direction::End)),
+            // Insert Session one
+            App(HandleKeyEvents(keys!("a b c esc").to_vec())),
+            Editor(EnterInsertMode(Direction::End)),
+            // Insert Session two
+            App(HandleKeyEvents(keys!("space d e f esc").to_vec())),
+            Expect(CurrentComponentContent("foo abc def")),
+            Editor(CoarseUndo),
+            Expect(CurrentComponentContent("foo abc")),
+            Editor(CoarseRedo),
+            Expect(CurrentComponentContent("foo abc def")),
+        ])
+    })
 }

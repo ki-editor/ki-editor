@@ -1,0 +1,1 @@
+Moves to the left. Consult the documentation for the selection mode to determine the exact semantics.
