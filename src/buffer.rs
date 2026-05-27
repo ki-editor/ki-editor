@@ -1040,7 +1040,7 @@ impl Buffer {
             edits
                 .into_iter()
                 .map(|edit| ActionGroup {
-                    actions: [Action::Edit(edit)].to_vec(),
+                    actions: [Action::edit_without_offset(edit)].to_vec(),
                 })
                 .collect_vec(),
         ))
@@ -1089,7 +1089,7 @@ impl Buffer {
                             let end = start + edit.deleted_length;
 
                             Ok(ActionGroup::new(
-                                [Action::Edit(Edit::new(
+                                [Action::edit_without_offset(Edit::new(
                                     &self.rope,
                                     (start..end).into(),
                                     String::from_utf8(edit.inserted_text)?.into(),
