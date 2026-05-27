@@ -266,6 +266,11 @@
             "font_style": null,
             "font_weight": null
           },
+          "string.doc": {
+            "color": "#4C566A",
+            "font_style": "italic",
+            "font_weight": null
+          },
           "string.escape": {
             "color": "#EBCB8B",
             "font_style": null,
@@ -532,6 +537,11 @@
           "string": {
             "color": "#032F62",
             "font_style": null,
+            "font_weight": null
+          },
+          "string.doc": {
+            "color": "#6A737D",
+            "font_style": "italic",
             "font_weight": null
           },
           "string.escape": {

@@ -344,11 +344,6 @@
             "font_style": null,
             "font_weight": null
           },
-          "comment.documentation": {
-            "color": "#51597d",
-            "font_style": null,
-            "font_weight": null
-          },
           "comment.error": {
             "color": "#f7768e",
             "font_style": null,
@@ -565,16 +560,6 @@
             "font_weight": null
           },
           "string.doc": {
-            "color": "#9ece6a",
-            "font_style": null,
-            "font_weight": null
-          },
-          "string.documentation": {
-            "color": "#9ece6a",
-            "font_style": null,
-            "font_weight": null
-          },
-          "string.regexp": {
             "color": "#9ece6a",
             "font_style": null,
             "font_weight": null
@@ -979,11 +964,6 @@
             "font_style": null,
             "font_weight": null
           },
-          "comment.documentation": {
-            "color": "#9699a3",
-            "font_style": null,
-            "font_weight": null
-          },
           "comment.error": {
             "color": "#8c4351",
             "font_style": null,
@@ -1200,16 +1180,6 @@
             "font_weight": null
           },
           "string.doc": {
-            "color": "#485e30",
-            "font_style": null,
-            "font_weight": null
-          },
-          "string.documentation": {
-            "color": "#485e30",
-            "font_style": null,
-            "font_weight": null
-          },
-          "string.regexp": {
             "color": "#485e30",
             "font_style": null,
             "font_weight": null
@@ -1614,11 +1584,6 @@
             "font_style": null,
             "font_weight": null
           },
-          "comment.documentation": {
-            "color": "#5f6996",
-            "font_style": null,
-            "font_weight": null
-          },
           "comment.error": {
             "color": "#f7768e",
             "font_style": null,
@@ -1835,16 +1800,6 @@
             "font_weight": null
           },
           "string.doc": {
-            "color": "#9ece6a",
-            "font_style": null,
-            "font_weight": null
-          },
-          "string.documentation": {
-            "color": "#9ece6a",
-            "font_style": null,
-            "font_weight": null
-          },
-          "string.regexp": {
             "color": "#9ece6a",
             "font_style": null,
             "font_weight": null
@@ -2249,11 +2204,6 @@
             "font_style": null,
             "font_weight": null
           },
-          "comment.documentation": {
-            "color": "#636da6",
-            "font_style": null,
-            "font_weight": null
-          },
           "comment.error": {
             "color": "#ff757f",
             "font_style": null,
@@ -2470,16 +2420,6 @@
             "font_weight": null
           },
           "string.doc": {
-            "color": "#c3e88d",
-            "font_style": null,
-            "font_weight": null
-          },
-          "string.documentation": {
-            "color": "#c3e88d",
-            "font_style": null,
-            "font_weight": null
-          },
-          "string.regexp": {
             "color": "#c3e88d",
             "font_style": null,
             "font_weight": null

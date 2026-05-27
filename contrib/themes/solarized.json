@@ -236,6 +236,10 @@
           "string": {
             "color": "#2aa198"
           },
+          "string.doc": {
+            "color": "#586e75",
+            "font_style": "italic"
+          },
           "string.escape": {
             "color": "#586e75"
           },
@@ -548,6 +552,10 @@
           },
           "string": {
             "color": "#2aa198"
+          },
+          "string.doc": {
+            "color": "#93a1a1",
+            "font_style": "italic"
           },
           "string.escape": {
             "color": "#93a1a1"

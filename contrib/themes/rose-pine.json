@@ -252,6 +252,9 @@
                     "string": {
                         "color": "#f6c177"
                     },
+                    "string.doc": {
+                        "color": "#908caa"
+                    },
                     "string.escape": {
                         "color": "#f6c177"
                     },
