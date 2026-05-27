@@ -309,14 +309,6 @@ mod test_syntax_styles {
     Hash,
 )]
 pub enum HighlightName {
-    #[strum(serialize = "ui.bar")]
-    UiBar,
-    #[strum(serialize = "ui")]
-    Ui,
-    #[strum(serialize = "syntax.keyword")]
-    SyntaxKeyword,
-    #[strum(serialize = "syntax.keyword.async")]
-    SyntaxKeywordAsync,
     #[strum(serialize = "variable")]
     Variable,
     #[strum(serialize = "variable.builtin")]
@@ -507,14 +499,6 @@ impl HighlightName {
         // we need every ounce of speed here.
         use HighlightName::*;
         match self {
-            // UI related
-            UiBar => Some(Ui),
-            Ui => None,
-
-            // Syntax related
-            SyntaxKeyword => None,
-            SyntaxKeywordAsync => Some(SyntaxKeyword),
-
             // Variables
             Variable => None,
             VariableBuiltin => Some(Variable),
