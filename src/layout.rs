@@ -1,6 +1,10 @@
 use crate::app::Dispatch;
 use crate::components::keymap_legend::ReleaseKey;
 use crate::config::from_extension;
+use crate::position::Position;
+//.dn.
+use crate::components::component::RenderTitleMode;  // for title height calculation
+//.dn.
 use crate::context::Context;
 use crate::quickfix_list::QuickfixList;
 use crate::syntax_highlight::SyntaxHighlightRequestBatchId;
@@ -128,27 +132,83 @@ impl Layout {
     }
 
     pub fn recalculate_layout(&mut self, context: &Context) {
-        let (layout_kind, ratio) = layout_kind();
 
-        let (rectangles, borders) = Rectangle::generate(
-            layout_kind,
-            self.components().len(),
-            ratio,
-            self.terminal_dimension,
-        );
+        //*** Start of Mod .dn.
+
+        let (layout_kind_val, ratio) = layout_kind();  // renamed to avoid shadowing
+        let components = self.components();
+
+         // Check if keymap legend is present (dynamic overlay)
+         let keymap_opt = components.iter().find(|c| c.kind() == ComponentKind::KeymapLegend);
+         let (tiled_components, keymap_height) = match keymap_opt {
+             Some(keymap_node) => {
+                 // Keep borrow alive through both content and title calculations
+                 let keymap_comp = keymap_node.component();
+                 let comp_ref = keymap_comp.borrow();
+                 let editor = comp_ref.editor();
+                 let content_height = editor
+                     .buffer()
+                     .rope()
+                     .len_lines()
+                     .max(1); // at least 1 line
+
+                 // Account for title lines
+                 let title_lines = editor
+                     .title(context, &self.terminal_dimension, &RenderTitleMode::Tabline)
+                     .lines()
+                     .count();
+                 let total_height = content_height + title_lines;
+
+                 // Clamp to terminal height
+                 let total_height = total_height.min(self.terminal_dimension.height);
+
+                 let tiled: Vec<_> = components.iter()
+                     .filter(|c| c.kind() != ComponentKind::KeymapLegend)
+                     .collect();
+                 (tiled, total_height)
+             }
+             None => (components.iter().collect(), 0),
+         };
+
+        // Tiled area occupies all space except bottom keymap band
+        let tiled_height = self.terminal_dimension.height.saturating_sub(keymap_height);
+        let tiled_dimension = Dimension {
+            width: self.terminal_dimension.width,
+            height: tiled_height,
+        };
+
+         // Generate tiled rectangles for non-keymap components
+         let (tiled_rectangles, borders) = if tiled_components.is_empty() {
+             (vec![], vec![])
+         } else {
+             Rectangle::generate(layout_kind_val, tiled_components.len(), ratio, tiled_dimension)
+         };
+
+        // Assign rectangles: tiled components get their rectangles; keymap gets bottom overlay
+        let mut rectangles = Vec::with_capacity(components.len());
+        let mut tiled_iter = tiled_rectangles.into_iter();
+        for component in components {
+            let rect = if component.kind() == ComponentKind::KeymapLegend {
+                Rectangle {
+                    origin: Position::new(
+                        self.terminal_dimension.height.saturating_sub(keymap_height),
+                                          0,
+                    ),
+                    width: self.terminal_dimension.width,
+                    height: keymap_height,
+                }
+            } else {
+                tiled_iter.next().expect("tiled rectangle missing")
+            };
+            component.component().borrow_mut().set_rectangle(rect.clone(), context);
+            rectangles.push(rect);
+        }
+
         self.rectangles = rectangles;
         self.borders = borders;
-
-        self.components()
-            .into_iter()
-            .zip(self.rectangles.iter())
-            .for_each(|(component, rectangle)| {
-                component
-                    .component()
-                    .borrow_mut()
-                    .set_rectangle(rectangle.clone(), context);
-            });
     }
+
+    //*** End of Mod .dn.
 
     pub fn get_existing_editor(
         &self,
