@@ -1,0 +1,1 @@
+Go to the definition of the current selection.

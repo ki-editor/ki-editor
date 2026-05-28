@@ -24,9 +24,9 @@ use crate::embed::handlers;
 
 pub struct EmbeddedApp {
     pub app: Rc<Mutex<App<Crossterm>>>,
-    pub app_sender: mpsc::Sender<AppMessage>,
+    pub app_sender: crossbeam_channel::Sender<AppMessage>,
     pub integration_event_receiver: mpsc::Receiver<crate::integration_event::IntegrationEvent>,
-    pub app_message_receiver: mpsc::Receiver<AppMessage>,
+    pub app_message_receiver: crossbeam_channel::Receiver<AppMessage>,
     pub ipc_handler: WebSocketIpc,
     pub context: Context,
 }
@@ -45,11 +45,11 @@ impl EmbeddedApp {
             log::set_max_level(log_level);
         }
 
-        let frontend = std::rc::Rc::new(std::sync::Mutex::new(Crossterm::new()?));
+        let frontend = std::rc::Rc::new(std::sync::Mutex::new(Crossterm::new()));
 
         let status_line_components = vec![];
 
-        let (real_app_sender, real_app_receiver) = mpsc::channel::<AppMessage>();
+        let (real_app_sender, real_app_receiver) = crossbeam_channel::unbounded::<AppMessage>();
         let resolved_wd = working_directory.unwrap_or("./".try_into()?);
 
         let (integration_event_sender, integration_event_receiver) =
@@ -59,7 +59,8 @@ impl EmbeddedApp {
             frontend.clone(),
             resolved_wd,
             real_app_sender.clone(),
-            mpsc::channel().1,
+            crossbeam_channel::unbounded().1,
+            crossbeam_channel::unbounded().1,
             None,
             status_line_components.clone(),
             Some(integration_event_sender),
@@ -203,8 +204,8 @@ impl EmbeddedApp {
                         error!("Error processing message: {e}");
                     }
                 }
-                Err(TryRecvError::Empty) => {}
-                Err(TryRecvError::Disconnected) => {
+                Err(crossbeam_channel::TryRecvError::Empty) => {}
+                Err(crossbeam_channel::TryRecvError::Disconnected) => {
                     error!("Internal App message channel disconnected! Exiting.");
                     break;
                 }
@@ -327,6 +328,8 @@ impl EmbeddedApp {
             IntegrationEvent::SyncBufferRequest { path } => self.request_buffer_content(path)?,
             IntegrationEvent::ShowInfo { info } => self.show_info(info)?,
             IntegrationEvent::RequestLspWorkspaceSymbols => self.request_lsp_workspace_symbols()?,
+            IntegrationEvent::RequestLspIncomingCalls => self.request_lsp_incoming_calls()?,
+            IntegrationEvent::RequestLspOutgoingCalls => self.request_lsp_outgoing_calls()?,
         }
 
         Ok(())
@@ -468,7 +471,6 @@ impl EmbeddedApp {
             Mode::Insert => ki_protocol_types::EditorMode::Insert,
             Mode::MultiCursor => ki_protocol_types::EditorMode::MultiCursor,
             Mode::Swap => ki_protocol_types::EditorMode::Swap,
-            Mode::Replace => ki_protocol_types::EditorMode::Replace,
         };
 
         self.send_notification(OutputMessageWrapper {
@@ -516,6 +518,9 @@ impl EmbeddedApp {
                 ki_protocol_types::SelectionMode::SyntaxNodeFine
             }
             crate::selection::SelectionMode::BigWord => ki_protocol_types::SelectionMode::BigWord,
+            crate::selection::SelectionMode::Paragraph => {
+                ki_protocol_types::SelectionMode::Paragraph
+            }
             crate::selection::SelectionMode::Diagnostic(kind) => {
                 ki_protocol_types::SelectionMode::Diagnostic(match kind {
                     crate::quickfix_list::DiagnosticSeverityRange::All => {
@@ -782,6 +787,22 @@ impl EmbeddedApp {
         self.send_notification(OutputMessageWrapper {
             id: 0,
             message: OutputMessage::RequestLspWorkspaceSymbols,
+            error: None,
+        })
+    }
+
+    fn request_lsp_incoming_calls(&self) -> anyhow::Result<()> {
+        self.send_notification(OutputMessageWrapper {
+            id: 0,
+            message: OutputMessage::RequestLspIncomingCalls,
+            error: None,
+        })
+    }
+
+    fn request_lsp_outgoing_calls(&self) -> anyhow::Result<()> {
+        self.send_notification(OutputMessageWrapper {
+            id: 0,
+            message: OutputMessage::RequestLspOutgoingCalls,
             error: None,
         })
     }

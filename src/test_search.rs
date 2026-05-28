@@ -106,7 +106,7 @@ fn incremental_search_should_clear_matches_upon_prompt_closed() -> anyhow::Resul
                 [].to_vec(),
             )))),
             App(HandleKeyEvents(keys!("esc esc").to_vec())),
-            Expect(MainEditorRangeStyleKey("keb", None)),
+            Expect(MainEditorRangeStyleKey("keb", Some(StyleKey::Default))),
             Expect(CurrentEditorIncrementalSearchMatches([].to_vec())),
         ])
     })
@@ -256,7 +256,7 @@ fn possible_selections_background_should_be_cleared_when_local_search_prompt_is_
                 scope: Scope::Local,
                 if_current_not_found: IfCurrentNotFound::LookForward,
             }),
-            Expect(MainEditorRangeStyleKey("foo", None)),
+            Expect(MainEditorRangeStyleKey("foo", Some(StyleKey::Default))),
         ])
     })
 }
@@ -327,7 +327,7 @@ fn search_current_clipboard_content() -> anyhow::Result<()> {
                 SelectionMode::Word,
             )),
             Expect(CurrentSelectedTexts(&["bar"])),
-            Expect(RangeStyleKey("bar", None)),
+            Expect(RangeStyleKey("bar", Some(StyleKey::Default))),
             Editor(Copy),
             Editor(SearchClipboardContent(Scope::Local)),
             Expect(RangeStyleKey("bar", Some(StyleKey::UiPossibleSelection))),

@@ -1,5 +1,6 @@
 use crate::app::{Dispatch, Dispatches};
-use crate::context::Context;
+use crate::components::suggestive_editor::Info;
+use crate::context::{Context, FormatterCommand};
 use crate::git::hunk::SimpleHunk;
 use crate::git::{DiffMode, GitOperation};
 use crate::history::History;
@@ -22,8 +23,10 @@ use anyhow::Context as _;
 use itertools::Itertools;
 use regex::Regex;
 use ropey::Rope;
+use shared::process_command::SpawnCommandError;
 use shared::{absolute_path::AbsolutePath, language::Language};
 use std::ops::Range;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::SystemTime;
 use tree_sitter::{Node, Parser, Tree};
 #[cfg(test)]
@@ -61,6 +64,9 @@ pub struct Buffer {
 
     /// Timestamp of the file when we last read/wrote it
     last_synced_time: Option<SystemTime>,
+
+    #[cfg(test)]
+    pub tree_reparsed_count: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -109,6 +115,8 @@ impl Buffer {
             batch_id: SyntaxHighlightRequestBatchId::default(),
             cached_hunks: None,
             last_synced_time: None,
+            #[cfg(test)]
+            tree_reparsed_count: 0,
         }
     }
 
@@ -548,6 +556,7 @@ impl Buffer {
         reparse_tree: bool,
         update_undo_stack: bool,
         last_visible_line: usize,
+        kind: EditHistoryKind,
     ) -> Result<(SelectionSet, Dispatches, Vec<ki_protocol_types::DiffEdit>), anyhow::Error> {
         let new_selection_set = edit_transaction
             .non_empty_selections()
@@ -591,6 +600,7 @@ impl Buffer {
                 inverted_unnormalized_edits: applied_vscode_edits.clone(),
                 old_state: current_buffer_state,
                 new_state: new_buffer_state,
+                kind,
             });
 
             // Clear the redo stack when a new edit is made
@@ -652,6 +662,7 @@ impl Buffer {
         self.rope.try_remove(edit.range.start.0..edit.end().0)?;
         self.rope
             .try_insert(edit.range.start.0, edit.new.to_string().as_str())?;
+
         let dispatches = self.flag_as_modified();
 
         // Update all the non-positional spans
@@ -717,27 +728,28 @@ impl Buffer {
         if let Some(tree) = self.tree.as_ref() {
             parser.set_language(&tree.language())?;
             self.tree = parser.parse(self.rope.to_string(), None);
+
+            #[cfg(test)]
+            {
+                self.tree_reparsed_count += 1;
+            }
         }
         Ok(())
     }
 
-    pub fn get_formatted_content(&self) -> Option<String> {
-        if let Some(content) = self.language.as_ref().and_then(|language| {
-            language.formatter().map(|formatter| {
-                log::info!("[FORMAT]: {}", formatter.command_string());
-                formatter.format(&self.rope.to_string())
-            })
-        }) {
-            match content {
-                Ok(content) => {
-                    return Some(content);
-                }
-                Err(error) => {
-                    log::info!("Error formatting: {error}");
-                }
+    pub fn get_formatted_content(&self) -> Option<anyhow::Result<String>> {
+        let formatter = self
+            .language
+            .as_ref()
+            .and_then(|language| language.formatter())?;
+
+        match formatter.format(&self.rope.to_string()) {
+            Ok(content) => Some(Ok(content)),
+            Err(error) => {
+                log::info!("Error formatting: {error}");
+                Some(Err(error))
             }
         }
-        None
     }
 
     pub fn save_without_formatting(
@@ -746,7 +758,7 @@ impl Buffer {
         force: bool,
     ) -> anyhow::Result<(Dispatches, Option<AbsolutePath>)> {
         if !force && !self.dirty(context) {
-            return Ok((Dispatches::default(), None));
+            return Ok((Dispatches::default(), self.path()));
         }
 
         if let Some(path) = &self.path {
@@ -805,19 +817,35 @@ impl Buffer {
         force: bool,
         last_visible_line: usize,
     ) -> anyhow::Result<(Dispatches, Option<AbsolutePath>)> {
-        if force || self.dirty(context) {
-            if let Some(formatted_content) = self.get_formatted_content() {
-                let dispatches = self.update_content(
-                    &formatted_content,
-                    current_selection_set,
-                    last_visible_line,
-                )?;
-                let (other_dispatches, path) = self.save_without_formatting(context, force)?;
-                return Ok((dispatches.chain(other_dispatches), path));
+        let extra_dispatches = if force || self.dirty(context) {
+            match self.get_formatted_content() {
+                Some(Ok(formatted_content)) => {
+                    let dispatches = self.update_content(
+                        &formatted_content,
+                        current_selection_set,
+                        last_visible_line,
+                    )?;
+                    let (other_dispatches, path) = self.save_without_formatting(context, force)?;
+                    return Ok((dispatches.chain(other_dispatches), path));
+                }
+                Some(Err(error)) => match error.downcast_ref::<SpawnCommandError>() {
+                    // Specially handle command not found error
+                    Some(SpawnCommandError::CommandNotFound { command }) => Dispatches::one(
+                        Dispatch::RaiseFormatterNotExist(FormatterCommand(command.clone())),
+                    ),
+                    None => Dispatches::one(Dispatch::ShowGlobalInfo(Info::new(
+                        "Failed formatter execution".to_string(),
+                        format!("{error}"),
+                    ))),
+                },
+                None => Dispatches::empty(),
             }
-        }
+        } else {
+            Dispatches::empty()
+        };
 
         self.save_without_formatting(context, force)
+            .map(|(dispatches, path)| (dispatches.chain(extra_dispatches), path))
     }
 
     pub fn update_content(
@@ -833,6 +861,7 @@ impl Buffer {
             true,
             true,
             last_visible_line,
+            EditHistoryKind::Coarse,
         )?;
         Ok(dispatches)
     }
@@ -1078,6 +1107,7 @@ impl Buffer {
             true,
             true,
             last_visible_line,
+            EditHistoryKind::Coarse,
         )?;
         let after = self.content();
         let modified = before != after;
@@ -1119,6 +1149,12 @@ impl Buffer {
         Ok(start..end)
     }
 
+    pub fn get_line_by_line_range(&self, line_range: Range<usize>) -> anyhow::Result<Vec<String>> {
+        line_range
+            .map(|line_index| Ok(self.get_line_by_line_index(line_index)?.to_string()))
+            .collect::<anyhow::Result<Vec<_>>>()
+    }
+
     pub fn push_selection_set_history(&mut self, selection_set: SelectionSet) {
         self.selection_set_history.push(selection_set.clone());
     }
@@ -1149,7 +1185,11 @@ impl Buffer {
         Ok(start..end)
     }
 
-    pub fn redo(&mut self, last_visible_line: usize) -> Result<UndoRedoReturn, anyhow::Error> {
+    pub fn redo(
+        &mut self,
+        last_visible_line: usize,
+        reparse_tree: bool,
+    ) -> Result<UndoRedoReturn, anyhow::Error> {
         if let Some(history) = self.redo_stack.pop() {
             let diff_edits = history.unnormalized_edits.clone();
 
@@ -1166,19 +1206,26 @@ impl Buffer {
                     Ok(dispatches.chain(self.apply_edit(&edit, last_visible_line)?))
                 },
             )?;
-            self.reparse_tree()?;
+            if reparse_tree {
+                self.reparse_tree()?;
+            }
 
             let selection_set = history.old_state.selection_set.clone();
+            let kind = history.kind.clone();
             self.undo_stack.push(history.inverse());
 
             // Return both the selection set and the applied transaction
-            Ok(Some((dispatches, selection_set, diff_edits, edits)))
+            Ok(Some((dispatches, selection_set, diff_edits, edits, kind)))
         } else {
             Ok(None)
         }
     }
 
-    pub fn undo(&mut self, last_visible_line: usize) -> Result<UndoRedoReturn, anyhow::Error> {
+    pub fn undo(
+        &mut self,
+        last_visible_line: usize,
+        reparse_tree: bool,
+    ) -> Result<UndoRedoReturn, anyhow::Error> {
         if let Some(history) = self.undo_stack.pop() {
             let diff_edits = history.unnormalized_edits.clone();
 
@@ -1195,16 +1242,27 @@ impl Buffer {
                     Ok(dispatches.chain(self.apply_edit(&edit, last_visible_line)?))
                 },
             )?;
-            self.reparse_tree()?;
+            if reparse_tree {
+                self.reparse_tree()?;
+            }
 
             let selection_set = history.old_state.selection_set.clone();
+            let kind = history.kind.clone();
             self.redo_stack.push(history.inverse());
 
             // Return both the selection set and the applied transaction
-            Ok(Some((dispatches, selection_set, diff_edits, edits)))
+            Ok(Some((dispatches, selection_set, diff_edits, edits, kind)))
         } else {
             Ok(None)
         }
+    }
+
+    pub fn peek_undo_stack(&self) -> Option<&EditHistory> {
+        self.undo_stack.last()
+    }
+
+    pub fn peek_redo_stack(&self) -> Option<&EditHistory> {
+        self.redo_stack.last()
     }
 
     pub fn line_to_char_range(&self, line: usize) -> anyhow::Result<CharIndexRange> {
@@ -1452,7 +1510,7 @@ fn f(
                 assert_ne!(buffer.rope.to_string(), original);
 
                 // Undo the buffer
-                buffer.undo(0).unwrap();
+                buffer.undo(0, true).unwrap();
 
                 let content = buffer.rope.to_string();
 
@@ -1532,7 +1590,7 @@ fn f(
     }
 
     mod patch_edit {
-        use crate::edit::EditTransaction;
+        use crate::{buffer::EditHistoryKind, edit::EditTransaction};
 
         use super::*;
         fn run_test(old: &str, new: &str) -> anyhow::Result<EditTransaction> {
@@ -1547,6 +1605,7 @@ fn f(
                 true,
                 true,
                 0,
+                EditHistoryKind::Coarse,
             )?;
 
             // Expect the content to be the same as the 2nd files
@@ -1667,12 +1726,12 @@ impl std::fmt::Display for BufferState {
     }
 }
 
-// New structure to store edits and their inverses for undo/redo
 #[derive(Clone)]
 pub struct EditHistory {
     pub edit_transaction: EditTransaction,
     pub old_state: BufferState,
     pub new_state: BufferState,
+    pub kind: EditHistoryKind,
 
     /// This is required by VS Code because VS Code will offset the edits on their end.
     unnormalized_edits: Vec<ki_protocol_types::DiffEdit>,
@@ -1682,6 +1741,27 @@ pub struct EditHistory {
     /// without relying on the pre-edited buffer.
     inverted_unnormalized_edits: Vec<ki_protocol_types::DiffEdit>,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum EditHistoryKind {
+    Coarse,
+    Fine { insert_session: InsertSession },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InsertSession(usize);
+
+impl InsertSession {
+    pub fn next() -> Self {
+        static COUNTER: AtomicUsize = AtomicUsize::new(0);
+        InsertSession(COUNTER.fetch_add(1, Ordering::Relaxed))
+    }
+
+    pub fn increment(&mut self) {
+        self.0 += 1;
+    }
+}
+
 impl EditHistory {
     fn inverse(self) -> EditHistory {
         EditHistory {
@@ -1690,6 +1770,7 @@ impl EditHistory {
             new_state: self.old_state,
             inverted_unnormalized_edits: self.unnormalized_edits,
             unnormalized_edits: self.inverted_unnormalized_edits,
+            kind: self.kind,
         }
     }
 }
@@ -1699,4 +1780,5 @@ type UndoRedoReturn = Option<(
     SelectionSet,
     Vec<ki_protocol_types::DiffEdit>,
     Vec<Edit>,
+    EditHistoryKind,
 )>;

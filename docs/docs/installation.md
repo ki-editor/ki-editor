@@ -14,15 +14,19 @@ Ki is under heavy development, so we recommend downloading the most recent
 Ki is also available as a Visual Studio Code extension, at https://marketplace.visualstudio.com/items?itemName=ki-editor.ki-editor-vscode.
 
 ## Build from source with Nix
+
 This is the most reliable installation method as all required dependencies,
 including system dependencies, will be included automatically.
 
 1. Ensure that [Nix: the package manager](https://nixos.org/download/) is installed.
-2. Clone the project: 
+2. Clone the project:
+
 ```sh
 git clone https://github.com/ki-editor/ki-editor.git
 ```
+
 3. Run installation:
+
 ```sh
 nix develop --command just install
 ```
@@ -57,13 +61,13 @@ cargo install --locked --path .
 
 ### 1. Install ki package
 
-  - with `nix profile`:
+- with `nix profile`:
 
 ```sh
 nix profile add github:ki-editor/ki-editor
 ```
 
-  - or as part of nix configuration, e.g.:
+- or as part of nix configuration, e.g.:
 
 ```nix
 {
@@ -87,7 +91,6 @@ nix profile add github:ki-editor/ki-editor
 ### 2. Build tree-sitter grammars
 
 This step is optional as most of the Tree-sitter grammars are already linked at build time.
-
 
 ```sh
 ki @ grammar fetch && ki @ grammar build

@@ -6,6 +6,9 @@ use crate::{
 use my_proc_macros::hex;
 
 pub fn vscode_light() -> Theme {
+    let primary_cursor = Style::new()
+        .background_color(hex!("#000000"))
+        .foreground_color(hex!("#ffffff"));
     Theme {
         name: "VS Code (Light)".to_string(),
         syntax: SyntaxStyles::new({
@@ -44,18 +47,18 @@ pub fn vscode_light() -> Theme {
             jump_mark_even: Style::new()
                 .background_color(hex!("#84b701"))
                 .foreground_color(hex!("#ffffff")),
-            background_color: hex!("#ffffff"),
-            text_foreground: hex!("#333333"),
+            default: Style::new()
+                .background_color(hex!("#ffffff"))
+                .foreground_color(hex!("#333333")),
             primary_selection_background: hex!("#c7e6ff"),
             primary_selection_anchor_background: hex!("#add6ff"),
+            primary_selection_primary_cursor: primary_cursor,
             primary_selection_secondary_cursor: Style::new()
                 .background_color(hex!("#808080"))
                 .foreground_color(hex!("#ffffff")),
             secondary_selection_background: hex!("#ebebeb"),
             secondary_selection_anchor_background: hex!("#d7d7d7"),
-            secondary_selection_primary_cursor: Style::new()
-                .background_color(hex!("#000000"))
-                .foreground_color(hex!("#ffffff")),
+            secondary_selection_primary_cursor: primary_cursor,
             secondary_selection_secondary_cursor: Style::new()
                 .background_color(hex!("#808080"))
                 .foreground_color(hex!("#ffffff")),

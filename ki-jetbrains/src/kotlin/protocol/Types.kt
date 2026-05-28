@@ -259,6 +259,12 @@ sealed class OutputMessage {
 	@SerialName("lsp.workspaceSymbols")
 	object RequestLspWorkspaceSymbols: OutputMessage()
 	@Serializable
+	@SerialName("lsp.incomingCalls")
+	object RequestLspIncomingCalls: OutputMessage()
+	@Serializable
+	@SerialName("lsp.outgoingCalls")
+	object RequestLspOutgoingCalls: OutputMessage()
+	@Serializable
 	@SerialName("editor.syncBufferRequest")
 	data class SyncBufferRequest(val params: OutputMessageSyncBufferRequestInner): OutputMessage()
 	@Serializable
@@ -341,6 +347,9 @@ sealed class SelectionMode {
 	@Serializable
 	@SerialName("BigWord")
 	object BigWord: SelectionMode()
+	@Serializable
+	@SerialName("Paragraph")
+	object Paragraph: SelectionMode()
 }
 
 @Serializable

@@ -1,0 +1,18 @@
+import {KeymapFallback} from '@site/src/components/KeymapFallback';
+
+# ≡ Undo/Redo
+
+## Keymap
+
+<KeymapFallback filename="Undo-Redo"/>
+
+## Description
+
+Undo/Redo comes in two categories:
+
+1. Coarse
+2. Fine
+
+Both behave identically for actions executed in normal modes.
+
+The difference only surfaces in Insert mode: Fine undo/redo operates character by character, while Coarse undo/redo deletes or reinserts the entire chunk of text typed during the last Insert session.

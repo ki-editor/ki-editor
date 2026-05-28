@@ -8,14 +8,18 @@ use super::{
 };
 use crate::{
     app::{Dimension, Dispatch, Dispatches, RequestParams, Scope, ToHostApp},
-    buffer::{Buffer, Line},
+    buffer::{Buffer, EditHistoryKind, InsertSession, Line},
     char_index_range::{range_intersects, CharIndexRange},
     clipboard::Texts,
-    components::component::Component,
+    components::component::{Component, RenderTitleMode},
     context::{Context, GlobalMode, LocalSearchConfig, LocalSearchConfigMode},
     edit::{Action, ActionGroup, Edit, EditTransaction},
     git::{hunk::SimpleHunkKind, DiffMode, GitOperation as _, GitRepo},
     grid::LINE_NUMBER_VERTICAL_BORDER,
+    keymap::{
+        insert_mode_keymap_legend_config, normal_mode_keymap_legend_config,
+        space_keymap_legend_config,
+    },
     keymap_override::{
         find_one::FindOneCharKeymapOverride, jump::JumpKeymapOverride, EditorKeymapOverride,
         KeymapOverrideTrait,
@@ -59,7 +63,6 @@ pub enum Mode {
     Insert,
     MultiCursor,
     Swap,
-    Replace,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug, Eq)]
@@ -89,15 +92,22 @@ impl Component for Editor {
     }
 
     fn set_content(&mut self, str: &str, context: &Context) -> Result<Dispatches, anyhow::Error> {
-        let dispatches = Ok(self.update_buffer(str));
+        let dispatches = self.update_buffer(str);
         self.clamp(context)?;
-        dispatches
+
+        // We need to send DocumentDidChange request to trigger syntax highlight
+        Ok(dispatches.chain(self.get_document_did_change_dispatch()))
     }
 
-    fn title(&self, context: &Context) -> String {
+    fn title(
+        &self,
+        context: &Context,
+        dimension: &Dimension,
+        render_title_mode: &RenderTitleMode,
+    ) -> String {
         let title = self.title.clone();
         title
-            .or_else(|| self.title_impl(context))
+            .or_else(|| self.title_impl(context, dimension, render_title_mode))
             .unwrap_or_else(|| "[No title]".to_string())
     }
 
@@ -110,7 +120,7 @@ impl Component for Editor {
         content: String,
         context: &Context,
     ) -> anyhow::Result<Dispatches> {
-        self.insert(&content, context)
+        self.insert(&content, context, EditHistoryKind::Coarse)
     }
 
     fn get_cursor_position(&self) -> anyhow::Result<Position> {
@@ -166,7 +176,7 @@ impl Component for Editor {
         Ok(events
             .iter()
             .map(|event| -> anyhow::Result<_> {
-                Ok(self.handle_key_event(&context, event.clone())?.into_vec())
+                Ok(self.handle_key_event(&context, *event)?.into_vec())
             })
             .collect::<Result<Vec<_>, _>>()?
             .into_iter()
@@ -194,7 +204,7 @@ impl Component for Editor {
 
     fn handle_dispatch_editor(
         &mut self,
-        context: &mut Context,
+        context: &Context,
         dispatch: DispatchEditor,
     ) -> anyhow::Result<Dispatches> {
         log::info!(
@@ -245,11 +255,11 @@ impl Component for Editor {
             EnableSelectionExtension => self.enable_selection_extension(),
             DisableSelectionExtension => self.disable_selection_extension(),
             EnterInsertMode(direction) => return self.enter_insert_mode(direction, context),
-            Insert(string) => return self.insert(&string, context),
+            Insert(string) => return self.insert(&string, context, EditHistoryKind::Coarse),
             #[cfg(test)]
             MatchLiteral(literal) => return self.match_literal(&literal, context),
             EnterNormalMode => self.enter_normal_mode(context)?,
-            CursorAddToAllSelections => self.add_cursor_to_all_selections(context)?,
+            CursorAddToAllSelections => return self.add_cursor_to_all_selections(context),
             CursorKeepPrimaryOnly => self.cursor_keep_primary_only(),
             EnterSwapMode => self.enter_swap_mode(),
             ReplacePattern { config } => {
@@ -262,10 +272,7 @@ impl Component for Editor {
                     .chain(self.get_document_did_change_dispatch())
                     .chain(dispatches));
             }
-            Undo => {
-                let dispatches = self.undo(context);
-                return dispatches;
-            }
+            FineUndo => return self.fine_undo(context),
             KillLine(direction) => return self.kill_line(direction, context),
             #[cfg(test)]
             Reset => self.reset(),
@@ -277,7 +284,7 @@ impl Component for Editor {
             MoveToLineStart => return self.move_to_line_start(context),
             MoveToLineEnd => return self.move_to_line_end(),
             SelectLine(movement) => return self.select_line(movement, context),
-            Redo => return self.redo(context),
+            FineRedo => return self.fine_redo(context),
             DeleteOne => return self.delete_one(context, false),
             CutOne => return self.delete_one(context, true),
             Change => return self.change(context),
@@ -295,10 +302,6 @@ impl Component for Editor {
             SetScrollOffset(n) => self.set_scroll_offset(n),
             #[cfg(test)]
             SetLanguage(language) => self.set_language(*language)?,
-            #[cfg(test)]
-            ApplySyntaxHighlight => {
-                self.apply_syntax_highlighting(context)?;
-            }
             Save => return self.do_save(false, context),
             ForceSave => {
                 return self.do_save(true, context);
@@ -311,7 +314,6 @@ impl Component for Editor {
                 return Ok(self.select_line_at(index, context)?.into_vec().into())
             }
             Surround(open, close) => return self.surround(open, close, context),
-            EnterReplaceMode => self.enter_replace_mode(),
             SwapCursor => self.swap_cursor(context),
             SetDecorations(decorations) => self.buffer_mut().set_decorations(&decorations),
             MoveCharacterBack => self.selection_set.move_left(&self.cursor_direction),
@@ -330,7 +332,7 @@ impl Component for Editor {
             DeleteSurround(enclosure) => return self.delete_surround(enclosure, context),
             ChangeSurround { from, to } => return self.change_surround(from, Some(to), context),
             ReplaceWithPattern => return self.replace_with_pattern(context),
-            Replace(movement) => return self.replace_with_movement(&movement, context),
+            Eat(movement) => return self.eat(&movement, context),
             ApplyPositionalEdits(edits) => {
                 return self.apply_positional_edits(
                     edits
@@ -357,15 +359,8 @@ impl Component for Editor {
             Dedent => return self.dedent(context),
             CyclePrimarySelection(direction) => self.cycle_primary_selection(direction),
             SwapExtensionAnchor => self.selection_set.swap_anchor(),
-            CollapseSelection(direction) => return self.collapse_selection(context, direction),
             FilterSelectionMatchingSearch { maintain, search } => {
-                self.mode = Mode::Normal;
-                let search_config = parse_search_config(&search)?;
-                return Ok(self.filter_selection_matching_search(
-                    search_config.local_config(),
-                    maintain,
-                    context,
-                ));
+                return self.filter_selection_matching_search(&search, maintain, context);
             }
             EnterNewline => return self.enter_newline(context),
             DeleteCurrentCursor(direction) => self.delete_current_cursor(direction),
@@ -431,6 +426,9 @@ impl Component for Editor {
                 return self.duplicate_with_movement(context, get_gap_movement)
             }
             DuplicateVertically(direction) => return self.duplicate_vertically(context, direction),
+            CoarseUndo => return self.coarse_undo(context),
+            CoarseRedo => return self.coarse_redo(context),
+            InsertChar(c) => return self.insert_char(context, c),
         }
         Ok(Dispatches::default())
     }
@@ -471,6 +469,8 @@ pub struct Editor {
     visible_line_ranges: Option<Vec<Range<usize>>>,
 
     pub incremental_search_matches: Option<Vec<Range<usize>>>,
+
+    insert_session: InsertSession,
 }
 
 #[derive(Clone, Default)]
@@ -505,7 +505,7 @@ pub struct RegexHighlightRule {
     pub capture_styles: Vec<RegexHighlightRuleCaptureStyle>,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct RegexHighlightRuleCaptureStyle {
     /// 0 means the entire match.
     /// Refer https://docs.rs/regex/latest/regex/struct.Regex.html#method.captures
@@ -640,24 +640,6 @@ impl Movement {
             _ => *self,
         }
     }
-
-    pub(crate) fn format_action(&self, action: &str) -> String {
-        match self {
-            Movement::Left => format!("<< {action}"),
-            Movement::Right => format!("{action} >>"),
-            Movement::First => format!("|< {action}"),
-            Movement::Last => format!("{action} >|"),
-            Movement::Up => format!("{action} ^"),
-            Movement::Down => format!("{action} v"),
-            Movement::Current(_) => action.to_string(),
-            Movement::Index(_) => format!("[{action}]"),
-            Movement::Jump(_) => format!("{action} Jump"),
-            Movement::Expand => action.to_string(),
-            Movement::Previous => format!("< {action}"),
-            Movement::Next => format!("{action} >"),
-            Movement::ParentLine => "Parent Line".to_string(),
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -716,7 +698,7 @@ impl Editor {
 
     pub fn render_dropdown(
         &mut self,
-        context: &mut Context,
+        context: &Context,
         render: &DropdownRender,
     ) -> anyhow::Result<Dispatches> {
         self.apply_dispatches(
@@ -749,6 +731,7 @@ impl Editor {
             reveal: None,
             visible_line_ranges: None,
             incremental_search_matches: None,
+            insert_session: InsertSession::next(),
         }
     }
 
@@ -795,6 +778,7 @@ impl Editor {
             reveal: None,
             visible_line_ranges: None,
             incremental_search_matches: None,
+            insert_session: InsertSession::next(),
         }
     }
 
@@ -841,7 +825,7 @@ impl Editor {
 
     #[cfg(test)]
     pub fn reset(&mut self) {
-        self.selection_set.escape_highlight_mode();
+        self.selection_set.escape_extended_selection();
     }
 
     pub fn update_selection_set(
@@ -869,11 +853,7 @@ impl Editor {
         &self,
         range: CharIndexRange,
     ) -> anyhow::Result<SelectionSet> {
-        let mode = if self.buffer().given_range_is_node(&range) {
-            SelectionMode::SyntaxNode
-        } else {
-            SelectionMode::Custom
-        };
+        let mode = self.selection_set.mode.primary().clone();
         let primary = self
             .selection_set
             .primary_selection()
@@ -941,6 +921,10 @@ impl Editor {
                 false,
                 new_scroll_offset,
                 Default::default(),
+                self.dimension(),
+                &self.reveal(),
+                &RenderTitleMode::Tabline,
+                true,
             );
             let grid_string = grid.grid.to_string();
             let grid_string_lines = grid_string.lines().collect_vec();
@@ -1031,12 +1015,12 @@ impl Editor {
         quickfix_list_items: &[QuickfixListItem],
         marks: &[CharIndexRange],
     ) -> anyhow::Result<Box<dyn selection_mode::SelectionModeTrait>> {
-        if use_current_selection_mode {
+        let mode = if use_current_selection_mode {
             self.selection_set.mode().clone()
         } else {
             SelectionMode::Subword
-        }
-        .to_selection_mode_trait_object(
+        };
+        mode.to_selection_mode_trait_object(
             &self.buffer(),
             selection,
             &self.cursor_direction,
@@ -1107,13 +1091,18 @@ impl Editor {
         movement: Movement,
         cut: bool,
     ) -> anyhow::Result<Dispatches> {
+        // Capture texts before building the edit transaction, so that the extended
+        // selection range is used for both the clipboard and the kill ring.
+        let current_texts = self.get_current_texts();
         let initial_dispatches: Dispatches = if cut {
-            self.copy()
+            Dispatches::one(Dispatch::SetClipboardContent {
+                copied_texts: current_texts.clone(),
+            })
         } else {
             Dispatches::default()
         }
         .append(Dispatch::AddKillRingEntry {
-            texts: self.get_current_texts(),
+            texts: current_texts,
         });
         let edit_transaction = EditTransaction::from_action_groups({
             let buffer = self.buffer();
@@ -1285,9 +1274,11 @@ impl Editor {
     }
 
     pub fn copy(&mut self) -> Dispatches {
-        Dispatches::one(Dispatch::SetClipboardContent {
+        let dispatches = Dispatches::one(Dispatch::SetClipboardContent {
             copied_texts: self.get_current_texts(),
-        })
+        });
+        self.disable_selection_extension();
+        dispatches
     }
 
     fn get_current_texts(&self) -> Texts {
@@ -1580,10 +1571,11 @@ impl Editor {
             .chain(dispatches))
     }
 
-    pub fn apply_edit_transaction(
+    fn apply_edit_transaction_with_edit_history_kind(
         &mut self,
         edit_transaction: EditTransaction,
         context: &Context,
+        kind: EditHistoryKind,
     ) -> anyhow::Result<Dispatches> {
         // Apply the transaction to the buffer
         let last_visible_line = self.last_visible_line(context);
@@ -1594,6 +1586,7 @@ impl Editor {
                 self.mode != Mode::Insert,
                 true,
                 last_visible_line,
+                kind,
             )?;
 
         // Create a BufferEditTransaction dispatch for external integrations
@@ -1633,6 +1626,18 @@ impl Editor {
         Ok(dispatches)
     }
 
+    pub fn apply_edit_transaction(
+        &mut self,
+        edit_transaction: EditTransaction,
+        context: &Context,
+    ) -> anyhow::Result<Dispatches> {
+        self.apply_edit_transaction_with_edit_history_kind(
+            edit_transaction,
+            context,
+            EditHistoryKind::Coarse,
+        )
+    }
+
     pub fn get_document_did_change_dispatch(&mut self) -> Dispatches {
         [Dispatch::DocumentDidChange {
             component_id: self.id(),
@@ -1646,12 +1651,20 @@ impl Editor {
         .into()
     }
 
-    pub fn undo(&mut self, context: &Context) -> anyhow::Result<Dispatches> {
-        self.undo_or_redo(true, context)
+    pub fn undo(
+        &mut self,
+        context: &Context,
+        reparse_tree: bool,
+    ) -> anyhow::Result<Option<(Dispatches, EditHistoryKind)>> {
+        self.undo_or_redo(true, context, reparse_tree)
     }
 
-    pub fn redo(&mut self, context: &Context) -> anyhow::Result<Dispatches> {
-        self.undo_or_redo(false, context)
+    pub fn redo(
+        &mut self,
+        context: &Context,
+        reparse_tree: bool,
+    ) -> anyhow::Result<Option<(Dispatches, EditHistoryKind)>> {
+        self.undo_or_redo(false, context, reparse_tree)
     }
 
     pub fn swap_cursor(&mut self, context: &Context) {
@@ -1696,23 +1709,24 @@ impl Editor {
         context: &Context,
         key_event: KeyEvent,
     ) -> anyhow::Result<Dispatches> {
-        let translated_key_event = context
-            .keyboard_layout()
-            .translate_key_event_to_qwerty(key_event.clone());
-        match self.handle_universal_key(&translated_key_event)? {
+        let combined_key_event = context.keyboard_layout().make_combined_key_event(key_event);
+        match self.handle_universal_key(&combined_key_event)? {
             Some(dispatches) => Ok(dispatches),
             None => match &mut self.keymap_override {
                 Some(keymap_override) => match key_event.kind {
-                    KeyEventKind::Press => keymap_override.handle_press(context, key_event),
-                    KeyEventKind::Release => keymap_override.handle_release(context, key_event),
+                    KeyEventKind::Press => {
+                        keymap_override.handle_press(context, combined_key_event)
+                    }
+                    KeyEventKind::Release => {
+                        keymap_override.handle_release(context, combined_key_event)
+                    }
                 },
                 None => {
                     if let Mode::Insert = self.mode {
-                        self.handle_insert_mode(context, key_event)
+                        self.handle_insert_mode(combined_key_event)
                     } else {
-                        let translated_key_event = context
-                            .keyboard_layout()
-                            .translate_key_event_to_qwerty(key_event.clone());
+                        let translated_key_event =
+                            context.keyboard_layout().make_combined_key_event(key_event);
                         let keymap_legend_config = self.get_current_keymap_legend_config();
 
                         if let Some(keybinding) =
@@ -1720,7 +1734,7 @@ impl Editor {
                         {
                             return Ok(keybinding.get_dispatches());
                         }
-                        log::info!("unhandled event: {translated_key_event:?}");
+                        log::info!("unhandled event: {combined_key_event:?}");
                         Ok(vec![].into())
                     }
                 }
@@ -1729,13 +1743,20 @@ impl Editor {
     }
 
     pub fn delete_one(&mut self, context: &Context, cut: bool) -> anyhow::Result<Dispatches> {
+        // Capture texts before building the edit transaction, so that the extended
+        // selection range is used for both the clipboard and the kill ring.
+        // (Calling `self.copy()` has a side effect of disabling selection extension,
+        // which would cause the subsequent edit transaction to use the wrong range.)
+        let current_texts = self.get_current_texts();
         let initial_dispatches: Dispatches = if cut {
-            self.copy()
+            Dispatches::one(Dispatch::SetClipboardContent {
+                copied_texts: current_texts.clone(),
+            })
         } else {
             Dispatches::default()
         }
         .append(Dispatch::AddKillRingEntry {
-            texts: self.get_current_texts(),
+            texts: current_texts,
         });
 
         let edit_transaction = EditTransaction::from_action_groups(
@@ -1814,10 +1835,18 @@ impl Editor {
     }
 
     pub fn change_cut(&mut self, context: &Context) -> anyhow::Result<Dispatches> {
-        Ok(self.copy().chain(self.change(context)?))
+        Ok(Dispatches::one(Dispatch::SetClipboardContent {
+            copied_texts: self.get_current_texts(),
+        })
+        .chain(self.change(context)?))
     }
 
-    pub fn insert(&mut self, s: &str, context: &Context) -> anyhow::Result<Dispatches> {
+    pub fn insert(
+        &mut self,
+        s: &str,
+        context: &Context,
+        kind: EditHistoryKind,
+    ) -> anyhow::Result<Dispatches> {
         let edit_transaction = EditTransaction::from_action_groups(
             self.selection_set
                 .map(|selection| {
@@ -1845,7 +1874,7 @@ impl Editor {
                 .into(),
         );
 
-        self.apply_edit_transaction(edit_transaction, context)
+        self.apply_edit_transaction_with_edit_history_kind(edit_transaction, context, kind)
     }
 
     pub fn get_request_params(&self) -> Option<RequestParams> {
@@ -1967,7 +1996,6 @@ impl Editor {
                 self.selection_set.mode().clone(),
             ),
             Mode::Swap => self.swap(movement, context),
-            Mode::Replace => self.replace_with_movement(&movement, context),
             Mode::MultiCursor => self
                 .add_cursor(
                     &movement.into_movement_applicandum(self.selection_set.sticky_column_index()),
@@ -2019,6 +2047,7 @@ impl Editor {
         );
         self.mode = Mode::Insert;
         self.cursor_direction = Direction::Start;
+        self.insert_session.increment();
         Ok(Dispatches::one(Dispatch::RequestSignatureHelp))
     }
 
@@ -2141,6 +2170,7 @@ impl Editor {
                         true,
                         true,
                         self.last_visible_line(context),
+                        EditHistoryKind::Coarse,
                     )
                     .is_err()
                 {
@@ -2617,12 +2647,8 @@ impl Editor {
         self.apply_edit_transaction(edit_transaction, context)
     }
 
-    /// Replace the parent node of the current node with the current node
-    pub fn replace_with_movement(
-        &mut self,
-        movement: &Movement,
-        context: &Context,
-    ) -> anyhow::Result<Dispatches> {
+    /// Replace the <movement> selection with the current selection
+    pub fn eat(&mut self, movement: &Movement, context: &Context) -> anyhow::Result<Dispatches> {
         let buffer = self.buffer.borrow().clone();
         let edit_transactions = self.selection_set.map(|selection| {
             let get_edit_transaction =
@@ -2860,7 +2886,7 @@ impl Editor {
         };
 
         let Some(path) = path else {
-            return Ok(Dispatches::default());
+            return Ok(Dispatches::one(Dispatch::OpenSaveAsPrompt));
         };
 
         self.clamp(context)?;
@@ -2983,7 +3009,6 @@ impl Editor {
                 Mode::Insert => "INST".to_string(),
                 Mode::MultiCursor => "MULTI".to_string(),
                 Mode::Swap => "SWAP".to_string(),
-                Mode::Replace => "RPLCE".to_string(),
             },
         }
     }
@@ -3012,7 +3037,10 @@ impl Editor {
         start..end
     }
 
-    pub fn add_cursor_to_all_selections(&mut self, context: &Context) -> Result<(), anyhow::Error> {
+    pub fn add_cursor_to_all_selections(
+        &mut self,
+        context: &Context,
+    ) -> Result<Dispatches, anyhow::Error> {
         self.selection_set
             .add_all(&self.buffer.borrow(), &self.cursor_direction, context)?;
 
@@ -3027,7 +3055,7 @@ impl Editor {
             self.reveal = Some(Reveal::Cursor);
         }
         self.recalculate_scroll_offset(context);
-        Ok(())
+        Ok(Dispatches::default())
     }
 
     pub fn dispatch_selection_changed(&self) -> Dispatch {
@@ -3142,7 +3170,7 @@ impl Editor {
         .into())
     }
 
-    pub fn select_all(&mut self, context: &mut Context) -> anyhow::Result<Dispatches> {
+    pub fn select_all(&mut self, context: &Context) -> anyhow::Result<Dispatches> {
         self.handle_dispatch_editors(
             context,
             [
@@ -3197,19 +3225,24 @@ impl Editor {
         });
     }
 
-    fn undo_or_redo(&mut self, undo: bool, context: &Context) -> Result<Dispatches, anyhow::Error> {
+    fn undo_or_redo(
+        &mut self,
+        undo: bool,
+        context: &Context,
+        reparse_tree: bool,
+    ) -> Result<Option<(Dispatches, EditHistoryKind)>, anyhow::Error> {
         let last_visible_line = self.last_visible_line(context);
 
         // Call the appropriate buffer method to perform undo/redo
         let result = if undo {
-            self.buffer_mut().undo(last_visible_line)
+            self.buffer_mut().undo(last_visible_line, reparse_tree)
         } else {
-            self.buffer_mut().redo(last_visible_line)
+            self.buffer_mut().redo(last_visible_line, reparse_tree)
         }?;
 
         // Create dispatches for document changes and buffer edit transaction
-        let dispatches = match result {
-            Some((dispatches, selection_set, diff_edits, edits)) => {
+        let (dispatches, edit_history_kind) = match result {
+            Some((dispatches, selection_set, diff_edits, edits, edit_history_kind)) => {
                 // Update selection set
                 let update_selection_dispatches =
                     self.update_selection_set(selection_set, false, context);
@@ -3226,11 +3259,13 @@ impl Editor {
                     Dispatches::default()
                 };
 
-                dispatches
+                let dispatches = dispatches
                     .chain(update_selection_dispatches)
-                    .chain(dispatch)
+                    .chain(dispatch);
+
+                (dispatches, edit_history_kind)
             }
-            Option::None => Dispatches::default(),
+            Option::None => return Ok(None),
         };
 
         // Add document did change dispatch
@@ -3241,7 +3276,7 @@ impl Editor {
 
         log::trace!("undo_or_redo: Returning dispatches");
 
-        Ok(dispatches)
+        Ok(Some((dispatches, edit_history_kind)))
     }
 
     #[cfg(test)]
@@ -3262,25 +3297,9 @@ impl Editor {
         }
     }
 
-    #[cfg(test)]
-    pub fn apply_syntax_highlighting(&mut self, context: &mut Context) -> anyhow::Result<()> {
-        let source_code = self.text();
-        let mut buffer = self.buffer_mut();
-        if let Some(language) = buffer.language() {
-            use crate::syntax_highlight::SyntaxHighlightRequestBatchId;
-
-            let highlighted_spans = context.highlight(language, &source_code)?;
-            buffer.update_highlighted_spans(
-                SyntaxHighlightRequestBatchId::default(),
-                highlighted_spans,
-            );
-        }
-        Ok(())
-    }
-
     pub fn apply_dispatches(
         &mut self,
-        context: &mut Context,
+        context: &Context,
         dispatches: Vec<DispatchEditor>,
     ) -> anyhow::Result<Dispatches> {
         let mut result = Vec::new();
@@ -3349,10 +3368,6 @@ impl Editor {
             .apply_edit_transaction(edit_transaction, context)?
             .chain(self.enter_insert_mode(Direction::Start, context)?);
         Ok(dispatches)
-    }
-
-    fn enter_replace_mode(&mut self) {
-        self.mode = Mode::Replace;
     }
 
     pub fn scroll_offset(&self) -> usize {
@@ -3780,7 +3795,7 @@ impl Editor {
 
     fn handle_dispatch_editors(
         &mut self,
-        context: &mut Context,
+        context: &Context,
         dispatch_editors: Vec<DispatchEditor>,
     ) -> Result<Dispatches, anyhow::Error> {
         Ok(Dispatches::new(
@@ -3794,33 +3809,33 @@ impl Editor {
         ))
     }
 
-    fn collapse_selection(
-        &mut self,
-        context: &mut Context,
-        direction: Direction,
-    ) -> anyhow::Result<Dispatches> {
-        let set_column_selection_mode =
-            SetSelectionMode(IfCurrentNotFound::LookForward, SelectionMode::Character);
-        match direction {
-            Direction::Start => self.handle_dispatch_editor(context, set_column_selection_mode),
-            Direction::End => self
-                .handle_dispatch_editors(context, [SwapCursor, set_column_selection_mode].to_vec()),
-        }
-    }
-
     fn filter_selection_matching_search(
         &mut self,
-        local_search_config: &crate::context::LocalSearchConfig,
-        keep: bool,
+        search: &str,
+        maintain: bool,
         context: &Context,
-    ) -> Dispatches {
-        let search = local_search_config.search();
+    ) -> anyhow::Result<Dispatches> {
+        self.mode = Mode::Normal;
+
+        let (_, selection_set) = self.filter_selection_matching_search_impl(search, maintain)?;
+        Ok(self.update_selection_set(selection_set, true, context))
+    }
+
+    /// Returns true if no selection matches the search criteria
+    pub fn filter_selection_matching_search_impl(
+        &self,
+        search: &str,
+        maintain: bool,
+    ) -> anyhow::Result<(bool, SelectionSet)> {
+        let parsed = parse_search_config(search)?;
+        let local_search_config = parsed.local_config();
         let selections = self.selection_set.selections();
         let filtered = selections
             .iter()
             .filter_map(|selection| -> Option<_> {
                 let range = selection.extended_range();
                 let haystack = self.buffer().slice(&range).unwrap_or_default().to_string();
+                let search = local_search_config.search();
                 let is_match = match local_search_config.mode {
                     LocalSearchConfigMode::Regex(regex_config) => get_regex(&search, regex_config)
                         .ok()?
@@ -3828,31 +3843,33 @@ impl Editor {
                         .ok()?,
                     LocalSearchConfigMode::AstGrep => false,
                     LocalSearchConfigMode::NamingConventionAgnostic => {
-                        selection_mode::NamingConventionAgnostic::new(search.clone())
+                        selection_mode::NamingConventionAgnostic::new(search)
                             .find_all(&haystack)
                             .is_empty()
                             .not()
                     }
                 };
-                if keep && is_match || !keep && !is_match {
+                if maintain && is_match || !maintain && !is_match {
                     Some(selection.clone())
                 } else {
                     None
                 }
             })
             .collect_vec();
-        let selections = match filtered.split_first() {
-            Some((head, tail)) => NonEmpty {
-                head: head.clone(),
-                tail: tail.to_vec(),
-            },
-            None => selections.clone(),
+        let (selections, no_matches) = match filtered.split_first() {
+            Some((head, tail)) => (
+                NonEmpty {
+                    head: head.clone(),
+                    tail: tail.to_vec(),
+                },
+                false,
+            ),
+            None => (selections.clone(), true),
         };
-        self.update_selection_set(
+        Ok((
+            no_matches,
             self.selection_set.clone().set_selections(selections),
-            true,
-            context,
-        )
+        ))
     }
 
     fn delete_current_cursor(&mut self, direction: Direction) {
@@ -3933,8 +3950,7 @@ impl Editor {
         &self,
         include_universal_keymap: bool,
     ) -> super::keymap_legend::Keymap {
-        self.insert_mode_keymap_legend_config(include_universal_keymap)
-            .keymap()
+        insert_mode_keymap_legend_config(include_universal_keymap).keymap()
     }
 
     pub fn set_normal_mode_override(&mut self, normal_mode_override: NormalModeOverride) {
@@ -3942,15 +3958,15 @@ impl Editor {
     }
 
     fn show_help(&self) -> Result<Dispatches, anyhow::Error> {
-        Ok(Dispatches::one(Dispatch::ShowKeymapLegend(
+        Ok(Dispatches::one(Dispatch::ShowMenu(
             self.get_current_keymap_legend_config(),
         )))
     }
 
     fn get_current_keymap_legend_config(&self) -> super::keymap_legend::KeymapLegendConfig {
         match self.mode {
-            Mode::Insert => self.insert_mode_keymap_legend_config(true),
-            _ => self.normal_mode_keymap_legend_config(None, None),
+            Mode::Insert => insert_mode_keymap_legend_config(true),
+            _ => normal_mode_keymap_legend_config(self, None, None),
         }
     }
 
@@ -4015,7 +4031,6 @@ impl Editor {
                     .clone(),
             ),
             run_search_after_config_updated: true,
-            component_id: None,
         })
         .append(Dispatch::PushPromptHistory {
             key: super::prompt::PromptHistoryKey::Search,
@@ -4031,7 +4046,9 @@ impl Editor {
     }
 
     pub fn window_title_height(&self, context: &Context) -> usize {
-        self.title(context).lines().count()
+        self.title(context, &self.dimension(), &RenderTitleMode::Tabline)
+            .lines()
+            .count()
     }
 
     fn execute_completion(
@@ -4145,7 +4162,71 @@ impl Editor {
         else {
             return Ok(Dispatches::default());
         };
-        self.transform_selection(Transformation::ToggleLineComment { prefix }, context)
+        let edit_transaction = EditTransaction::from_action_groups(
+            self.selection_set
+                .map(|selection| -> anyhow::Result<_> {
+                    let buffer = self.buffer();
+                    let line_range =
+                        buffer.char_index_range_to_line_range(selection.extended_range())?;
+                    let lines = buffer.get_line_by_line_range(line_range.clone())?;
+
+                    let common_indentation_count = lines
+                        .iter()
+                        .map(|line| line.chars().take_while(|char| char.is_whitespace()).count())
+                        .min()
+                        .unwrap_or(0);
+
+                    let common_indentation = {
+                        let indent_char = lines
+                            .first()
+                            .and_then(|line| {
+                                let c = line.chars().next()?;
+                                c.is_whitespace().then_some(c.to_string())
+                            })
+                            .unwrap_or_else(|| "".to_string());
+                        indent_char.repeat(common_indentation_count).to_string()
+                    };
+
+                    let edit_range = buffer.line_range_to_char_index_range(&line_range)?;
+                    let replacement: Rope = lines
+                        .into_iter()
+                        .map(|line| {
+                            let line = line
+                                .chars()
+                                .skip(common_indentation_count)
+                                .collect::<String>();
+                            if line.starts_with(&prefix) {
+                                // Uncomment
+                                let content = line
+                                    .trim_start_matches(&prefix)
+                                    .chars()
+                                    .skip(1)
+                                    .collect::<String>();
+                                format!("{}{}", common_indentation, content)
+                            } else {
+                                // Comment
+                                format!("{}{} {}", common_indentation, prefix, line)
+                            }
+                        })
+                        .join("")
+                        .into();
+                    let select_range = {
+                        let start = edit_range.start;
+                        (start..start + replacement.len_chars()).into()
+                    };
+                    Ok(ActionGroup::new(
+                        [
+                            Action::Edit(Edit::new(self.buffer().rope(), edit_range, replacement)),
+                            Action::Select(selection.clone().set_range(select_range)),
+                        ]
+                        .to_vec(),
+                    ))
+                })
+                .into_iter()
+                .flatten()
+                .collect_vec(),
+        );
+        self.apply_edit_transaction(edit_transaction, context)
     }
 
     fn toggle_block_comment(&mut self, context: &Context) -> anyhow::Result<Dispatches> {
@@ -4161,7 +4242,7 @@ impl Editor {
 
     fn handle_movement_with_prior_change(
         &mut self,
-        context: &mut Context,
+        context: &Context,
         movement: Movement,
         prior_change: Option<PriorChange>,
     ) -> Result<Dispatches, anyhow::Error> {
@@ -4199,7 +4280,6 @@ impl Editor {
                     .clone(),
             ),
             run_search_after_config_updated: true,
-            component_id: None,
         });
         Ok(dispatches)
     }
@@ -4264,7 +4344,7 @@ impl Editor {
         self.apply_edit_transaction(edit_transaction, context)
     }
 
-    fn git_blame(&self, context: &mut Context) -> Result<Dispatches, anyhow::Error> {
+    fn git_blame(&self, context: &Context) -> Result<Dispatches, anyhow::Error> {
         let Some(file_path) = self.buffer().path() else {
             return Ok(Dispatches::default());
         };
@@ -4400,9 +4480,9 @@ impl Editor {
 
     fn press_space(&self, context: &Context) -> Dispatches {
         match self.mode {
-            Mode::Normal => Dispatches::one(Dispatch::ShowKeymapLegend(
-                self.space_keymap_legend_config(context),
-            )),
+            Mode::Normal => Dispatches::one(Dispatch::ShowMenu(space_keymap_legend_config(
+                self, context,
+            ))),
             Mode::Insert => Dispatches::default(),
             _ => Dispatches::one(Dispatch::ToEditor(EnterNormalMode)),
         }
@@ -4587,7 +4667,7 @@ impl Editor {
 
     fn duplicate_with_movement(
         &mut self,
-        context: &mut Context,
+        context: &Context,
         get_gap_movement: GetGapMovement,
     ) -> Result<Dispatches, anyhow::Error> {
         let copied_texts = Texts::new(self.selection_set.map(|selection| {
@@ -4601,7 +4681,7 @@ impl Editor {
 
     fn duplicate_vertically(
         &mut self,
-        context: &mut Context,
+        context: &Context,
         direction: Direction,
     ) -> Result<Dispatches, anyhow::Error> {
         let copied_texts = Texts::new(self.selection_set.map(|selection| {
@@ -4613,6 +4693,108 @@ impl Editor {
         let edit_transaction =
             self.get_paste_vertically_edit_transaction(direction, |index| copied_texts.get(index));
         self.apply_edit_transaction(edit_transaction, context)
+    }
+
+    pub fn current_selection_is_first_or_last_selection(&self, direction: &Direction) -> bool {
+        self.selection_set
+            .current_selection_is_first_or_last_selection(direction)
+    }
+
+    pub fn cycle_primary_selection_to_first(&mut self) {
+        self.selection_set.cycle_primary_selection_to_first();
+    }
+
+    pub fn cycle_primary_selection_to_last(&mut self) {
+        self.selection_set.cycle_primary_selection_to_last();
+    }
+
+    fn coarse_undo(&mut self, context: &Context) -> Result<Dispatches, anyhow::Error> {
+        let Some((first_dispatches, edit_history_kind)) = self.undo(context, false)? else {
+            return Ok(Dispatches::default());
+        };
+
+        if edit_history_kind == EditHistoryKind::Coarse {
+            self.buffer_mut().reparse_tree()?;
+            return Ok(first_dispatches);
+        }
+
+        // If edit_history_kind is Fine: keep undoing until the next edit history on the stack is a Coarse one
+        let dispatches = std::iter::from_fn(|| {
+            let last_edit_history_is_fine = self
+                .buffer()
+                .peek_undo_stack()
+                .map(|history| history.kind == edit_history_kind)
+                .unwrap_or(false);
+
+            if last_edit_history_is_fine {
+                self.undo(context, false).ok().flatten()
+            } else {
+                None
+            }
+        })
+        .map(|(dispatches, _)| dispatches)
+        .fold(first_dispatches, |accumulated_dispatches, dispatches| {
+            accumulated_dispatches.chain(dispatches)
+        });
+
+        self.buffer_mut().reparse_tree()?;
+        Ok(dispatches)
+    }
+
+    fn coarse_redo(&mut self, context: &Context) -> Result<Dispatches, anyhow::Error> {
+        let Some((first_dispatches, edit_history_kind)) = self.redo(context, false)? else {
+            return Ok(Dispatches::default());
+        };
+
+        if edit_history_kind == EditHistoryKind::Coarse {
+            self.buffer_mut().reparse_tree()?;
+            return Ok(first_dispatches);
+        }
+
+        // If edit_history_kind is Fine: keep redoing until the next edit history on the stack is a Coarse one
+        let dispatches = std::iter::from_fn(|| {
+            let last_edit_history_is_fine = self
+                .buffer()
+                .peek_redo_stack()
+                .map(|history| history.kind == edit_history_kind)
+                .unwrap_or(false);
+
+            if last_edit_history_is_fine {
+                self.redo(context, false).ok().flatten()
+            } else {
+                None
+            }
+        })
+        .map(|(dispatches, _)| dispatches)
+        .fold(first_dispatches, |accumulated_dispatches, dispatches| {
+            accumulated_dispatches.chain(dispatches)
+        });
+        self.buffer_mut().reparse_tree()?;
+        Ok(dispatches)
+    }
+
+    fn insert_char(&mut self, context: &Context, c: char) -> Result<Dispatches, anyhow::Error> {
+        self.insert(
+            &c.to_string(),
+            context,
+            EditHistoryKind::Fine {
+                insert_session: self.insert_session.clone(),
+            },
+        )
+    }
+
+    fn fine_undo(&mut self, context: &Context) -> Result<Dispatches, anyhow::Error> {
+        Ok(self
+            .undo(context, true)?
+            .map(|(dispatches, _)| dispatches)
+            .unwrap_or_default())
+    }
+
+    fn fine_redo(&mut self, context: &Context) -> Result<Dispatches, anyhow::Error> {
+        Ok(self
+            .redo(context, true)?
+            .map(|(dispatches, _)| dispatches)
+            .unwrap_or_default())
     }
 }
 
@@ -4673,6 +4855,7 @@ pub enum DispatchEditor {
     SelectLine(Movement),
     Backspace,
     Insert(String),
+    InsertChar(char),
     MoveToLineStart,
     MoveToLineEnd,
     #[cfg(test)]
@@ -4685,15 +4868,14 @@ pub enum DispatchEditor {
     OpenVertically(Direction),
     EnterNormalMode,
     EnterSwapMode,
-    EnterReplaceMode,
     CursorAddToAllSelections,
     CyclePrimarySelection(Direction),
     CursorKeepPrimaryOnly,
     ReplacePattern {
         config: crate::context::LocalSearchConfig,
     },
-    Undo,
-    Redo,
+    FineUndo,
+    FineRedo,
     KillLine(Direction),
     #[cfg(test)]
     Reset,
@@ -4706,8 +4888,6 @@ pub enum DispatchEditor {
     },
     #[cfg(test)]
     SetLanguage(Box<shared::language::Language>),
-    #[cfg(test)]
-    ApplySyntaxHighlight,
     ReplaceCurrentSelectionWith(String),
     SelectLineAt(usize),
     SwapCursor,
@@ -4718,7 +4898,7 @@ pub enum DispatchEditor {
         from: EnclosureKind,
         to: EnclosureKind,
     },
-    Replace(Movement),
+    Eat(Movement),
     ApplyPositionalEdits(Vec<CompletionItemEdit>),
     ReplaceWithPreviousCopiedText,
     ReplaceWithNextCopiedText,
@@ -4730,7 +4910,6 @@ pub enum DispatchEditor {
     Indent,
     Dedent,
     SwapExtensionAnchor,
-    CollapseSelection(Direction),
     FilterSelectionMatchingSearch {
         search: String,
         maintain: bool,
@@ -4781,6 +4960,8 @@ pub enum DispatchEditor {
     PasteVertically(Direction),
     DuplicateWithMovement(GetGapMovement),
     DuplicateVertically(Direction),
+    CoarseUndo,
+    CoarseRedo,
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]

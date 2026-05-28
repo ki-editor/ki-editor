@@ -84,11 +84,11 @@ pub fn get_formatted_paths(
         (true, true) => "[÷]",
     };
 
+    let icon_config = crate::config::AppConfig::singleton().icon_config();
     let current_path_display = markup_focused_tab(&format!(
-        " {} {} {} ",
+        " {} {} ",
         current_file_bracket,
-        current_path.icon(),
-        current_path_string
+        shared::icons::format_with_icon(current_path.icon(icon_config), &current_path_string)
     ));
 
     // No paths in the list
@@ -105,7 +105,14 @@ pub fn get_formatted_paths(
             } else {
                 let file_dirty = is_dirty(path);
                 let bracket = if file_dirty { "[÷]" } else { "[-]" };
-                format!(" {} {} {} ", bracket, path.icon(), format_path_string(path))
+                format!(
+                    " {} {} ",
+                    bracket,
+                    shared::icons::format_with_icon(
+                        path.icon(icon_config),
+                        &format_path_string(path)
+                    )
+                )
             }
         })
         .collect();

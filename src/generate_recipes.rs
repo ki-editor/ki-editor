@@ -68,7 +68,6 @@ fn doc_assets_generate_recipes() -> anyhow::Result<()> {
                                             width,
                                             height: (height).saturating_sub(1), // Minus one because of app global status bar,
                                         })),
-                                        // Editor(ApplySyntaxHighlight),
                                         App(HandleKeyEvent(key!("esc"))),
                                         Editor(SetContent(recipe.content.to_string())),
                                         Editor(SetLanguage(Box::new(

@@ -41,6 +41,8 @@ itertools = "~0.13.0"
 tree-sitter-quickfix = { path = "tree_sitter_quickfix" }
 miniz_oxide = "0.8.9"
 schemars = "1.1.0"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-log = "0.2"
 
 [features]
 default = ["wayland"]
@@ -61,8 +63,6 @@ fancy-regex.workspace = true
 lsp-types.workspace = true
 log.workspace = true
 ropey = "1.6.1"
-simple-logging = "2.0.2"
-once_cell.workspace = true
 serde_json.workspace = true
 serde.workspace = true
 tree-sitter.workspace = true
@@ -110,17 +110,21 @@ figment = { version = "0.10.19", features = ["json", "toml", "yaml"] }
 tungstenite = "0.21"
 libc = "0.2.174"
 crc32fast = "1.4.2"
-scraper = "0.24.0"
 imara-diff = "0.2.0"
 nucleo = "0.5.0"
 notify = "8.2.0"
 schemars.workspace = true
 serde_path_to_error = "0.1.20"
 
+tracing-subscriber.workspace = true
+tracing-log.workspace = true
+crossbeam-channel = "0.5.15"
+const_format = "0.2.36"
+once_cell.workspace = true
+
 [dev-dependencies]
 serial_test = "~3.2.0"
 pretty_assertions = "1.3.0"
-fs_extra = "1.3.0"
 quickcheck.workspace = true
 quickcheck_macros.workspace = true
 tree-sitter-rust = "0.24.0"
@@ -142,3 +146,6 @@ dbg_macro = "warn"
 semicolon_if_nothing_returned = "warn"
 default_trait_access = "warn"
 single_match = "allow"
+
+[package.metadata.cargo-machete]
+ignored = ["const_format"] # Used by my_proc_macros for doc_format in a cursed fashion

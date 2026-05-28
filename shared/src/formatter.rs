@@ -23,7 +23,7 @@ impl Formatter {
         // pass in the content using stdin,
         // get the output from the stdout
 
-        let mut child = self.process_command.spawn().into_result()?;
+        let mut child = self.process_command.spawn()?;
 
         let stdin = child.stdin.as_mut().ok_or_else(|| {
             anyhow::anyhow!(
@@ -43,9 +43,7 @@ impl Formatter {
             let stderr = String::from_utf8(output.stderr.clone())
                 .unwrap_or_else(|_| format!("{:?}", output.stderr));
             Err(anyhow::anyhow!(
-                "Failed to format the content:\n[[STDOUT]]:\n\n{:#?}\n\n[[STDERR]]:\n\n{:#?}",
-                stdout,
-                stderr
+                "[[STDERR]]:\n{stderr}\n\n[[STDOUT]]:\n{stdout}"
             ))
         } else {
             Ok(String::from_utf8(output.stdout)?)

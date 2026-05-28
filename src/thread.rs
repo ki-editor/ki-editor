@@ -59,6 +59,15 @@ impl<T> From<Result<(), SendError<T>>> for SendResult {
     }
 }
 
+impl<T> From<Result<(), crossbeam_channel::SendError<T>>> for SendResult {
+    fn from(value: Result<(), crossbeam_channel::SendError<T>>) -> Self {
+        match value {
+            Ok(_) => SendResult::Succeeed,
+            Err(_) => SendResult::ReceiverDisconnected,
+        }
+    }
+}
+
 #[derive(Debug)]
 pub enum BatchResult<T> {
     Items(Vec<T>),

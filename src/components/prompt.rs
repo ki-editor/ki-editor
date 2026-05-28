@@ -24,7 +24,6 @@ use super::{
     component::Component,
     dropdown_sync::DropdownItem,
     editor::{Editor, Mode},
-    editor_keymap::alted,
     suggestive_editor::{DispatchSuggestiveEditor, SuggestiveEditor, SuggestiveEditorFilter},
 };
 
@@ -240,6 +239,7 @@ pub enum PromptHistoryKey {
     ResolveBufferSaveConflict,
     WorkspaceSymbol,
     ChangeWorkingDirectory,
+    SaveAs,
 }
 
 impl Prompt {
@@ -380,7 +380,7 @@ impl Component for Prompt {
 
     fn handle_dispatch_editor(
         &mut self,
-        context: &mut Context,
+        context: &Context,
         dispatch: super::editor::DispatchEditor,
     ) -> anyhow::Result<Dispatches> {
         self.editor.handle_dispatch_editor(context, dispatch)
@@ -397,7 +397,7 @@ impl Component for Prompt {
                     .chain(self.on_cancelled.clone().unwrap_or_default()))
             }
             key!("tab") => self.replace_current_query_with_focused_item(context, event),
-            _ if event.display() == alted("x") => {
+            _ if event.display() == "alt+x" => {
                 self.replace_current_query_with_focused_item(context, event)
             }
             key!("enter") => {
@@ -818,7 +818,6 @@ mod test_prompt {
                     scope: Scope::Local,
                     if_current_not_found: IfCurrentNotFound::LookForward,
                     run_search_after_config_updated: false,
-                    component_id: None,
                 }),
                 App(OpenSearchPrompt {
                     scope: Scope::Local,
@@ -846,14 +845,15 @@ mod test_prompt {
                 App(RevealInExplorer(s.main_rs())),
                 Expect(FileExplorerContent(
                     "
+ - ../
  - 📁  .git/ :
- - 🙈  .gitignore
- - 🔒  Cargo.lock
- - 📄  Cargo.toml
  - 📂  src/ :
    - 🦀  foo.rs
    - 📘  hello.ts
    - 🦀  main.rs
+ - 🙈  .gitignore
+ - 🔒  Cargo.lock
+ - 📄  Cargo.toml
 "
                     .trim_matches('\n')
                     .to_string(),

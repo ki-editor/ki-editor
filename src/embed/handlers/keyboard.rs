@@ -40,16 +40,18 @@ impl EmbeddedApp {
 
         // Map crossterm modifiers to event::KeyModifiers enum
         let event_modifiers = match code {
-            KeyCode::Char(c) if c.is_ascii_uppercase() => event::KeyModifiers::Shift,
+            KeyCode::Char(c) if c.is_ascii_uppercase() => {
+                event::KeyModifiers::new().set_shift(true)
+            }
             _ => {
                 if crossterm_modifiers.contains(CrosstermKeyModifiers::SHIFT) {
-                    event::KeyModifiers::Shift
+                    event::KeyModifiers::new().set_shift(true)
                 } else if crossterm_modifiers.contains(CrosstermKeyModifiers::CONTROL) {
-                    event::KeyModifiers::Ctrl
+                    event::KeyModifiers::new().set_ctrl(true)
                 } else if crossterm_modifiers.contains(CrosstermKeyModifiers::ALT) {
-                    event::KeyModifiers::Alt
+                    event::KeyModifiers::new().set_alt(true)
                 } else {
-                    event::KeyModifiers::None
+                    event::KeyModifiers::new()
                 }
             }
         };

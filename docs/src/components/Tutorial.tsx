@@ -1,8 +1,13 @@
-import { useEffect, useMemo, useState } from "react";
 import useBaseUrl from "@docusaurus/useBaseUrl";
+import { useEffect, useMemo, useState } from "react";
 
-import { useXTerm, type UseXTermProps } from "react-xtermjs";
+import { type UseXTermProps, useXTerm } from "react-xtermjs";
 import * as z from "zod";
+
+const keyboardLayoutSchema = z.object({
+    name: z.string(),
+    keys: z.array(z.array(z.string())),
+});
 
 const recipeSchema = z.object({
     description: z.string(),
@@ -50,6 +55,12 @@ export const Tutorial = (props: { filename: string }) => {
     );
 };
 
+export async function loadKeyboardLayouts(url: string) {
+    const response = await fetch(url);
+    const json = await response.json();
+    return z.array(keyboardLayoutSchema).parse(json);
+}
+
 const Recipe = (props: { recipe: Recipe }) => {
     const xtermOptions: UseXTermProps = useMemo(
         () => ({
@@ -64,14 +75,15 @@ const Recipe = (props: { recipe: Recipe }) => {
 
     const { instance, ref } = useXTerm(xtermOptions);
     const [stepIndex, setStepIndex] = useState(0);
+
     useEffect(() => {
         const step = props.recipe.steps[stepIndex];
-        instance?.write(step.term_output);
+        instance?.write(step?.term_output ?? "");
     }, [instance, stepIndex, props.recipe.steps[stepIndex]]);
-    const buffer_contents_entries = Object.entries(
-        props.recipe.steps[stepIndex].buffer_contents_map,
-    ).sort((a, b) => a[0].localeCompare(b[0]));
 
+    const buffer_contents_entries = Object.entries(
+        props.recipe.steps[stepIndex]?.buffer_contents_map ?? {},
+    ).sort((a, b) => a[0].localeCompare(b[0]));
     return (
         <div
             style={{

@@ -13,9 +13,11 @@ fn to_vec(slice: &[&'static str]) -> Vec<String> {
 pub fn languages() -> HashMap<String, Language> {
     [
         ("bash", bash()),
+        ("zsh", zsh()),
         ("fish", fish()),
         ("unison", unison()),
         ("c", c()),
+        ("make", make()),
         ("racket", racket()),
         ("scheme", scheme()),
         ("commonlisp", commonlisp()),
@@ -23,6 +25,7 @@ pub fn languages() -> HashMap<String, Language> {
         ("c_sharp", c_sharp()),
         ("css", css()),
         ("csv", csv()),
+        ("devicetree", devicetree()),
         ("diff", diff()),
         ("dockerfile", dockerfile()),
         ("elixir", elixir()),
@@ -32,16 +35,21 @@ pub fn languages() -> HashMap<String, Language> {
         ("gitconfig", gitconfig()),
         ("gitignore", gitignore()),
         ("gitrebase", gitrebase()),
+        ("jjdescription", jjdescription()),
         ("gleam", gleam()),
         ("go", go()),
         ("graphql", graphql()),
+        ("gnuplot", gnuplot()),
         ("hare", hare()),
         ("hcl", hcl()),
         ("heex", heex()),
+        ("latex", latex()),
         ("html", html()),
         ("idris", idris()),
         ("haskell", haskell()),
         ("javascript", javascript()),
+        ("qml", qml()),
+        ("qmldir", qmldir()),
         ("javascriptreact", javascriptreact()),
         ("svelte", svelte()),
         ("json", json()),
@@ -70,9 +78,11 @@ pub fn languages() -> HashMap<String, Language> {
         ("typescriptreact", typescriptreact()),
         ("xml", xml()),
         ("yaml", yaml()),
+        ("kdl", kdl()),
         ("zig", zig()),
         ("clojure", clojure()),
         ("scala", scala()),
+        ("glsl", glsl()),
     ]
     .into_iter()
     .map(|(str, language)| (str.to_string(), language))
@@ -83,7 +93,7 @@ fn bash() -> Language {
     Language {
         extensions: to_vec(&["sh", "bash"]),
         file_names: to_vec(&[".bashrc", ".bash_profile", "bashrc", "bash_profile"]),
-        formatter: Some(Command::new("shfmt", &[".sh", ".bash"])),
+        formatter: Some(Command::new("shfmt", &[])),
         lsp_command: Some(LspCommand {
             command: Command::new("bash-language-server", &["start"]),
             ..LspCommand::default()
@@ -92,6 +102,28 @@ fn bash() -> Language {
         tree_sitter_grammar_config: Some(GrammarConfig {
             id: "bash".to_string(),
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Bash),
+        }),
+        line_comment_prefix: Some("#".to_string()),
+        ..Language::new()
+    }
+}
+
+fn zsh() -> Language {
+    Language {
+        extensions: to_vec(&["zsh"]),
+        file_names: to_vec(&[".zshrc", ".zprofile", ".zshenv", ".zlogout"]),
+        // There is no formatter and lsp for zsh but since zsh is a superset pretty close to bash
+        // we can mostly use the bash one as-is.
+        // For example, helix just consider all zsh files to just be bash.
+        formatter: Some(Command::new("shfmt", &[])),
+        lsp_command: Some(LspCommand {
+            command: Command::new("bash-language-server", &["start"]),
+            ..LspCommand::default()
+        }),
+        lsp_language_id: Some(LanguageId::new("zsh")),
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "zsh".to_string(),
+            kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Zsh),
         }),
         line_comment_prefix: Some("#".to_string()),
         ..Language::new()
@@ -131,6 +163,20 @@ fn c() -> Language {
         }),
         line_comment_prefix: Some("//".to_string()),
         block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
+        ..Language::new()
+    }
+}
+
+fn make() -> Language {
+    Language {
+        file_names: to_vec(&["Makefile", "makefile", "GNUmakefile"]),
+        formatter: Some(Command::new("mbake", &["format", "--stdin"])),
+        lsp_language_id: Some(LanguageId::new("make")),
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "make".to_string(),
+            kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Make),
+        }),
+        line_comment_prefix: Some("#".to_string()),
         ..Language::new()
     }
 }
@@ -255,6 +301,22 @@ fn css() -> Language {
     }
 }
 
+fn devicetree() -> Language {
+    Language {
+        extensions: to_vec(&["dts", "dtsi", "keymap"]),
+        formatter: None,
+        lsp_command: None,
+        lsp_language_id: None,
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "devicetree".to_string(),
+            kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Devicetree),
+        }),
+        line_comment_prefix: Some("//".to_string()),
+        block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
+        ..Language::new()
+    }
+}
+
 fn diff() -> Language {
     Language {
         extensions: to_vec(&["diff"]),
@@ -289,6 +351,7 @@ fn elixir() -> Language {
         lsp_command: Some(LspCommand {
             command: Command::new("elixir-ls", &[]),
             initialization_options: None,
+            environment: HashMap::new(),
         }),
         lsp_language_id: Some(LanguageId::new("elixir")),
         tree_sitter_grammar_config: Some(GrammarConfig {
@@ -402,6 +465,18 @@ fn gitrebase() -> Language {
     }
 }
 
+fn jjdescription() -> Language {
+    Language {
+        extensions: to_vec(&["jjdescription"]),
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "jj description".to_string(),
+            kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::JjDescription),
+        }),
+        line_comment_prefix: Some("JJ".to_string()),
+        ..Language::new()
+    }
+}
+
 fn gleam() -> Language {
     Language {
         extensions: to_vec(&["gleam"]),
@@ -448,11 +523,24 @@ fn graphql() -> Language {
             initialization_options: Some(
                 json! {r#"{ "graphql-config.load.legacy": true }"#.to_string()},
             ),
+            environment: HashMap::new(),
         }),
         lsp_language_id: Some(LanguageId::new("graphql")),
         tree_sitter_grammar_config: Some(GrammarConfig {
             id: "graphql".to_string(),
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Graphql),
+        }),
+        line_comment_prefix: Some("#".to_string()),
+        ..Language::new()
+    }
+}
+
+fn gnuplot() -> Language {
+    Language {
+        extensions: to_vec(&["gnu", "gnuplot", "gp", "plot", "plt"]),
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "gnuplot".to_string(),
+            kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Gnuplot),
         }),
         line_comment_prefix: Some("#".to_string()),
         ..Language::new()
@@ -495,6 +583,7 @@ fn heex() -> Language {
         lsp_command: Some(LspCommand {
             command: Command::new("elixir-ls", &[]),
             initialization_options: None,
+            environment: HashMap::new(),
         }),
         lsp_language_id: Some(LanguageId::new("heex")),
         tree_sitter_grammar_config: Some(GrammarConfig {
@@ -502,6 +591,25 @@ fn heex() -> Language {
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Heex),
         }),
         block_comment_affixes: Some(("<!--".to_string(), "-->".to_string())),
+        ..Language::new()
+    }
+}
+
+fn latex() -> Language {
+    Language {
+        extensions: to_vec(&["tex"]),
+        formatter: Some(Command::new("tex-fmt", &["-s"])),
+        lsp_command: Some(LspCommand {
+            command: Command::new("texlab", &[]),
+            initialization_options: None,
+            environment: HashMap::new(),
+        }),
+        lsp_language_id: Some(LanguageId::new("latex")),
+        line_comment_prefix: Some("%".to_string()),
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "latex".to_string(),
+            kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Latex),
+        }),
         ..Language::new()
     }
 }
@@ -581,6 +689,39 @@ fn javascript() -> Language {
     }
 }
 
+fn qml() -> Language {
+    Language {
+        extensions: to_vec(&["qml"]),
+        formatter: None,
+        lsp_command: Some(LspCommand {
+            command: Command::new("qmlls6", &[]),
+            ..LspCommand::default()
+        }),
+        lsp_language_id: Some(LanguageId::new("qmljs")),
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "qmljs".to_string(),
+            kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::QmlJs),
+        }),
+        line_comment_prefix: Some("//".to_string()),
+        block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
+        ..Language::new()
+    }
+}
+
+fn qmldir() -> Language {
+    Language {
+        file_names: to_vec(&["qmldir"]),
+        formatter: None,
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "qmldir".to_string(),
+            kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::QmlDir),
+        }),
+        line_comment_prefix: Some("//".to_string()),
+        block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
+        ..Language::new()
+    }
+}
+
 fn javascriptreact() -> Language {
     Language {
         extensions: to_vec(&["jsx"]),
@@ -620,7 +761,7 @@ fn svelte() -> Language {
 
 fn json() -> Language {
     Language {
-        extensions: to_vec(&["json"]),
+        extensions: to_vec(&["json", "gyp"]),
         formatter: Some(Command::new("prettierd", &[".json"])),
         tree_sitter_grammar_config: Some(GrammarConfig {
             id: "json".to_string(),
@@ -659,14 +800,11 @@ fn julia() -> Language {
 
 fn just() -> Language {
     Language {
-        file_names: to_vec(&["justfile"]),
+        file_names: to_vec(&["justfile", "Justfile"]),
+        extensions: to_vec(&["just"]),
         tree_sitter_grammar_config: Some(GrammarConfig {
             id: "just".to_string(),
-            kind: GrammarConfigKind::FromSource {
-                url: "https://github.com/IndianBoy42/tree-sitter-just".to_string(),
-                commit: "main".to_string(),
-                subpath: None,
-            },
+            kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Just),
         }),
         line_comment_prefix: Some("#".to_string()),
         ..Language::new()
@@ -1103,6 +1241,19 @@ fn yaml() -> Language {
     }
 }
 
+fn kdl() -> Language {
+    Language {
+        extensions: to_vec(&["kdl"]),
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "kdl".to_string(),
+            kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Kdl),
+        }),
+        line_comment_prefix: Some("//".to_string()),
+        block_comment_affixes: Some(("/-".to_string(), "}".to_string())),
+        ..Language::new()
+    }
+}
+
 fn zig() -> Language {
     Language {
         extensions: to_vec(&["zig"]),
@@ -1151,11 +1302,31 @@ fn scala() -> Language {
     }
 }
 
+fn glsl() -> Language {
+    Language {
+        extensions: to_vec(&["glsl"]),
+        formatter: Some(Command::new("clang-format", &[])),
+        lsp_command: Some(LspCommand {
+            command: Command::new("glsl_analyzer", &[]),
+            ..LspCommand::default()
+        }),
+        lsp_language_id: Some(LanguageId::new("glsl")),
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "glsl".to_string(),
+            kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Glsl),
+        }),
+        line_comment_prefix: Some("//".to_string()),
+        block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
+        ..Language::new()
+    }
+}
+
 #[cfg(test)]
 mod test {
     #[test]
     fn test_languages_match_nvim_treesitter_languages() {
-        const MISSING_NVIM_HIGHLIGHTS: &[&str] = &["dune", "ki_quickfix", "tsq"];
+        const MISSING_NVIM_HIGHLIGHTS: &[&str] =
+            &["dune", "ki_quickfix", "tsq", "jj description", "qml"];
 
         // This test is a major consistency check.
         // First, we check that all builtin languages were searched for in nvim-treesitter.

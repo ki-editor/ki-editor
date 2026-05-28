@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
+import type { PromptItem, PromptOpenedParams } from "../protocol/types";
 import { Manager } from "./manager";
-import type { PromptOpenedParams, PromptItem } from "../protocol/types";
 
 export class PromptManager extends Manager {
     public initialize(): void {

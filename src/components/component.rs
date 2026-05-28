@@ -1,4 +1,4 @@
-use crate::app::Dispatches;
+use crate::app::{Dimension, Dispatches};
 use std::any::Any;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -83,6 +83,13 @@ impl Cursor {
     }
 }
 
+pub enum RenderTitleMode {
+    /// Show the name of the current file only
+    Filename,
+    /// Besides showing the current file name, also shows the marked files names
+    Tabline,
+}
+
 pub trait Component: Any + AnyComponent {
     fn id(&self) -> ComponentId {
         self.editor().id()
@@ -108,7 +115,7 @@ pub trait Component: Any + AnyComponent {
             events
                 .iter()
                 .map(|event| -> anyhow::Result<_> {
-                    Ok(self.handle_key_event(&context, event.clone())?.into_vec())
+                    Ok(self.handle_key_event(&context, *event)?.into_vec())
                 })
                 .collect::<Result<Vec<_>, _>>()?
                 .into_iter()
@@ -173,8 +180,8 @@ pub trait Component: Any + AnyComponent {
         self.editor().buffer().content()
     }
 
-    fn title(&self, context: &Context) -> String {
-        self.editor().title(context)
+    fn title(&self, context: &Context, dimension: &Dimension, mode: &RenderTitleMode) -> String {
+        self.editor().title(context, dimension, mode)
     }
 
     fn set_title(&mut self, title: String) {
@@ -183,7 +190,7 @@ pub trait Component: Any + AnyComponent {
 
     fn handle_dispatch_editor(
         &mut self,
-        context: &mut Context,
+        context: &Context,
         dispatch: DispatchEditor,
     ) -> anyhow::Result<Dispatches> {
         self.editor_mut().handle_dispatch_editor(context, dispatch)

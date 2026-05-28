@@ -1,4 +1,4 @@
-use std::ops::{Not, Range};
+use std::ops::Range;
 
 use itertools::Itertools;
 use lazy_regex::Lazy;
@@ -10,7 +10,7 @@ use crate::{
     buffer::{Buffer, Line},
     char_index_range::CharIndexRange,
     components::{
-        component::{Component, Cursor, SetCursorStyle},
+        component::{Component, Cursor, RenderTitleMode, SetCursorStyle},
         editor::Mode,
     },
     context::Context,
@@ -24,7 +24,7 @@ use crate::{
     selection_mode::{self, ByteRange},
     soft_wrap::wrap_items,
     style::Style,
-    themes::{Theme, UiStyles},
+    themes::Theme,
     utils::trim_array,
 };
 
@@ -43,94 +43,105 @@ pub fn markup_focused_tab(path: &str) -> String {
 
 impl Editor {
     pub fn get_grid(&mut self, context: &Context, focused: bool) -> GetGridResult {
-        let hunks = self.buffer_mut().simple_hunks(context).unwrap_or_default();
-        self.get_grid_with_scroll_offset(context, focused, self.scroll_offset(), &hunks)
+        self.get_grid_with_custom_dimension(
+            context,
+            focused,
+            self.dimension(),
+            &self.reveal.clone(),
+            &RenderTitleMode::Tabline,
+            true,
+        )
     }
+
+    pub fn get_grid_with_custom_dimension(
+        &mut self,
+        context: &Context,
+        focused: bool,
+        dimension: Dimension,
+        reveal: &Option<Reveal>,
+        render_title_mode: &RenderTitleMode,
+        show_cursors: bool,
+    ) -> GetGridResult {
+        let hunks = self.buffer_mut().simple_hunks(context).unwrap_or_default();
+        self.get_grid_with_scroll_offset(
+            context,
+            focused,
+            self.scroll_offset(),
+            &hunks,
+            dimension,
+            reveal,
+            render_title_mode,
+            show_cursors,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
     pub fn get_grid_with_scroll_offset(
         &self,
         context: &Context,
         focused: bool,
         scroll_offset: usize,
         hunks: &[SimpleHunk],
+        dimension: Dimension,
+        reveal: &Option<Reveal>,
+        render_title_mode: &RenderTitleMode,
+        show_cursors: bool,
     ) -> GetGridResult {
-        let title = self.title(context);
-        let title_grid_height = title.lines().count();
-        let render_area = {
-            let Dimension { height, width } = self.dimension();
-            Dimension {
-                height: height.saturating_sub(title_grid_height),
-                width,
-            }
-        };
         let marks = context.get_marks(self.path());
-        let grid = match &self.reveal {
-            None => self.get_grid_with_dimension(
-                context.theme(),
-                context.current_working_directory(),
-                context.quickfix_list_items(),
-                render_area,
-                scroll_offset,
-                Some(self.selection_set.primary_selection().range()),
-                false,
-                true,
+        let title = self.title(context, &dimension, render_title_mode);
+        let title_grid_height = title.lines().count();
+        let grid = match reveal {
+            // When not revealing anything, we will always show the title,
+            // unless the rendering area has only one unit height, which only allows rendering the cursor.
+            None => {
+                let render_area = Dimension {
+                    height: dimension.height.saturating_sub(title_grid_height),
+                    width: dimension.width,
+                };
+                let grid = self.get_grid_with_dimension(
+                    context.theme(),
+                    context.current_working_directory(),
+                    context.quickfix_list_items(),
+                    render_area,
+                    scroll_offset,
+                    Some(self.selection_set.primary_selection().range()),
+                    false,
+                    true,
+                    focused,
+                    hunks,
+                    &marks,
+                    true,
+                    None,
+                    reveal,
+                );
+                let title_grid = self.get_title_grid(
+                    context,
+                    hunks,
+                    focused,
+                    &title,
+                    Dimension {
+                        height: title_grid_height,
+                        width: dimension.width,
+                    },
+                );
+                title_grid.merge_vertical(grid)
+            }
+            // During reveal, the ranges to be shown takes priority over the title
+            // so if there's not enough vertical space to render all ranges and title,
+            // we will sacrifice the title.
+            Some(reveal) => self.get_splitted_grid(
+                context,
+                reveal,
+                dimension,
                 focused,
                 hunks,
                 &marks,
+                show_cursors,
+                &title,
+                title_grid_height,
             ),
-            Some(reveal) => {
-                self.get_splitted_grid(context, reveal, render_area, focused, hunks, &marks)
-            }
-        };
-        let theme = context.theme();
-        let window_title_style = if focused {
-            theme.ui.window_title_focused
-        } else {
-            theme.ui.window_title_unfocused
         };
 
-        let title_grid = {
-            let mut editor = Editor::from_text(None, &title);
-            editor.set_regex_highlight_rules(
-                [RegexHighlightRule {
-                    regex: (**FOCUSED_TAB_REGEX).clone(),
-                    capture_styles: [RegexHighlightRuleCaptureStyle {
-                        capture_name: "focused_tab",
-                        source: Source::StyleKey(StyleKey::UiFocusedTab),
-                    }]
-                    .into_iter()
-                    .collect(),
-                }]
-                .into_iter()
-                .collect(),
-            );
-            let dimension = Dimension {
-                height: title_grid_height,
-                width: self.dimension().width,
-            };
-            let theme = Theme {
-                ui: UiStyles {
-                    background_color: window_title_style.background_color.unwrap_or_default(),
-                    text_foreground: window_title_style.foreground_color.unwrap_or_default(),
-                    ..theme.ui
-                },
-                ..context.theme().clone()
-            };
-
-            editor.get_grid_with_dimension(
-                &theme,
-                context.current_working_directory(),
-                &Vec::new(),
-                dimension,
-                0,
-                None,
-                false,
-                false,
-                focused,
-                hunks,
-                &[],
-            )
-        };
-        let grid = title_grid.merge_vertical(grid);
         let cursor_position = grid.get_cursor_position();
         let style = match self.mode {
             Mode::Normal => SetCursorStyle::BlinkingBlock,
@@ -143,30 +154,91 @@ impl Editor {
         }
     }
 
-    pub fn title_impl(&self, context: &Context) -> Option<String> {
-        let dimension = self.dimension();
+    #[allow(clippy::too_many_arguments)]
+    fn get_title_grid(
+        &self,
+        context: &Context,
+        hunks: &[SimpleHunk],
+        focused: bool,
+        title: &str,
+        dimension: Dimension,
+    ) -> Grid {
+        let theme = context.theme();
+        let mut editor = Editor::from_text(None, title);
+        editor.set_regex_highlight_rules(
+            [RegexHighlightRule {
+                regex: (**FOCUSED_TAB_REGEX).clone(),
+                capture_styles: [RegexHighlightRuleCaptureStyle {
+                    capture_name: "focused_tab",
+                    source: Source::StyleKey(StyleKey::UiFocusedTab),
+                }]
+                .into_iter()
+                .collect(),
+            }]
+            .into_iter()
+            .collect(),
+        );
+
+        let grid = editor.get_grid_with_dimension(
+            theme,
+            context.current_working_directory(),
+            &Vec::new(),
+            dimension,
+            0,
+            None,
+            false,
+            false,
+            focused,
+            hunks,
+            &[],
+            false,
+            Some(if focused {
+                StyleKey::FocusedWindowTitle
+            } else {
+                StyleKey::UnfocusedWindowTitle
+            }),
+            &None,
+        );
+        grid
+    }
+
+    pub fn title_impl(
+        &self,
+        context: &Context,
+        dimension: &Dimension,
+        render_title_mode: &RenderTitleMode,
+    ) -> Option<String> {
         let result = if dimension.height <= 1 {
             vec![]
         } else {
-            let wrapped_items = wrap_items(
-                get_formatted_paths(
-                    &context.get_marked_files(),
-                    &context.get_dirty_files(),
-                    &self.path()?,
-                    context.current_working_directory(),
-                ),
-                // Reference: NEED_TO_REDUCE_WIDTH_BY_1
-                dimension.width.saturating_sub(1),
-            );
+            match render_title_mode {
+                RenderTitleMode::Filename => [self
+                    .path()
+                    .map(|path| path.try_display_relative_to(context.current_working_directory()))
+                    .unwrap_or_else(|| "[Untitled]".to_string())]
+                .to_vec(),
+                RenderTitleMode::Tabline => {
+                    let wrapped_items = wrap_items(
+                        get_formatted_paths(
+                            &context.get_marked_files(),
+                            &context.get_dirty_files(),
+                            &self.path()?,
+                            context.current_working_directory(),
+                        ),
+                        // Reference: NEED_TO_REDUCE_WIDTH_BY_1
+                        dimension.width.saturating_sub(1),
+                    );
 
-            trim_array(
-                &wrapped_items,
-                wrapped_items.len().saturating_sub(1)..wrapped_items.len(),
-                wrapped_items
-                    .len()
-                    .saturating_sub(dimension.height.saturating_sub(1)),
-            )
-            .trimmed_array
+                    trim_array(
+                        &wrapped_items,
+                        wrapped_items.len().saturating_sub(1)..wrapped_items.len(),
+                        wrapped_items
+                            .len()
+                            .saturating_sub(dimension.height.saturating_sub(1)),
+                    )
+                    .trimmed_array
+                }
+            }
         };
         let result = result.join("\n");
 
@@ -175,6 +247,7 @@ impl Editor {
         Some(result)
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn get_splitted_grid(
         &self,
         context: &Context,
@@ -183,6 +256,9 @@ impl Editor {
         focused: bool,
         hunks: &[SimpleHunk],
         marks: &[CharIndexRange],
+        show_cursors: bool,
+        title: &str,
+        title_grid_height: usize,
     ) -> crate::grid::Grid {
         let buffer = self.buffer();
         let ranges = match reveal {
@@ -219,9 +295,17 @@ impl Editor {
         .sorted_by_key(|range| (range.start, range.end))
         .unique()
         .collect_vec();
+
+        // We calculate the maximum title height because we will prioritize showing all the ranges over showing the title
+        // which means then there's not enough space, we will hide the title first before hiding some ranges
+        let maximum_title_height = render_area.height.saturating_sub(ranges.len());
+        let adjusted_title_grid_height = title_grid_height.min(maximum_title_height);
+
         let viewport_sections = divide_viewport(
             &ranges,
-            render_area.height,
+            render_area
+                .height
+                .saturating_sub(adjusted_title_grid_height),
             buffer
                 .char_index_range_to_byte_range(
                     self.selection_set.primary_selection().extended_range(),
@@ -229,10 +313,10 @@ impl Editor {
                 .unwrap_or_default(),
         );
 
-        viewport_sections.into_iter().fold(
+        let grid = viewport_sections.into_iter().fold(
             Grid::new(Dimension {
                 height: 0,
-                width: self.dimension().width,
+                width: render_area.width,
             }),
             |grid, viewport_section| {
                 let range = viewport_section.item();
@@ -254,13 +338,24 @@ impl Editor {
                 let protected_range = buffer
                     .byte_range_to_char_index_range(&range)
                     .unwrap_or_default();
+
+                // We only render the primary selection if the current split is meant to focus on the primary selection
+                let show_cursors = show_cursors
+                    && match reveal {
+                        Reveal::CurrentSelectionMode | Reveal::Mark => {
+                            protected_range
+                                == self.selection_set.primary_selection().extended_range()
+                        }
+                        Reveal::Cursor => true,
+                    };
+
                 grid.merge_vertical(self.get_grid_with_dimension(
                     context.theme(),
                     context.current_working_directory(),
                     context.quickfix_list_items(),
                     Dimension {
                         height: viewport_section.height(),
-                        width: self.dimension().width,
+                        width: render_area.width,
                     },
                     window.start,
                     Some(protected_range),
@@ -269,9 +364,29 @@ impl Editor {
                     focused,
                     hunks,
                     marks,
+                    show_cursors,
+                    None,
+                    &Some(reveal.clone()),
                 ))
             },
-        )
+        );
+
+        let title_grid = self.get_title_grid(
+            context,
+            hunks,
+            focused,
+            title,
+            Dimension {
+                height: adjusted_title_grid_height,
+                width: render_area.width,
+            },
+        );
+
+        let grid = title_grid.merge_vertical(grid);
+
+        debug_assert_eq!(grid.dimension(), render_area);
+
+        grid
     }
 
     /// Protected char index must not be trimmed and always be rendered.
@@ -291,6 +406,9 @@ impl Editor {
         focused: bool,
         hunks: &[SimpleHunk],
         marks: &[CharIndexRange],
+        show_cursors: bool,
+        default_style_key: Option<StyleKey>,
+        reveal: &Option<Reveal>,
     ) -> Grid {
         let editor = self;
         let cursor_position = self.get_cursor_position().unwrap_or_default();
@@ -331,6 +449,9 @@ impl Editor {
         let visible_line_range =
             self.visible_line_range_given_scroll_offset_and_height(scroll_offset, height);
         let primary_cursor_char_index = primary_selection.to_char_index(&self.cursor_direction);
+
+        let default_style_key = default_style_key.as_ref().unwrap_or(&StyleKey::Default);
+
         let (hidden_parent_lines_grid, remaining_highlight_spans) = {
             let highlight_spans = self.get_highlight_spans(
                 theme,
@@ -341,6 +462,9 @@ impl Editor {
                 protected_range,
                 quickfix_list_items,
                 marks,
+                focused,
+                show_cursors,
+                reveal,
             );
             let boundaries = hidden_parent_line_ranges
                 .into_iter()
@@ -392,17 +516,15 @@ impl Editor {
                             RenderContentLineNumber::NoLineNumber
                         },
                         updates,
-                        Vec::default(),
                         theme,
                         None,
                         hunks,
+                        default_style_key,
                     ))
                 },
             );
             (grid, remaining_highlight_spans)
         };
-
-        debug_assert!(remaining_highlight_spans.is_empty().not());
 
         let grid = {
             let visible_lines_updates = {
@@ -421,7 +543,8 @@ impl Editor {
                                 CellUpdate::new(position)
                                     .set_is_protected_range_start(true)
                                     .set_is_cursor(
-                                        primary_cursor_char_index == protected_char_index,
+                                        focused
+                                            && primary_cursor_char_index == protected_char_index,
                                     )
                             })
                             .ok()
@@ -448,7 +571,6 @@ impl Editor {
                         })
                     })
                     .collect_vec(),
-                Vec::default(),
                 theme,
                 if focused
                     && protected_range
@@ -462,6 +584,7 @@ impl Editor {
                     None
                 },
                 hunks,
+                default_style_key,
             );
             let protected_range = visible_lines_grid
                 .get_protected_range_start_position()
@@ -525,6 +648,7 @@ impl Editor {
     }
 
     #[allow(clippy::too_many_arguments)]
+    /// `is_focused_file` should be true all the time, except for the secondary non-focused buffers when global multicursor is activated
     fn get_highlight_spans(
         &self,
         theme: &Theme,
@@ -535,6 +659,9 @@ impl Editor {
         protected_range: Option<CharIndexRange>,
         quickfix_list_items: &[QuickfixListItem],
         marks: &[CharIndexRange],
+        is_focused_file: bool,
+        show_cursors: bool,
+        reveal: &Option<Reveal>,
     ) -> Vec<HighlightSpan> {
         use StyleKey::*;
         let buffer = self.buffer();
@@ -543,9 +670,9 @@ impl Editor {
             Box::new(std::iter::empty()) as Box<dyn Iterator<Item = HighlightSpan>>
         } else {
             Box::new(
-                if self.selection_set.mode().is_contiguous() && self.reveal.is_none() {
+                if self.selection_set.mode().is_contiguous() && reveal.is_none() {
                     Vec::default()
-                } else if self.reveal == Some(Reveal::CurrentSelectionMode) {
+                } else if reveal == &Some(Reveal::CurrentSelectionMode) {
                     protected_range
                         .and_then(|protected_range| {
                             buffer.char_index_range_to_byte_range(protected_range).ok()
@@ -593,7 +720,7 @@ impl Editor {
         let marks_spans = marks
             .iter()
             .filter(|mark_range| {
-                if let Some(Reveal::Mark) = self.reveal {
+                if let Some(Reveal::Mark) = reveal {
                     Some(*mark_range) == protected_range.as_ref()
                 } else {
                     true
@@ -611,7 +738,7 @@ impl Editor {
             .secondary_selections()
             .into_iter()
             .filter(|secondary_selection| {
-                if let Some(Reveal::Cursor) = self.reveal {
+                if let Some(Reveal::Cursor) = reveal {
                     Some(secondary_selection.range()) == protected_range
                 } else {
                     true
@@ -621,17 +748,27 @@ impl Editor {
 
         let primary_selection = &self.selection_set.primary_selection();
 
+        let empty_if_not_show_cursors = |iter: Box<dyn Iterator<Item = HighlightSpan>>| {
+            if show_cursors {
+                iter
+            } else {
+                Box::new(std::iter::empty())
+            }
+        };
+
         let (
             primary_selection_highlight_span,
             primary_selection_anchors,
+            primary_selection_primary_cursor,
             primary_selection_secondary_cursor,
         ) = {
             let no_primary_selection = (
                 None,
                 Box::new(std::iter::empty()) as Box<dyn Iterator<Item = HighlightSpan>>,
                 None,
+                None,
             );
-            match self.reveal {
+            match reveal {
                 Some(Reveal::CurrentSelectionMode)
                     if protected_range != Some(primary_selection.extended_range()) =>
                 {
@@ -653,7 +790,7 @@ impl Editor {
                     no_primary_selection
                 }
                 _ => {
-                    let primary_selection_highlight_span = HighlightSpan {
+                    let primary_selection_highlight_span = show_cursors.then_some(HighlightSpan {
                         set_symbol: None,
                         is_cursor: false,
                         range: HighlightSpanRange::CharIndexRange(
@@ -661,8 +798,8 @@ impl Editor {
                         ),
                         source: Source::StyleKey(UiPrimarySelection),
                         is_protected_range_start: false,
-                    };
-                    let primary_selection_anchors =
+                    });
+                    let primary_selection_anchors = empty_if_not_show_cursors(Box::new(
                         primary_selection
                             .anchors()
                             .into_iter()
@@ -670,10 +807,32 @@ impl Editor {
                                 set_symbol: None,
                                 is_cursor: false,
                                 range: HighlightSpanRange::CharIndexRange(anchor),
-                                source: Source::StyleKey(UiPrimarySelectionAnchors),
+                                source: Source::StyleKey(if is_focused_file {
+                                    UiPrimarySelectionAnchors
+                                } else {
+                                    UiSecondarySelectionAnchors
+                                }),
                                 is_protected_range_start: false,
-                            });
-                    let primary_selection_secondary_cursor = if self.mode == Mode::Insert {
+                            }),
+                    ));
+
+                    let primary_selection_primary_cursor = if !is_focused_file && show_cursors {
+                        Some(HighlightSpan {
+                            set_symbol: None,
+                            is_cursor: false,
+                            range: HighlightSpanRange::CharIndex(
+                                primary_selection.to_char_index(&self.cursor_direction),
+                            ),
+                            source: Source::StyleKey(StyleKey::UiPrimarySelectionPrimaryCursor),
+                            is_protected_range_start: false,
+                        })
+                    } else {
+                        None
+                    };
+
+                    let primary_selection_secondary_cursor = if self.mode == Mode::Insert
+                        || !show_cursors
+                    {
                         None
                     } else {
                         Some(HighlightSpan {
@@ -687,9 +846,10 @@ impl Editor {
                         })
                     };
                     (
-                        Some(primary_selection_highlight_span),
+                        primary_selection_highlight_span,
                         Box::new(primary_selection_anchors)
                             as Box<dyn Iterator<Item = HighlightSpan>>,
+                        primary_selection_primary_cursor,
                         primary_selection_secondary_cursor,
                     )
                 }
@@ -697,26 +857,29 @@ impl Editor {
         };
 
         let secondary_selections_highlight_spans =
-            secondary_selections
-                .iter()
-                .map(|secondary_selection| HighlightSpan {
+            empty_if_not_show_cursors(Box::new(secondary_selections.iter().map(
+                |secondary_selection| HighlightSpan {
                     set_symbol: None,
                     is_cursor: false,
                     range: HighlightSpanRange::CharIndexRange(secondary_selection.extended_range()),
                     source: Source::StyleKey(UiSecondarySelection),
                     is_protected_range_start: false,
-                });
+                },
+            )));
 
-        let secondary_selection_anchors = secondary_selections.iter().flat_map(|selection| {
-            selection.anchors().into_iter().map(|anchor| HighlightSpan {
-                set_symbol: None,
-                is_cursor: false,
-                range: HighlightSpanRange::CharIndexRange(anchor),
-                source: Source::StyleKey(UiSecondarySelectionAnchors),
-                is_protected_range_start: false,
-            })
-        });
-        let secondary_selection_cursors =
+        let secondary_selection_anchors = empty_if_not_show_cursors(Box::new(
+            secondary_selections.iter().flat_map(|selection| {
+                selection.anchors().into_iter().map(|anchor| HighlightSpan {
+                    set_symbol: None,
+                    is_cursor: false,
+                    range: HighlightSpanRange::CharIndexRange(anchor),
+                    source: Source::StyleKey(UiSecondarySelectionAnchors),
+                    is_protected_range_start: false,
+                })
+            }),
+        ));
+
+        let secondary_selection_cursors = empty_if_not_show_cursors(Box::new(
             secondary_selections.iter().flat_map(|secondary_selection| {
                 [
                     HighlightSpan {
@@ -740,7 +903,8 @@ impl Editor {
                 ]
                 .into_iter()
                 .collect::<Vec<_>>()
-            });
+            }),
+        ));
 
         let content = buffer.rope().to_string();
 
@@ -869,7 +1033,7 @@ impl Editor {
             })
             .flatten();
 
-        let visible_parent_lines = if self.reveal.is_none() {
+        let visible_parent_lines = if reveal.is_none() {
             Box::new(visible_parent_lines.iter().map(|line| HighlightSpan {
                 source: Source::StyleKey(StyleKey::ParentLine),
                 range: HighlightSpanRange::Line(line.line),
@@ -899,6 +1063,7 @@ impl Editor {
             .chain(marks_spans)
             .chain(diagnostics)
             .chain(jumps)
+            .chain(primary_selection_primary_cursor)
             .chain(primary_selection_secondary_cursor)
             .chain(secondary_selection_cursors)
             .chain(custom_regex_highlights)

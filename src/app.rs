@@ -3,7 +3,7 @@ use crate::{
     char_index_range::CharIndexRange,
     clipboard::Texts,
     components::{
-        component::{Component, ComponentId, GetGridResult},
+        component::{Component, ComponentId, Cursor, GetGridResult},
         dropdown_sync::{DropdownItem, DropdownRender},
         editor::{
             Direction, DispatchEditor, Editor, IfCurrentNotFound, Movement, PriorChange, Reveal,
@@ -11,7 +11,7 @@ use crate::{
         editor_keymap::KeyboardLayout,
         editor_keymap_printer::KeymapDisplayOption,
         file_explorer::FileExplorer,
-        keymap_legend::{Keybinding, Keymap, KeymapLegendConfig, ReleaseKey},
+        keymap_legend::{Keybinding, Keymap, KeymapLegendConfig, OnTap, ReleaseKey},
         prompt::{
             Prompt, PromptConfig, PromptHistoryKey, PromptItems, PromptItemsBackgroundTask,
             PromptOnChangeDispatch, PromptOnEnter,
@@ -20,15 +20,16 @@ use crate::{
             DispatchSuggestiveEditor, Info, SuggestiveEditor, SuggestiveEditorFilter,
         },
     },
+    config::AppConfig,
     context::{
-        Context, GlobalMode, GlobalSearchConfig, LocalSearchConfigMode, QuickfixListKind,
-        QuickfixListSource, Search,
+        Context, FormatterCommand, GlobalMode, GlobalSearchConfig, LocalSearchConfigMode,
+        QuickfixListKind, QuickfixListSource, Search,
     },
     edit::Edit,
     file_watcher::{FileWatcherEvent, FileWatcherInput},
     frontend::Frontend,
     git::{self},
-    grid::{Grid, LineUpdate},
+    grid::{Grid, StyleKey},
     integration_event::{IntegrationEvent, IntegrationEventEmitter},
     keymap_override::{
         menu::MenuKeymapOverride, momentary_layer::MomentaryLayerKeymapOverride, AppKeymapOverride,
@@ -40,10 +41,11 @@ use crate::{
         completion::CompletionItem,
         goto_definition_response::GotoDefinitionResponse,
         manager::LspManager,
-        process::{FromEditor, LspNotification, ResponseContext},
+        process::{CallHierarchyDirection, FromEditor, LspNotification, ResponseContext},
         symbols::Symbols,
         workspace_edit::WorkspaceEdit,
     },
+    multibuffer::Multibuffer,
     persistence::Persistence,
     position::Position,
     quickfix_list::{Location, QuickfixListItem, QuickfixListType},
@@ -57,10 +59,10 @@ use crate::{
     ui_tree::{ComponentKind, KindedComponent},
 };
 use anyhow::ensure;
-use event::{event::Event, KeyEventKind};
+use event::{event::Event, KeyEvent, KeyEventKind};
 use indexmap::IndexMap;
 use itertools::{Either, Itertools};
-use my_proc_macros::NamedVariant;
+use my_proc_macros::{key, NamedVariant};
 use nonempty::NonEmpty;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -70,13 +72,10 @@ use shared::{absolute_path::AbsolutePath, language::Language};
 use std::{
     any::TypeId,
     cell::RefCell,
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     path::{Path, PathBuf},
     rc::Rc,
-    sync::{
-        mpsc::{Receiver, Sender},
-        Mutex,
-    },
+    sync::{mpsc::Sender, Mutex},
 };
 use std::{sync::Arc, time::Duration};
 use DispatchEditor::*;
@@ -84,20 +83,17 @@ use DispatchEditor::*;
 #[cfg(test)]
 use crate::{layout::BufferContentsMap, test_app::RunTestOptions};
 
-// TODO: rename current Context struct to RawContext struct
-// The new Context struct should always be derived, it should contains Hashmap of rectangles, keyed by Component ID
-// The scroll offset of each componentn should only be recalculated when:
-// 1. The number of components is changed (this means we need to store the components)
-// 2. The terminal dimension is changed
 pub struct App<T: Frontend> {
-    context: Context,
+    pub context: Context,
 
-    sender: Sender<AppMessage>,
+    sender: crossbeam_channel::Sender<AppMessage>,
 
     /// Used for receiving message from various sources:
-    /// - Events from crossterm
     /// - Notifications from language server
-    receiver: Receiver<AppMessage>,
+    receiver: crossbeam_channel::Receiver<AppMessage>,
+
+    /// Used for user inputs. Processed first
+    priority_receiver: crossbeam_channel::Receiver<AppMessage>,
 
     /// Sender for integration events (used by external integrations like VSCode)
     integration_event_sender: Option<Sender<crate::integration_event::IntegrationEvent>>,
@@ -110,14 +106,13 @@ pub struct App<T: Frontend> {
     global_title: Option<String>,
 
     keymap_override: Option<AppKeymapOverride>,
-    layout: Layout,
+    pub layout: Layout,
 
     frontend: Rc<Mutex<T>>,
 
     syntax_highlight_request_sender: Option<Sender<SyntaxHighlightRequest>>,
     status_lines: Vec<StatusLine>,
     last_action_description: Option<String>,
-    last_action_short_description: Option<String>,
 
     /// This is necessary when Ki is running as an embedded application
     last_prompt_config: Option<PromptConfig>,
@@ -129,6 +124,7 @@ pub struct App<T: Frontend> {
     /// Used for debouncing LSP Completion request, so that we don't overwhelm
     /// the server with too many requests, and also Ki with too many incoming Completion responses
     debounce_lsp_request_completion: Callback<()>,
+    pub multibuffer: Option<Multibuffer>,
 }
 
 #[derive(Clone, Serialize, Deserialize, JsonSchema)]
@@ -176,7 +172,9 @@ impl<T: Frontend> App<T> {
     ) -> anyhow::Result<App<T>> {
         use crate::syntax_highlight;
 
-        let (sender, receiver) = std::sync::mpsc::channel();
+        let (sender, receiver) = crossbeam_channel::unbounded();
+        // For testing, it doesn't really matter what we do here
+        let (_, priority_receiver) = crossbeam_channel::unbounded();
         let syntax_highlight_request_sender = if options.enable_syntax_highlighting {
             Some(syntax_highlight::start_thread(sender.clone()))
         } else {
@@ -187,6 +185,7 @@ impl<T: Frontend> App<T> {
             working_directory,
             sender,
             receiver,
+            priority_receiver,
             syntax_highlight_request_sender,
             status_lines,
             None, // No integration event sender
@@ -201,8 +200,9 @@ impl<T: Frontend> App<T> {
     pub fn from_channel(
         frontend: Rc<Mutex<T>>,
         working_directory: AbsolutePath,
-        sender: Sender<AppMessage>,
-        receiver: Receiver<AppMessage>,
+        sender: crossbeam_channel::Sender<AppMessage>,
+        receiver: crossbeam_channel::Receiver<AppMessage>,
+        priority_receiver: crossbeam_channel::Receiver<AppMessage>,
         syntax_highlight_request_sender: Option<Sender<SyntaxHighlightRequest>>,
         status_lines: Vec<StatusLine>,
         integration_event_sender: Option<Sender<crate::integration_event::IntegrationEvent>>,
@@ -227,6 +227,7 @@ impl<T: Frontend> App<T> {
                 persistence,
             ),
             receiver,
+            priority_receiver,
             lsp_manager: [(
                 working_directory.clone().into_path_buf(),
                 LspManager::new(sender.clone(), working_directory.clone()),
@@ -260,11 +261,11 @@ impl<T: Frontend> App<T> {
             global_title: None,
             status_lines,
             last_action_description: None,
-            last_action_short_description: None,
             integration_event_sender,
             last_prompt_config: None,
             queued_events: Vec::new(),
             file_watcher_input_sender,
+            multibuffer: None,
         };
 
         app.restore_session();
@@ -298,17 +299,32 @@ impl<T: Frontend> App<T> {
     pub fn run(mut self, entry_path: Option<AbsolutePath>) -> Result<(), anyhow::Error> {
         self.set_terminal_options()?;
 
-        if let Some(entry_path) = entry_path {
+        let first_dispatch = entry_path.map(|entry_path| {
             if entry_path.as_ref().is_dir() {
-                self.layout.open_file_explorer();
+                Dispatch::OpenFileExplorer
             } else {
-                self.open_file(&entry_path, BufferOwner::User, true, true)?;
+                Dispatch::OpenFile {
+                    path: entry_path,
+                    owner: BufferOwner::User,
+                    focus: true,
+                }
+            }
+        });
+
+        if let Some(first_dispatch) = first_dispatch {
+            if let Err(error) = self.sender.send(AppMessage::ExternalDispatch(Box::new(
+                first_dispatch.clone(),
+            ))) {
+                log::error!("Failed to send the first dispatch {first_dispatch:?} due to {error}");
             }
         }
 
         self.render()?;
 
-        while let Ok(message) = self.receiver.recv() {
+        while let Ok(message) = crossbeam_channel::select_biased! {
+            recv(self.priority_receiver) -> msg => msg,
+            recv(self.receiver) -> msg => msg,
+        } {
             let should_quit = self.process_message(message).unwrap_or_else(|e| {
                 self.show_global_info(Info::new("ERROR".to_string(), e.to_string()));
                 false
@@ -430,14 +446,20 @@ impl<T: Frontend> App<T> {
             }
             event => {
                 let dispatches = match (event, &mut self.keymap_override) {
-                    (Event::Key(key_event), Some(keymap_override)) => match key_event.kind {
-                        KeyEventKind::Press => {
-                            keymap_override.handle_press(&self.context, key_event)
+                    (Event::Key(key_event), Some(keymap_override)) => {
+                        let combined_key_event = self
+                            .context
+                            .keyboard_layout()
+                            .make_combined_key_event(key_event);
+                        match key_event.kind {
+                            KeyEventKind::Press => {
+                                keymap_override.handle_press(&self.context, combined_key_event)
+                            }
+                            KeyEventKind::Release => {
+                                keymap_override.handle_release(&self.context, combined_key_event)
+                            }
                         }
-                        KeyEventKind::Release => {
-                            keymap_override.handle_release(&self.context, key_event)
-                        }
-                    },
+                    }
                     (event, _) => component.borrow_mut().handle_event(&self.context, event),
                 };
 
@@ -475,43 +497,17 @@ impl<T: Frontend> App<T> {
         let (windows, cursors): (Vec<_>, Vec<_>) = self
             .components()
             .into_iter()
-            .map(|component| {
-                let rectangle = component.component().borrow().rectangle().clone();
-                let focused_component_id = self.layout.focused_component_id();
-                let focused = component.component().borrow().id() == focused_component_id;
-                let GetGridResult { grid, cursor } = component
-                    .component()
-                    .borrow_mut()
-                    .get_grid(&self.context, focused);
-                let cursor_position = 'cursor_calc: {
-                    if !focused {
-                        break 'cursor_calc None;
-                    }
-
-                    let Some(cursor) = cursor else {
-                        break 'cursor_calc None;
-                    };
-
-                    let cursor_position = cursor.position();
-
-                    // If cursor position is not in view
-                    if cursor_position.line >= rectangle.dimension().height {
-                        break 'cursor_calc None;
-                    }
-
-                    let calibrated_position = Position::new(
-                        cursor_position.line + rectangle.origin.line,
-                        cursor_position.column + rectangle.origin.column,
-                    );
-
-                    Some(cursor.set_position(calibrated_position))
-                };
-                let window = Window::new(grid, rectangle.clone());
-
-                (window, cursor_position)
-            })
+            .map(|component| self.render_component_window(component))
             .unzip();
+
         let borders = self.layout.borders();
+
+        #[cfg(test)]
+        {
+            // Ensure that there's at most one cursor
+            debug_assert!(cursors.iter().flatten().count() <= 1);
+        }
+
         let cursor = cursors.into_iter().find_map(|cursor| cursor);
         let screen = Screen::new(windows, borders, cursor, self.context.theme().ui.border);
 
@@ -527,6 +523,51 @@ impl<T: Frontend> App<T> {
             .fold(screen, |screen, window| screen.add_window(window));
 
         Ok(screen)
+    }
+
+    fn render_component_window(&self, component: KindedComponent) -> (Window, Option<Cursor>) {
+        let rectangle = component.component().borrow().rectangle().clone();
+        let focused_component_id = self.layout.focused_component_id();
+        let focused = component.component().borrow().id() == focused_component_id;
+        let otherwise = || {
+            component
+                .component()
+                .borrow_mut()
+                .get_grid(&self.context, focused)
+        };
+        let GetGridResult { grid, cursor } = match self.multibuffer.as_ref() {
+            Some(multibuffer) if component.kind() == ComponentKind::SuggestiveEditor => self
+                .render_multibuffer(multibuffer, &rectangle)
+                .unwrap_or_else(otherwise),
+            _ => otherwise(),
+        };
+
+        let cursor_position = 'cursor_calc: {
+            if !focused {
+                break 'cursor_calc None;
+            }
+
+            let Some(cursor) = cursor else {
+                break 'cursor_calc None;
+            };
+
+            let cursor_position = cursor.position();
+
+            // If cursor position is not in view
+            if cursor_position.line >= rectangle.dimension().height {
+                break 'cursor_calc None;
+            }
+
+            let calibrated_position = Position::new(
+                cursor_position.line + rectangle.origin.line,
+                cursor_position.column + rectangle.origin.column,
+            );
+
+            Some(cursor.set_position(calibrated_position))
+        };
+        let window = Window::new(grid, rectangle.clone());
+
+        (window, cursor_position)
     }
 
     fn render_status_line(&self, index: usize, status_line: &StatusLine) -> Window {
@@ -574,6 +615,11 @@ impl<T: Frontend> App<T> {
                             .current_branch()
                             .map(|branch| FlexLayoutComponent::Text(format!("⎇ {branch}"))),
                         StatusLineComponent::Mode => {
+                            let multibuffer_mode = self
+                                .multibuffer
+                                .as_ref()
+                                .map(|multibuffer| format!("{} ", multibuffer.display_name()))
+                                .unwrap_or_default();
                             let mode = self
                                 .context
                                 .mode()
@@ -581,7 +627,9 @@ impl<T: Frontend> App<T> {
                                 .unwrap_or_else(|| {
                                     self.current_component().borrow().editor().display_mode()
                                 });
-                            Some(FlexLayoutComponent::Text(format!("{mode: <5}")))
+                            Some(FlexLayoutComponent::Text(format!(
+                                "{multibuffer_mode}{mode: <5}"
+                            )))
                         }
                         StatusLineComponent::SelectionMode => Some(FlexLayoutComponent::Text(
                             self.current_component()
@@ -654,14 +702,10 @@ impl<T: Frontend> App<T> {
             &title,
             crate::grid::RenderContentLineNumber::NoLineNumber,
             Vec::new(),
-            [LineUpdate {
-                line_index: 0,
-                style: self.context.theme().ui.global_title,
-            }]
-            .to_vec(),
             self.context.theme(),
             None,
             &[],
+            &StyleKey::GlobalTitle,
         );
         Window::new(
             grid,
@@ -807,6 +851,36 @@ impl<T: Frontend> App<T> {
                         },
                     )?;
                     self.send_integration_event(IntegrationEvent::RequestLspReferences);
+                }
+            }
+            Dispatch::RequestIncomingCalls(scope) => {
+                if let Some(params) = self.get_request_params() {
+                    let params = params
+                        .set_kind(Some(scope))
+                        .set_description("Incoming Calls");
+                    self.lsp_manager().send_message(
+                        params.path.clone(),
+                        FromEditor::TextDocumentPrepareCallHierarchy {
+                            params,
+                            direction: CallHierarchyDirection::Incoming,
+                        },
+                    )?;
+                    self.send_integration_event(IntegrationEvent::RequestLspIncomingCalls);
+                }
+            }
+            Dispatch::RequestOutgoingCalls(scope) => {
+                if let Some(params) = self.get_request_params() {
+                    let params = params
+                        .set_kind(Some(scope))
+                        .set_description("Outgoing Calls");
+                    self.lsp_manager().send_message(
+                        params.path.clone(),
+                        FromEditor::TextDocumentPrepareCallHierarchy {
+                            params,
+                            direction: CallHierarchyDirection::Outgoing,
+                        },
+                    )?;
+                    self.send_integration_event(IntegrationEvent::RequestLspOutgoingCalls);
                 }
             }
             Dispatch::RequestHover => {
@@ -976,7 +1050,7 @@ impl<T: Frontend> App<T> {
             Dispatch::ApplyWorkspaceEdit(workspace_edit) => {
                 self.apply_workspace_edit(workspace_edit)?;
             }
-            Dispatch::ShowKeymapLegend(keymap_legend_config) => {
+            Dispatch::ShowMenu(keymap_legend_config) => {
                 // HACK: Close keymap legend if present
                 // Only used for multicursor menu atm
                 self.layout.close_keymap_legend();
@@ -987,7 +1061,7 @@ impl<T: Frontend> App<T> {
                 )))?;
                 self.show_keymap_legend(false, keymap_legend_config, None);
             }
-            Dispatch::ShowKeymapLegendWithReleaseKey(keymap_legend_config, release_key) => {
+            Dispatch::ShowMomentaryLayer(keymap_legend_config, release_key) => {
                 self.handle_dispatch_editor(DispatchEditor::SetKeymapOverride(Some(
                     EditorKeymapOverride::MomentaryLayer(MomentaryLayerKeymapOverride::new(
                         KeymapOverrideScope::Editor,
@@ -997,7 +1071,26 @@ impl<T: Frontend> App<T> {
                 )))?;
                 self.show_keymap_legend(false, keymap_legend_config, Some(release_key));
             }
-            Dispatch::ShowAppKeymapLegendWithReleaseKey(keymap_legend_config, release_key) => {
+            Dispatch::ShowJointMomentaryLayer {
+                swap_key,
+                active_config,
+                release_key,
+                inactive_config,
+                inactive_tap,
+            } => {
+                self.handle_dispatch_editor(DispatchEditor::SetKeymapOverride(Some(
+                    EditorKeymapOverride::MomentaryLayer(MomentaryLayerKeymapOverride::new_joint(
+                        KeymapOverrideScope::Editor,
+                        release_key.clone(),
+                        swap_key,
+                        active_config.clone(),
+                        inactive_config,
+                        inactive_tap,
+                    )),
+                )))?;
+                self.show_keymap_legend(false, active_config, Some(release_key));
+            }
+            Dispatch::ShowAppMomentaryLayer(keymap_legend_config, release_key) => {
                 self.keymap_override = Some(AppKeymapOverride::MomentaryLayer(
                     MomentaryLayerKeymapOverride::new(
                         KeymapOverrideScope::App,
@@ -1006,6 +1099,15 @@ impl<T: Frontend> App<T> {
                     ),
                 ));
                 self.show_keymap_legend(true, keymap_legend_config, Some(release_key));
+            }
+            Dispatch::ShowKeymapLegend {
+                on_root,
+                keymap_legend_config,
+                release_key,
+            } => {
+                // HACK: used for joint MoLs
+                self.layout.close_keymap_legend();
+                self.show_keymap_legend(on_root, keymap_legend_config, release_key);
             }
             #[cfg(test)]
             Dispatch::Custom(_) => unreachable!(),
@@ -1036,12 +1138,11 @@ impl<T: Frontend> App<T> {
             Dispatch::SetClipboardContent {
                 copied_texts: contents,
             } => {
-                self.context
-                    .set_clipboard_content(contents.clone())
-                    .or_else(|_| {
-                        let mut frontend = self.frontend.lock().unwrap();
-                        frontend.set_clipboard_with_osc52(&contents.to_text())
-                    })?;
+                self.context.set_clipboard_content(contents.clone());
+                self.frontend
+                    .lock()
+                    .unwrap()
+                    .set_clipboard_with_osc52(&contents.to_text())?;
             }
             Dispatch::AddKillRingEntry { texts } => self.context.add_kill_ring_entry(texts),
             Dispatch::SetGlobalMode(mode) => self.set_global_mode(mode)?,
@@ -1072,13 +1173,11 @@ impl<T: Frontend> App<T> {
                 scope,
                 if_current_not_found,
                 run_search_after_config_updated,
-                component_id,
             } => self.update_local_search_config(
                 update,
                 scope,
                 if_current_not_found,
                 run_search_after_config_updated,
-                component_id,
             )?,
             Dispatch::UpdateGlobalSearchConfig { update } => {
                 self.update_global_search_config(update)?;
@@ -1140,10 +1239,8 @@ impl<T: Frontend> App<T> {
             }
             Dispatch::SetLastActionDescription {
                 long_description: description,
-                short_description,
             } => {
                 self.last_action_description = Some(description);
-                self.last_action_short_description = short_description;
             }
             Dispatch::OpenFilterSelectionsPrompt { maintain } => {
                 self.open_filter_selections_prompt(maintain)?;
@@ -1159,8 +1256,9 @@ impl<T: Frontend> App<T> {
                 self.keyboard_layout_changed();
             }
             Dispatch::OpenKeyboardLayoutPrompt => self.open_keyboard_layout_picker()?,
-            Dispatch::NavigateForward => self.navigate_forward()?,
-            Dispatch::NavigateBack => self.navigate_back()?,
+            Dispatch::MovementHistoryNavigation(movement) => {
+                self.movement_history_navigation(movement)?;
+            }
             Dispatch::ToggleSelectionMark => self.toggle_selection_mark()?,
             Dispatch::ToggleFileMark => self.toggle_file_mark()?,
             Dispatch::SetFileDirtyStatus { path, dirty_status } => {
@@ -1175,8 +1273,8 @@ impl<T: Frontend> App<T> {
             } => self.open_search_prompt_with_current_selection(scope, prior_change)?,
             Dispatch::ShowGlobalInfo(info) => self.show_global_info(info),
             #[cfg(test)]
-            Dispatch::SetSystemClipboardHtml { html, alt_text } => {
-                self.set_system_clipboard_html(html, alt_text)?;
+            Dispatch::SetSystemClipboardContent { content } => {
+                self.set_system_clipboard_content(content)?;
             }
             Dispatch::AddQuickfixListEntries(locations) => {
                 self.add_quickfix_list_entries(locations)?;
@@ -1212,6 +1310,27 @@ impl<T: Frontend> App<T> {
                 self.open_change_working_directory_prompt()?;
             }
             Dispatch::OpenQuickfixItemsPicker => self.open_quickfix_item_picker()?,
+            Dispatch::RaiseFormatterNotExist(formatter_error) => {
+                self.raise_formatter_error(formatter_error)?;
+            }
+            Dispatch::OpenFileExplorer => self.layout.open_file_explorer(),
+            Dispatch::OpenSaveAsPrompt => self.save_as()?,
+            Dispatch::SaveCurrentBufferContentTo(path) => {
+                self.save_current_buffer_content_to(path)?;
+            }
+            #[cfg(test)]
+            Dispatch::SetFileContent(absolute_path, content) => {
+                absolute_path.write(&content)?;
+            }
+            Dispatch::AddCursorToAllSelections => self.add_cursor_to_all_selections()?,
+            Dispatch::KeepCursorPrimaryOnly => self.keep_primary_cursor_only()?,
+            Dispatch::CycleCursor(direction) => self.cycle_primary_cursor(direction)?,
+            Dispatch::DeleteCursor => self.delete_cursor()?,
+            Dispatch::FilterCursorsMatchingSearch { search, maintain } => {
+                self.filter_cursor_matching_search(search, maintain)?;
+            }
+            Dispatch::ToggleRevealSelections => self.toggle_reveal_selections()?,
+            Dispatch::SaveFile => self.save()?,
         }
         Ok(())
     }
@@ -1257,28 +1376,19 @@ impl<T: Frontend> App<T> {
         Ok(())
     }
 
-    fn local_search(
-        &mut self,
-        if_current_not_found: IfCurrentNotFound,
-        component_id: Option<ComponentId>,
-    ) -> anyhow::Result<()> {
+    fn local_search(&mut self, if_current_not_found: IfCurrentNotFound) -> anyhow::Result<()> {
         let config = self.context.local_search_config(Scope::Local);
         let search = config.search();
         if !search.is_empty() {
-            self.handle_dispatch_editor_custom(
-                SetSelectionMode(
-                    if_current_not_found,
-                    SelectionMode::Find {
-                        search: Search {
-                            mode: config.mode,
-                            search,
-                        },
+            self.handle_dispatch_editor(SetSelectionMode(
+                if_current_not_found,
+                SelectionMode::Find {
+                    search: Search {
+                        mode: config.mode,
+                        search,
                     },
-                ),
-                component_id
-                    .and_then(|component_id| self.get_component_by_id(component_id))
-                    .unwrap_or_else(|| self.current_component()),
-            )?;
+                },
+            ))?;
         }
 
         Ok(())
@@ -1533,7 +1643,7 @@ impl<T: Frontend> App<T> {
         ))
     }
 
-    fn open_file(
+    pub fn open_file(
         &mut self,
         path: &AbsolutePath,
         owner: BufferOwner,
@@ -1555,6 +1665,7 @@ impl<T: Frontend> App<T> {
 
         if store_history {
             self.push_current_location_into_navigation_history(true);
+            self.context.clear_forward_history();
         }
 
         // Check if the file is opened before so that we won't notify the LSP twice
@@ -1587,7 +1698,9 @@ impl<T: Frontend> App<T> {
             self.request_syntax_highlight(component_id, batch_id, language, content)?;
         }
         if self.enable_lsp {
-            self.lsp_manager().open_file(path.clone())?;
+            if let Err(err) = self.lsp_manager().open_file(path.clone()) {
+                log::error!("Failed to notify/initialize LSP for {path:?} due to {err:?}");
+            }
         }
 
         self.send_file_watcher_input(FileWatcherInput::SyncOpenedPaths(
@@ -1717,6 +1830,32 @@ impl<T: Frontend> App<T> {
                 self.context.update_lsp_progress(message);
                 Ok(())
             }
+            LspNotification::CallHierarchyIncomingCalls(context, calls) => {
+                let items = calls
+                    .into_iter()
+                    .map(|call| {
+                        Location::try_from(lsp_types::Location {
+                            uri: call.from.uri,
+                            range: call.from.selection_range,
+                        })
+                        .map(QuickfixListItem::from)
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                self.set_quickfix_list_type(context, QuickfixListType::Items(items))
+            }
+            LspNotification::CallHierarchyOutgoingCalls(context, calls) => {
+                let items = calls
+                    .into_iter()
+                    .map(|call| {
+                        Location::try_from(lsp_types::Location {
+                            uri: call.to.uri,
+                            range: call.to.selection_range,
+                        })
+                        .map(QuickfixListItem::from)
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                self.set_quickfix_list_type(context, QuickfixListType::Items(items))
+            }
         }
     }
 
@@ -1735,14 +1874,19 @@ impl<T: Frontend> App<T> {
         Ok(())
     }
 
-    fn goto_quickfix_list_item(&mut self, movement: Movement) -> anyhow::Result<()> {
+    pub fn goto_quickfix_list_item(&mut self, movement: Movement) -> anyhow::Result<()> {
         if let Some((current_item_index, dispatches)) =
             self.context.get_quickfix_list_item(movement)
         {
             self.context
                 .set_quickfix_list_current_item_index(current_item_index);
             self.handle_dispatches(dispatches)?;
-            self.render_quickfix_list()?;
+
+            // Only render the quickfix list if multibuffer is not activated
+            // This is crucial because when multibuffer is activated, there are not much space left for rendering
+            if self.multibuffer.is_none() {
+                self.render_quickfix_list()?;
+            }
         } else {
             log::info!("No current item found");
         }
@@ -1829,7 +1973,7 @@ impl<T: Frontend> App<T> {
     }
 
     /// Returns the items length
-    fn update_quickfix_list_item(&mut self, r#type: QuickfixListType) -> usize {
+    pub fn update_quickfix_list_item(&mut self, r#type: QuickfixListType) -> usize {
         let (kind, source) = match r#type {
             QuickfixListType::Diagnostic(severity_range) => {
                 (None, QuickfixListSource::Diagnostic(severity_range))
@@ -1888,6 +2032,9 @@ impl<T: Frontend> App<T> {
         keymap_legend_config: KeymapLegendConfig,
         release_key: Option<ReleaseKey>,
     ) {
+        let keyboard_layout = AppConfig::singleton()
+            .show_key_in_keymap()
+            .then(|| self.keyboard_layout().clone());
         if self.is_running_as_embedded() {
             let title = keymap_legend_config.title.clone();
             let body = keymap_legend_config.display(
@@ -1896,6 +2043,7 @@ impl<T: Frontend> App<T> {
                     show_alt: false,
                     show_shift: true,
                 },
+                keyboard_layout.as_ref(),
             );
             self.integration_event_sender
                 .emit_event(IntegrationEvent::ShowInfo {
@@ -2009,21 +2157,17 @@ impl<T: Frontend> App<T> {
         Ok(self.sender.send(AppMessage::Quit)?)
     }
 
-    pub fn sender(&self) -> Sender<AppMessage> {
-        self.sender.clone()
-    }
-
     fn save_all(&mut self) -> anyhow::Result<()> {
         let dispatches = self.layout.save_all(&self.context)?;
         self.handle_dispatches(dispatches)
     }
 
     fn open_yes_no_prompt(&mut self, prompt: YesNoPrompt) -> anyhow::Result<()> {
-        self.handle_dispatch(Dispatch::ShowKeymapLegend(KeymapLegendConfig {
+        self.handle_dispatch(Dispatch::ShowMenu(KeymapLegendConfig {
             title: prompt.title.to_string(),
             keymap: Keymap::new(&[
-                Keybinding::new("d", "Yes".to_string(), *prompt.yes),
-                Keybinding::new("k", "No".to_string(), Dispatch::Null),
+                Keybinding::new_undocumented(key!("d"), "Yes", *prompt.yes),
+                Keybinding::new_undocumented(key!("k"), "No", Dispatch::Null),
             ]),
         }))
     }
@@ -2145,10 +2289,18 @@ impl<T: Frontend> App<T> {
 
     #[cfg(test)]
     pub fn get_current_selected_texts(&self) -> Vec<String> {
-        self.current_component()
-            .borrow()
-            .editor()
-            .get_selected_texts()
+        if let Some(multibuffer) = self.multibuffer.as_ref() {
+            multibuffer
+                .editors()
+                .into_iter()
+                .flat_map(|editor| editor.borrow().editor().get_selected_texts())
+                .collect_vec()
+        } else {
+            self.current_component()
+                .borrow()
+                .editor()
+                .get_selected_texts()
+        }
     }
 
     #[cfg(test)]
@@ -2169,14 +2321,7 @@ impl<T: Frontend> App<T> {
             .content()
     }
 
-    pub fn handle_dispatch_editor(
-        &mut self,
-        dispatch_editor: DispatchEditor,
-    ) -> anyhow::Result<()> {
-        self.handle_dispatch_editor_custom(dispatch_editor, self.current_component())
-    }
-
-    fn handle_dispatch_editor_custom(
+    pub fn handle_dispatch_editor_custom(
         &mut self,
         dispatch_editor: DispatchEditor,
         component: Rc<RefCell<dyn Component>>,
@@ -2184,7 +2329,7 @@ impl<T: Frontend> App<T> {
         // Call the component's handle_dispatch_editor method
         let dispatches = component
             .borrow_mut()
-            .handle_dispatch_editor(&mut self.context, dispatch_editor.clone())?;
+            .handle_dispatch_editor(&self.context, dispatch_editor.clone())?;
 
         self.handle_dispatches(dispatches)?;
 
@@ -2257,7 +2402,12 @@ impl<T: Frontend> App<T> {
         self.current_component().borrow().path()
     }
 
-    fn set_global_mode(&mut self, mode: Option<GlobalMode>) -> anyhow::Result<()> {
+    pub fn set_global_mode(&mut self, mode: Option<GlobalMode>) -> anyhow::Result<()> {
+        if mode.is_none() && self.multibuffer.is_some() {
+            // Don't allow unsetting the global mode when Global Reveal is active;
+            // otherwise the user won't be able to navigate between files using Left/Right.
+            return Ok(());
+        }
         self.context.set_mode(mode.clone());
         if let Some(GlobalMode::QuickfixListItem) = mode {
             self.goto_quickfix_list_item(Movement::Current(IfCurrentNotFound::LookForward))?;
@@ -2276,12 +2426,11 @@ impl<T: Frontend> App<T> {
         scope: Scope,
         if_current_not_found: IfCurrentNotFound,
         run_search_after_config_updated: bool,
-        component_id: Option<ComponentId>,
     ) -> Result<(), anyhow::Error> {
         self.context.update_local_search_config(update, scope);
         if run_search_after_config_updated {
             match scope {
-                Scope::Local => self.local_search(if_current_not_found, component_id)?,
+                Scope::Local => self.local_search(if_current_not_found)?,
                 Scope::Global => {
                     self.global_search()?;
                 }
@@ -2592,7 +2741,7 @@ impl<T: Frontend> App<T> {
     ) -> Result<(), anyhow::Error> {
         let dispatches = editor
             .borrow_mut()
-            .render_dropdown(&mut self.context, &render)?;
+            .render_dropdown(&self.context, &render)?;
         editor.borrow_mut().set_title(render.title);
 
         match render.info {
@@ -2914,9 +3063,26 @@ impl<T: Frontend> App<T> {
             if location.path.exists() {
                 self.push_current_location_into_navigation_history(true);
                 self.go_to_location(&location, false)?;
+                return Ok(());
             }
         }
         Ok(())
+    }
+
+    fn movement_history_navigation(
+        &mut self,
+        movement: HistoryNavigationMovement,
+    ) -> anyhow::Result<()> {
+        match movement {
+            HistoryNavigationMovement::CoarseBack => self.navigate_back(),
+            HistoryNavigationMovement::CoarseForward => self.navigate_forward(),
+            HistoryNavigationMovement::FineBack => {
+                self.handle_dispatch_editor(DispatchEditor::GoBack)
+            }
+            HistoryNavigationMovement::FineForward => {
+                self.handle_dispatch_editor(DispatchEditor::GoForward)
+            }
+        }
     }
 
     fn push_current_location_into_navigation_history(&mut self, backward: bool) {
@@ -2931,55 +3097,6 @@ impl<T: Frontend> App<T> {
             let location = Location { path, range };
             self.context.push_location_history(location, backward);
         }
-    }
-
-    fn toggle_selection_mark(&mut self) -> anyhow::Result<()> {
-        // Mark the current file if we are actually marking some selection
-        if let Some(path) = self.get_current_file_path() {
-            let marks: HashSet<_> = self
-                .context
-                .get_marks(Some(path.clone()))
-                .into_iter()
-                .collect();
-            let current_selections: HashSet<_> = self
-                .current_component()
-                .borrow()
-                .editor()
-                .selection_set
-                .selections()
-                .iter()
-                .map(|selection| selection.extended_range())
-                .collect();
-
-            // If the set of current selections is the subset of the marks of this file
-            // then this `toggle_selection_mark` action only consists of unmarking action,
-            // and zero marking action.
-            //
-            // We only mark the current file if there are some marking actions
-            if !current_selections.is_subset(&marks) {
-                let _ = self.context.mark_file(path);
-            }
-        }
-        let dispatches = self
-            .current_component()
-            .borrow_mut()
-            .editor_mut()
-            .toggle_marks();
-
-        self.handle_dispatches(dispatches)?;
-
-        // Refresh the quickfix list if possible
-        // TODO: we need to maintain the last quickfix list index too
-        match (self.context.quickfix_list().kind(), self.context.mode()) {
-            (Some(QuickfixListKind::Mark), Some(GlobalMode::QuickfixListItem)) => {
-                self.update_quickfix_list_item(QuickfixListType::Mark);
-                self.render_quickfix_list()?;
-                self.goto_quickfix_list_item(Movement::Current(IfCurrentNotFound::LookForward))?;
-            }
-            _ => {}
-        }
-
-        Ok(())
     }
 
     fn toggle_file_mark(&mut self) -> anyhow::Result<()> {
@@ -3209,8 +3326,8 @@ impl<T: Frontend> App<T> {
     }
 
     #[cfg(test)]
-    fn set_system_clipboard_html(&self, html: &str, alt_text: &str) -> anyhow::Result<()> {
-        Ok(arboard::Clipboard::new()?.set_html(html, Some(alt_text))?)
+    fn set_system_clipboard_content(&self, content: &str) -> anyhow::Result<()> {
+        Ok(arboard::Clipboard::new()?.set_text(content)?)
     }
 
     fn restore_session(&mut self) {
@@ -3608,6 +3725,45 @@ Conflict markers will be injected in areas that cannot be merged gracefully."
             },
         ))
     }
+
+    fn raise_formatter_error(&mut self, formatter_command: FormatterCommand) -> anyhow::Result<()> {
+        if self
+            .context
+            .add_formatter_not_exist_error(&formatter_command)
+        {
+            self.show_global_info(Info::new(
+                "Formatting error".to_string(),
+                format!(
+                    "The formatter `{}` failed to run because it does not exist.\n\
+Please consider installing it.\n\
+(Note: this error will not be shown again in this Ki session.)",
+                    formatter_command.0
+                ),
+            ));
+        }
+
+        Ok(())
+    }
+
+    fn save_as(&mut self) -> anyhow::Result<()> {
+        self.open_prompt(PromptConfig {
+            on_enter: PromptOnEnter::ParseCurrentLine {
+                parser: DispatchParser::SaveAs,
+                history_key: PromptHistoryKey::SaveAs,
+                current_line: Some(self.context.current_working_directory().display_absolute()),
+                suggested_items: vec![],
+            },
+            title: "Save current buffer content to a new file:".to_owned(),
+            on_cancelled: None,
+            on_change: None,
+        })
+    }
+
+    fn save_current_buffer_content_to(&mut self, path: AbsolutePath) -> anyhow::Result<()> {
+        path.write(&self.current_component().borrow().content())?;
+        self.open_file(&path, BufferOwner::User, true, true)?;
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -3679,6 +3835,18 @@ impl Dispatches {
     }
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub enum HistoryNavigationMovement {
+    /// Navigate back across files (coarse)
+    CoarseBack,
+    /// Navigate forward across files (coarse)
+    CoarseForward,
+    /// Navigate back within a file (fine)
+    FineBack,
+    /// Navigate forward within a file (fine)
+    FineForward,
+}
+
 #[must_use]
 #[derive(Clone, Debug, PartialEq, NamedVariant)]
 /// Dispatch are for child component to request action from the root node
@@ -3718,6 +3886,8 @@ pub enum Dispatch {
         scope: Scope,
         include_declaration: bool,
     },
+    RequestIncomingCalls(Scope),
+    RequestOutgoingCalls(Scope),
     PrepareRename,
     RequestCodeAction {
         diagnostics: Vec<lsp_types::Diagnostic>,
@@ -3738,10 +3908,21 @@ pub enum Dispatch {
     SetQuickfixList(QuickfixListType),
     GotoQuickfixListItem(Movement),
     ApplyWorkspaceEdit(WorkspaceEdit),
-    ShowKeymapLegend(KeymapLegendConfig),
-    /// This means showing a momentary layer.
-    ShowKeymapLegendWithReleaseKey(KeymapLegendConfig, ReleaseKey),
-    ShowAppKeymapLegendWithReleaseKey(KeymapLegendConfig, ReleaseKey),
+    ShowMenu(KeymapLegendConfig),
+    ShowMomentaryLayer(KeymapLegendConfig, ReleaseKey),
+    ShowJointMomentaryLayer {
+        swap_key: KeyEvent,
+        active_config: KeymapLegendConfig,
+        release_key: ReleaseKey,
+        inactive_config: KeymapLegendConfig,
+        inactive_tap: Option<OnTap>,
+    },
+    ShowAppMomentaryLayer(KeymapLegendConfig, ReleaseKey),
+    ShowKeymapLegend {
+        on_root: bool,
+        keymap_legend_config: KeymapLegendConfig,
+        release_key: Option<ReleaseKey>,
+    },
     RemainOnlyCurrentComponent,
 
     #[cfg(test)]
@@ -3796,8 +3977,6 @@ pub enum Dispatch {
         scope: Scope,
         if_current_not_found: IfCurrentNotFound,
         run_search_after_config_updated: bool,
-        /// If None, then this search will run in the current component
-        component_id: Option<ComponentId>,
     },
     UpdateGlobalSearchConfig {
         update: GlobalSearchConfigUpdate,
@@ -3838,7 +4017,6 @@ pub enum Dispatch {
     UseLastNonContiguousSelectionMode(IfCurrentNotFound),
     SetLastActionDescription {
         long_description: String,
-        short_description: Option<String>,
     },
     OpenFilterSelectionsPrompt {
         maintain: bool,
@@ -3848,8 +4026,7 @@ pub enum Dispatch {
     SelectCompletionItem,
     SetKeyboardLayout(KeyboardLayout),
     OpenKeyboardLayoutPrompt,
-    NavigateForward,
-    NavigateBack,
+    MovementHistoryNavigation(HistoryNavigationMovement),
     ToggleSelectionMark,
     ToggleFileMark,
     SetFileDirtyStatus {
@@ -3867,9 +4044,8 @@ pub enum Dispatch {
     },
     ShowGlobalInfo(Info),
     #[cfg(test)]
-    SetSystemClipboardHtml {
-        html: &'static str,
-        alt_text: &'static str,
+    SetSystemClipboardContent {
+        content: &'static str,
     },
     AddQuickfixListEntries(Vec<Match>),
     AppliedEdits {
@@ -3904,6 +4080,22 @@ pub enum Dispatch {
     ChangeWorkingDirectory(AbsolutePath),
     OpenChangeWorkingDirectoryPrompt,
     OpenQuickfixItemsPicker,
+    RaiseFormatterNotExist(FormatterCommand),
+    OpenFileExplorer,
+    OpenSaveAsPrompt,
+    SaveCurrentBufferContentTo(AbsolutePath),
+    #[cfg(test)]
+    SetFileContent(AbsolutePath, String),
+    AddCursorToAllSelections,
+    KeepCursorPrimaryOnly,
+    CycleCursor(Direction),
+    DeleteCursor,
+    FilterCursorsMatchingSearch {
+        search: String,
+        maintain: bool,
+    },
+    ToggleRevealSelections,
+    SaveFile,
 }
 
 /// Used to send notify host app about changes
@@ -4059,6 +4251,7 @@ pub enum DispatchParser {
     /// For testing only
     Null,
     ChangeWorkingDirectory,
+    SaveAs,
 }
 
 impl DispatchParser {
@@ -4085,7 +4278,6 @@ impl DispatchParser {
                             scope,
                             if_current_not_found,
                             run_search_after_config_updated,
-                            component_id: None,
                         },
                         Scope::Global => Dispatch::UpdateGlobalSearchConfig {
                             update: GlobalSearchConfigUpdate::Config(search_config),
@@ -4132,12 +4324,12 @@ impl DispatchParser {
                     command: text.to_string(),
                 },
             ))),
-            DispatchParser::FilterSelectionMatchingSearch { maintain } => Ok(Dispatches::one(
-                Dispatch::ToEditor(DispatchEditor::FilterSelectionMatchingSearch {
+            DispatchParser::FilterSelectionMatchingSearch { maintain } => {
+                Ok(Dispatches::one(Dispatch::FilterCursorsMatchingSearch {
                     maintain,
                     search: text.to_string(),
-                }),
-            )),
+                }))
+            }
             DispatchParser::SurroundXmlTag => Ok(Dispatches::one(Dispatch::ToEditor(
                 DispatchEditor::Surround(format!("<{text}>"), format!("</{text}>")),
             ))),
@@ -4146,6 +4338,17 @@ impl DispatchParser {
             DispatchParser::ChangeWorkingDirectory => Ok(Dispatches::one(
                 Dispatch::ChangeWorkingDirectory(text.try_into()?),
             )),
+            DispatchParser::SaveAs => {
+                let path = AbsolutePath::try_from(text)?;
+                if path.exists() {
+                    return Err(anyhow::anyhow!(
+                        "The given path already exists, saving to it would overwrite the file."
+                    ));
+                }
+                Ok(Dispatches::one(Dispatch::SaveCurrentBufferContentTo(
+                    AbsolutePath::try_from(text)?,
+                )))
+            }
         }
     }
 }

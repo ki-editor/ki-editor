@@ -1,8 +1,8 @@
 use std::ops::Range;
 
+use crate::config::AppConfig;
 use itertools::Itertools;
 use lsp_types::CompletionItemKind;
-use shared::icons::get_icon_config;
 
 use crate::{
     app::{Dispatch, Dispatches},
@@ -63,11 +63,20 @@ impl CompletionItem {
     pub fn emoji(&self) -> String {
         self.kind
             .map(|kind| {
-                get_icon_config()
+                let config = AppConfig::singleton().icon_config();
+                config
                     .completion
                     .get(&format!("{kind:?}"))
                     .map(|s| s.to_string())
-                    .unwrap_or_else(|| format!("({kind:?})"))
+                    .unwrap_or_else(|| {
+                        // When icons are disabled the map is empty; show nothing.
+                        // Otherwise surface the kind name so unknown entries are visible.
+                        if config.completion.is_empty() {
+                            String::new()
+                        } else {
+                            format!("({kind:?})")
+                        }
+                    })
             })
             .unwrap_or_default()
     }

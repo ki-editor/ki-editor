@@ -9,7 +9,6 @@ edition = "2021"
 serde_json.workspace = true
 tree-sitter.workspace = true
 anyhow.workspace = true
-once_cell.workspace = true
 serde.workspace = true
 lsp-types.workspace = true
 regex.workspace = true
@@ -62,7 +61,17 @@ tree-sitter-odin = "1.3.0"
 tree-sitter-c-sharp = "0.23.1"
 tree-sitter-fsharp = "0.2.2"
 tree-sitter-perl-next = "0.1.0"
-
+codebook-tree-sitter-latex = "0.6.1"
+tree-sitter-devicetree = "0.15.0"
+tree-sitter-make = "1.1.1"
+tree-sitter-just = "0.2.0"
+tree-sitter-zsh = "0.63.3"
+tree-sitter-jjdescription = { git = "https://github.com/irevoire/tree-sitter-jjdescription/", rev = "671e0d6" }
+tree-sitter-kdl = { git = "https://github.com/tree-sitter-grammars/tree-sitter-kdl", rev = "7dbf219" }
+tree-sitter-gnuplot = { git = "https://github.com/dpezto/tree-sitter-gnuplot", rev = "29586d4" }
+tree-sitter-qmljs = "0.3.0"
+tree-sitter-qmldir = { git = "https://github.com/tree-sitter-grammars/tree-sitter-qmldir", rev = "1fa9200" }
+tree-sitter-glsl = "0.2.0"
 
 [dev-dependencies]
 quickcheck.workspace = true

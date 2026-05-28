@@ -21,7 +21,7 @@ impl Subword {
 
         let predicate = |c: char| {
             if skip_symbols {
-                c.is_ascii_alphanumeric()
+                c.is_alphanumeric()
             } else {
                 !c.is_whitespace()
             }
@@ -51,17 +51,17 @@ impl Subword {
 
         let current_char = buffer.char(current)?;
 
-        if current_char.is_whitespace() || (skip_symbols && !current_char.is_ascii_alphanumeric()) {
+        if current_char.is_whitespace() || (skip_symbols && !current_char.is_alphanumeric()) {
             return Ok(None);
         }
 
-        let range: crate::char_index_range::CharIndexRange = if current_char.is_ascii_lowercase() {
+        let range: crate::char_index_range::CharIndexRange = if current_char.is_lowercase() {
             let start = {
                 let mut index = current;
                 loop {
-                    if index > CharIndex(0) && buffer.char(index - 1)?.is_ascii_lowercase() {
+                    if index > CharIndex(0) && buffer.char(index - 1)?.is_lowercase() {
                         index = index - 1;
-                    } else if index > CharIndex(0) && buffer.char(index - 1)?.is_ascii_uppercase() {
+                    } else if index > CharIndex(0) && buffer.char(index - 1)?.is_uppercase() {
                         break index - 1;
                     } else {
                         break index;
@@ -71,7 +71,7 @@ impl Subword {
             let end = {
                 let mut index = current;
                 loop {
-                    if index < last_char_index && buffer.char(index + 1)?.is_ascii_lowercase() {
+                    if index < last_char_index && buffer.char(index + 1)?.is_lowercase() {
                         index = index + 1;
                     } else {
                         break index;
@@ -79,7 +79,7 @@ impl Subword {
                 }
             };
             start..end + 1
-        } else if current_char.is_ascii_uppercase() {
+        } else if current_char.is_uppercase() {
             let start = {
                 let mut index = current;
                 if index < last_char_index && buffer.char(index + 1)?.is_lowercase() {
@@ -90,7 +90,7 @@ impl Subword {
                             break index;
                         }
                         let char = buffer.char(index - 1)?;
-                        if char.is_ascii_uppercase() {
+                        if char.is_uppercase() {
                             index = index - 1;
                         } else {
                             break index;
@@ -99,23 +99,21 @@ impl Subword {
                 }
             };
             let end = {
-                let mut previous_is_uppercase = buffer.char(current)?.is_ascii_uppercase();
+                let mut previous_is_uppercase = buffer.char(current)?.is_uppercase();
                 let mut index = current;
                 loop {
                     if index >= last_char_index {
                         break index;
                     }
                     let char = buffer.char(index + 1)?;
-                    if char.is_ascii_lowercase() {
-                        previous_is_uppercase = char.is_ascii_uppercase();
+                    if char.is_lowercase() {
+                        previous_is_uppercase = char.is_uppercase();
                         index = index + 1;
-                    } else if previous_is_uppercase && char.is_ascii_uppercase() {
-                        if index < last_char_index - 1
-                            && buffer.char(index + 2)?.is_ascii_lowercase()
-                        {
+                    } else if previous_is_uppercase && char.is_uppercase() {
+                        if index < last_char_index - 1 && buffer.char(index + 2)?.is_lowercase() {
                             break index;
                         } else {
-                            previous_is_uppercase = char.is_ascii_uppercase();
+                            previous_is_uppercase = char.is_uppercase();
                             index = index + 1;
                         }
                     } else {
@@ -360,6 +358,26 @@ mod test_subword {
                 Editor(Copy),
                 Editor(PasteWithMovement(GetGapMovement::Left)),
                 Expect(CurrentComponentContent("foo bar bar\nspam")),
+            ])
+        })
+    }
+
+    #[test]
+    fn should_work_with_non_ascii_characters() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                Editor(SetContent("acquisition de données".to_string())),
+                Editor(SetSelectionMode(
+                    IfCurrentNotFound::LookForward,
+                    SelectionMode::Subword,
+                )),
+                Editor(CursorAddToAllSelections),
+                Expect(CurrentSelectedTexts(&["acquisition", "de", "données"])),
             ])
         })
     }

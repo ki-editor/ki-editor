@@ -62,7 +62,7 @@ impl FileWatcherState {
 
 pub fn watch_file_changes(
     path: &AbsolutePath,
-    app_message_sender: Sender<AppMessage>,
+    app_message_sender: crossbeam_channel::Sender<AppMessage>,
 ) -> anyhow::Result<Sender<FileWatcherInput>> {
     let (file_watcher_input_sender, file_watcher_input_receiver) =
         mpsc::channel::<FileWatcherInput>();
@@ -160,7 +160,12 @@ impl EventHandler {
                             destination,
                         });
                     }
-                } else {
+                }
+                // Only assume that `path` is renamed if `path` no longer exists,
+                // otherwise, it is very likely that `path` is not renamed
+                // but rather the modify event is fired from an unrelated
+                // file change.
+                else if !path.exists() {
                     self.rename_source = Some(path);
                 }
             }

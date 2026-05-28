@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::mpsc::Sender};
+use std::collections::HashMap;
 
 use crate::app::AppMessage;
 
@@ -10,7 +10,7 @@ use shared::{
 
 pub struct LspManager {
     lsp_server_process_channels: HashMap<LanguageId, LspServerProcessChannel>,
-    sender: Sender<AppMessage>,
+    sender: crossbeam_channel::Sender<AppMessage>,
     current_working_directory: AbsolutePath,
     #[cfg(test)]
     /// Used for testing the correctness of LSP requests
@@ -30,7 +30,10 @@ impl Drop for LspManager {
 }
 
 impl LspManager {
-    pub fn new(sender: Sender<AppMessage>, current_working_directory: AbsolutePath) -> LspManager {
+    pub fn new(
+        sender: crossbeam_channel::Sender<AppMessage>,
+        current_working_directory: AbsolutePath,
+    ) -> LspManager {
         LspManager {
             lsp_server_process_channels: HashMap::new(),
             sender,

@@ -8,8 +8,6 @@ static CWD: RwLock<Option<PathBuf>> = RwLock::new(None);
 
 static RUNTIME_DIR: once_cell::sync::Lazy<PathBuf> = once_cell::sync::Lazy::new(get_runtime_dir);
 
-static LOG_FILE: once_cell::sync::OnceCell<PathBuf> = once_cell::sync::OnceCell::new();
-
 // Get the current working directory.
 // This information is managed internally as the call to std::env::current_dir
 // might fail if the cwd has been deleted.
@@ -60,23 +58,11 @@ pub fn runtime_file(rel_path: &Path) -> PathBuf {
 pub fn config_dir() -> PathBuf {
     // TODO: allow env var override
     let strategy = choose_base_strategy().expect("Unable to find the config directory!");
-    let mut path = strategy.config_dir();
-    path.push("ki");
-    path
+    strategy.config_dir().join("ki")
 }
 
 pub fn cache_dir() -> PathBuf {
     // TODO: allow env var override
     let strategy = choose_base_strategy().expect("Unable to find the config directory!");
-    let mut path = strategy.cache_dir();
-    path.push("ki");
-    path
-}
-
-pub fn log_file() -> PathBuf {
-    LOG_FILE.get().map(|path| path.to_path_buf()).unwrap()
-}
-
-pub fn default_log_file() -> PathBuf {
-    cache_dir().join("ki.log")
+    strategy.cache_dir().join("ki")
 }

@@ -1,34 +1,10 @@
-import { useEffect, useState } from "react";
 import { useColorMode } from "@docusaurus/theme-common";
+import { useEffect, useState } from "react";
 
-import * as React from "react";
 import useBaseUrl from "@docusaurus/useBaseUrl";
+import * as React from "react";
+import { useLocalStorage } from "usehooks-ts";
 import * as z from "zod";
-
-// Custom hook for localStorage
-function useLocalStorage<T>(key: string, initialValue: T) {
-    // Initialize state with value from localStorage or initial value
-    const [storedValue, setStoredValue] = useState<T>(() => {
-        try {
-            const item = localStorage.getItem(key);
-            return item ? JSON.parse(item) : initialValue;
-        } catch (error) {
-            console.error(`Error reading localStorage key "${key}":`, error);
-            return initialValue;
-        }
-    });
-
-    // Update localStorage when the state changes
-    useEffect(() => {
-        try {
-            localStorage.setItem(key, JSON.stringify(storedValue));
-        } catch (error) {
-            console.error(`Error writing to localStorage key "${key}":`, error);
-        }
-    }, [key, storedValue]);
-
-    return [storedValue, setStoredValue] as const;
-}
 
 const keymapSchema = z.object({
     name: z.string(),
@@ -58,7 +34,7 @@ const STORAGE_KEYS = {
     PANEL_LAYOUT: "panel-layout",
 } as const;
 
-async function loadKeymap(url: string) {
+export async function loadKeymap(url: string) {
     const response = await fetch(url);
     const json = await response.json();
     console.log(json);
@@ -92,26 +68,28 @@ type GridAlignment = (typeof gridAlignments)[number];
 const panelLayouts = ["Unified", "Split", "Stack"] as const;
 type PanelLayout = (typeof panelLayouts)[number];
 
+export const useChosenKeyboardLayout = () =>
+    useLocalStorage<string>(STORAGE_KEYS.KEYBOARD_LAYOUT, "QWERTY");
+
 const KeymapView = (props: { keymap: Keymap }) => {
     // Using the custom hook for each stored value
-    const [showKeys, setShowKeys] = useLocalStorage(
+    const [showKeys, setShowKeys] = useLocalStorage<boolean>(
         STORAGE_KEYS.SHOW_KEYS,
         true,
     );
+
     const [panelLayout, setPanelLayout] = useLocalStorage<PanelLayout>(
         STORAGE_KEYS.PANEL_LAYOUT,
         "Unified",
     );
+
     const [gridAlignment, setGridAlignment] = useLocalStorage<GridAlignment>(
         STORAGE_KEYS.GRID_ALIGNMENT,
         "Ortholinear",
     );
 
     // Special handling for keyboard layout since we need to find the layout object
-    const [layoutName, setLayoutName] = useLocalStorage(
-        STORAGE_KEYS.KEYBOARD_LAYOUT,
-        props.keymap.keyboard_layouts[0].name,
-    );
+    const [layoutName, setLayoutName] = useChosenKeyboardLayout();
 
     const keyboardLayout = React.useMemo(() => {
         return (
@@ -159,7 +137,7 @@ const KeymapView = (props: { keymap: Keymap }) => {
 
             {showKeys && (
                 <select
-                    value={keyboardLayout.name}
+                    value={keyboardLayout?.name}
                     onChange={(e) => {
                         setLayoutName(e.target.value);
                     }}
@@ -249,7 +227,7 @@ const KeymapView = (props: { keymap: Keymap }) => {
     const renderKeymap = (panel: PanelRenderOption) => {
         const keyPredicate = getKeyPanelFilterPredicate(panel);
         const rows = props.keymap.rows.map((row) => row.filter(keyPredicate));
-        const keyboardLayoutKeys = keyboardLayout.keys.map((row) =>
+        const keyboardLayoutKeys = keyboardLayout?.keys.map((row) =>
             row.filter(keyPredicate),
         );
         const isHomeKey = getIsHomeKeyPredicate(panel);
@@ -303,9 +281,9 @@ const KeymapView = (props: { keymap: Keymap }) => {
                                             }}
                                         >
                                             {
-                                                keyboardLayoutKeys[rowIndex][
-                                                    columnIndex
-                                                ]
+                                                keyboardLayoutKeys?.[
+                                                    rowIndex
+                                                ]?.[columnIndex]
                                             }
                                         </div>
                                     )}

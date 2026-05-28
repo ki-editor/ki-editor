@@ -94,15 +94,6 @@
           echo "0.1.0" > $PWD/VERSION
         '';
 
-        # Function to fix Darwin binaries to use system libiconv
-        fixDarwinBinary = name: binary:
-          pkgs.runCommand name {} ''
-            mkdir -p $out/bin
-            cp ${binary}/bin/ki $out/bin/
-            chmod +w $out/bin/ki
-            ${pkgs.darwin.cctools}/bin/install_name_tool -change "/nix/store/phzzjrksk8nnmjsbrpbkvv4pr383ab6v-libiconv-109/lib/libiconv.2.dylib" "/usr/lib/libiconv.2.dylib" $out/bin/ki
-          '';
-
         # Function to build for a specific target
         mkCrossPackage = {
           targetSystem,
@@ -333,11 +324,8 @@
         };
       in {
         packages = {
-          default =
-            if pkgs.stdenv.isDarwin
-            then fixDarwinBinary "ki-fixed-default" ki-editor
-            else ki-editor;
-          "aarch64-darwin" = fixDarwinBinary "ki-fixed" aarch64-darwin-ki;
+          default = ki-editor;
+          "aarch64-darwin" = aarch64-darwin-ki;
           "x86_64-linux-musl" = x86_64-linux-musl-ki;
           "aarch64-linux" = aarch64-linux-ki;
           "x86_64-windows-gnu" = x86_64-windows-gnu-ki;

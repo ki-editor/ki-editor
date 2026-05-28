@@ -114,7 +114,10 @@
         "mp4": "🎞",
         "mov": "🎞",
         "mp3": "🔈",
-        "wav": "🔈"
+        "wav": "🔈",
+        "keymap": "⌨",
+        "dts": "🪁",
+        "dtsi": "🪁"
     },
     "fileNames": {
         ".gitignore": "🙈",

@@ -4,6 +4,24 @@ sidebar_position: 4
 
 # Core concepts
 
+## 0. Minimal but General (MinGen)
+
+This is a [principle introduced by the Koka language](https://koka-lang.github.io/koka/doc/book.html#why-mingen).
+
+Ki has a small core set of orthogonal, well-tested features, but each of these is as general and composable as possible, such that we do not need specialized keybindings/actions.
+
+For example:
+
+1. Moving to the next line: unlike Vim's `j`, in Ki, first enter the Line selection mode, and then execute the Right movement.
+
+2. Moving to the next word: unlike Vim's `w`, `e` and `b`, in Ki, first enter the Word selection mode, and then execute the Right movement.
+
+3. Jumping to a word: in Ki, first enter the Word selection mode, and then execute Jump.
+
+Avid readers will have noted a pattern here, and this is what Ki strives to achieve in its core.
+
+The following principles can be viewed as extensions of this core principle.
+
 ## 1. All selection modes are equal
 
 Unlike other modal editors [^1], the line & column movements/actions are not given special treatment.

@@ -1,8 +1,6 @@
-use anyhow::Context;
 use indexmap::IndexSet;
 use itertools::Itertools;
 use nonempty::NonEmpty;
-use scraper::{Html, Selector};
 
 #[derive(Clone)]
 pub struct Clipboard {
@@ -10,7 +8,7 @@ pub struct Clipboard {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-/// Why is it a vector?  
+/// Why is it a vector?
 /// Because it needs to support multiple cursors.
 /// The first entry represent the copied text of the first cursor,
 /// and so forth.
@@ -42,102 +40,6 @@ impl Texts {
     pub fn to_text(&self) -> String {
         self.join("\n")
     }
-
-    pub fn to_html(&self) -> String {
-        // Multiple elements (multi-cursor), wrap in HTML format
-        let html = Xml::Node {
-            tag: "div",
-            attributes: vec![XmlAttribute {
-                key: "source",
-                value: "ki-editor".to_string(),
-            }],
-            children: self
-                .texts
-                .iter()
-                .map(|text| Xml::Node {
-                    tag: "div",
-                    attributes: vec![],
-                    children: vec![Xml::Text(text.clone())],
-                })
-                .collect(),
-        };
-        html.stringify()
-    }
-}
-
-enum Xml {
-    Node {
-        tag: &'static str,
-        attributes: Vec<XmlAttribute>,
-        children: Vec<Xml>,
-    },
-    Text(String),
-}
-impl Xml {
-    fn stringify(&self) -> String {
-        match self {
-            Xml::Node {
-                tag,
-                attributes,
-                children,
-            } => {
-                let attributes = attributes
-                    .iter()
-                    .map(|attribute| attribute.stringify())
-                    .join(" ");
-                let children = children.iter().map(|child| child.stringify()).join("\n");
-                format!("<{tag} {attributes}>{children}</{tag}>",)
-            }
-            Xml::Text(text) => escape_xml_text(text),
-        }
-    }
-}
-
-struct XmlAttribute {
-    key: &'static str,
-    value: String,
-}
-impl XmlAttribute {
-    fn stringify(&self) -> String {
-        format!("{}=\"{}\"", self.key, escape_xml_attr(&self.value))
-    }
-}
-
-fn escape_xml_text(s: &str) -> String {
-    s.replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-}
-
-fn escape_xml_attr(s: &str) -> String {
-    s.replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
-}
-
-impl Texts {
-    fn from_html(html: &str) -> anyhow::Result<Self> {
-        let html_doc = Html::parse_document(html);
-        let ki_selector = Selector::parse("div[source='ki-editor'] div")
-            .map_err(|err| anyhow::anyhow!("{err}"))?;
-
-        let texts: Vec<String> = html_doc
-            .select(&ki_selector)
-            .filter_map(|element| {
-                let text = element.text().collect::<String>();
-                if text.is_empty() {
-                    None
-                } else {
-                    Some(text.to_string())
-                }
-            })
-            .collect();
-
-        Ok(Texts::new(NonEmpty::from_vec(texts).ok_or(
-            anyhow::anyhow!("CopiedTexts::from_html: texts is empty"),
-        )?))
-    }
 }
 
 impl Clipboard {
@@ -152,26 +54,30 @@ impl Clipboard {
     }
 
     pub fn get_from_system_clipboard(&self) -> anyhow::Result<Texts> {
-        // Try to parse the HTML as a Ki-injected HTML
-        let mut clipboard = arboard::Clipboard::new()?;
-        clipboard
-            .get()
-            .html()
-            .map_err(|err| anyhow::anyhow!("{err}"))
-            .and_then(|html| Texts::from_html(html.as_str()))
-            .or_else(|_| {
-                Ok(Texts::new(NonEmpty::new(
-                    clipboard.get().text().context("arboard::Get::text")?,
-                )))
-            })
+        let arboard_result = arboard::Clipboard::new()
+            .and_then(|mut clipboard| clipboard.get().text())
+            .ok();
+
+        let latest_ki_entry = self.history.get(0);
+
+        match (arboard_result, latest_ki_entry) {
+            // arboard failed: fall back to ki's history
+            (None, Some(ki_entry)) => Ok(ki_entry),
+            // arboard failed and ki history is empty: error
+            (None, None) => Err(anyhow::anyhow!("system clipboard is inaccessible")),
+            // Content matches ki's entry — use ki's entry to preserve multi-cursor
+            (Some(arboard_text), Some(ki_entry)) if arboard_text == ki_entry.to_text() => {
+                Ok(ki_entry)
+            }
+            // External content or no ki history: return as single-text Texts
+            (Some(arboard_text), _) => Ok(Texts::new(NonEmpty::singleton(arboard_text))),
+        }
     }
 
-    pub fn set(&mut self, copied_texts: Texts) -> anyhow::Result<()> {
-        self.history.add(copied_texts.clone());
-        arboard::Clipboard::new().and_then(|mut clipboard| {
-            clipboard.set_html(copied_texts.to_html(), Some(copied_texts.to_text()))
-        })?;
-        Ok(())
+    /// Adds the copied texts to ki's internal clipboard history.
+    /// The caller is responsible for writing to the system clipboard (e.g. via OSC52).
+    pub fn set(&mut self, copied_texts: Texts) {
+        self.history.add(copied_texts);
     }
 }
 
@@ -180,9 +86,9 @@ pub struct RingHistory<T: Clone> {
     items: IndexSet<T>,
 }
 impl<T: Clone + PartialEq + Eq + std::hash::Hash> RingHistory<T> {
-    /// 0 means latest.  
-    /// -1 means previous.  
-    /// +1 means next.  
+    /// 0 means latest.
+    /// -1 means previous.
+    /// +1 means next.
     pub fn get(&self, history_offset: isize) -> Option<T> {
         let len = self.items.len();
         if len == 0 {

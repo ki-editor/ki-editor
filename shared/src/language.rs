@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use grammar::grammar::GrammarConfiguration;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -73,20 +75,27 @@ pub enum CargoLinkedTreesitterLanguage {
     OCamlInterface,
     Rust,
     Graphql,
+    Gnuplot,
     Javascript,
+    QmlJs,
+    QmlDir,
     JSX,
     Svelte,
     JSON,
     YAML,
     HTML,
     XML,
+    Kdl,
     Zig,
     Markdown,
     Go,
     Lua,
+    JjDescription,
     Gleam,
     Bash,
+    Zsh,
     C,
+    Make,
     CPP,
     CSS,
     Ruby,
@@ -96,6 +105,7 @@ pub enum CargoLinkedTreesitterLanguage {
     Elixir,
     Swift,
     Heex,
+    Latex,
     Toml,
     KiQuickfix,
     Haskell,
@@ -105,6 +115,9 @@ pub enum CargoLinkedTreesitterLanguage {
     Clojure,
     FSharp,
     Scala,
+    Glsl,
+    Devicetree,
+    Just,
 }
 
 impl CargoLinkedTreesitterLanguage {
@@ -124,7 +137,10 @@ impl CargoLinkedTreesitterLanguage {
             }
             CargoLinkedTreesitterLanguage::Rust => tree_sitter_rust::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::Graphql => tree_sitter_graphql::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::Gnuplot => tree_sitter_gnuplot::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::Javascript => tree_sitter_javascript::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::QmlJs => tree_sitter_qmljs::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::QmlDir => tree_sitter_qmldir::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::JSX => tree_sitter_javascript::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::Svelte => tree_sitter_svelte_ng::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::JSON => tree_sitter_json::LANGUAGE.into(),
@@ -132,13 +148,16 @@ impl CargoLinkedTreesitterLanguage {
             CargoLinkedTreesitterLanguage::HTML => tree_sitter_html::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::Haskell => tree_sitter_haskell::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::XML => tree_sitter_xml::LANGUAGE_XML.into(),
+            CargoLinkedTreesitterLanguage::Kdl => tree_sitter_kdl::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::Zig => tree_sitter_zig::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::Markdown => tree_sitter_md::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::Go => tree_sitter_go::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::Lua => tree_sitter_lua::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::Gleam => tree_sitter_gleam::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::Bash => tree_sitter_bash::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::Zsh => tree_sitter_zsh::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::C => tree_sitter_c::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::Make => tree_sitter_make::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::CPP => tree_sitter_cpp::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::CSS => tree_sitter_css::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::Ruby => tree_sitter_ruby::LANGUAGE.into(),
@@ -148,6 +167,7 @@ impl CargoLinkedTreesitterLanguage {
             CargoLinkedTreesitterLanguage::Elixir => tree_sitter_elixir::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::Swift => tree_sitter_swift::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::Heex => tree_sitter_heex::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::Latex => codebook_tree_sitter_latex::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::Toml => tree_sitter_toml_ng::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::KiQuickfix => tree_sitter_quickfix::language(),
             CargoLinkedTreesitterLanguage::Hcl => tree_sitter_hcl::LANGUAGE.into(),
@@ -156,6 +176,12 @@ impl CargoLinkedTreesitterLanguage {
             CargoLinkedTreesitterLanguage::Clojure => tree_sitter_clojure::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::FSharp => tree_sitter_fsharp::LANGUAGE_FSHARP.into(),
             CargoLinkedTreesitterLanguage::Scala => tree_sitter_scala::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::Devicetree => tree_sitter_devicetree::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::Just => tree_sitter_just::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::JjDescription => {
+                tree_sitter_jjdescription::LANGUAGE.into()
+            }
+            CargoLinkedTreesitterLanguage::Glsl => tree_sitter_glsl::LANGUAGE_GLSL.into(),
         }
     }
 
@@ -175,9 +201,12 @@ impl CargoLinkedTreesitterLanguage {
             }
             CargoLinkedTreesitterLanguage::Rust => Some(tree_sitter_rust::HIGHLIGHTS_QUERY),
             CargoLinkedTreesitterLanguage::Graphql => None,
+            CargoLinkedTreesitterLanguage::Gnuplot => Some(tree_sitter_gnuplot::HIGHLIGHTS_QUERY),
             CargoLinkedTreesitterLanguage::Javascript => {
                 Some(tree_sitter_javascript::HIGHLIGHT_QUERY)
             }
+            CargoLinkedTreesitterLanguage::QmlJs => Some(tree_sitter_qmljs::HIGHLIGHTS_QUERY),
+            CargoLinkedTreesitterLanguage::QmlDir => Some(tree_sitter_qmldir::HIGHLIGHTS_QUERY),
             CargoLinkedTreesitterLanguage::JSX => Some(tree_sitter_javascript::HIGHLIGHT_QUERY),
             CargoLinkedTreesitterLanguage::Svelte => Some(tree_sitter_svelte_ng::HIGHLIGHTS_QUERY),
             CargoLinkedTreesitterLanguage::JSON => Some(tree_sitter_json::HIGHLIGHTS_QUERY),
@@ -185,13 +214,16 @@ impl CargoLinkedTreesitterLanguage {
             CargoLinkedTreesitterLanguage::HTML => Some(tree_sitter_html::HIGHLIGHTS_QUERY),
             CargoLinkedTreesitterLanguage::Haskell => Some(tree_sitter_haskell::HIGHLIGHTS_QUERY),
             CargoLinkedTreesitterLanguage::XML => Some(tree_sitter_xml::XML_HIGHLIGHT_QUERY),
+            CargoLinkedTreesitterLanguage::Kdl => Some(tree_sitter_kdl::HIGHLIGHTS_QUERY),
             CargoLinkedTreesitterLanguage::Zig => Some(tree_sitter_zig::HIGHLIGHTS_QUERY),
             CargoLinkedTreesitterLanguage::Markdown => Some(tree_sitter_md::HIGHLIGHT_QUERY_BLOCK),
             CargoLinkedTreesitterLanguage::Go => Some(tree_sitter_go::HIGHLIGHTS_QUERY),
             CargoLinkedTreesitterLanguage::Lua => Some(tree_sitter_lua::HIGHLIGHTS_QUERY),
             CargoLinkedTreesitterLanguage::Gleam => Some(tree_sitter_gleam::HIGHLIGHT_QUERY),
             CargoLinkedTreesitterLanguage::Bash => Some(tree_sitter_bash::HIGHLIGHT_QUERY),
+            CargoLinkedTreesitterLanguage::Zsh => Some(tree_sitter_zsh::HIGHLIGHT_QUERY),
             CargoLinkedTreesitterLanguage::C => Some(tree_sitter_c::HIGHLIGHT_QUERY),
+            CargoLinkedTreesitterLanguage::Make => Some(tree_sitter_make::HIGHLIGHTS_QUERY),
             CargoLinkedTreesitterLanguage::CPP => Some(tree_sitter_cpp::HIGHLIGHT_QUERY),
             CargoLinkedTreesitterLanguage::CSS => Some(tree_sitter_css::HIGHLIGHTS_QUERY),
             CargoLinkedTreesitterLanguage::Ruby => Some(tree_sitter_ruby::HIGHLIGHTS_QUERY),
@@ -201,6 +233,7 @@ impl CargoLinkedTreesitterLanguage {
             CargoLinkedTreesitterLanguage::Elixir => Some(tree_sitter_elixir::HIGHLIGHTS_QUERY),
             CargoLinkedTreesitterLanguage::Swift => Some(tree_sitter_swift::HIGHLIGHTS_QUERY),
             CargoLinkedTreesitterLanguage::Heex => Some(tree_sitter_heex::HIGHLIGHTS_QUERY),
+            CargoLinkedTreesitterLanguage::Latex => None,
             CargoLinkedTreesitterLanguage::Toml => Some(tree_sitter_toml_ng::HIGHLIGHTS_QUERY),
             CargoLinkedTreesitterLanguage::KiQuickfix => Some(r#" (header) @keyword"#),
             CargoLinkedTreesitterLanguage::Hcl => None,
@@ -209,6 +242,14 @@ impl CargoLinkedTreesitterLanguage {
             CargoLinkedTreesitterLanguage::Clojure => None,
             CargoLinkedTreesitterLanguage::FSharp => Some(tree_sitter_fsharp::HIGHLIGHTS_QUERY),
             CargoLinkedTreesitterLanguage::Scala => Some(tree_sitter_scala::HIGHLIGHTS_QUERY),
+            CargoLinkedTreesitterLanguage::Devicetree => {
+                Some(tree_sitter_devicetree::HIGHLIGHTS_QUERY)
+            }
+            CargoLinkedTreesitterLanguage::Just => None,
+            CargoLinkedTreesitterLanguage::JjDescription => {
+                Some(tree_sitter_jjdescription::HIGHLIGHTS_QUERY)
+            }
+            CargoLinkedTreesitterLanguage::Glsl => Some(tree_sitter_glsl::HIGHLIGHTS_QUERY),
         }
     }
 }
@@ -218,6 +259,10 @@ impl CargoLinkedTreesitterLanguage {
 pub struct LspCommand {
     pub(crate) command: Command,
     pub(crate) initialization_options: Option<serde_json::Value>,
+    /// Environment variables to set when spawning the LSP process.
+    /// Example: `{ "CARGO_TARGET_DIR": "target/analyzer" }`
+    #[serde(default)]
+    pub(crate) environment: HashMap<String, String>,
 }
 
 impl Language {
@@ -248,6 +293,13 @@ impl Language {
 
     pub fn block_comment_affixes(&self) -> Option<(String, String)> {
         self.block_comment_affixes.clone()
+    }
+
+    pub fn lsp_environment(&self) -> HashMap<String, String> {
+        self.lsp_command
+            .as_ref()
+            .map(|c| c.environment.clone())
+            .unwrap_or_default()
     }
 }
 
@@ -370,7 +422,11 @@ impl Language {
 
     pub fn lsp_process_command(&self) -> Option<ProcessCommand> {
         self.lsp_command.as_ref().map(|command| {
-            ProcessCommand::new(&command.command.command, &command.command.arguments)
+            ProcessCommand::with_environment(
+                &command.command.command,
+                &command.command.arguments,
+                &command.environment,
+            )
         })
     }
 
