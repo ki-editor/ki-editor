@@ -3018,6 +3018,7 @@ fn request_signature_help() -> anyhow::Result<()> {
                 FromEditor::TextDocumentSignatureHelp(RequestParams {
                     path: s.main_rs(),
                     position: Position::new(0, 3),
+                    selection_end: Position::new(0, 3),
                     context: ResponseContext::default(),
                 }),
             )),
@@ -3026,6 +3027,7 @@ fn request_signature_help() -> anyhow::Result<()> {
                 FromEditor::TextDocumentSignatureHelp(RequestParams {
                     path: s.main_rs(),
                     position: Position::new(0, 2),
+                    selection_end: Position::new(0, 2),
                     context: ResponseContext::default(),
                 }),
             )),
