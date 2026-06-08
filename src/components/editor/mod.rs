@@ -1879,9 +1879,15 @@ impl Editor {
 
     pub fn get_request_params(&self) -> Option<RequestParams> {
         let position = self.get_cursor_position().ok()?;
+        let selection_end = self
+            .buffer
+            .borrow()
+            .char_to_position(self.selection_set.primary_selection().extended_range().end)
+            .unwrap_or(position);
         self.path().map(|path| RequestParams {
             path,
             position,
+            selection_end,
             context: ResponseContext {
                 scope: None,
                 description: None,

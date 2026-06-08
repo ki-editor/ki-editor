@@ -4170,6 +4170,7 @@ impl FilePickerKind {
 pub struct RequestParams {
     pub path: AbsolutePath,
     pub position: Position,
+    pub selection_end: Position,
     pub context: ResponseContext,
 }
 impl RequestParams {

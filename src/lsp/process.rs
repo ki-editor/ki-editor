@@ -1344,6 +1344,7 @@ impl LspServerProcess {
             path,
             position,
             context,
+            ..
         }: RequestParams,
     ) -> anyhow::Result<()> {
         if !self.has_capability(|c| c.definition_provider.is_some()) {
@@ -1369,6 +1370,7 @@ impl LspServerProcess {
             path,
             position,
             context,
+            ..
         }: RequestParams,
         include_declaration: bool,
     ) -> anyhow::Result<()> {
@@ -1505,7 +1507,7 @@ impl LspServerProcess {
                 partial_result_params: PartialResultParams::default(),
                 range: Range {
                     start: params.position.into(),
-                    end: params.position.into(),
+                    end: params.selection_end.into(),
                 },
                 text_document: path_buf_to_text_document_identifier(params.path)?,
                 work_done_progress_params: WorkDoneProgressParams::default(),
