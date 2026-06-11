@@ -1018,7 +1018,7 @@ fn ruby() -> Language {
         file_names: to_vec(&["Gemfile", "Rakefile", "Podfile", "Fastfile", "config.ru"]),
         formatter: Some(Command::new(
             "rubocop",
-            &["--fix-layout", "--stdin", "/dev/null", "--stderr"],
+            &["--fix-layout", "--stdin", "file.rb", "--stderr"],
         )),
         lsp_command: Some(LspCommand {
             command: Command::new("ruby-lsp", &[]),
