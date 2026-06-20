@@ -1,6 +1,6 @@
 # Themes
 
-Ki comes with a default set of inbuilt themes. These can be viewed [here](https://github.com/ki-editor/ki-editor/tree/master/themes).
+Ki comes with a default set of inbuilt themes. These can be viewed [here](https://github.com/ki-editor/ki-editor/tree/master/contrib/themes).
 
 Ki can import themes made for [Zed Editor](https://zed.dev/), examples of imported themes[^1]:
 
