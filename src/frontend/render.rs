@@ -65,8 +65,15 @@ impl<'a> Renderer<'a> {
         ))
     }
 
+    /// Handles transparent backgrounds by resetting to the terminal's default background when the cell has no background or alpha is 0.
     fn background_color(&mut self, cell: &PositionedCell) -> anyhow::Result<()> {
-        self.command(SetBackgroundColor(cell.cell.background_color.into()))
+        let Some(background_color) = cell.cell.background_color else {
+            return self.command(SetBackgroundColor(crossterm::style::Color::Reset));
+        };
+        if background_color.get_alpha() == 0 {
+            return self.command(SetBackgroundColor(crossterm::style::Color::Reset));
+        }
+        self.command(SetBackgroundColor(background_color.into()))
     }
 
     fn foreground_color(&mut self, cell: &PositionedCell) -> anyhow::Result<()> {
@@ -96,7 +103,7 @@ struct TerminalState<'a> {
     underline_color: Option<Color>,
     underline_state: Option<CellLineStyle>,
     foreground_color: Color,
-    background_color: Color,
+    background_color: Option<Color>,
 }
 
 impl<'a> TerminalState<'a> {
@@ -175,6 +182,8 @@ pub(super) fn render_cells(
     for cell in cells {
         terminal_state.render(&cell)?;
     }
+
+    writer.flush()?;
     Ok(())
 }
 

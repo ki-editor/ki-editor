@@ -1037,7 +1037,7 @@ fn ruby() -> Language {
 fn roc() -> Language {
     Language {
         extensions: to_vec(&["roc"]),
-        formatter: Some(Command::new("roc", &["format", "--stdin", "--stdout"])),
+        formatter: Some(Command::new("roc", &["fmt", "--stdin"])),
         lsp_command: None,
         lsp_language_id: Some(LanguageId::new("roc")),
         tree_sitter_grammar_config: Some(GrammarConfig {

@@ -661,6 +661,14 @@ impl Color {
         }
     }
 
+    pub const fn new_with_alpha(r: u8, g: u8, b: u8, a: u8) -> Self {
+        Self { r, g, b, a }
+    }
+
+    pub const fn get_alpha(&self) -> u8 {
+        self.a
+    }
+
     // This is a function that convert RGBA to RGB, based on the given background
     fn apply_alpha(&self, background: Color) -> Color {
         let alpha = self.a as f32 / 255.0;
@@ -671,6 +679,23 @@ impl Color {
     /// 0.5 means 50% opacity
     fn apply_custom_alpha(&self, background: Color, alpha: f32) -> Color {
         let inverted_alpha = 1.0 - alpha;
+        if background.a == 0 {
+            if alpha == 0.0 {
+                return Color {
+                    r: self.r,
+                    g: self.g,
+                    b: self.b,
+                    a: 0,
+                };
+            } else {
+                return Color {
+                    r: self.r,
+                    g: self.g,
+                    b: self.b,
+                    a: u8::MAX,
+                };
+            }
+        }
         Color {
             r: (alpha * self.r as f32 + inverted_alpha * background.r as f32) as u8,
             g: (alpha * self.g as f32 + inverted_alpha * background.g as f32) as u8,
