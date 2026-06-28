@@ -289,6 +289,41 @@ fn global_multicursor_marks() -> Result<(), anyhow::Error> {
     })
 }
 
+// Test after delete cursor, should be able to use normal mode actions, such as `a`
+#[test]
+fn should_be_able_to_use_normal_mode_actions_after_delete_cursor() -> Result<(), anyhow::Error> {
+    execute_test(|s| {
+        Box::new([
+            App(TerminalDimensionChanged(Dimension {
+                width: 100,
+                height: 10,
+            })),
+            App(OpenFile {
+                path: s.gitignore(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            App(ToggleFileMark),
+            App(SetFileContent(s.foo_rs(), "foo1".to_string())),
+            App(SetFileContent(s.main_rs(), "foo2".to_string())),
+            App(OpenSearchPrompt {
+                scope: Scope::Global,
+                if_current_not_found: IfCurrentNotFound::LookForward,
+            }),
+            App(HandleKeyEvents(keys!("r / f o o . enter").to_vec())),
+            WaitForAppMessage(regex!("GlobalSearchFinished")),
+            App(AddCursorToAllSelections),
+            Expect(CurrentSelectedTexts(&["foo1", "foo2"])),
+            // Delete a cursor
+            App(HandleKeyEvents(keys!("b n release-b").to_vec())),
+            Expect(CurrentSelectedTexts(&["foo2"])),
+            // Change to Char selection mode
+            App(HandleKeyEvents(keys!("W").to_vec())),
+            Expect(CurrentSelectedTexts(&["f"])),
+        ])
+    })
+}
+
 #[test]
 fn delete_cursor_should_remove_file_if_the_selection_is_the_only_selection_of_the_file(
 ) -> Result<(), anyhow::Error> {

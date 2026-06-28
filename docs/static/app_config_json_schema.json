@@ -86,6 +86,8 @@
                 "Graphql",
                 "Gnuplot",
                 "Javascript",
+                "QmlJs",
+                "QmlDir",
                 "JSX",
                 "Svelte",
                 "JSON",
@@ -122,6 +124,7 @@
                 "Clojure",
                 "FSharp",
                 "Scala",
+                "Glsl",
                 "Devicetree",
                 "Just"
             ]

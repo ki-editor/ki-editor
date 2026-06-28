@@ -48,6 +48,8 @@ pub fn languages() -> HashMap<String, Language> {
         ("idris", idris()),
         ("haskell", haskell()),
         ("javascript", javascript()),
+        ("qml", qml()),
+        ("qmldir", qmldir()),
         ("javascriptreact", javascriptreact()),
         ("svelte", svelte()),
         ("json", json()),
@@ -80,6 +82,7 @@ pub fn languages() -> HashMap<String, Language> {
         ("zig", zig()),
         ("clojure", clojure()),
         ("scala", scala()),
+        ("glsl", glsl()),
     ]
     .into_iter()
     .map(|(str, language)| (str.to_string(), language))
@@ -686,6 +689,39 @@ fn javascript() -> Language {
     }
 }
 
+fn qml() -> Language {
+    Language {
+        extensions: to_vec(&["qml"]),
+        formatter: None,
+        lsp_command: Some(LspCommand {
+            command: Command::new("qmlls6", &[]),
+            ..LspCommand::default()
+        }),
+        lsp_language_id: Some(LanguageId::new("qmljs")),
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "qmljs".to_string(),
+            kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::QmlJs),
+        }),
+        line_comment_prefix: Some("//".to_string()),
+        block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
+        ..Language::new()
+    }
+}
+
+fn qmldir() -> Language {
+    Language {
+        file_names: to_vec(&["qmldir"]),
+        formatter: None,
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "qmldir".to_string(),
+            kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::QmlDir),
+        }),
+        line_comment_prefix: Some("//".to_string()),
+        block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
+        ..Language::new()
+    }
+}
+
 fn javascriptreact() -> Language {
     Language {
         extensions: to_vec(&["jsx"]),
@@ -725,7 +761,7 @@ fn svelte() -> Language {
 
 fn json() -> Language {
     Language {
-        extensions: to_vec(&["json"]),
+        extensions: to_vec(&["json", "gyp"]),
         formatter: Some(Command::new("prettierd", &[".json"])),
         tree_sitter_grammar_config: Some(GrammarConfig {
             id: "json".to_string(),
@@ -982,7 +1018,7 @@ fn ruby() -> Language {
         file_names: to_vec(&["Gemfile", "Rakefile", "Podfile", "Fastfile", "config.ru"]),
         formatter: Some(Command::new(
             "rubocop",
-            &["--fix-layout", "--stdin", "/dev/null", "--stderr"],
+            &["--fix-layout", "--stdin", "file.rb", "--stderr"],
         )),
         lsp_command: Some(LspCommand {
             command: Command::new("ruby-lsp", &[]),
@@ -1001,7 +1037,7 @@ fn ruby() -> Language {
 fn roc() -> Language {
     Language {
         extensions: to_vec(&["roc"]),
-        formatter: Some(Command::new("roc", &["format", "--stdin", "--stdout"])),
+        formatter: Some(Command::new("roc", &["fmt", "--stdin"])),
         lsp_command: None,
         lsp_language_id: Some(LanguageId::new("roc")),
         tree_sitter_grammar_config: Some(GrammarConfig {
@@ -1266,11 +1302,31 @@ fn scala() -> Language {
     }
 }
 
+fn glsl() -> Language {
+    Language {
+        extensions: to_vec(&["glsl"]),
+        formatter: Some(Command::new("clang-format", &[])),
+        lsp_command: Some(LspCommand {
+            command: Command::new("glsl_analyzer", &[]),
+            ..LspCommand::default()
+        }),
+        lsp_language_id: Some(LanguageId::new("glsl")),
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "glsl".to_string(),
+            kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Glsl),
+        }),
+        line_comment_prefix: Some("//".to_string()),
+        block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
+        ..Language::new()
+    }
+}
+
 #[cfg(test)]
 mod test {
     #[test]
     fn test_languages_match_nvim_treesitter_languages() {
-        const MISSING_NVIM_HIGHLIGHTS: &[&str] = &["dune", "ki_quickfix", "tsq", "jj description"];
+        const MISSING_NVIM_HIGHLIGHTS: &[&str] =
+            &["dune", "ki_quickfix", "tsq", "jj description", "qml"];
 
         // This test is a major consistency check.
         // First, we check that all builtin languages were searched for in nvim-treesitter.

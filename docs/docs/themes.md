@@ -1,6 +1,6 @@
 # Themes
 
-Ki comes with a default set of inbuilt themes. These can be viewed [here](https://github.com/ki-editor/ki-editor/tree/master/themes).
+Ki comes with a default set of inbuilt themes. These can be viewed [here](https://github.com/ki-editor/ki-editor/tree/master/contrib/themes).
 
 Ki can import themes made for [Zed Editor](https://zed.dev/), examples of imported themes[^1]:
 
@@ -38,4 +38,5 @@ Currently, the largest of such communities are Neovim and Helix.
 To avoid further fragmentation, Ki currently downloads highlight queries from [nvim-treesitter](https://github.com/nvim-treesitter/nvim-treesitter)[^2], until there's a standardized editor-agnostic highlight queries repository.
 
 [^1]: See more at [Zed default themes](https://github.com/zed-industries/zed/tree/main/assets/themes)
+
 [^2]: Why not from Helix? Because Helix [precedence ordering](https://github.com/helix-editor/helix/issues/9436) is not compatible with the [tree-sitter-highlight](https://github.com/tree-sitter/tree-sitter/tree/master/highlight) library yet.

@@ -3,7 +3,10 @@ use my_proc_macros::key;
 
 use crate::{
     app::{Dispatch, Dispatches},
-    components::keymap_legend::{KeymapLegendConfig, OnTap, ReleaseKey},
+    components::{
+        editor_keymap::CombinedKeyEvent,
+        keymap_legend::{KeymapLegendConfig, OnTap, ReleaseKey},
+    },
     context::Context,
     keymap_override::{
         momentary_layer::{joint::JointMomentaryLayer, simple::SimpleMomentaryLayer},
@@ -15,7 +18,7 @@ mod joint;
 mod simple;
 
 trait MomentaryLayerBaseTrait {
-    fn handle_press(&mut self, key_event: KeyEvent) -> anyhow::Result<(bool, Dispatches)>;
+    fn handle_press(&mut self, key_event: CombinedKeyEvent) -> anyhow::Result<(bool, Dispatches)>;
     fn tap(&mut self) -> anyhow::Result<Dispatches>;
 }
 
@@ -45,15 +48,12 @@ pub struct MomentaryLayerKeymapOverride {
 impl KeymapOverrideTrait for MomentaryLayerKeymapOverride {
     fn handle_press(
         &mut self,
-        context: &Context,
-        key_event: KeyEvent,
+        _context: &Context,
+        key_event: CombinedKeyEvent,
     ) -> anyhow::Result<Dispatches> {
-        if key_event == key!("esc") {
+        if key_event.original == key!("esc") {
             return Ok(self.close_dispatches());
         }
-        let key_event = context
-            .keyboard_layout()
-            .translate_key_event_to_qwerty(key_event);
         let (key_press, dispatches) = self.base.inner().handle_press(key_event)?;
         self.other_keys_pressed |= key_press;
         Ok(dispatches)
@@ -61,14 +61,10 @@ impl KeymapOverrideTrait for MomentaryLayerKeymapOverride {
 
     fn handle_release(
         &mut self,
-        context: &Context,
-        key_event: KeyEvent,
+        _context: &Context,
+        key_event: CombinedKeyEvent,
     ) -> anyhow::Result<Dispatches> {
-        let key_event = context
-            .keyboard_layout()
-            .translate_key_event_to_qwerty(key_event);
-
-        Ok(if self.release_key == key_event {
+        Ok(if self.release_key == key_event.translated {
             let dispatches = self.close_dispatches();
 
             if !self.other_keys_pressed {
@@ -94,7 +90,7 @@ impl MomentaryLayerKeymapOverride {
                 config,
                 tap: release_key.on_tap().cloned(),
             }),
-            release_key: release_key.key_event().clone(),
+            release_key: release_key.key_event(),
             other_keys_pressed: false,
         }
     }
@@ -110,7 +106,7 @@ impl MomentaryLayerKeymapOverride {
         Self {
             override_scope,
             base: MomentaryLayerBase::Joint(JointMomentaryLayer {
-                tap_key: release_key.key(),
+                tap_key: release_key.key_event(),
                 active: SimpleMomentaryLayer {
                     config: active_config,
                     tap: release_key.on_tap().cloned(),
@@ -121,7 +117,7 @@ impl MomentaryLayerKeymapOverride {
                 },
                 swap_key,
             }),
-            release_key: release_key.key_event().clone(),
+            release_key: release_key.key_event(),
             other_keys_pressed: false,
         }
     }

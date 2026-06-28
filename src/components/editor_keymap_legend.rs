@@ -1,32 +1,27 @@
 use crossterm::event::KeyCode;
 
-use event::{KeyEvent, KeyEventKind};
+use event::KeyEventKind;
 
 use crate::{
     app::{Dispatch, Dispatches},
-    context::Context,
+    components::editor_keymap::CombinedKeyEvent,
     keymap::keymap_universal,
 };
 
 use super::{editor::Editor, keymap_legend::Keymap};
 
 impl Editor {
-    pub fn handle_insert_mode(
-        &self,
-        context: &Context,
-        event: KeyEvent,
-    ) -> anyhow::Result<Dispatches> {
-        let translated_event = context
-            .keyboard_layout()
-            .translate_key_event_to_qwerty(event.clone());
+    pub fn handle_insert_mode(&self, event: CombinedKeyEvent) -> anyhow::Result<Dispatches> {
         if let Some(dispatches) = self
             .insert_mode_keymap(true)
             .iter()
-            .find(|keymap| keymap.event() == &translated_event)
+            .find(|keymap| keymap.event() == &event.translated)
             .map(|keymap| keymap.get_dispatches())
         {
             Ok(dispatches)
-        } else if let (KeyCode::Char(c), KeyEventKind::Press) = (event.code, event.kind) {
+        } else if let (KeyCode::Char(c), KeyEventKind::Press) =
+            (event.original.code, event.original.kind)
+        {
             Ok(Dispatches::one(Dispatch::ToEditor(
                 super::editor::DispatchEditor::InsertChar(c),
             )))
@@ -35,7 +30,10 @@ impl Editor {
         }
     }
 
-    pub fn handle_universal_key(&self, event: &KeyEvent) -> anyhow::Result<Option<Dispatches>> {
+    pub fn handle_universal_key(
+        &self,
+        event: &CombinedKeyEvent,
+    ) -> anyhow::Result<Option<Dispatches>> {
         if let Some(keymap) = Keymap::new(&keymap_universal()).get(event) {
             Ok(Some(keymap.get_dispatches()))
         } else {

@@ -71,6 +71,7 @@ remapping, due to the lack of the concept of [Selection Mode][1], and implementi
 that requires major architectural changes in the core.
 
 [^4]: With [vim-unimpaired](https://github.com/tpope/vim-unimpaired).
+
 [^5]: Keybindings inherited from Vim are omitted.
 
 [1]: normal-mode/selection-modes/index.md

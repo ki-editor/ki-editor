@@ -31,7 +31,7 @@
                 "syntax": {
                     "boolean": { "color": "#4c963e" },
                     "comment": { "color": "#2b685e" },
-                    "comment.documentation": { "color": "#2b685e" },
+                    "comment.doc": { "color": "#2b685e" },
                     "constant": { "color": "#4c963e" },
                     "function": { "color": "#2b685e" },
                     "keyword": { "color": "#4c963e" },
@@ -43,6 +43,7 @@
                     "type": { "color": "#81b5ac" },
                     "operator": { "color": "#4c963e" },
                     "string": { "color": "#4c963e" },
+                    "string.doc": { "color": "#2b685e" },
                     "string.escape": { "color": "#4c963e" },
                     "string.regex": { "color": "#4c963e" },
                     "string.special": { "color": "#4c963e" },
@@ -81,7 +82,7 @@
                 "syntax": {
                     "boolean": { "color": "#4c963e" },
                     "comment": { "color": "#81b5ac" },
-                    "comment.documentation": { "color": "#81b5ac" },
+                    "comment.doc": { "color": "#81b5ac" },
                     "constant": { "color": "#4c963e" },
                     "function": { "color": "#96883e" },
                     "keyword": { "color": "#4c963e" },
@@ -93,6 +94,7 @@
                     "type": { "color": "#883e96" },
                     "operator": { "color": "#4c963e" },
                     "string": { "color": "#883e96" },
+                    "string.doc": { "color": "#81b5ac" },
                     "string.escape": { "color": "#96883e" },
                     "string.regex": { "color": "#963e4c" },
                     "string.special": { "color": "#96883e" },

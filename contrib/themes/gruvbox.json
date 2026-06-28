@@ -352,6 +352,11 @@
             "font_style": null,
             "font_weight": null
           },
+          "string.doc": {
+            "color": "#c6b697ff",
+            "font_style": null,
+            "font_weight": null
+          },
           "string.escape": {
             "color": "#c6b697ff",
             "font_style": null,
@@ -756,6 +761,11 @@
           },
           "string": {
             "color": "#b8bb25ff",
+            "font_style": null,
+            "font_weight": null
+          },
+          "string.doc": {
+            "color": "#c6b697ff",
             "font_style": null,
             "font_weight": null
           },
@@ -1166,6 +1176,11 @@
             "font_style": null,
             "font_weight": null
           },
+          "string.doc": {
+            "color": "#c6b697ff",
+            "font_style": null,
+            "font_weight": null
+          },
           "string.escape": {
             "color": "#c6b697ff",
             "font_style": null,
@@ -1570,6 +1585,11 @@
           },
           "string": {
             "color": "#79740eff",
+            "font_style": null,
+            "font_weight": null
+          },
+          "string.doc": {
+            "color": "#5d544eff",
             "font_style": null,
             "font_weight": null
           },
@@ -1980,6 +2000,11 @@
             "font_style": null,
             "font_weight": null
           },
+          "string.doc": {
+            "color": "#5d544eff",
+            "font_style": null,
+            "font_weight": null
+          },
           "string.escape": {
             "color": "#5d544eff",
             "font_style": null,
@@ -2384,6 +2409,11 @@
           },
           "string": {
             "color": "#79740eff",
+            "font_style": null,
+            "font_weight": null
+          },
+          "string.doc": {
+            "color": "#5d544eff",
             "font_style": null,
             "font_weight": null
           },

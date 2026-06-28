@@ -308,6 +308,10 @@
           "string": {
             "color": "#73c936"
           },
+          "string.doc": {
+            "color": "#73c936",
+            "font_style": "italic"
+          },
           "string.escape": {
             "color": "#9e95c7"
           },

@@ -77,6 +77,8 @@ pub enum CargoLinkedTreesitterLanguage {
     Graphql,
     Gnuplot,
     Javascript,
+    QmlJs,
+    QmlDir,
     JSX,
     Svelte,
     JSON,
@@ -113,6 +115,7 @@ pub enum CargoLinkedTreesitterLanguage {
     Clojure,
     FSharp,
     Scala,
+    Glsl,
     Devicetree,
     Just,
 }
@@ -136,6 +139,8 @@ impl CargoLinkedTreesitterLanguage {
             CargoLinkedTreesitterLanguage::Graphql => tree_sitter_graphql::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::Gnuplot => tree_sitter_gnuplot::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::Javascript => tree_sitter_javascript::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::QmlJs => tree_sitter_qmljs::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::QmlDir => tree_sitter_qmldir::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::JSX => tree_sitter_javascript::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::Svelte => tree_sitter_svelte_ng::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::JSON => tree_sitter_json::LANGUAGE.into(),
@@ -176,6 +181,7 @@ impl CargoLinkedTreesitterLanguage {
             CargoLinkedTreesitterLanguage::JjDescription => {
                 tree_sitter_jjdescription::LANGUAGE.into()
             }
+            CargoLinkedTreesitterLanguage::Glsl => tree_sitter_glsl::LANGUAGE_GLSL.into(),
         }
     }
 
@@ -199,6 +205,8 @@ impl CargoLinkedTreesitterLanguage {
             CargoLinkedTreesitterLanguage::Javascript => {
                 Some(tree_sitter_javascript::HIGHLIGHT_QUERY)
             }
+            CargoLinkedTreesitterLanguage::QmlJs => Some(tree_sitter_qmljs::HIGHLIGHTS_QUERY),
+            CargoLinkedTreesitterLanguage::QmlDir => Some(tree_sitter_qmldir::HIGHLIGHTS_QUERY),
             CargoLinkedTreesitterLanguage::JSX => Some(tree_sitter_javascript::HIGHLIGHT_QUERY),
             CargoLinkedTreesitterLanguage::Svelte => Some(tree_sitter_svelte_ng::HIGHLIGHTS_QUERY),
             CargoLinkedTreesitterLanguage::JSON => Some(tree_sitter_json::HIGHLIGHTS_QUERY),
@@ -241,6 +249,7 @@ impl CargoLinkedTreesitterLanguage {
             CargoLinkedTreesitterLanguage::JjDescription => {
                 Some(tree_sitter_jjdescription::HIGHLIGHTS_QUERY)
             }
+            CargoLinkedTreesitterLanguage::Glsl => Some(tree_sitter_glsl::HIGHLIGHTS_QUERY),
         }
     }
 }

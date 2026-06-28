@@ -62,7 +62,7 @@ use anyhow::ensure;
 use event::{event::Event, KeyEvent, KeyEventKind};
 use indexmap::IndexMap;
 use itertools::{Either, Itertools};
-use my_proc_macros::NamedVariant;
+use my_proc_macros::{key, NamedVariant};
 use nonempty::NonEmpty;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -446,14 +446,20 @@ impl<T: Frontend> App<T> {
             }
             event => {
                 let dispatches = match (event, &mut self.keymap_override) {
-                    (Event::Key(key_event), Some(keymap_override)) => match key_event.kind {
-                        KeyEventKind::Press => {
-                            keymap_override.handle_press(&self.context, key_event)
+                    (Event::Key(key_event), Some(keymap_override)) => {
+                        let combined_key_event = self
+                            .context
+                            .keyboard_layout()
+                            .make_combined_key_event(key_event);
+                        match key_event.kind {
+                            KeyEventKind::Press => {
+                                keymap_override.handle_press(&self.context, combined_key_event)
+                            }
+                            KeyEventKind::Release => {
+                                keymap_override.handle_release(&self.context, combined_key_event)
+                            }
                         }
-                        KeyEventKind::Release => {
-                            keymap_override.handle_release(&self.context, key_event)
-                        }
-                    },
+                    }
                     (event, _) => component.borrow_mut().handle_event(&self.context, event),
                 };
 
@@ -1692,7 +1698,9 @@ impl<T: Frontend> App<T> {
             self.request_syntax_highlight(component_id, batch_id, language, content)?;
         }
         if self.enable_lsp {
-            self.lsp_manager().open_file(path.clone())?;
+            if let Err(err) = self.lsp_manager().open_file(path.clone()) {
+                log::error!("Failed to notify/initialize LSP for {path:?} due to {err:?}");
+            }
         }
 
         self.send_file_watcher_input(FileWatcherInput::SyncOpenedPaths(
@@ -2158,8 +2166,8 @@ impl<T: Frontend> App<T> {
         self.handle_dispatch(Dispatch::ShowMenu(KeymapLegendConfig {
             title: prompt.title.to_string(),
             keymap: Keymap::new(&[
-                Keybinding::new_undocumented("d", "Yes", *prompt.yes),
-                Keybinding::new_undocumented("k", "No", Dispatch::Null),
+                Keybinding::new_undocumented(key!("d"), "Yes", *prompt.yes),
+                Keybinding::new_undocumented(key!("k"), "No", Dispatch::Null),
             ]),
         }))
     }
@@ -2395,6 +2403,11 @@ impl<T: Frontend> App<T> {
     }
 
     pub fn set_global_mode(&mut self, mode: Option<GlobalMode>) -> anyhow::Result<()> {
+        if mode.is_none() && self.multibuffer.is_some() {
+            // Don't allow unsetting the global mode when Global Reveal is active;
+            // otherwise the user won't be able to navigate between files using Left/Right.
+            return Ok(());
+        }
         self.context.set_mode(mode.clone());
         if let Some(GlobalMode::QuickfixListItem) = mode {
             self.goto_quickfix_list_item(Movement::Current(IfCurrentNotFound::LookForward))?;
@@ -3056,13 +3069,19 @@ impl<T: Frontend> App<T> {
         Ok(())
     }
 
-    fn movement_history_navigation(&mut self, movement: Movement) -> anyhow::Result<()> {
+    fn movement_history_navigation(
+        &mut self,
+        movement: HistoryNavigationMovement,
+    ) -> anyhow::Result<()> {
         match movement {
-            Movement::Left => self.navigate_back(),
-            Movement::Right => self.navigate_forward(),
-            Movement::Previous => self.handle_dispatch_editor(DispatchEditor::GoBack),
-            Movement::Next => self.handle_dispatch_editor(DispatchEditor::GoForward),
-            _ => Ok(()),
+            HistoryNavigationMovement::CoarseBack => self.navigate_back(),
+            HistoryNavigationMovement::CoarseForward => self.navigate_forward(),
+            HistoryNavigationMovement::FineBack => {
+                self.handle_dispatch_editor(DispatchEditor::GoBack)
+            }
+            HistoryNavigationMovement::FineForward => {
+                self.handle_dispatch_editor(DispatchEditor::GoForward)
+            }
         }
     }
 
@@ -3816,6 +3835,18 @@ impl Dispatches {
     }
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub enum HistoryNavigationMovement {
+    /// Navigate back across files (coarse)
+    CoarseBack,
+    /// Navigate forward across files (coarse)
+    CoarseForward,
+    /// Navigate back within a file (fine)
+    FineBack,
+    /// Navigate forward within a file (fine)
+    FineForward,
+}
+
 #[must_use]
 #[derive(Clone, Debug, PartialEq, NamedVariant)]
 /// Dispatch are for child component to request action from the root node
@@ -3995,7 +4026,7 @@ pub enum Dispatch {
     SelectCompletionItem,
     SetKeyboardLayout(KeyboardLayout),
     OpenKeyboardLayoutPrompt,
-    MovementHistoryNavigation(Movement),
+    MovementHistoryNavigation(HistoryNavigationMovement),
     ToggleSelectionMark,
     ToggleFileMark,
     SetFileDirtyStatus {
@@ -4139,6 +4170,7 @@ impl FilePickerKind {
 pub struct RequestParams {
     pub path: AbsolutePath,
     pub position: Position,
+    pub selection_end: Position,
     pub context: ResponseContext,
 }
 impl RequestParams {

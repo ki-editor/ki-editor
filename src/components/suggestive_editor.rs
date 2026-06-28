@@ -3,7 +3,7 @@ use crate::context::{Context, GlobalMode};
 use crate::grid::StyleKey;
 use crate::selection::SelectionMode;
 use crate::thread::Callback;
-use event::KeyEventKind;
+use event::{KeyEvent, KeyEventKind};
 use DispatchEditor::*;
 
 use crate::selection_range::SelectionRange;
@@ -77,17 +77,15 @@ impl Component for SuggestiveEditor {
     fn handle_key_event(
         &mut self,
         context: &Context,
-        event: event::KeyEvent,
+        event: KeyEvent,
     ) -> anyhow::Result<Dispatches> {
+        let combined_key_event = context.keyboard_layout().make_combined_key_event(event);
         if self.editor.mode == Mode::Insert && self.completion_dropdown_opened() {
-            let translated_event = context
-                .keyboard_layout()
-                .translate_key_event_to_qwerty(event.clone());
-            if let Some(keymap) = completion_item_keymap().get(&translated_event) {
+            if let Some(keymap) = completion_item_keymap().get(&combined_key_event) {
                 log::info!("dispatches = {:?}", keymap.get_dispatches());
                 return Ok(keymap.get_dispatches());
             };
-            match translated_event {
+            match combined_key_event.translated {
                 key!("down") => return self.next_completion_item(),
                 key!("up") => return self.previous_completion_item(),
                 key!("tab") => return self.select_completion_item(),
@@ -100,7 +98,7 @@ impl Component for SuggestiveEditor {
         // relevant completions.
         Ok(self
             .editor
-            .handle_key_event(context, event.clone())?
+            .handle_key_event(context, event)?
             .chain(match event {
                 key!("esc") => [
                     Dispatch::CloseDropdown,
@@ -1188,15 +1186,19 @@ impl Decoration {
 pub fn completion_item_keymap() -> Keymap {
     Keymap::new(&[
         Keybinding::new_undocumented(
-            alted("l"),
+            alted(key!("l")),
             "Comp →",
             Dispatch::MoveToCompletionItem(Direction::End),
         ),
         Keybinding::new_undocumented(
-            alted("j"),
+            alted(key!("j")),
             "← Comp",
             Dispatch::MoveToCompletionItem(Direction::Start),
         ),
-        Keybinding::new_undocumented(alted("x"), "Replace Comp", Dispatch::SelectCompletionItem),
+        Keybinding::new_undocumented(
+            key!("alt+x"),
+            "Replace Comp",
+            Dispatch::SelectCompletionItem,
+        ),
     ])
 }

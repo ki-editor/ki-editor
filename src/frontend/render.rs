@@ -175,6 +175,8 @@ pub(super) fn render_cells(
     for cell in cells {
         terminal_state.render(&cell)?;
     }
+
+    writer.flush()?;
     Ok(())
 }
 

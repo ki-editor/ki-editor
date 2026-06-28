@@ -28,8 +28,8 @@ pub fn current_working_dir() -> PathBuf {
 fn get_runtime_dir() -> PathBuf {
     use directories::ProjectDirs;
     let project_dirs = ProjectDirs::from("ki", "ki", "ki").unwrap();
-    std::fs::create_dir_all(project_dirs.config_dir()).unwrap();
-    project_dirs.config_dir().into()
+    std::fs::create_dir_all(project_dirs.cache_dir()).unwrap();
+    project_dirs.cache_dir().into()
 }
 
 pub fn runtime_dir() -> &'static PathBuf {

@@ -142,6 +142,7 @@ If the current selection is selecting `use`, the following table demonstrates ho
 <TutorialFallback filename="word"/>
 
 [^1]: This is possible because even Prompt is an editor, so the Word mode also works there. See [Core Concepts](../../core-concepts.md#2-every-component-is-a-buffereditor)
+
 [^1]: This is possible because even Prompt is an editor, so the Word mode also works there. See [Core Concepts](../../core-concepts.md#2-every-component-is-a-buffereditor)
 
 ## `Word*`

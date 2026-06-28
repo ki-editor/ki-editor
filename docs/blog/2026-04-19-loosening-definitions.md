@@ -15,12 +15,12 @@ Hi. I'm Alice Alysia. I have an admission to make! I'm... a Ki addict. In fact, 
 
 On a QWERTY keyboard
 
-| Key | Binding |
-|---|---|
-| Y/P | First/Last |
+| Key | Binding              |
+| --- | -------------------- |
+| Y/P | First/Last           |
 | U/O | Prev/Next (Granular) |
-| J/L | Prev/Next (Neutral) |
-| I/K | Up/Down (Fastest) |
+| J/L | Prev/Next (Neutral)  |
+| I/K | Up/Down (Fastest)    |
 
 The above keys are positional, and as such, simply maintain their physical position on other layouts despite being different letters.
 
@@ -30,13 +30,13 @@ Finding answers to these problems however, isn't easy. Particularly because whil
 
 While we don't want to remove any sense of logic from our bindings, we do want to let ourselves go with the flow a bit more. Hence, we now have the following, slightly adjusted philosophy:
 
-| Key | Binding |
-|---|---|
-| Y/P | First/Last |
+| Key | Binding              |
+| --- | -------------------- |
+| Y/P | First/Last           |
 | U/O | Prev/Next (Flexible) |
-| J/L | Prev/Next (Common) |
-| I/K | Up/Down (Gridwise) |
+| J/L | Prev/Next (Common)   |
+| I/K | Up/Down (Gridwise)   |
 
- In practice, this means that in some modes, u/o will be used for bindings that are more granular than j/l currently are, but from time to time, we may instead make u/o move in a more pronounced way than j/l does. Using our character example from above, this *could* mean having u/o move to the start/end of a word, to allow y/p to become the start/end of line options. Given, this is just an example. Not something set in stone.
- 
+In practice, this means that in some modes, u/o will be used for bindings that are more granular than j/l currently are, but from time to time, we may instead make u/o move in a more pronounced way than j/l does. Using our character example from above, this _could_ mean having u/o move to the start/end of a word, to allow y/p to become the start/end of line options. Given, this is just an example. Not something set in stone.
+
 Getting the philosophical change out of the way was necessary before we could begin considering more complex changes like the functionality of things like word and line mode, but with this done, I'm sure you can see the freedom this introduces, and the ways this can make ki an easier to understand editor, that is also far, far more powerful!
