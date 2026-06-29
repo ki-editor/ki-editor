@@ -27,7 +27,7 @@ pub const LINE_NUMBER_VERTICAL_BORDER: &str = "│";
 pub struct Cell {
     pub symbol: char,
     pub foreground_color: Color,
-    pub background_color: Color,
+    pub background_color: Option<Color>,
     pub line: Option<CellLine>,
     pub is_cursor: bool,
     /// Need for folded sections where the cursor is not in them
@@ -66,10 +66,7 @@ impl Cell {
                 .style
                 .foreground_color
                 .unwrap_or(self.foreground_color),
-            background_color: update
-                .style
-                .background_color
-                .unwrap_or(self.background_color),
+            background_color: update.style.background_color.or(self.background_color),
             line: update.style.line.or(self.line),
             is_cursor: update.is_cursor || self.is_cursor,
             source: update.source.or_else(|| self.source.clone()),
@@ -85,7 +82,7 @@ impl Default for Cell {
         Cell {
             symbol: ' ',
             foreground_color: hex!("#ffffff"),
-            background_color: hex!("#ffffff"),
+            background_color: Some(hex!("#ffffff")),
             line: None,
             is_cursor: false,
             source: None,
@@ -473,11 +470,13 @@ impl Grid {
                             };
                             let style = {
                                 let style = theme.ui.line_number;
-                                style.set_some_background_color(if is_cursor_line_number {
-                                    Some(theme.ui.primary_selection_background)
-                                } else {
-                                    style.background_color
-                                })
+                                style.set_some_background_color_or_transparent(
+                                    if is_cursor_line_number {
+                                        Some(theme.ui.primary_selection_background)
+                                    } else {
+                                        style.background_color
+                                    },
+                                )
                             };
                             grid.get_row_cell_updates(
                                 line_index,
@@ -613,7 +612,7 @@ impl Grid {
 
     fn set_default_style(mut self, theme: &Theme, default_style_key: &StyleKey) -> Grid {
         let style = theme.get_style(default_style_key);
-        let background_color = style.background_color.unwrap_or_default();
+        let background_color = style.background_color;
         let foreground_color = style.foreground_color.unwrap_or_default();
         for row in self.rows.iter_mut() {
             for cell in row {
@@ -973,7 +972,7 @@ mod test_grid {
                 10,
                 cells
                     .iter()
-                    .filter(|cell| cell.cell.background_color == background_color)
+                    .filter(|cell| cell.cell.background_color == Some(background_color))
                     .count()
             );
         }
@@ -1077,7 +1076,7 @@ mod test_cell {
         let cell = Cell {
             symbol: 'a',
             foreground_color: hex!("#aaaaaa"),
-            background_color: hex!("#bbbbbb"),
+            background_color: Some(hex!("#bbbbbb")),
             line: Some(CellLine {
                 color: hex!("#cccccc"),
                 style: CellLineStyle::Undercurl,
@@ -1103,7 +1102,7 @@ mod test_cell {
         });
         assert_eq!(cell.symbol, 'b');
         assert_eq!(cell.foreground_color, hex!("#dddddd"));
-        assert_eq!(cell.background_color, hex!("#eeeeee"));
+        assert_eq!(cell.background_color, hex!("#eeeeee").into());
         assert!(cell.is_cursor);
         assert_eq!(cell.source, Some(StyleKey::UiMark));
         assert_eq!(
