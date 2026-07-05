@@ -273,7 +273,7 @@ impl CargoLinkedTreesitterLanguage {
                 Some(tree_sitter_jjdescription::HIGHLIGHTS_QUERY)
             }
             CargoLinkedTreesitterLanguage::Glsl => Some(tree_sitter_glsl::HIGHLIGHTS_QUERY),
-            CargoLinkedTreesitterLanguage::Roc => None,
+            CargoLinkedTreesitterLanguage::Roc => Some(tree_sitter_roc::HIGHLIGHTS_QUERY),
             CargoLinkedTreesitterLanguage::Idris => Some(arborium_idris::HIGHLIGHTS_QUERY),
             CargoLinkedTreesitterLanguage::Sql => Some(arborium_sql::HIGHLIGHTS_QUERY),
             CargoLinkedTreesitterLanguage::Dockerfile => {
