@@ -126,7 +126,8 @@
                 "Scala",
                 "Glsl",
                 "Devicetree",
-                "Just"
+                "Just",
+                "Roc"
             ]
         },
         "Command": {

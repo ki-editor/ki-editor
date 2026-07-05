@@ -1042,11 +1042,7 @@ fn roc() -> Language {
         lsp_language_id: Some(LanguageId::new("roc")),
         tree_sitter_grammar_config: Some(GrammarConfig {
             id: "roc".to_string(),
-            kind: GrammarConfigKind::FromSource {
-                url: "https://github.com/faldor20/tree-sitter-roc".to_string(),
-                commit: "master".to_string(),
-                subpath: None,
-            },
+            kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Roc),
         }),
         line_comment_prefix: Some("#".to_string()),
         ..Language::new()

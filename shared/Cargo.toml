@@ -72,6 +72,7 @@ tree-sitter-gnuplot = { git = "https://github.com/dpezto/tree-sitter-gnuplot", r
 tree-sitter-qmljs = "0.3.0"
 tree-sitter-qmldir = { git = "https://github.com/tree-sitter-grammars/tree-sitter-qmldir", rev = "1fa9200" }
 tree-sitter-glsl = "0.2.0"
+tree-sitter-roc = { git = "https://github.com/faldor20/tree-sitter-roc", rev = "68f4054" }
 
 [dev-dependencies]
 quickcheck.workspace = true
