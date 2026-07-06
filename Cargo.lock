@@ -2355,6 +2355,7 @@ dependencies = [
  "tree-sitter-qmldir",
  "tree-sitter-qmljs",
  "tree-sitter-quickfix",
+ "tree-sitter-roc",
  "tree-sitter-ruby",
  "tree-sitter-rust",
  "tree-sitter-scala",
@@ -3090,6 +3091,15 @@ version = "0.0.1"
 dependencies = [
  "cc",
  "tree-sitter",
+]
+
+[[package]]
+name = "tree-sitter-roc"
+version = "1.0.0"
+source = "git+https://github.com/faldor20/tree-sitter-roc?rev=68f4054#68f405426d030a7625392aabf41836c1aad05d33"
+dependencies = [
+ "cc",
+ "tree-sitter-language",
 ]
 
 [[package]]
