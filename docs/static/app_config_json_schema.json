@@ -135,7 +135,8 @@
                 "Gitattributes",
                 "Gitcommit",
                 "Rescript",
-                "Typst"
+                "Typst",
+                "Php"
             ]
         },
         "Command": {

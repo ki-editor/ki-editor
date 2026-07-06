@@ -64,6 +64,7 @@ pub fn languages() -> HashMap<String, Language> {
         ("ocaml_interface", ocaml_interface()),
         ("odin", odin()),
         ("dune", dune()),
+        ("php", php()),
         ("python", python()),
         ("perl", perl()),
         ("rescript", rescript()),
@@ -941,6 +942,20 @@ fn dune() -> Language {
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Scheme),
         }),
         line_comment_prefix: Some(";".to_string()),
+        ..Language::new()
+    }
+}
+
+fn php() -> Language {
+    Language {
+        extensions: to_vec(&["php", "php3", "php4", "php5", "php7", "phtml"]),
+        lsp_language_id: Some(LanguageId::new("php")),
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "php".to_string(),
+            kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Php),
+        }),
+        line_comment_prefix: Some("//".to_string()),
+        block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
         ..Language::new()
     }
 }

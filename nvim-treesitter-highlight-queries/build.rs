@@ -49,6 +49,8 @@ const INCLUDED_NVIM_TREESITTER_LANGUAGES: &[&str] = &[
     "ocaml",
     "ocaml_interface",
     "odin",
+    "php",
+    "php_only",
     "python",
     "perl",
     "racket",
