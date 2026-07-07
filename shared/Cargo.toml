@@ -74,6 +74,12 @@ tree-sitter-qmldir = { git = "https://github.com/tree-sitter-grammars/tree-sitte
 tree-sitter-glsl = "0.2.0"
 tree-sitter-roc = { git = "https://github.com/faldor20/tree-sitter-roc", rev = "68f4054" }
 arborium-idris = "2.18.1"
+arborium-sql = "2.18.1"
+arborium-dockerfile = "2.18.1"
+arborium-gitattributes = "2.18.1"
+arborium-rescript = "2.18.1"
+arborium-typst = "2.18.1"
+tree-sitter-gitcommit = "0.5.0"
 
 [dev-dependencies]
 quickcheck.workspace = true
