@@ -88,12 +88,12 @@ jobs:
             --target "${{ needs.prepare.outputs.sha }}" \
             --title "${{ needs.prepare.outputs.version }}" \
             $release_flags \
-            ki-linux-x64/ki-linux-x64 \
-            ki-linux-arm64/ki-linux-arm64 \
-            ki-windows-x64/ki-windows-x64.exe \
-            ki-windows-arm64/ki-windows-arm64.exe \
-            ki-macos-x64/ki-macos-x64 \
-            ki-macos-arm64/ki-macos-arm64
+            ki-linux-x64/ki-linux-x64.tar.gz \
+            ki-linux-arm64/ki-linux-arm64.tar.gz \
+            ki-windows-x64/ki-windows-x64.zip \
+            ki-windows-arm64/ki-windows-arm64.zip \
+            ki-macos-x64/ki-macos-x64.tar.gz \
+            ki-macos-arm64/ki-macos-arm64.tar.gz
 
   channels:
     needs: [prepare, publish]

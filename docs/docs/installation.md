@@ -9,7 +9,9 @@ sidebar_position: 2
 Ki is under heavy development, so prebuilt binaries are published on
 [GitHub releases](https://github.com/ki-editor/ki-editor/releases). Stable
 versions are tagged as `vX.Y.Z`, while snapshot builds are tagged as
-`snapshot-YYYYMMDD-HHMM-SHORTSHA`.
+`snapshot-YYYYMMDD-HHMM-SHORTSHA`. Release assets are published as `.tar.gz`
+archives for Linux and macOS, and `.zip` archives for Windows. Each archive
+contains the executable under `bin/ki` or `bin/ki.exe`.
 
 Release channel metadata is published as plain text files:
 
