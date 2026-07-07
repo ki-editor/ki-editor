@@ -128,7 +128,13 @@
                 "Devicetree",
                 "Just",
                 "Roc",
-                "Idris"
+                "Idris",
+                "Sql",
+                "Dockerfile",
+                "Gitattributes",
+                "Gitcommit",
+                "Rescript",
+                "Typst"
             ]
         },
         "Command": {

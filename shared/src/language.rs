@@ -120,6 +120,12 @@ pub enum CargoLinkedTreesitterLanguage {
     Just,
     Roc,
     Idris,
+    Sql,
+    Dockerfile,
+    Gitattributes,
+    Gitcommit,
+    Rescript,
+    Typst,
 }
 
 impl CargoLinkedTreesitterLanguage {
@@ -186,6 +192,14 @@ impl CargoLinkedTreesitterLanguage {
             CargoLinkedTreesitterLanguage::Glsl => tree_sitter_glsl::LANGUAGE_GLSL.into(),
             CargoLinkedTreesitterLanguage::Roc => tree_sitter_roc::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::Idris => arborium_idris::language().into(),
+            CargoLinkedTreesitterLanguage::Sql => arborium_sql::language().into(),
+            CargoLinkedTreesitterLanguage::Dockerfile => arborium_dockerfile::language().into(),
+            CargoLinkedTreesitterLanguage::Gitattributes => {
+                arborium_gitattributes::language().into()
+            }
+            CargoLinkedTreesitterLanguage::Gitcommit => tree_sitter_gitcommit::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::Rescript => arborium_rescript::language().into(),
+            CargoLinkedTreesitterLanguage::Typst => arborium_typst::language().into(),
         }
     }
 
@@ -256,6 +270,18 @@ impl CargoLinkedTreesitterLanguage {
             CargoLinkedTreesitterLanguage::Glsl => Some(tree_sitter_glsl::HIGHLIGHTS_QUERY),
             CargoLinkedTreesitterLanguage::Roc => None,
             CargoLinkedTreesitterLanguage::Idris => Some(arborium_idris::HIGHLIGHTS_QUERY),
+            CargoLinkedTreesitterLanguage::Sql => Some(arborium_sql::HIGHLIGHTS_QUERY),
+            CargoLinkedTreesitterLanguage::Dockerfile => {
+                Some(arborium_dockerfile::HIGHLIGHTS_QUERY)
+            }
+            CargoLinkedTreesitterLanguage::Gitattributes => {
+                Some(arborium_gitattributes::HIGHLIGHTS_QUERY)
+            }
+            CargoLinkedTreesitterLanguage::Gitcommit => {
+                Some(tree_sitter_gitcommit::HIGHLIGHTS_QUERY)
+            }
+            CargoLinkedTreesitterLanguage::Rescript => Some(arborium_rescript::HIGHLIGHTS_QUERY),
+            CargoLinkedTreesitterLanguage::Typst => Some(arborium_typst::HIGHLIGHTS_QUERY),
         }
     }
 }
