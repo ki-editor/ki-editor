@@ -119,6 +119,7 @@ pub enum CargoLinkedTreesitterLanguage {
     Devicetree,
     Just,
     Roc,
+    Idris,
 }
 
 impl CargoLinkedTreesitterLanguage {
@@ -184,6 +185,7 @@ impl CargoLinkedTreesitterLanguage {
             }
             CargoLinkedTreesitterLanguage::Glsl => tree_sitter_glsl::LANGUAGE_GLSL.into(),
             CargoLinkedTreesitterLanguage::Roc => tree_sitter_roc::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::Idris => arborium_idris::language().into(),
         }
     }
 
@@ -253,6 +255,7 @@ impl CargoLinkedTreesitterLanguage {
             }
             CargoLinkedTreesitterLanguage::Glsl => Some(tree_sitter_glsl::HIGHLIGHTS_QUERY),
             CargoLinkedTreesitterLanguage::Roc => None,
+            CargoLinkedTreesitterLanguage::Idris => Some(arborium_idris::HIGHLIGHTS_QUERY),
         }
     }
 }
