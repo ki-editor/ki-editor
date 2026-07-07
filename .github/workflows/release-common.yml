@@ -1,6 +1,10 @@
 name: release-common
 on:
   workflow_call:
+    inputs:
+      ref:
+        type: string
+        required: false
 
 jobs:
   build:
@@ -33,6 +37,8 @@ jobs:
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.ref }}
       - name: Build
         run: cargo build --profile release-lto --locked
 
@@ -65,6 +71,8 @@ jobs:
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.ref }}
       - name: Get musl
         run: |
           sudo apt install musl-tools

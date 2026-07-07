@@ -4,10 +4,19 @@ sidebar_position: 2
 
 # Installation
 
-## Latest build
+## Prebuilt binaries
 
-Ki is under heavy development, so we recommend downloading the most recent
-[build from github](https://github.com/ki-editor/ki-editor/releases/tag/latest).
+Ki is under heavy development, so prebuilt binaries are published on
+[GitHub releases](https://github.com/ki-editor/ki-editor/releases). Stable
+versions are tagged as `vX.Y.Z`, while snapshot builds are tagged as
+`snapshot-YYYYMMDD-HHMM-SHORTSHA`.
+
+Release channel metadata is published as plain text files:
+
+- `https://ki-editor.github.io/ki-editor/channels/stable-latest.txt`
+- `https://ki-editor.github.io/ki-editor/channels/stable-versions.txt`
+- `https://ki-editor.github.io/ki-editor/channels/snapshot-latest.txt`
+- `https://ki-editor.github.io/ki-editor/channels/snapshot-versions.txt`
 
 ## VS Code Extension
 

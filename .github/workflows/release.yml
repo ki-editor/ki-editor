@@ -1,15 +1,74 @@
 name: release
+
 on:
   push:
     tags:
-      - v[0-9]+.[0-9]+.[0-9]+
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch, tag, or commit SHA to release as a snapshot
+        required: true
+        default: master
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  SNAPSHOT_KEEP: 14
 
 jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      kind: ${{ steps.release.outputs.kind }}
+      ref: ${{ steps.release.outputs.ref }}
+      sha: ${{ steps.release.outputs.sha }}
+      version: ${{ steps.release.outputs.version }}
+    steps:
+      - name: Checkout snapshot ref
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+
+      - name: Checkout release tag
+        if: github.event_name != 'workflow_dispatch'
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 0
+
+      - name: Determine release version
+        id: release
+        run: |
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+            sha="$(git rev-parse HEAD)"
+
+            echo "kind=snapshot" >> "$GITHUB_OUTPUT"
+            echo "ref=$sha" >> "$GITHUB_OUTPUT"
+            echo "sha=$sha" >> "$GITHUB_OUTPUT"
+            echo "version=snapshot-$(date -u +%Y%m%d-%H%M)-${sha::7}" >> "$GITHUB_OUTPUT"
+          elif [[ "${GITHUB_REF_NAME}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "kind=stable" >> "$GITHUB_OUTPUT"
+            echo "ref=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+            echo "sha=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+            echo "version=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          else
+            echo "Unsupported release tag: ${GITHUB_REF_NAME}" >&2
+            exit 1
+          fi
+
   build:
+    needs: [prepare]
     uses: ./.github/workflows/release-common.yml
-  
+    with:
+      ref: ${{ needs.prepare.outputs.ref }}
+
   publish:
-    needs: [build]
+    needs: [prepare, build]
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -20,10 +79,97 @@ jobs:
       - uses: actions/download-artifact@v7
       - name: Publish release
         run: |
-          gh release create ${{ github.ref_name }} --title ${{ github.ref_name }} \
+          release_flags=
+          if [ "${{ needs.prepare.outputs.kind }}" = "snapshot" ]; then
+            release_flags=--prerelease
+          fi
+
+          gh release create "${{ needs.prepare.outputs.version }}" \
+            --target "${{ needs.prepare.outputs.sha }}" \
+            --title "${{ needs.prepare.outputs.version }}" \
+            $release_flags \
             ki-linux-x64/ki-linux-x64 \
             ki-linux-arm64/ki-linux-arm64 \
             ki-windows-x64/ki-windows-x64.exe \
             ki-windows-arm64/ki-windows-arm64.exe \
             ki-macos-x64/ki-macos-x64 \
             ki-macos-arm64/ki-macos-arm64
+
+  channels:
+    needs: [prepare, publish]
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout gh-pages
+        uses: actions/checkout@v6
+        with:
+          ref: gh-pages
+          path: gh-pages
+
+      - name: Update channel metadata
+        working-directory: gh-pages
+        run: |
+          set -eu
+
+          version="${{ needs.prepare.outputs.version }}"
+          kind="${{ needs.prepare.outputs.kind }}"
+
+          mkdir -p channels
+
+          if [ "$kind" = "stable" ]; then
+            printf '%s\n' "$version" > channels/stable-latest.txt
+            touch channels/stable-versions.txt
+            grep -qxF "$version" channels/stable-versions.txt || printf '%s\n' "$version" >> channels/stable-versions.txt
+          else
+            printf '%s\n' "$version" > channels/snapshot-latest.txt
+            touch channels/snapshot-versions.txt
+            { printf '%s\n' "$version"; grep -vxF "$version" channels/snapshot-versions.txt || true; } \
+              | head -n "$SNAPSHOT_KEEP" > channels/snapshot-versions.txt.tmp
+            mv channels/snapshot-versions.txt.tmp channels/snapshot-versions.txt
+          fi
+
+          if [ -z "$(git status --porcelain -- channels)" ]; then
+            exit 0
+          fi
+
+          git config user.name github-actions[bot]
+          git config user.email github-actions[bot]@users.noreply.github.com
+          git add channels
+          git commit -m "Update release channel metadata for $version"
+          git push
+
+  gc-snapshots:
+    if: needs.prepare.outputs.kind == 'snapshot'
+    needs: [prepare, channels]
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout gh-pages
+        uses: actions/checkout@v6
+        with:
+          ref: gh-pages
+          path: gh-pages
+
+      - name: Delete expired snapshot releases
+        working-directory: gh-pages
+        run: |
+          set -eu
+
+          keep_file="channels/snapshot-versions.txt"
+
+          gh release list \
+            --repo "$GITHUB_REPOSITORY" \
+            --limit 1000 \
+            --json tagName \
+            --jq '.[].tagName | select(startswith("snapshot-"))' \
+            | while IFS= read -r tag; do
+                if ! grep -qxF "$tag" "$keep_file"; then
+                  gh release delete "$tag" --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes
+                fi
+              done
