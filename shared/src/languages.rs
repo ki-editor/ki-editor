@@ -642,11 +642,7 @@ fn idris() -> Language {
         lsp_language_id: Some(LanguageId::new("idris")),
         tree_sitter_grammar_config: Some(GrammarConfig {
             id: "idris".to_string(),
-            kind: GrammarConfigKind::FromSource {
-                url: "https://github.com/kayhide/tree-sitter-idris".to_string(),
-                commit: "main".to_string(),
-                subpath: None,
-            },
+            kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Idris),
         }),
         ..Language::new()
     }

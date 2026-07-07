@@ -127,7 +127,8 @@
                 "Glsl",
                 "Devicetree",
                 "Just",
-                "Roc"
+                "Roc",
+                "Idris"
             ]
         },
         "Command": {
