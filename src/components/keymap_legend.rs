@@ -329,8 +329,12 @@ impl KeymapLegend {
     }
 
     fn display(&self, layout: Option<&KeyboardLayout>) -> String {
+        // Generate the content one column narrower than the rectangle. The
+        // editor soft-wraps at `width - 1` (one column is reserved for the
+        // cursor at the last column), so content spanning the full rectangle
+        // width would wrap and double up each keyboard row.
         let content = self.config.display(
-            self.editor.rectangle().width,
+            self.editor.rectangle().width.saturating_sub(1),
             &KeymapDisplayOption {
                 show_alt: true,
                 show_shift: true,

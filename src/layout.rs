@@ -4,6 +4,7 @@ use crate::config::from_extension;
 use crate::position::Position;
 //.dn.
 use crate::components::component::RenderTitleMode;  // for title height calculation
+use crate::soft_wrap;  // for measuring the keymap legend's wrapped height
 //.dn.
 use crate::context::Context;
 use crate::quickfix_list::QuickfixList;
@@ -135,70 +136,96 @@ impl Layout {
 
         //*** Start of Mod .dn.
 
-        let (layout_kind_val, ratio) = layout_kind();  // renamed to avoid shadowing
+        let (layout_kind_val, ratio) = layout_kind();
         let components = self.components();
 
-         // Check if keymap legend is present (dynamic overlay)
-         let keymap_opt = components.iter().find(|c| c.kind() == ComponentKind::KeymapLegend);
-         let (tiled_components, keymap_height) = match keymap_opt {
-             Some(keymap_node) => {
-                 // Keep borrow alive through both content and title calculations
-                 let keymap_comp = keymap_node.component();
-                 let comp_ref = keymap_comp.borrow();
-                 let editor = comp_ref.editor();
-                 let content_height = editor
-                     .buffer()
-                     .rope()
-                     .len_lines()
-                     .max(1); // at least 1 line
+        // Reserve space at the bottom for a keymap legend overlay, if present.
+        // The borrow is scoped to this block so the component is free to be
+        // mutably borrowed again when rectangles are assigned below.
+        let keymap_height = components
+            .iter()
+            .find(|c| c.kind() == ComponentKind::KeymapLegend)
+            .map(|keymap| {
+                // The keymap legend always spans the full terminal width. Its
+                // content is generated from the current rectangle width, so we
+                // must refresh it at the correct width *before* measuring its
+                // height. `KeymapLegend::set_rectangle` refreshes using the
+                // rectangle it *already* has, so we set the editor's width
+                // first and then call `set_rectangle`: that way its refresh
+                // regenerates the content at the new width. Measuring from the
+                // previous width's content yields a stale height: too short when
+                // the terminal narrows (content wraps and overflows upward) and
+                // too tall when it widens again, leaving uncleared editor
+                // content above the help pane.
+                {
+                    let component = keymap.component();
+                    let mut comp = component.borrow_mut();
+                    let mut rectangle = comp.editor().rectangle().clone();
+                    rectangle.width = self.terminal_dimension.width;
+                    comp.editor_mut().set_rectangle(rectangle.clone(), context);
+                    comp.set_rectangle(rectangle, context);
+                }
 
-                 // Account for title lines
-                 let title_lines = editor
-                     .title(context, &self.terminal_dimension, &RenderTitleMode::Tabline)
-                     .lines()
-                     .count();
-                 let total_height = content_height + title_lines;
+                let component = keymap.component();
+                let comp_ref = component.borrow();
+                let editor = comp_ref.editor();
+                // Measure the *wrapped* height, not the buffer's line count.
+                // The editor soft-wraps each line at `width - 1` (one column is
+                // reserved for the cursor), so a content line spanning the full
+                // rectangle width is rendered as two visual lines. Counting
+                // `len_lines()` here would undercount the real height, leaving
+                // the menu too short and its lines overflowing/wrapping.
+                let content = editor.buffer().content();
+                let content_height = soft_wrap::soft_wrap(&content, self.terminal_dimension.width)
+                    .wrapped_lines_count()
+                    .max(1);
+                let title_lines = editor
+                    .title(context, &self.terminal_dimension, &RenderTitleMode::Tabline)
+                    .lines()
+                    .count();
+                let total_height = content_height + title_lines;
 
-                 // Clamp to terminal height
-                 let total_height = total_height.min(self.terminal_dimension.height);
+                // Always leave at least one line for the tiled area so it never
+                // shrinks to nothing, and never exceed the terminal height.
+                total_height.min(self.terminal_dimension.height.saturating_sub(1))
+            })
+            .unwrap_or(0);
 
-                 let tiled: Vec<_> = components.iter()
-                     .filter(|c| c.kind() != ComponentKind::KeymapLegend)
-                     .collect();
-                 (tiled, total_height)
-             }
-             None => (components.iter().collect(), 0),
-         };
-
-        // Tiled area occupies all space except bottom keymap band
+        // Tiled area occupies all space except the bottom keymap band.
         let tiled_height = self.terminal_dimension.height.saturating_sub(keymap_height);
         let tiled_dimension = Dimension {
             width: self.terminal_dimension.width,
             height: tiled_height,
         };
 
-         // Generate tiled rectangles for non-keymap components
-         let (tiled_rectangles, borders) = if tiled_components.is_empty() {
-             (vec![], vec![])
-         } else {
-             Rectangle::generate(layout_kind_val, tiled_components.len(), ratio, tiled_dimension)
-         };
+        let tiled_components: Vec<_> = components
+            .iter()
+            .filter(|c| c.kind() != ComponentKind::KeymapLegend)
+            .collect();
 
-        // Assign rectangles: tiled components get their rectangles; keymap gets bottom overlay
+        // Generate tiled rectangles for the non-keymap components.
+        let (tiled_rectangles, borders) = if tiled_components.is_empty() {
+            (Vec::new(), Vec::new())
+        } else {
+            Rectangle::generate(layout_kind_val, tiled_components.len(), ratio, tiled_dimension)
+        };
+
+        // Assign rectangles: tiled components get their rectangles; the keymap
+        // legend gets the reserved bottom overlay.
         let mut rectangles = Vec::with_capacity(components.len());
         let mut tiled_iter = tiled_rectangles.into_iter();
         for component in components {
             let rect = if component.kind() == ComponentKind::KeymapLegend {
                 Rectangle {
-                    origin: Position::new(
-                        self.terminal_dimension.height.saturating_sub(keymap_height),
-                                          0,
-                    ),
+                    origin: Position::new(tiled_height, 0),
                     width: self.terminal_dimension.width,
                     height: keymap_height,
                 }
             } else {
-                tiled_iter.next().expect("tiled rectangle missing")
+                // `Rectangle::generate` returns one rectangle per tiled
+                // component, so this should always be `Some`. Fall back to a
+                // zero-sized rectangle instead of panicking if it ever isn't.
+                tiled_iter.next().unwrap_or_default()
             };
             component.component().borrow_mut().set_rectangle(rect.clone(), context);
             rectangles.push(rect);
