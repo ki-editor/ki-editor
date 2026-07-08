@@ -48,7 +48,38 @@ impl Style {
         }
     }
 
+    pub const fn background_color_or_transparent(self, color: Color) -> Style {
+        if color.get_alpha() == 0 {
+            return Style {
+                background_color: None,
+                ..self
+            };
+        }
+        Style {
+            background_color: Some(color),
+            ..self
+        }
+    }
+
     pub fn set_some_background_color(self, background_color: Option<Color>) -> Style {
+        Style {
+            background_color,
+            ..self
+        }
+    }
+
+    pub fn set_some_background_color_or_transparent(
+        self,
+        background_color: Option<Color>,
+    ) -> Style {
+        if let Some(background_color) = background_color {
+            if background_color.get_alpha() == 0 {
+                return Style {
+                    background_color: None,
+                    ..self
+                };
+            }
+        }
         Style {
             background_color,
             ..self

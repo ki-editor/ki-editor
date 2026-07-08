@@ -148,6 +148,15 @@ pub const BUILTIN_KEYBOARD_LAYOUTS: &[(&str, KeyboardLayoutKeys)] = &[
             ['k', 'y', '.', '\'', 'x', 'j', 'v', 'w', 'b', 'z'],
         ],
     ),
+    (
+        "ENTHIUM",
+        // Refer https://github.com/sunaku/enthium
+        [
+            ['q', 'y', 'o', 'u', '=', 'x', 'l', 'd', 'p', 'z'],
+            ['c', 'i', 'a', 'e', '-', 'k', 'h', 't', 'n', 's'],
+            ['\'', ',', '.', ';', '/', 'j', 'm', 'g', 'f', 'v'],
+        ],
+    ),
 ];
 
 pub fn builtin_layout_map() -> HashMap<String, KeyboardLayout> {

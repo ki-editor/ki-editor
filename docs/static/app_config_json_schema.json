@@ -126,7 +126,15 @@
                 "Scala",
                 "Glsl",
                 "Devicetree",
-                "Just"
+                "Just",
+                "Roc",
+                "Idris",
+                "Sql",
+                "Dockerfile",
+                "Gitattributes",
+                "Gitcommit",
+                "Rescript",
+                "Typst"
             ]
         },
         "Command": {

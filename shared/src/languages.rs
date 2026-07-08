@@ -333,11 +333,7 @@ fn dockerfile() -> Language {
         file_names: to_vec(&["Dockerfile"]),
         tree_sitter_grammar_config: Some(GrammarConfig {
             id: "dockerfile".to_string(),
-            kind: GrammarConfigKind::FromSource {
-                url: "https://github.com/camdencheek/tree-sitter-dockerfile".to_string(),
-                commit: "main".to_string(),
-                subpath: None,
-            },
+            kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Dockerfile),
         }),
         line_comment_prefix: Some("#".to_string()),
         ..Language::new()
@@ -389,12 +385,7 @@ fn gitattributes() -> Language {
         file_names: to_vec(&[".gitattributes"]),
         tree_sitter_grammar_config: Some(GrammarConfig {
             id: "gitattributes".to_string(),
-            kind: GrammarConfigKind::FromSource {
-                url: "https://github.com/tree-sitter-grammars/tree-sitter-gitattributes"
-                    .to_string(),
-                commit: "master".to_string(),
-                subpath: None,
-            },
+            kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Gitattributes),
         }),
         line_comment_prefix: Some("#".to_string()),
         ..Language::new()
@@ -406,11 +397,7 @@ fn gitcommit() -> Language {
         file_names: to_vec(&["COMMIT_EDITMSG"]),
         tree_sitter_grammar_config: Some(GrammarConfig {
             id: "gitcommit".to_string(),
-            kind: GrammarConfigKind::FromSource {
-                url: "https://github.com/gbprod/tree-sitter-gitcommit".to_string(),
-                commit: "main".to_string(),
-                subpath: None,
-            },
+            kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Gitcommit),
         }),
         line_comment_prefix: Some("#".to_string()),
         ..Language::new()
@@ -642,11 +629,7 @@ fn idris() -> Language {
         lsp_language_id: Some(LanguageId::new("idris")),
         tree_sitter_grammar_config: Some(GrammarConfig {
             id: "idris".to_string(),
-            kind: GrammarConfigKind::FromSource {
-                url: "https://github.com/kayhide/tree-sitter-idris".to_string(),
-                commit: "main".to_string(),
-                subpath: None,
-            },
+            kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Idris),
         }),
         ..Language::new()
     }
@@ -1000,11 +983,7 @@ fn rescript() -> Language {
         lsp_language_id: Some(LanguageId::new("rescript")),
         tree_sitter_grammar_config: Some(GrammarConfig {
             id: "rescript".to_string(),
-            kind: GrammarConfigKind::FromSource {
-                url: "https://github.com/rescript-lang/tree-sitter-rescript".to_string(),
-                commit: "main".to_string(),
-                subpath: None,
-            },
+            kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Rescript),
         }),
         line_comment_prefix: Some("//".to_string()),
         block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
@@ -1042,11 +1021,7 @@ fn roc() -> Language {
         lsp_language_id: Some(LanguageId::new("roc")),
         tree_sitter_grammar_config: Some(GrammarConfig {
             id: "roc".to_string(),
-            kind: GrammarConfigKind::FromSource {
-                url: "https://github.com/faldor20/tree-sitter-roc".to_string(),
-                commit: "master".to_string(),
-                subpath: None,
-            },
+            kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Roc),
         }),
         line_comment_prefix: Some("#".to_string()),
         ..Language::new()
@@ -1078,11 +1053,7 @@ fn sql() -> Language {
         formatter: Some(Command::new("sql-formatter", &["--language", "postgresql"])),
         tree_sitter_grammar_config: Some(GrammarConfig {
             id: "sql".to_string(),
-            kind: GrammarConfigKind::FromSource {
-                url: "https://github.com/DerekStride/tree-sitter-sql".to_string(),
-                commit: "25f94f998de79bae9df28add9782f9ea6ea0e2b8".to_string(),
-                subpath: None,
-            },
+            kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Sql),
         }),
         line_comment_prefix: Some("--".to_string()),
         block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
@@ -1120,11 +1091,7 @@ fn typst() -> Language {
         lsp_language_id: Some(LanguageId::new("typst")),
         tree_sitter_grammar_config: Some(GrammarConfig {
             id: "typst".to_string(),
-            kind: GrammarConfigKind::FromSource {
-                url: "https://github.com/uben0/tree-sitter-typst".to_string(),
-                commit: "master".to_string(),
-                subpath: None,
-            },
+            kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Typst),
         }),
         block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
         ..Language::new()

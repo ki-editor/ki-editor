@@ -1485,6 +1485,13 @@ pub struct ThemeStyleContent {
     #[doc = "Border color. Used for most borders, is usually a high contrast color."]
     #[serde(default, skip_serializing_if = "::std::option::Option::is_none")]
     pub border: ::std::option::Option<::std::string::String>,
+    #[doc = "Background appearance, one from [`opaque`, `blurred`, `transparent`]"]
+    #[serde(
+        rename = "background.appearance",
+        default,
+        skip_serializing_if = "::std::option::Option::is_none"
+    )]
+    pub background_appearance: ::std::option::Option<::std::string::String>,
     #[doc = "Border color. Used for disabled elements, like a disabled input or button."]
     #[serde(
         rename = "border.disabled",
@@ -2411,6 +2418,7 @@ impl ::std::default::Default for ThemeStyleContent {
             warning: Default::default(),
             warning_background: Default::default(),
             warning_border: Default::default(),
+            background_appearance: Default::default(),
         }
     }
 }

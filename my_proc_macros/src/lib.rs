@@ -42,18 +42,37 @@ pub fn keys(input: TokenStream) -> TokenStream {
 #[proc_macro]
 pub fn hex(input: TokenStream) -> TokenStream {
     let hex = remove_quotes(input);
-    let regex = regex::Regex::new(r"^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$").unwrap();
+    let regex = regex::Regex::new(r"^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3}|[A-Fa-f0-9]{8})$").unwrap();
     if !regex.is_match(&hex) {
         panic!("Invalid hex color: {hex}");
     }
 
     let hex = &hex[1..];
 
+    if hex.len() == 3 {
+        let r_single = u8::from_str_radix(&hex[0..1], 16).unwrap();
+        let g_single = u8::from_str_radix(&hex[1..2], 16).unwrap();
+        let b_single = u8::from_str_radix(&hex[2..3], 16).unwrap();
+
+        let r = (r_single << 4) + r_single;
+        let g = (g_single << 4) + g_single;
+        let b = (b_single << 4) + b_single;
+        return format!("crate::themes::Color::new({r}, {g}, {b})")
+            .parse()
+            .unwrap();
+    }
+
     let r = u8::from_str_radix(&hex[0..2], 16).unwrap();
     let g = u8::from_str_radix(&hex[2..4], 16).unwrap();
     let b = u8::from_str_radix(&hex[4..6], 16).unwrap();
 
-    format!("crate::themes::Color::new({r}, {g}, {b})")
+    let a = if hex.len() == 8 {
+        u8::from_str_radix(&hex[6..8], 16).unwrap()
+    } else {
+        u8::MAX
+    };
+
+    format!("crate::themes::Color::new_with_alpha({r}, {g}, {b}, {a})")
         .parse()
         .unwrap()
 }

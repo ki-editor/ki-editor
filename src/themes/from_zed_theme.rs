@@ -8,6 +8,15 @@ use my_proc_macros::hex;
 use zed_theme::*;
 
 pub(super) fn from_theme_content(theme: ThemeContent) -> Theme {
+    let is_background_transparent = matches!(
+        theme
+            .style
+            .background_appearance
+            .as_deref()
+            .unwrap_or_default(),
+        "transparent" | "blurred"
+    );
+
     let background = theme
         .style
         .editor_background
@@ -22,6 +31,7 @@ pub(super) fn from_theme_content(theme: ThemeContent) -> Theme {
         hex.as_ref()
             .and_then(|hex| Some(Color::from_hex(hex).ok()?.apply_alpha(background)))
     };
+
     let text_color = from_some_hex(&theme.style.text).unwrap_or_else(|| match theme.appearance {
         AppearanceContent::Light => hex!("#000000"),
         AppearanceContent::Dark => hex!("#ffffff"),
@@ -41,6 +51,9 @@ pub(super) fn from_theme_content(theme: ThemeContent) -> Theme {
         .unwrap_or_default();
     let get_cursor_style = |background: Color| {
         let foreground = primary_cursor_background.get_contrasting_color();
+        if background.get_alpha() == 0 {
+            return Style::new().foreground_color(foreground);
+        }
         Style::new()
             .background_color(background)
             .foreground_color(foreground)
@@ -59,13 +72,15 @@ pub(super) fn from_theme_content(theme: ThemeContent) -> Theme {
     let window_title_focused_foreground = from_some_hex(&theme.style.tab_bar_background);
     let window_title_focused = Style::new()
         .set_some_foreground_color(window_title_focused_foreground)
-        .set_some_background_color(Some(text_color));
+        .set_some_background_color_or_transparent(Some(text_color));
     let window_title_unfocused = Style::new()
         .foreground_color(text_color)
-        .set_some_background_color(from_some_hex(&theme.style.tab_inactive_background));
+        .set_some_background_color_or_transparent(from_some_hex(
+            &theme.style.tab_inactive_background,
+        ));
     let focused_tab = Style::new()
         .set_some_foreground_color(window_title_focused.background_color)
-        .set_some_background_color(
+        .set_some_background_color_or_transparent(
             from_some_hex(&theme.style.tab_active_background)
                 .or(window_title_focused.foreground_color),
         );
@@ -180,7 +195,9 @@ pub(super) fn from_theme_content(theme: ThemeContent) -> Theme {
         ui: UiStyles {
             global_title: Style::new()
                 .foreground_color(text_color)
-                .set_some_background_color(from_some_hex(&theme.style.status_bar_background)),
+                .set_some_background_color_or_transparent(from_some_hex(
+                    &theme.style.status_bar_background,
+                )),
             window_title_focused,
             window_title_unfocused,
             focused_tab,
@@ -192,9 +209,15 @@ pub(super) fn from_theme_content(theme: ThemeContent) -> Theme {
             jump_mark_even: Style::new()
                 .background_color(hex!("#84b701"))
                 .foreground_color(hex!("#ffffff")),
-            default: Style::new()
-                .background_color(background)
-                .foreground_color(text_color),
+            default: {
+                if is_background_transparent {
+                    Style::new().foreground_color(text_color)
+                } else {
+                    Style::new()
+                        .background_color(background)
+                        .foreground_color(text_color)
+                }
+            },
             primary_selection_background,
             primary_selection_anchor_background: primary_selection_background,
             primary_selection_primary_cursor: primary_cursor,
@@ -207,9 +230,10 @@ pub(super) fn from_theme_content(theme: ThemeContent) -> Theme {
                 .set_some_foreground_color(from_some_hex(&theme.style.editor_line_number)),
             border: Style::new()
                 .foreground_color(from_some_hex(&theme.style.border).unwrap_or(text_color))
-                .background_color(background),
-            mark: Style::new()
-                .set_some_background_color(from_some_hex(&theme.style.conflict_background)),
+                .background_color_or_transparent(background),
+            mark: Style::new().set_some_background_color_or_transparent(from_some_hex(
+                &theme.style.conflict_background,
+            )),
             possible_selection_background: from_some_hex(&theme.style.search_match_background)
                 .unwrap_or_default(),
             incremental_search_match_background: from_some_hex(

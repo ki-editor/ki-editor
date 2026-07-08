@@ -106,6 +106,82 @@ dependencies = [
 ]
 
 [[package]]
+name = "arborium-dockerfile"
+version = "2.18.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "168968cacf937c51bb8ed785780467547a5158141d2c53c0d8f6fb64a60d86c9"
+dependencies = [
+ "arborium-sysroot",
+ "cc",
+ "tree-sitter-language",
+]
+
+[[package]]
+name = "arborium-gitattributes"
+version = "2.18.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6232795395bf1256555d3d04ac7fb87dd723076983fd27c4a7d0274bf28ea41e"
+dependencies = [
+ "arborium-sysroot",
+ "cc",
+ "tree-sitter-language",
+]
+
+[[package]]
+name = "arborium-idris"
+version = "2.18.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "59975ace9d4045a3f73bccd3bc8ab71072655afd89c24c95c50254bc926700a3"
+dependencies = [
+ "arborium-sysroot",
+ "cc",
+ "tree-sitter-language",
+]
+
+[[package]]
+name = "arborium-rescript"
+version = "2.18.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f208a704e5197213f623202527f4986be44a8b3ff453eb90b6457bf8a508dcb0"
+dependencies = [
+ "arborium-sysroot",
+ "cc",
+ "tree-sitter-language",
+]
+
+[[package]]
+name = "arborium-sql"
+version = "2.18.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d8f790fcca922217312f9e4c03d7423d74e37d4c5eec41a0b774019debd73be8"
+dependencies = [
+ "arborium-sysroot",
+ "cc",
+ "tree-sitter-language",
+]
+
+[[package]]
+name = "arborium-sysroot"
+version = "2.18.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "59d99d80550b726f9dec7ee6d07118c31e08b10e729ac488eabd4c10603dc841"
+dependencies = [
+ "cc",
+ "dlmalloc",
+]
+
+[[package]]
+name = "arborium-typst"
+version = "2.18.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1f38b5836c08e6ce5432de2d721b4eef7d217961d03d0e6815179fa6fb0d514b"
+dependencies = [
+ "arborium-sysroot",
+ "cc",
+ "tree-sitter-language",
+]
+
+[[package]]
 name = "ast-grep-core"
 version = "0.37.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -560,6 +636,17 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "dlmalloc"
+version = "0.2.14"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ad5208a115eaba24916f7456929832e310a81518c641f93fee4f89aa93aa3675"
+dependencies = [
+ "cfg-if",
+ "libc",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -2304,6 +2391,12 @@ name = "shared"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "arborium-dockerfile",
+ "arborium-gitattributes",
+ "arborium-idris",
+ "arborium-rescript",
+ "arborium-sql",
+ "arborium-typst",
  "codebook-tree-sitter-latex",
  "etcetera",
  "grammar",
@@ -2329,6 +2422,7 @@ dependencies = [
  "tree-sitter-elixir",
  "tree-sitter-fish",
  "tree-sitter-fsharp",
+ "tree-sitter-gitcommit",
  "tree-sitter-gleam",
  "tree-sitter-glsl",
  "tree-sitter-gnuplot",
@@ -2355,6 +2449,7 @@ dependencies = [
  "tree-sitter-qmldir",
  "tree-sitter-qmljs",
  "tree-sitter-quickfix",
+ "tree-sitter-roc",
  "tree-sitter-ruby",
  "tree-sitter-rust",
  "tree-sitter-scala",
@@ -2820,6 +2915,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "tree-sitter-gitcommit"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "38b051221607cfde94e2d0132ad99ef50a9f78a990c068380717ea0a4ce61899"
+dependencies = [
+ "cc",
+ "tree-sitter-language",
+]
+
+[[package]]
 name = "tree-sitter-gleam"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3090,6 +3195,15 @@ version = "0.0.1"
 dependencies = [
  "cc",
  "tree-sitter",
+]
+
+[[package]]
+name = "tree-sitter-roc"
+version = "1.0.0"
+source = "git+https://github.com/faldor20/tree-sitter-roc?rev=68f4054#68f405426d030a7625392aabf41836c1aad05d33"
+dependencies = [
+ "cc",
+ "tree-sitter-language",
 ]
 
 [[package]]
