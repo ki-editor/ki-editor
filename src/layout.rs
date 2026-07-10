@@ -2,6 +2,7 @@ use crate::app::Dispatch;
 use crate::components::keymap_legend::ReleaseKey;
 use crate::config::from_extension;
 use crate::context::Context;
+use crate::position::Position;
 use crate::quickfix_list::QuickfixList;
 use crate::syntax_highlight::SyntaxHighlightRequestBatchId;
 use crate::ui_tree::{ComponentKind, KindedComponent, UiTree};
@@ -129,25 +130,67 @@ impl Layout {
 
     pub fn recalculate_layout(&mut self, context: &Context) {
         let (layout_kind, ratio) = layout_kind();
+        let width = self.terminal_dimension.width;
 
-        let (rectangles, borders) = Rectangle::generate(
-            layout_kind,
-            self.components().len(),
-            ratio,
-            self.terminal_dimension,
-        );
-        self.rectangles = rectangles;
-        self.borders = borders;
+        // Components that report a desired height (e.g. the keymap legend)
+        // get a full-width band reserved for them at the bottom of the
+        // screen, stacked upward from the bottom edge. Everything else
+        // tiles as usual in whatever space remains above.
+        let (overlay_components, tiled_components): (Vec<_>, Vec<_>) =
+            self.components().into_iter().partition(|component| {
+                component
+                    .component()
+                    .borrow()
+                    .desired_height(width, context)
+                    .is_some()
+            });
 
-        self.components()
-            .into_iter()
-            .zip(self.rectangles.iter())
-            .for_each(|(component, rectangle)| {
+        let mut bottom = self.terminal_dimension.height;
+        let overlay_rectangles: Vec<Rectangle> = overlay_components
+            .iter()
+            .map(|component| {
+                let desired_height = component
+                    .component()
+                    .borrow()
+                    .desired_height(width, context)
+                    .unwrap_or(0);
+                // Always leave at least one line for the tiled area so it
+                // never shrinks to nothing.
+                let height = desired_height.min(bottom.saturating_sub(1));
+                bottom -= height;
+                Rectangle {
+                    origin: Position::new(bottom, 0),
+                    width,
+                    height,
+                }
+            })
+            .collect();
+
+        let tiled_dimension = Dimension {
+            width,
+            height: bottom,
+        };
+        let (tiled_rectangles, borders) = if tiled_components.is_empty() {
+            (Vec::new(), Vec::new())
+        } else {
+            Rectangle::generate(layout_kind, tiled_components.len(), ratio, tiled_dimension)
+        };
+
+        let rectangles: Vec<Rectangle> = tiled_components
+            .iter()
+            .zip(tiled_rectangles)
+            .chain(overlay_components.iter().zip(overlay_rectangles))
+            .map(|(component, rectangle)| {
                 component
                     .component()
                     .borrow_mut()
                     .set_rectangle(rectangle.clone(), context);
-            });
+                rectangle
+            })
+            .collect();
+
+        self.rectangles = rectangles;
+        self.borders = borders;
     }
 
     pub fn get_existing_editor(

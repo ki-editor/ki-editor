@@ -292,7 +292,7 @@ impl KeymapLegend {
         }
     }
 
-    fn refresh(&mut self, context: &Context) {
+    fn refresh(&mut self, width: usize, context: &Context) {
         // Check for duplicate keys
         let duplicates = self
             .config
@@ -315,10 +315,7 @@ impl KeymapLegend {
             // panic!("{}", message);
         }
 
-        let keyboard_layout = AppConfig::singleton()
-            .show_key_in_keymap()
-            .then(|| context.keyboard_layout().clone());
-        let content = self.display(keyboard_layout.as_ref());
+        let content = self.display(width, self.keyboard_layout(context).as_ref());
 
         // dropping dispatch as this is a buffer with no path and
         // set_content dispatches are related to file dirty status
@@ -328,9 +325,19 @@ impl KeymapLegend {
             .unwrap_or_default();
     }
 
-    fn display(&self, layout: Option<&KeyboardLayout>) -> String {
+    fn keyboard_layout(&self, context: &Context) -> Option<KeyboardLayout> {
+        AppConfig::singleton()
+            .show_key_in_keymap()
+            .then(|| context.keyboard_layout().clone())
+    }
+
+    fn display(&self, width: usize, layout: Option<&KeyboardLayout>) -> String {
+        // Generate the content one column narrower than the given width. The
+        // editor soft-wraps at `width - 1` (one column is reserved for the
+        // cursor at the last column), so content spanning the full width
+        // would wrap and double up each keyboard row.
         let content = self.config.display(
-            self.editor.rectangle().width,
+            width.saturating_sub(1),
             &KeymapDisplayOption {
                 show_alt: true,
                 show_shift: true,
@@ -366,12 +373,32 @@ impl Component for KeymapLegend {
     }
 
     fn set_rectangle(&mut self, rectangle: Rectangle, context: &Context) {
-        self.refresh(context); // TODO: pass theme from App.rs
+        self.refresh(rectangle.width, context); // TODO: pass theme from App.rs
         self.editor_mut().set_rectangle(rectangle, context);
     }
 
     fn editor_mut(&mut self) -> &mut Editor {
         &mut self.editor
+    }
+
+    /// The keymap legend is rendered as a bottom overlay sized to fit
+    /// exactly its own content (keybindings + title), rather than being
+    /// tiled like other components.
+    fn desired_height(&self, width: usize, context: &Context) -> Option<usize> {
+        let content = self.display(width, self.keyboard_layout(context).as_ref());
+        let content_height = crate::soft_wrap::soft_wrap(&content, width)
+            .wrapped_lines_count()
+            .max(1);
+        let title_lines = self
+            .editor
+            .title(
+                context,
+                &crate::app::Dimension { width, height: 0 },
+                &crate::components::component::RenderTitleMode::Tabline,
+            )
+            .lines()
+            .count();
+        Some(content_height + title_lines)
     }
 
     fn handle_key_event(
@@ -573,7 +600,7 @@ mod test_keymap_legend {
             .unwrap();
 
         assert_eq!(
-            keymap_legend.display(None),
+            keymap_legend.display(100, None),
             "
 ╭───┬───┬───┬───┬───┬───┬───┬───┬───┬───┬───╮
 │   ┆   ┆   ┆   ┆   ┆ ∅ ┆   ┆   ┆   ┆   ┆   │
@@ -615,7 +642,7 @@ Space: Hello world
             .unwrap();
 
         assert_eq!(
-            keymap_legend.display(None),
+            keymap_legend.display(100, None),
             "
 ╭───┬───┬───┬───┬───┬───┬───┬───┬───┬───┬───╮
 │   ┆   ┆   ┆   ┆   ┆ ∅ ┆   ┆   ┆   ┆   ┆   │
