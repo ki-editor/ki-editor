@@ -145,10 +145,9 @@ impl Layout {
                     .is_some()
             });
 
-        let mut bottom = self.terminal_dimension.height;
-        let overlay_rectangles: Vec<Rectangle> = overlay_components
+        let overlay_rectangles_by_bottom: Vec<(usize, Rectangle)> = overlay_components
             .iter()
-            .map(|component| {
+            .scan(self.terminal_dimension.height, |bottom, component| {
                 let desired_height = component
                     .component()
                     .borrow()
@@ -157,13 +156,23 @@ impl Layout {
                 // Always leave at least one line for the tiled area so it
                 // never shrinks to nothing.
                 let height = desired_height.min(bottom.saturating_sub(1));
-                bottom -= height;
-                Rectangle {
-                    origin: Position::new(bottom, 0),
-                    width,
-                    height,
-                }
+                *bottom -= height;
+                Some((
+                    *bottom,
+                    Rectangle {
+                        origin: Position::new(*bottom, 0),
+                        width,
+                        height,
+                    },
+                ))
             })
+            .collect();
+        let bottom = overlay_rectangles_by_bottom
+            .last()
+            .map_or(self.terminal_dimension.height, |(bottom, _)| *bottom);
+        let overlay_rectangles: Vec<Rectangle> = overlay_rectangles_by_bottom
+            .into_iter()
+            .map(|(_, rectangle)| rectangle)
             .collect();
 
         let tiled_dimension = Dimension {

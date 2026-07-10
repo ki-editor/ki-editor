@@ -617,6 +617,77 @@ Space: Hello world
     }
 
     #[test]
+    fn keymap_legend_reserves_bottom_space_matching_desired_height() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                App(crate::app::Dispatch::TerminalDimensionChanged(
+                    crate::app::Dimension {
+                        width: 60,
+                        height: 15,
+                    },
+                )),
+                Editor(DispatchEditor::SetContent(
+                    "a\nb\nc\nd\ne\nf\ng\nh\n".to_string(),
+                )),
+                App(ShowMenu(KeymapLegendConfig {
+                    title: "T".to_string(),
+                    keymap: Keymap::new(&[Keybinding::new_undocumented(
+                        key!("x"),
+                        "Xray",
+                        Dispatch::Null,
+                    )]),
+                })),
+                // The tiled editor above shrinks to the remaining space,
+                // while the keymap legend below occupies exactly its
+                // `desired_height` (title line + grid + legend footnote),
+                // with no overlap or stray blank lines between them.
+                Expect(AppGrid(
+                    " [:] 🦀  main.rs
+1│█
+2│b
+3│c
+4│d
+T
+1│╭───┬──────┬───┬───┬───┬───┬───┬───┬───┬───┬───╮
+2││   ┆      ┆   ┆   ┆   ┆ ∅ ┆   ┆   ┆   ┆   ┆   │
+3│├╌╌╌┼╌╌╌╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┤
+4││   ┆      ┆   ┆   ┆   ┆ ∅ ┆   ┆   ┆   ┆   ┆   │
+5│├╌╌╌┼╌╌╌╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┤
+6││   ┆ Xray ┆   ┆   ┆   ┆ ∅ ┆   ┆   ┆   ┆   ┆   │
+7│╰───┴──────┴───┴───┴───┴───┴───┴───┴───┴───┴───╯
+8│* Pick Keyboard    \\ Leader"
+                        .to_string(),
+                )),
+            ])
+        })
+    }
+
+    #[test]
+    fn desired_height_accounts_for_content_and_title_lines() {
+        let keymap_legend = KeymapLegend::new(
+            KeymapLegendConfig {
+                title: "T".to_string(),
+                keymap: Keymap::new(&[]),
+            },
+            None,
+        );
+
+        let content = keymap_legend.display(100, None);
+        // No title line is included in `display`, so the expected height is
+        // the content's line count plus one line for the title.
+        let expected_content_lines = content.lines().count();
+        assert_eq!(
+            keymap_legend.desired_height(100, &Context::default()),
+            Some(expected_content_lines + 1)
+        );
+    }
+
+    #[test]
     /// When release key is defined and on tap is defined, display should show the on tap action.
     fn on_tap_display() {
         let mut keymap_legend = KeymapLegend::new(
