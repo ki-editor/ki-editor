@@ -11,19 +11,30 @@ function Player({ src, ...opts }: Props) {
     const ref = useRef<HTMLDivElement>(null);
     const playerRef = useRef<{ dispose(): void } | null>(null);
 
+    // Stringify the options object to give useEffect a stable dependency primitive.
+    // This stops the infinite re-render loop without requiring a complex useMemo setup.
+    const serializedOpts = JSON.stringify(opts);
+
     useEffect(() => {
-        if (!ref.current) return;
+        const container = ref.current;
+        if (!container) return;
+
         let cancelled = false;
+        const parsedOpts = JSON.parse(serializedOpts) as Options;
+
         import("asciinema-player").then(({ create }) => {
-            if (cancelled || !ref.current) return;
-            playerRef.current = create(src, ref.current!, opts);
+            if (cancelled) return;
+            // Capturing `container` locally satisfies TypeScript's control flow
+            // analysis so we can drop the forbidden non-null (!) assertion.
+            playerRef.current = create(src, container, parsedOpts);
         });
+
         return () => {
             cancelled = true;
             playerRef.current?.dispose();
             playerRef.current = null;
         };
-    }, [src, opts]);
+    }, [src, serializedOpts]);
 
     return <div ref={ref} />;
 }
