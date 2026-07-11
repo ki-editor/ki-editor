@@ -21,6 +21,7 @@
         "@docusaurus/preset-classic": "3.7.0",
         "@mdx-js/react": "^3.0.0",
         "@xterm/addon-fit": "^0.10.0",
+        "asciinema-player": "^3.17.0",
         "clsx": "^2.0.0",
         "docusaurus-json-schema-plugin": "^1.15.0",
         "docusaurus-lunr-search": "^3.6.0",
@@ -45,7 +46,11 @@
         "vitest": "^3.2.4"
     },
     "browserslist": {
-        "production": [">0.5%", "not dead", "not op_mini all"],
+        "production": [
+            ">0.5%",
+            "not dead",
+            "not op_mini all"
+        ],
         "development": [
             "last 3 chrome version",
             "last 3 firefox version",
