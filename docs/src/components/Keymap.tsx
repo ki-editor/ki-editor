@@ -1,8 +1,7 @@
 import { useColorMode } from "@docusaurus/theme-common";
-import { useEffect, useState } from "react";
-
 import useBaseUrl from "@docusaurus/useBaseUrl";
 import * as React from "react";
+import { useEffect, useState } from "react";
 import { useLocalStorage } from "usehooks-ts";
 import * as z from "zod";
 
@@ -160,13 +159,11 @@ const KeymapView = (props: { keymap: Keymap }) => {
                 }}
                 className="px-2 py-1 border rounded"
             >
-                {Array(...panelLayouts)
-                    .sort()
-                    .map((panelLayout) => (
-                        <option key={panelLayout} value={panelLayout}>
-                            {panelLayout}
-                        </option>
-                    ))}
+                {[...panelLayouts].sort().map((panelLayout) => (
+                    <option key={panelLayout} value={panelLayout}>
+                        {panelLayout}
+                    </option>
+                ))}
             </select>
 
             <select
