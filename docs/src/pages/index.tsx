@@ -1,5 +1,6 @@
 import Link from "@docusaurus/Link";
 import useDocusaurusContext from "@docusaurus/useDocusaurusContext";
+import AsciinemaPlayer from "@site/src/components/AsciinemaPlayer";
 import HomepageFeatures from "@site/src/components/HomepageFeatures";
 import Heading from "@theme/Heading";
 import Layout from "@theme/Layout";
@@ -16,6 +17,17 @@ function HomepageHeader() {
                     {siteConfig.title}
                 </Heading>
                 <p className="hero__subtitle">{siteConfig.tagline}</p>
+
+                <div style={{ maxWidth: "900px", margin: "0 auto" }}>
+                    <AsciinemaPlayer
+                        src="/demo-1087449.cast"
+                        autoplay
+                        loop
+                        preload
+                        theme="vscode-light"
+                    />
+                </div>
+
                 <div className={styles.buttons}>
                     <Link
                         className="button button--secondary button--lg"
