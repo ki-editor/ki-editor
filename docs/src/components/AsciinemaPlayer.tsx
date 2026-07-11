@@ -1,6 +1,6 @@
-import { useRef, useEffect } from "react";
 import BrowserOnly from "@docusaurus/BrowserOnly";
 import type { Options } from "asciinema-player";
+import { useEffect, useRef } from "react";
 import "asciinema-player/dist/bundle/asciinema-player.css";
 
 type Props = {
@@ -23,7 +23,7 @@ function Player({ src, ...opts }: Props) {
             playerRef.current?.dispose();
             playerRef.current = null;
         };
-    }, [src]);
+    }, [src, opts]);
 
     return <div ref={ref} />;
 }
