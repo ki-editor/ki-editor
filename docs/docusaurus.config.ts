@@ -67,6 +67,7 @@ const config: Config = {
         image: "img/tree-seal-script.svg",
         navbar: {
             title: "Ki Editor",
+            hideOnScroll: true,
             logo: {
                 alt: "Ki Logo",
                 src: "img/logo.svg",
