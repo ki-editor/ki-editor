@@ -8,6 +8,18 @@
     text-align: center;
     position: relative;
     overflow: hidden;
+    background-color: #2e8555;
+}
+
+.heroBanner::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image: url("/img/repeatable.jpeg");
+    background-repeat: repeat;
+    opacity: 0.15;
+    filter: brightness(0.8);
+    pointer-events: none;
 }
 
 @media screen and (max-width: 996px) {
@@ -16,9 +28,29 @@
     }
 }
 
+.heroBanner :global(.hero__title),
+.heroBanner :global(.hero__subtitle) {
+    color: white;
+    -webkit-text-stroke: 5px #2e8555;
+    paint-order: stroke fill;
+}
+
 .buttons {
     display: flex;
     align-items: center;
     justify-content: center;
     margin-top: 2rem;
+}
+
+.buttons :global(.button--secondary) {
+    background-color: white !important;
+    color: #2e8555 !important;
+    border: none !important;
+    opacity: 1 !important;
+}
+
+.buttons :global(.button--secondary):hover {
+    background-color: #e0e0e0 !important;
+    color: #2e8555 !important;
+    opacity: 1 !important;
 }

@@ -5,7 +5,7 @@ import { themes as prismThemes } from "prism-react-renderer";
 const config: Config = {
     title: "Ki Editor",
     tagline: "Multi-cursor structural editor",
-    favicon: "img/favicon.ico",
+    favicon: "img/favicon.png",
 
     // Set the production url of your site here
     url: "https://ki-editor.org",
@@ -70,8 +70,8 @@ const config: Config = {
             hideOnScroll: true,
             logo: {
                 alt: "Ki Logo",
-                src: "img/logo.svg",
-                srcDark: "img/logo-white.svg",
+                src: "img/logo.png",
+                srcDark: "img/logo-white.png",
             },
             items: [
                 {
@@ -79,26 +79,37 @@ const config: Config = {
                     sidebarId: "docSidebar",
                     position: "left",
                     label: "Docs",
+                    className: "navbar__link--docs",
                 },
                 {
                     position: "left",
                     label: "Introduction",
                     to: "/docs/introduction",
+                    className: "navbar__link--intro",
                 },
                 {
                     position: "left",
                     label: "Blog",
                     to: "/blog",
+                    className: "navbar__link--blog",
                 },
                 {
                     position: "right",
-                    label: "Chat (Zulip)",
+                    html: "Chat with <b>Ki</b>mmunity",
                     href: "https://ki-editor.zulipchat.com/join/zzhagqzl6wyzpqfeqxcsrkin/",
+                    className: "navbar__link--zulip",
                 },
                 {
                     position: "right",
-                    label: "GitHub",
+                    label: "Source Code",
                     href: "https://github.com/ki-editor/ki-editor",
+                    className: "navbar__link--github",
+                },
+                {
+                    position: "right",
+                    label: "Download",
+                    href: "https://github.com/ki-editor/ki-editor/releases/tag/latest",
+                    className: "navbar__link--download",
                 },
             ],
         },
@@ -118,8 +129,7 @@ const config: Config = {
                     title: "Community",
                     items: [
                         {
-                            label: "Zulip",
-                            href: "https://ki-editor.zulipchat.com/join/zzhagqzl6wyzpqfeqxcsrkin/",
+                            html: `<svg style="display:inline;vertical-align:middle;margin-right:6px;" viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/></svg> Chat with Kimmunity`,
                         },
                     ],
                 },
@@ -131,13 +141,12 @@ const config: Config = {
                             to: "/blog",
                         },
                         {
-                            label: "GitHub",
-                            href: "https://github.com/ki-editor/ki-editor",
+                            html: `<svg style="display:inline;vertical-align:middle;margin-right:6px;" viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M9.4 16.6L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0L19.2 12l-4.6-4.6L16 6l6 6-6 6-1.4-1.4z"/></svg> Source Code`,
                         },
                     ],
                 },
             ],
-            copyright: `Copyright © ${new Date().getFullYear()} Ki Editor. Built with Docusaurus.`,
+            copyright: `Copyright © ${new Date().getFullYear()} Ki Editor.`,
         },
         prism: {
             theme: prismThemes.github,
