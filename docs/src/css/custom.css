@@ -4,6 +4,8 @@
  * work well for content-centric websites.
  */
 
+@import url("https://fonts.googleapis.com/css2?family=Alfa+Slab+One&family=Fira+Sans:ital,wght@0,400;0,600;0,800;1,400;1,600;1,800&display=swap");
+
 /* You can override the default Infima variables here. */
 :root {
     --ifm-color-primary: #2e8555;
@@ -13,6 +15,9 @@
     --ifm-color-primary-light: #33925d;
     --ifm-color-primary-lighter: #359962;
     --ifm-color-primary-lightest: #3cad6e;
+    --ifm-font-family-base: "Fira Sans", system-ui, sans-serif;
+    --ifm-heading-font-family: "Alfa Slab One", serif;
+    --ifm-heading-font-weight: 400;
     --ifm-code-font-size: 95%;
     --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.1);
     --ifm-container-width-xl: 1600px;
