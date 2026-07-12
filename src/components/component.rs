@@ -168,6 +168,15 @@ pub trait Component: Any + AnyComponent {
         self.editor_mut().set_rectangle(rectangle, context);
     }
 
+    /// Components that want a full-width band reserved for them at the
+    /// bottom of the screen (instead of participating in normal tiling)
+    /// should return their desired height at the given `width`.
+    ///
+    /// Returning `None` (the default) means the component tiles normally.
+    fn desired_height(&self, _width: usize, _context: &Context) -> Option<usize> {
+        None
+    }
+
     fn rectangle(&self) -> &Rectangle {
         self.editor().rectangle()
     }
