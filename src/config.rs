@@ -1,5 +1,5 @@
 use std::borrow::Cow;
-use std::{collections::HashMap, io::Read, path::PathBuf};
+use std::{collections::HashMap, path::PathBuf};
 
 use anyhow::Context;
 use itertools::Itertools;
@@ -28,6 +28,7 @@ pub struct AppConfig {
     indent_width: usize,
     show_key_in_keymap: bool,
     icon_config: shared::icons::IconsConfig,
+    load_errors: Vec<String>,
 }
 
 #[derive(Deserialize, Serialize, JsonSchema)]
@@ -99,6 +100,7 @@ impl TryFrom<RawConfig> for AppConfig {
             indent_width: value.indent_width,
             show_key_in_keymap: value.show_key_in_keymap,
             icon_config: shared::icons::build_icon_config(&value.icon_style),
+            load_errors: Vec::new(),
         })
     }
 }
@@ -191,6 +193,102 @@ pub fn load_script(script_name: &str) -> anyhow::Result<Script> {
     }
 }
 
+/// Number of `RawConfig` fields (excluding `languages`, which is handled
+/// per-entry by [`extract_languages`]) attempted by [`extract_lenient`].
+const TOP_LEVEL_FIELD_COUNT: usize = 9;
+
+/// Extracts `RawConfig` from `figment` field-by-field instead of in one shot,
+/// so a malformed value for one field (or one language entry) falls back to
+/// its default instead of taking down the whole config. Returns the resulting
+/// config plus a human-readable message for each field that couldn't be parsed.
+fn extract_lenient(figment: &figment::Figment) -> (RawConfig, Vec<String>) {
+    let default = RawConfig::default();
+    let mut errors = Vec::new();
+    let mut top_level_error_count = 0;
+
+    macro_rules! extract_field {
+        ($field:ident, $key:literal) => {
+            match figment.extract_inner($key) {
+                Ok(value) => value,
+                Err(error) => {
+                    top_level_error_count += 1;
+                    errors.push(format!(
+                        "Failed to parse `{}`, using default value: {error}",
+                        $key
+                    ));
+                    default.$field
+                }
+            }
+        };
+    }
+
+    let (languages, languages_root_error) = extract_languages(figment, &mut errors);
+
+    let config = RawConfig {
+        languages,
+        keyboard_layout: extract_field!(keyboard_layout, "keyboard_layout"),
+        theme: extract_field!(theme, "theme"),
+        status_lines: extract_field!(status_lines, "status_lines"),
+        leader_keymap: extract_field!(leader_keymap, "leader_keymap"),
+        custom_keyboard_layouts: extract_field!(custom_keyboard_layouts, "custom_keyboard_layouts"),
+        indent_char: extract_field!(indent_char, "indent_char"),
+        indent_width: extract_field!(indent_width, "indent_width"),
+        show_key_in_keymap: extract_field!(show_key_in_keymap, "show_key_in_keymap"),
+        icon_style: extract_field!(icon_style, "icon_style"),
+    };
+
+    // If every single field failed, including `languages`, the config file
+    // itself is almost certainly syntactically invalid (e.g. empty or
+    // malformed JSON/YAML/TOML) rather than containing individually-wrong
+    // fields: collapse the noise into one message instead of repeating the
+    // same root cause for every field.
+    if languages_root_error && top_level_error_count == TOP_LEVEL_FIELD_COUNT {
+        (
+            config,
+            vec!["Ki config could not be parsed (invalid syntax); using defaults.".to_string()],
+        )
+    } else {
+        (config, errors)
+    }
+}
+
+/// Parses the `languages` map entry-by-entry so a malformed config for one
+/// language (e.g. a bad rust-analyzer `lsp_command`) only drops that one
+/// language's override instead of the entire config. Returns the resulting
+/// map plus whether the `languages` key itself could not be looked up at all
+/// (a signal of a whole-file syntax error rather than a single bad entry).
+fn extract_languages(
+    figment: &figment::Figment,
+    errors: &mut Vec<String>,
+) -> (HashMap<String, Language>, bool) {
+    let mut languages = shared::languages::languages();
+    match figment.find_value("languages") {
+        Ok(value) => {
+            if let Some(dict) = value.into_dict() {
+                for (name, entry) in dict {
+                    match entry.deserialize::<Language>() {
+                        Ok(language) => {
+                            languages.insert(name, language);
+                        }
+                        Err(error) => {
+                            errors.push(format!(
+                                "Failed to parse config for language `{name}`, ignoring it: {error}"
+                            ));
+                        }
+                    }
+                }
+            } else {
+                errors.push("`languages` config must be an object/table.".to_string());
+            }
+            (languages, false)
+        }
+        Err(error) => {
+            errors.push(format!("Failed to parse `languages`: {error}"));
+            (languages, true)
+        }
+    }
+}
+
 impl AppConfig {
     fn default() -> Self {
         RawConfig::default()
@@ -198,39 +296,67 @@ impl AppConfig {
             .expect("Default config can't be converted to an AppConfig, this is a bug!")
     }
 
-    pub fn load_from_current_directory() -> anyhow::Result<Self> {
-        let workspace_dir = ki_workspace_directory()?;
-        let workspace_config = |extension: &str| workspace_dir.join(format!("config.{extension}"));
-        #[cfg(not(test))]
-        let global_config =
-            |extension: &str| ki_global_directory().join(format!("config.{extension}"));
-        let config = figment::Figment::from(providers::Serialized::defaults(&RawConfig::default()));
-        #[cfg(not(test))]
-        let config = config
-            .merge(providers::Json::file(global_config("json")))
-            .merge(providers::Yaml::file(global_config("yaml")))
-            .merge(providers::Toml::file(global_config("toml")));
+    /// Loads the config leniently: a malformed or missing value for any
+    /// individual field (or language entry) falls back to its default
+    /// instead of failing the entire config, so that Ki always starts up.
+    /// Anything that couldn't be parsed is recorded in [`AppConfig::load_errors`]
+    /// so the caller can surface it inside the TUI instead of blocking startup.
+    pub fn load_from_current_directory() -> Self {
+        let mut errors = Vec::new();
 
-        let config: RawConfig = config
-            .merge(providers::Json::file(workspace_config("json")))
-            .merge(providers::Yaml::file(workspace_config("yaml")))
-            .merge(providers::Toml::file(workspace_config("toml")))
-            .extract()?;
-        config.try_into()
+        let workspace_dir = match ki_workspace_directory() {
+            Ok(dir) => Some(dir),
+            Err(error) => {
+                errors.push(format!("Failed to determine workspace directory: {error}"));
+                None
+            }
+        };
+
+        let mut figment =
+            figment::Figment::from(providers::Serialized::defaults(&RawConfig::default()));
+
+        #[cfg(not(test))]
+        {
+            let global_config =
+                |extension: &str| ki_global_directory().join(format!("config.{extension}"));
+            figment = figment
+                .merge(providers::Json::file(global_config("json")))
+                .merge(providers::Yaml::file(global_config("yaml")))
+                .merge(providers::Toml::file(global_config("toml")));
+        }
+
+        if let Some(workspace_dir) = &workspace_dir {
+            let workspace_config =
+                |extension: &str| workspace_dir.join(format!("config.{extension}"));
+            figment = figment
+                .merge(providers::Json::file(workspace_config("json")))
+                .merge(providers::Yaml::file(workspace_config("yaml")))
+                .merge(providers::Toml::file(workspace_config("toml")));
+        }
+
+        let (raw_config, mut field_errors) = extract_lenient(&figment);
+        errors.append(&mut field_errors);
+
+        let mut app_config = match AppConfig::try_from(raw_config) {
+            Ok(app_config) => app_config,
+            Err(error) => {
+                errors.push(format!("Failed to apply config, using defaults: {error}"));
+                AppConfig::default()
+            }
+        };
+        app_config.load_errors = errors;
+        app_config
     }
 
     pub fn singleton() -> &'static AppConfig {
         static INSTANCE: OnceCell<AppConfig> = OnceCell::new();
-        INSTANCE.get_or_init(|| match AppConfig::load_from_current_directory() {
-            Ok(config) => config,
-            Err(error) => {
-                eprintln!("Error parsing Ki config: {error}");
-                println!("\nConfig will be ignored. [Press any key to continue]");
-                let _ = std::io::stdin().read(&mut [0u8]).unwrap();
+        INSTANCE.get_or_init(AppConfig::load_from_current_directory)
+    }
 
-                AppConfig::default()
-            }
-        })
+    /// Human-readable descriptions of any config values that failed to parse
+    /// and were replaced by their defaults during [`AppConfig::load_from_current_directory`].
+    pub fn load_errors(&self) -> &[String] {
+        &self.load_errors
     }
 
     pub fn languages(&self) -> &HashMap<std::string::String, language::Language> {
@@ -388,5 +514,52 @@ mod test_config {
     fn doc_assets_default_config_json() {
         let path = "docs/static/config_default.json";
         std::fs::write(path, super::DEFAULT_CONFIG).unwrap();
+    }
+
+    /// Regression test: an empty (e.g. freshly auto-created) workspace config
+    /// file must never fail startup or block on stdin; it should be treated
+    /// as "no config" and reported as a single collapsed error.
+    #[test]
+    fn empty_config_file_falls_back_to_defaults() {
+        let tempdir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(tempdir.path().join(".ki")).unwrap();
+        std::fs::write(tempdir.path().join(".ki/config.json"), "").unwrap();
+
+        let original_dir = std::env::current_dir().unwrap();
+        std::env::set_current_dir(tempdir.path()).unwrap();
+        let config = super::AppConfig::load_from_current_directory();
+        std::env::set_current_dir(original_dir).unwrap();
+
+        assert_eq!(config.load_errors().len(), 1);
+        assert_eq!(
+            config.indent_width(),
+            super::AppConfig::default().indent_width()
+        );
+    }
+
+    /// A malformed field and a malformed language entry should each fall back
+    /// to their own default independently, instead of the whole config (or
+    /// even the whole `languages` map) failing.
+    #[test]
+    fn malformed_field_and_language_fall_back_individually() {
+        let tempdir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(tempdir.path().join(".ki")).unwrap();
+        std::fs::write(
+            tempdir.path().join(".ki/config.json"),
+            r#"{"indent_width": "two", "languages": {"rust": {"lsp_command": "not-an-object"}}}"#,
+        )
+        .unwrap();
+
+        let original_dir = std::env::current_dir().unwrap();
+        std::env::set_current_dir(tempdir.path()).unwrap();
+        let config = super::AppConfig::load_from_current_directory();
+        std::env::set_current_dir(original_dir).unwrap();
+
+        assert_eq!(config.load_errors().len(), 2);
+        assert_eq!(
+            config.indent_width(),
+            super::AppConfig::default().indent_width()
+        );
+        assert!(!config.languages().is_empty());
     }
 }
