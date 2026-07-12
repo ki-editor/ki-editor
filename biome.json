@@ -45,6 +45,11 @@
             "suspicious": { "noArrayIndexKey": "off" }
         }
     },
+    "css": {
+        "parser": {
+            "cssModules": true
+        }
+    },
     "javascript": {
         "formatter": {
             "quoteStyle": "double"
