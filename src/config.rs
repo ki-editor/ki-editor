@@ -219,15 +219,18 @@ fn extract_lenient(figment: &figment::Figment) -> (RawConfig, Vec<String>) {
 
     macro_rules! extract_field {
         ($field:ident, $key:literal) => {
-            match figment.extract_inner($key) {
-                Ok(value) => value,
-                Err(error) => {
-                    errors.push(format!(
-                        "Failed to parse `{}`, using default value: {error}",
-                        $key
-                    ));
-                    default.$field
-                }
+            match figment.find_value($key) {
+                Ok(value) => match serde_path_to_error::deserialize(&value) {
+                    Ok(value) => value,
+                    Err(error) => {
+                        errors.push(format!(
+                            "{}, using default value",
+                            describe_path_error($key, error)
+                        ));
+                        default.$field
+                    }
+                },
+                Err(_) => default.$field,
             }
         };
     }
@@ -250,6 +253,20 @@ fn extract_lenient(figment: &figment::Figment) -> (RawConfig, Vec<String>) {
     (config, errors)
 }
 
+/// Formats a `serde_path_to_error` error as a fully-qualified, dotted config
+/// path (e.g. "`languages.javascript.formatter.arguments`: invalid type: ...")
+/// instead of just the leaf error message, so the user knows exactly which
+/// value in the config file is wrong.
+fn describe_path_error(prefix: &str, error: serde_path_to_error::Error<figment::Error>) -> String {
+    let path = error.path().to_string();
+    let full_path = if path == "." {
+        prefix.to_string()
+    } else {
+        format!("{prefix}.{path}")
+    };
+    format!("`{full_path}` {}", error.into_inner())
+}
+
 /// Parses the `languages` map entry-by-entry so a malformed config for one
 /// language (e.g. a bad rust-analyzer `lsp_command`) only drops that one
 /// language's override instead of the entire config.
@@ -262,13 +279,14 @@ fn extract_languages(
         Ok(value) => {
             if let Some(dict) = value.into_dict() {
                 for (name, entry) in dict {
-                    match entry.deserialize::<Language>() {
+                    match serde_path_to_error::deserialize::<_, Language>(&entry) {
                         Ok(language) => {
                             languages.insert(name, language);
                         }
                         Err(error) => {
                             errors.push(format!(
-                                "Failed to parse config for language `{name}`, ignoring it: {error}"
+                                "{}, ignoring language `{name}`",
+                                describe_path_error(&format!("languages.{name}"), error)
                             ));
                         }
                     }
