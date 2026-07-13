@@ -64,9 +64,9 @@ const DEFAULT_CONFIG: &str = include_str!("config_default.json");
 /// A JSON [`providers::Format`] backed by the [`json5`] parser, so
 /// user-facing `config.json` files can contain `//` and `/* */` comments
 /// (and other JSON5 conveniences like trailing commas).
-struct Jsonc;
+struct Json5;
 
-impl providers::Format for Jsonc {
+impl providers::Format for Json5 {
     type Error = json5::Error;
 
     const NAME: &'static str = "JSON";
@@ -241,7 +241,7 @@ impl AppConfig {
             let global_config =
                 |extension: &str| ki_global_directory().join(format!("config.{extension}"));
             figment
-                .merge(Jsonc::file(global_config("json")))
+                .merge(Json5::file(global_config("json")))
                 .merge(providers::Yaml::file(global_config("yaml")))
                 .merge(providers::Toml::file(global_config("toml")))
         };
@@ -250,7 +250,7 @@ impl AppConfig {
             let workspace_config =
                 |extension: &str| workspace_dir.join(format!("config.{extension}"));
             figment
-                .merge(Jsonc::file(workspace_config("json")))
+                .merge(Json5::file(workspace_config("json")))
                 .merge(providers::Yaml::file(workspace_config("yaml")))
                 .merge(providers::Toml::file(workspace_config("toml")))
         } else {
