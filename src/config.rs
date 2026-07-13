@@ -187,6 +187,34 @@ pub fn ki_global_directory() -> PathBuf {
     ::grammar::config_dir()
 }
 
+/// Merges `provider` into `figment` only if it parses cleanly. A file with a
+/// syntax error (invalid JSON/YAML/TOML) is excluded from the merge instead
+/// of being included and later poisoning the whole merged figment, so that a
+/// broken config file only takes down its own contents rather than every
+/// other config source (e.g. a broken workspace config no longer discards an
+/// otherwise-valid global config, and vice versa).
+fn merge_valid<T: figment::Provider>(
+    figment: figment::Figment,
+    provider: T,
+    errors: &mut Vec<String>,
+) -> figment::Figment {
+    match provider.data() {
+        Ok(_) => figment.merge(provider),
+        Err(error) => {
+            let metadata = provider.metadata();
+            let source = metadata
+                .source
+                .as_ref()
+                .map(|source| source.to_string())
+                .unwrap_or_else(|| metadata.name.to_string());
+            errors.push(format!(
+                "{source} could not be parsed (invalid syntax), skipping this file: {error}"
+            ));
+            figment
+        }
+    }
+}
+
 pub fn load_script(script_name: &str) -> anyhow::Result<Script> {
     // Trying reading from workspace directory first
     let workspace_path = ki_workspace_directory()?.join("scripts").join(script_name);
@@ -224,6 +252,12 @@ impl AppConfig {
     /// instead of failing the entire config, so that Ki always starts up.
     /// Anything that couldn't be parsed is recorded in [`AppConfig::load_errors`];
     /// [`AppConfig::singleton`] is responsible for surfacing it to the user.
+    ///
+    /// Global and workspace config files are each validated for syntax
+    /// independently before being merged in: a syntax error in one file (e.g.
+    /// the workspace config) only drops that file, so the other (e.g. the
+    /// global config) still applies instead of the whole config collapsing
+    /// to hardcoded defaults.
     pub fn load_from_current_directory() -> Self {
         let (workspace_dir, workspace_dir_error) = match ki_workspace_directory() {
             Ok(dir) => (Some(dir), None),
@@ -236,23 +270,47 @@ impl AppConfig {
         let figment =
             figment::Figment::from(providers::Serialized::defaults(&RawConfig::default()));
 
+        let mut file_errors = Vec::new();
+
         #[cfg(not(test))]
         let figment = {
             let global_config =
                 |extension: &str| ki_global_directory().join(format!("config.{extension}"));
-            figment
-                .merge(Json5::file(global_config("json")))
-                .merge(providers::Yaml::file(global_config("yaml")))
-                .merge(providers::Toml::file(global_config("toml")))
+            let figment = merge_valid(
+                figment,
+                Json5::file(global_config("json")),
+                &mut file_errors,
+            );
+            let figment = merge_valid(
+                figment,
+                providers::Yaml::file(global_config("yaml")),
+                &mut file_errors,
+            );
+            merge_valid(
+                figment,
+                providers::Toml::file(global_config("toml")),
+                &mut file_errors,
+            )
         };
 
         let figment = if let Some(workspace_dir) = &workspace_dir {
             let workspace_config =
                 |extension: &str| workspace_dir.join(format!("config.{extension}"));
-            figment
-                .merge(Json5::file(workspace_config("json")))
-                .merge(providers::Yaml::file(workspace_config("yaml")))
-                .merge(providers::Toml::file(workspace_config("toml")))
+            let figment = merge_valid(
+                figment,
+                Json5::file(workspace_config("json")),
+                &mut file_errors,
+            );
+            let figment = merge_valid(
+                figment,
+                providers::Yaml::file(workspace_config("yaml")),
+                &mut file_errors,
+            );
+            merge_valid(
+                figment,
+                providers::Toml::file(workspace_config("toml")),
+                &mut file_errors,
+            )
         } else {
             figment
         };
@@ -272,6 +330,7 @@ impl AppConfig {
 
         let load_errors = workspace_dir_error
             .into_iter()
+            .chain(file_errors)
             .chain(field_errors)
             .chain(apply_error)
             .collect();
@@ -485,6 +544,29 @@ mod test_config {
         );
     }
 
+    /// Regression test: a syntax error in one config file (here, a broken
+    /// workspace `config.json`) must not discard the values contributed by
+    /// another, syntactically valid config file (here, `config.toml`) merged
+    /// into the same figment. This is the same mechanism that lets a broken
+    /// workspace config fall back to an otherwise-valid global config instead
+    /// of collapsing the whole config to hardcoded defaults.
+    #[test]
+    fn broken_file_does_not_discard_another_valid_files_values() {
+        let tempdir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(tempdir.path().join(".ki")).unwrap();
+        std::fs::write(tempdir.path().join(".ki/config.json"), "{ not valid json").unwrap();
+        std::fs::write(tempdir.path().join(".ki/config.toml"), "indent_width = 7").unwrap();
+
+        let original_dir = std::env::current_dir().unwrap();
+        std::env::set_current_dir(tempdir.path()).unwrap();
+        let config = super::AppConfig::load_from_current_directory();
+        std::env::set_current_dir(original_dir).unwrap();
+
+        assert_eq!(config.load_errors().len(), 1);
+        assert!(config.load_errors()[0].contains(".ki/config.json"));
+        assert_eq!(config.indent_width(), 7);
+    }
+
     /// A malformed field and a malformed language entry should each fall back
     /// to their own default independently, instead of the whole config (or
     /// even the whole `languages` map) failing.
@@ -509,10 +591,12 @@ mod test_config {
             super::AppConfig::default().indent_width()
         );
         assert!(!config.languages().is_empty());
-        assert!(config
-            .load_errors()
-            .iter()
-            .all(|error| error.contains(".ki/config.json")));
+        assert!(
+            config
+                .load_errors()
+                .iter()
+                .all(|error| error.contains(".ki/config.json"))
+        );
     }
 
     /// `config.json` is allowed to contain `//` and `/* */` comments (JSONC),
