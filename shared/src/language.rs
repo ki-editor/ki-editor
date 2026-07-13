@@ -326,13 +326,6 @@ impl Language {
     pub fn block_comment_affixes(&self) -> Option<(String, String)> {
         self.block_comment_affixes.clone()
     }
-
-    pub fn lsp_environment(&self) -> HashMap<String, String> {
-        self.lsp_command
-            .as_ref()
-            .map(|c| c.environment.clone())
-            .unwrap_or_default()
-    }
 }
 
 impl Default for Language {

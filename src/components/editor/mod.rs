@@ -534,13 +534,6 @@ impl Direction {
         Direction::Start
     }
 
-    pub fn format_action(&self, action: &str) -> String {
-        match self {
-            Direction::Start => format!("← {action}"),
-            Direction::End => format!("{action} →"),
-        }
-    }
-
     pub fn to_if_current_not_found(&self) -> IfCurrentNotFound {
         match self {
             Direction::Start => IfCurrentNotFound::LookBackward,

@@ -323,25 +323,6 @@ impl Buffer {
         (rope, tree)
     }
 
-    pub fn given_range_is_node(&self, range: &CharIndexRange) -> bool {
-        let Some(start) = self.char_to_byte(range.start).ok() else {
-            return false;
-        };
-        let Some(end) = self.char_to_byte(range.end).ok() else {
-            return false;
-        };
-        let byte_range = start..end;
-        self.tree
-            .as_ref()
-            .map(|tree| {
-                tree.root_node()
-                    .descendant_for_byte_range(byte_range.start, byte_range.end)
-                    .map(|node| node.byte_range() == byte_range)
-                    .unwrap_or(false)
-            })
-            .unwrap_or(false)
-    }
-
     pub fn update_highlighted_spans(
         &mut self,
         batch_id: SyntaxHighlightRequestBatchId,
