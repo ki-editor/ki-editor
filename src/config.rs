@@ -12,6 +12,7 @@ use crate::scripting::{Keybinding, Script};
 use crate::themes::Theme;
 use figment::providers;
 use figment::providers::Format;
+use figment::Provider;
 use once_cell::sync::OnceCell;
 use schemars::{JsonSchema, Schema, SchemaGenerator};
 use serde::{Deserialize, Serialize};
@@ -187,19 +188,48 @@ pub fn ki_global_directory() -> PathBuf {
     ::grammar::config_dir()
 }
 
-/// Merges `provider` into `figment` only if it parses cleanly. A file with a
-/// syntax error (invalid JSON/YAML/TOML) is excluded from the merge instead
-/// of being included and later poisoning the whole merged figment, so that a
-/// broken config file only takes down its own contents rather than every
-/// other config source (e.g. a broken workspace config no longer discards an
-/// otherwise-valid global config, and vice versa).
-fn merge_valid<T: figment::Provider>(
+/// A config file, in one of the formats Ki understands. Unifies the three
+/// concrete `figment` provider types into one so a directory's providers can
+/// be folded over as a homogeneous list.
+enum ConfigFile {
+    Json5(figment::providers::Data<Json5>),
+    Yaml(figment::providers::Data<providers::Yaml>),
+    Toml(figment::providers::Data<providers::Toml>),
+}
+
+impl figment::Provider for ConfigFile {
+    fn metadata(&self) -> figment::Metadata {
+        match self {
+            ConfigFile::Json5(provider) => provider.metadata(),
+            ConfigFile::Yaml(provider) => provider.metadata(),
+            ConfigFile::Toml(provider) => provider.metadata(),
+        }
+    }
+
+    fn data(
+        &self,
+    ) -> Result<figment::value::Map<figment::Profile, figment::value::Dict>, figment::Error> {
+        match self {
+            ConfigFile::Json5(provider) => provider.data(),
+            ConfigFile::Yaml(provider) => provider.data(),
+            ConfigFile::Toml(provider) => provider.data(),
+        }
+    }
+}
+
+/// Merges `provider` into `figment` only if it parses cleanly, returning an
+/// error message instead if it doesn't. A file with a syntax error (invalid
+/// JSON/YAML/TOML) is excluded from the merge instead of being included and
+/// later poisoning the whole merged figment, so that a broken config file
+/// only takes down its own contents rather than every other config source
+/// (e.g. a broken workspace config no longer discards an otherwise-valid
+/// global config, and vice versa).
+fn merge_valid(
     figment: figment::Figment,
-    provider: T,
-    errors: &mut Vec<String>,
-) -> figment::Figment {
+    provider: ConfigFile,
+) -> (figment::Figment, Option<String>) {
     match provider.data() {
-        Ok(_) => figment.merge(provider),
+        Ok(_) => (figment.merge(provider), None),
         Err(error) => {
             let metadata = provider.metadata();
             let source = metadata
@@ -207,12 +237,28 @@ fn merge_valid<T: figment::Provider>(
                 .as_ref()
                 .map(|source| source.to_string())
                 .unwrap_or_else(|| metadata.name.to_string());
-            errors.push(format!(
-                "{source} could not be parsed (invalid syntax), skipping this file: {error}"
-            ));
-            figment
+            (
+                figment,
+                Some(format!(
+                    "{source} could not be parsed (invalid syntax), skipping this file: {error}"
+                )),
+            )
         }
     }
+}
+
+/// Folds [`merge_valid`] over `providers`, collecting the resulting figment
+/// alongside every error message produced along the way.
+fn merge_all_valid(
+    figment: figment::Figment,
+    providers: Vec<ConfigFile>,
+) -> (figment::Figment, Vec<String>) {
+    providers
+        .into_iter()
+        .fold((figment, Vec::new()), |(figment, errors), provider| {
+            let (figment, error) = merge_valid(figment, provider);
+            (figment, errors.into_iter().chain(error).collect())
+        })
 }
 
 pub fn load_script(script_name: &str) -> anyhow::Result<Script> {
@@ -270,49 +316,35 @@ impl AppConfig {
         let figment =
             figment::Figment::from(providers::Serialized::defaults(&RawConfig::default()));
 
-        let mut file_errors = Vec::new();
-
         #[cfg(not(test))]
-        let figment = {
+        let (figment, global_errors) = {
             let global_config =
                 |extension: &str| ki_global_directory().join(format!("config.{extension}"));
-            let figment = merge_valid(
+            merge_all_valid(
                 figment,
-                Json5::file(global_config("json")),
-                &mut file_errors,
-            );
-            let figment = merge_valid(
-                figment,
-                providers::Yaml::file(global_config("yaml")),
-                &mut file_errors,
-            );
-            merge_valid(
-                figment,
-                providers::Toml::file(global_config("toml")),
-                &mut file_errors,
+                vec![
+                    ConfigFile::Json5(Json5::file(global_config("json"))),
+                    ConfigFile::Yaml(providers::Yaml::file(global_config("yaml"))),
+                    ConfigFile::Toml(providers::Toml::file(global_config("toml"))),
+                ],
             )
         };
+        #[cfg(test)]
+        let global_errors: Vec<String> = Vec::new();
 
-        let figment = if let Some(workspace_dir) = &workspace_dir {
+        let (figment, workspace_errors) = if let Some(workspace_dir) = &workspace_dir {
             let workspace_config =
                 |extension: &str| workspace_dir.join(format!("config.{extension}"));
-            let figment = merge_valid(
+            merge_all_valid(
                 figment,
-                Json5::file(workspace_config("json")),
-                &mut file_errors,
-            );
-            let figment = merge_valid(
-                figment,
-                providers::Yaml::file(workspace_config("yaml")),
-                &mut file_errors,
-            );
-            merge_valid(
-                figment,
-                providers::Toml::file(workspace_config("toml")),
-                &mut file_errors,
+                vec![
+                    ConfigFile::Json5(Json5::file(workspace_config("json"))),
+                    ConfigFile::Yaml(providers::Yaml::file(workspace_config("yaml"))),
+                    ConfigFile::Toml(providers::Toml::file(workspace_config("toml"))),
+                ],
             )
         } else {
-            figment
+            (figment, Vec::new())
         };
 
         let Extracted {
@@ -330,7 +362,8 @@ impl AppConfig {
 
         let load_errors = workspace_dir_error
             .into_iter()
-            .chain(file_errors)
+            .chain(global_errors)
+            .chain(workspace_errors)
             .chain(field_errors)
             .chain(apply_error)
             .collect();
