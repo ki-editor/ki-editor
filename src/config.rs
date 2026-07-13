@@ -224,12 +224,17 @@ impl figment::Provider for ConfigFile {
 /// only takes down its own contents rather than every other config source
 /// (e.g. a broken workspace config no longer discards an otherwise-valid
 /// global config, and vice versa).
-fn merge_valid(
+struct MergeValid {
     figment: figment::Figment,
-    provider: ConfigFile,
-) -> (figment::Figment, Option<String>) {
+    error: Option<String>,
+}
+
+fn merge_valid(figment: figment::Figment, provider: ConfigFile) -> MergeValid {
     match provider.data() {
-        Ok(_) => (figment.merge(provider), None),
+        Ok(_) => MergeValid {
+            figment: figment.merge(provider),
+            error: None,
+        },
         Err(error) => {
             let metadata = provider.metadata();
             let source = metadata
@@ -237,28 +242,37 @@ fn merge_valid(
                 .as_ref()
                 .map(|source| source.to_string())
                 .unwrap_or_else(|| metadata.name.to_string());
-            (
+            MergeValid {
                 figment,
-                Some(format!(
+                error: Some(format!(
                     "{source} could not be parsed (invalid syntax), skipping this file: {error}"
                 )),
-            )
+            }
         }
     }
 }
 
+struct MergeAllValid {
+    figment: figment::Figment,
+    errors: Vec<String>,
+}
+
 /// Folds [`merge_valid`] over `providers`, collecting the resulting figment
 /// alongside every error message produced along the way.
-fn merge_all_valid(
-    figment: figment::Figment,
-    providers: Vec<ConfigFile>,
-) -> (figment::Figment, Vec<String>) {
-    providers
-        .into_iter()
-        .fold((figment, Vec::new()), |(figment, errors), provider| {
-            let (figment, error) = merge_valid(figment, provider);
-            (figment, errors.into_iter().chain(error).collect())
-        })
+fn merge_all_valid(figment: figment::Figment, providers: Vec<ConfigFile>) -> MergeAllValid {
+    providers.into_iter().fold(
+        MergeAllValid {
+            figment,
+            errors: Vec::new(),
+        },
+        |acc, provider| {
+            let result = merge_valid(acc.figment, provider);
+            MergeAllValid {
+                figment: result.figment,
+                errors: acc.errors.into_iter().chain(result.error).collect(),
+            }
+        },
+    )
 }
 
 pub fn load_script(script_name: &str) -> anyhow::Result<Script> {
@@ -320,14 +334,15 @@ impl AppConfig {
         let (figment, global_errors) = {
             let global_config =
                 |extension: &str| ki_global_directory().join(format!("config.{extension}"));
-            merge_all_valid(
+            let result = merge_all_valid(
                 figment,
                 vec![
                     ConfigFile::Json5(Json5::file(global_config("json"))),
                     ConfigFile::Yaml(providers::Yaml::file(global_config("yaml"))),
                     ConfigFile::Toml(providers::Toml::file(global_config("toml"))),
                 ],
-            )
+            );
+            (result.figment, result.errors)
         };
         #[cfg(test)]
         let global_errors: Vec<String> = Vec::new();
@@ -335,14 +350,15 @@ impl AppConfig {
         let (figment, workspace_errors) = if let Some(workspace_dir) = &workspace_dir {
             let workspace_config =
                 |extension: &str| workspace_dir.join(format!("config.{extension}"));
-            merge_all_valid(
+            let result = merge_all_valid(
                 figment,
                 vec![
                     ConfigFile::Json5(Json5::file(workspace_config("json"))),
                     ConfigFile::Yaml(providers::Yaml::file(workspace_config("yaml"))),
                     ConfigFile::Toml(providers::Toml::file(workspace_config("toml"))),
                 ],
-            )
+            );
+            (result.figment, result.errors)
         } else {
             (figment, Vec::new())
         };
