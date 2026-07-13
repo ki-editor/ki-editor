@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::io::Read;
 use std::{collections::HashMap, path::PathBuf};
 
 use anyhow::Context;
@@ -293,9 +294,8 @@ impl AppConfig {
     /// Loads the config leniently: a malformed or missing value for any
     /// individual field (or language entry) falls back to its default
     /// instead of failing the entire config, so that Ki always starts up.
-    /// Anything that couldn't be parsed is printed to stderr (this runs
-    /// before the terminal enters raw/alternate-screen mode, so it's safe
-    /// to print here) and also kept in [`AppConfig::load_errors`].
+    /// Anything that couldn't be parsed is recorded in [`AppConfig::load_errors`];
+    /// [`AppConfig::singleton`] is responsible for surfacing it to the user.
     pub fn load_from_current_directory() -> Self {
         let mut errors = Vec::new();
 
@@ -339,16 +339,23 @@ impl AppConfig {
                 AppConfig::default()
             }
         };
-        if !errors.is_empty() {
-            eprintln!("Ki config warning:\n{}", errors.join("\n\n"));
-        }
         app_config.load_errors = errors;
         app_config
     }
 
     pub fn singleton() -> &'static AppConfig {
         static INSTANCE: OnceCell<AppConfig> = OnceCell::new();
-        INSTANCE.get_or_init(AppConfig::load_from_current_directory)
+        INSTANCE.get_or_init(|| {
+            let app_config = AppConfig::load_from_current_directory();
+            if !app_config.load_errors.is_empty() {
+                eprintln!("Ki config warning:\n{}", app_config.load_errors.join("\n\n"));
+                println!("\n[Press any key to continue]");
+                // Best-effort: if stdin isn't interactive (e.g. under a test
+                // harness or piped input), don't block startup on it.
+                let _ = std::io::stdin().read(&mut [0u8]);
+            }
+            app_config
+        })
     }
 
     /// Human-readable descriptions of any config values that failed to parse
