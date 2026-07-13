@@ -47,12 +47,12 @@ pub(super) fn extract_lenient(figment: &figment::Figment) -> Extracted<RawConfig
         ($field:ident, $key:literal) => {
             match figment.find_value($key) {
                 Ok(value) => match serde_path_to_error::deserialize(&value) {
-                    Ok(value) => (value, None),
+                    Ok(deserialized) => (deserialized, None),
                     Err(error) => (
                         default.$field,
                         Some(format!(
                             "{}, using default value",
-                            describe_path_error($key, error)
+                            describe_path_error(figment, value.tag(), $key, error)
                         )),
                     ),
                 },
@@ -115,18 +115,40 @@ pub(super) fn extract_lenient(figment: &figment::Figment) -> Extracted<RawConfig
     (config, errors).into()
 }
 
+/// Ki merges config from up to 6 possible files (global/workspace ×
+/// json/yaml/toml), so a per-field error message alone doesn't say which
+/// file the bad value came from. This resolves the `Tag` of the offending
+/// value back to its source file via figment's metadata, formatted as a
+/// suffix like " (in .ki/config.json)".
+fn location_suffix(figment: &figment::Figment, tag: figment::value::Tag) -> String {
+    figment
+        .get_metadata(tag)
+        .and_then(|metadata| metadata.source.as_ref())
+        .map(|source| format!(" (in {source})"))
+        .unwrap_or_default()
+}
+
 /// Formats a `serde_path_to_error` error as a fully-qualified, dotted config
 /// path (e.g. "`languages.javascript.formatter.arguments`: invalid type: ...")
 /// instead of just the leaf error message, so the user knows exactly which
 /// value in the config file is wrong.
-fn describe_path_error(prefix: &str, error: serde_path_to_error::Error<figment::Error>) -> String {
+fn describe_path_error(
+    figment: &figment::Figment,
+    tag: figment::value::Tag,
+    prefix: &str,
+    error: serde_path_to_error::Error<figment::Error>,
+) -> String {
     let path = error.path().to_string();
     let full_path = if path == "." {
         prefix.to_string()
     } else {
         format!("{prefix}.{path}")
     };
-    format!("`{full_path}` {}", error.into_inner())
+    format!(
+        "`{full_path}` {}{}",
+        error.into_inner(),
+        location_suffix(figment, tag)
+    )
 }
 
 /// Parses the `languages` map entry-by-entry, and within each entry,
@@ -141,12 +163,14 @@ fn extract_languages(figment: &figment::Figment) -> Extracted<HashMap<String, La
                 dict.into_iter().fold(
                     (languages, Vec::new()),
                     |(mut languages, mut errors), (name, entry)| {
+                        let entry_tag = entry.tag();
                         match serde_path_to_error::deserialize::<_, serde_json::Value>(&entry) {
                             Ok(entry_json) => {
                                 let default_language =
                                     languages.get(&name).cloned().unwrap_or_default();
                                 let (language, field_errors) =
                                     Language::extract_lenient(&entry_json, &default_language);
+                                let location = location_suffix(figment, entry_tag);
                                 errors.extend(field_errors.into_iter().map(
                                     |(field_path, message)| {
                                         let full_path = if field_path.is_empty() {
@@ -154,7 +178,9 @@ fn extract_languages(figment: &figment::Figment) -> Extracted<HashMap<String, La
                                         } else {
                                             format!("languages.{name}.{field_path}")
                                         };
-                                        format!("`{full_path}` {message}, using default value")
+                                        format!(
+                                            "`{full_path}` {message}, using default value{location}"
+                                        )
                                     },
                                 ));
                                 languages.insert(name, language);
@@ -162,7 +188,12 @@ fn extract_languages(figment: &figment::Figment) -> Extracted<HashMap<String, La
                             Err(error) => {
                                 errors.push(format!(
                                     "{}, ignoring language `{name}`",
-                                    describe_path_error(&format!("languages.{name}"), error)
+                                    describe_path_error(
+                                        figment,
+                                        entry_tag,
+                                        &format!("languages.{name}"),
+                                        error
+                                    )
                                 ));
                             }
                         }
@@ -196,6 +227,7 @@ fn extract_custom_keyboard_layouts(
                 dict.into_iter().fold(
                     (HashMap::new(), Vec::new()),
                     |(mut layouts, mut errors), (name, entry)| {
+                        let entry_tag = entry.tag();
                         match serde_path_to_error::deserialize(&entry) {
                             Ok(keys) => {
                                 layouts.insert(name, keys);
@@ -204,6 +236,8 @@ fn extract_custom_keyboard_layouts(
                                 errors.push(format!(
                                     "{}, ignoring custom keyboard layout `{name}`",
                                     describe_path_error(
+                                        figment,
+                                        entry_tag,
                                         &format!("custom_keyboard_layouts.{name}"),
                                         error
                                     )
@@ -239,18 +273,24 @@ fn extract_status_lines(
                 let (status_lines, errors): (Vec<_>, Vec<_>) = array
                     .into_iter()
                     .enumerate()
-                    .map(
-                        |(index, entry)| match serde_path_to_error::deserialize(&entry) {
+                    .map(|(index, entry)| {
+                        let entry_tag = entry.tag();
+                        match serde_path_to_error::deserialize(&entry) {
                             Ok(status_line) => (Some(status_line), None),
                             Err(error) => (
                                 None,
                                 Some(format!(
                                     "{}, ignoring this status line",
-                                    describe_path_error(&format!("status_lines.{index}"), error)
+                                    describe_path_error(
+                                        figment,
+                                        entry_tag,
+                                        &format!("status_lines.{index}"),
+                                        error
+                                    )
                                 )),
                             ),
-                        },
-                    )
+                        }
+                    })
                     .unzip();
                 (
                     status_lines.into_iter().flatten().collect(),
@@ -296,12 +336,15 @@ fn extract_leader_keymap(
                         return (grid, errors);
                     };
                     for (col_index, cell) in cells.into_iter().enumerate().take(10) {
+                        let cell_tag = cell.tag();
                         match serde_path_to_error::deserialize(&cell) {
                             Ok(keybinding) => grid[row_index][col_index] = keybinding,
                             Err(error) => {
                                 errors.push(format!(
                                     "{}, clearing this keybinding",
                                     describe_path_error(
+                                        figment,
+                                        cell_tag,
                                         &format!("leader_keymap.{row_index}.{col_index}"),
                                         error
                                     )

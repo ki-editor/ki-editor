@@ -463,6 +463,7 @@ mod test_config {
         std::env::set_current_dir(original_dir).unwrap();
 
         assert_eq!(config.load_errors().len(), 1);
+        assert!(config.load_errors()[0].contains(".ki/config.json"));
         assert_eq!(
             config.indent_width(),
             super::AppConfig::default().indent_width()
@@ -493,6 +494,10 @@ mod test_config {
             super::AppConfig::default().indent_width()
         );
         assert!(!config.languages().is_empty());
+        assert!(config
+            .load_errors()
+            .iter()
+            .all(|error| error.contains(".ki/config.json")));
     }
 
     /// A malformed field *within* a language override (e.g. `formatter`)
@@ -517,6 +522,7 @@ mod test_config {
 
         assert_eq!(config.load_errors().len(), 1);
         assert!(config.load_errors()[0].contains("languages.javascript.formatter.arguments"));
+        assert!(config.load_errors()[0].contains(".ki/config.json"));
 
         let javascript = config.languages().get("javascript").unwrap();
         // `line_comment_prefix` was valid and should still be applied...
@@ -549,6 +555,7 @@ mod test_config {
 
         assert_eq!(config.load_errors().len(), 1);
         assert!(config.load_errors()[0].contains("status_lines.1"));
+        assert!(config.load_errors()[0].contains(".ki/config.json"));
         assert_eq!(config.status_lines().len(), 1);
     }
 
@@ -573,6 +580,7 @@ mod test_config {
 
         assert_eq!(config.load_errors().len(), 1);
         assert!(config.load_errors()[0].contains("leader_keymap.0.0"));
+        assert!(config.load_errors()[0].contains(".ki/config.json"));
         assert!(config.leader_keymap().keybindings()[0][0].is_none());
     }
 
@@ -595,5 +603,6 @@ mod test_config {
 
         assert_eq!(config.load_errors().len(), 1);
         assert!(config.load_errors()[0].contains("custom_keyboard_layouts.bad"));
+        assert!(config.load_errors()[0].contains(".ki/config.json"));
     }
 }
