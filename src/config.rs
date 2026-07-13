@@ -194,11 +194,25 @@ pub fn load_script(script_name: &str) -> anyhow::Result<Script> {
     }
 }
 
+/// The result of leniently extracting a config value: the value itself
+/// (already falling back to a default wherever something couldn't be
+/// parsed) paired with a human-readable message for each thing that failed.
+struct Extracted<T> {
+    value: T,
+    errors: Vec<String>,
+}
+
+impl<T> From<(T, Vec<String>)> for Extracted<T> {
+    fn from((value, errors): (T, Vec<String>)) -> Self {
+        Self { value, errors }
+    }
+}
+
 /// Extracts `RawConfig` from `figment` field-by-field instead of in one shot,
 /// so a malformed value for one field (or one language entry) falls back to
 /// its default instead of taking down the whole config. Returns the resulting
 /// config plus a human-readable message for each field that couldn't be parsed.
-fn extract_lenient(figment: &figment::Figment) -> (RawConfig, Vec<String>) {
+fn extract_lenient(figment: &figment::Figment) -> Extracted<RawConfig> {
     let default = RawConfig::default();
 
     // If the merged config can't even be resolved into a generic value tree,
@@ -212,7 +226,8 @@ fn extract_lenient(figment: &figment::Figment) -> (RawConfig, Vec<String>) {
             vec![format!(
                 "Ki config could not be parsed (invalid syntax), using defaults: {error}"
             )],
-        );
+        )
+            .into();
     }
 
     macro_rules! extract_field {
@@ -233,10 +248,22 @@ fn extract_lenient(figment: &figment::Figment) -> (RawConfig, Vec<String>) {
         };
     }
 
-    let (languages, language_errors) = extract_languages(figment);
-    let (status_lines, status_line_errors) = extract_status_lines(figment, &default);
-    let (leader_keymap, leader_keymap_errors) = extract_leader_keymap(figment, &default);
-    let (custom_keyboard_layouts, custom_layout_errors) = extract_custom_keyboard_layouts(figment);
+    let Extracted {
+        value: languages,
+        errors: language_errors,
+    } = extract_languages(figment);
+    let Extracted {
+        value: status_lines,
+        errors: status_line_errors,
+    } = extract_status_lines(figment, &default);
+    let Extracted {
+        value: leader_keymap,
+        errors: leader_keymap_errors,
+    } = extract_leader_keymap(figment, &default);
+    let Extracted {
+        value: custom_keyboard_layouts,
+        errors: custom_layout_errors,
+    } = extract_custom_keyboard_layouts(figment);
     let (keyboard_layout, keyboard_layout_error) =
         extract_field!(keyboard_layout, "keyboard_layout");
     let (theme, theme_error) = extract_field!(theme, "theme");
@@ -272,7 +299,7 @@ fn extract_lenient(figment: &figment::Figment) -> (RawConfig, Vec<String>) {
         .chain(icon_style_error)
         .collect();
 
-    (config, errors)
+    (config, errors).into()
 }
 
 /// Formats a `serde_path_to_error` error as a fully-qualified, dotted config
@@ -293,7 +320,7 @@ fn describe_path_error(prefix: &str, error: serde_path_to_error::Error<figment::
 /// field-by-field, so a malformed value for one field of one language (e.g.
 /// a bad `formatter`) only resets that field to its default instead of
 /// dropping the whole language override, let alone the entire config.
-fn extract_languages(figment: &figment::Figment) -> (HashMap<String, Language>, Vec<String>) {
+fn extract_languages(figment: &figment::Figment) -> Extracted<HashMap<String, Language>> {
     let languages = shared::languages::languages();
     match figment.find_value("languages") {
         Ok(value) => {
@@ -341,6 +368,7 @@ fn extract_languages(figment: &figment::Figment) -> (HashMap<String, Language>, 
             vec![format!("Failed to parse `languages`: {error}")],
         ),
     }
+    .into()
 }
 
 /// Parses `custom_keyboard_layouts` entry-by-entry, so a malformed layout
@@ -348,7 +376,7 @@ fn extract_languages(figment: &figment::Figment) -> (HashMap<String, Language>, 
 /// defined.
 fn extract_custom_keyboard_layouts(
     figment: &figment::Figment,
-) -> (HashMap<String, KeyboardLayoutKeys>, Vec<String>) {
+) -> Extracted<HashMap<String, KeyboardLayoutKeys>> {
     match figment.find_value("custom_keyboard_layouts") {
         Ok(value) => {
             if let Some(dict) = value.into_dict() {
@@ -382,6 +410,7 @@ fn extract_custom_keyboard_layouts(
         // Absent entirely (e.g. not specified by the user), which is fine: it defaults to empty.
         Err(_) => (HashMap::new(), Vec::new()),
     }
+    .into()
 }
 
 /// Parses `status_lines` entry-by-entry, so a malformed status line only
@@ -390,7 +419,7 @@ fn extract_custom_keyboard_layouts(
 fn extract_status_lines(
     figment: &figment::Figment,
     default: &RawConfig,
-) -> (Vec<StatusLine>, Vec<String>) {
+) -> Extracted<Vec<StatusLine>> {
     match figment.find_value("status_lines") {
         Ok(value) => {
             if let Some(array) = value.into_array() {
@@ -423,6 +452,7 @@ fn extract_status_lines(
         }
         Err(_) => (default.status_lines.clone(), Vec::new()),
     }
+    .into()
 }
 
 /// Parses `leader_keymap` cell-by-cell, so a malformed keybinding (e.g. one
@@ -431,7 +461,7 @@ fn extract_status_lines(
 fn extract_leader_keymap(
     figment: &figment::Figment,
     default: &RawConfig,
-) -> (LeaderKeymap, Vec<String>) {
+) -> Extracted<LeaderKeymap> {
     match figment.find_value("leader_keymap") {
         Ok(value) => {
             let Some(rows) = value.into_array() else {
@@ -440,7 +470,8 @@ fn extract_leader_keymap(
                     vec![
                         "`leader_keymap` config must be an array, using default value".to_string(),
                     ],
-                );
+                )
+                    .into();
             };
             let (grid, errors) = rows.into_iter().enumerate().take(3).fold(
                 (<[[Option<Keybinding>; 10]; 3]>::default(), Vec::new()),
@@ -472,6 +503,7 @@ fn extract_leader_keymap(
         }
         Err(_) => (default.leader_keymap.clone(), Vec::new()),
     }
+    .into()
 }
 
 impl AppConfig {
@@ -519,7 +551,10 @@ impl AppConfig {
             figment
         };
 
-        let (raw_config, field_errors) = extract_lenient(&figment);
+        let Extracted {
+            value: raw_config,
+            errors: field_errors,
+        } = extract_lenient(&figment);
 
         let (app_config, apply_error) = match AppConfig::try_from(raw_config) {
             Ok(app_config) => (app_config, None),
