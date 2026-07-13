@@ -61,17 +61,18 @@ enum IndentChar {
 
 const DEFAULT_CONFIG: &str = include_str!("config_default.json");
 
-/// A JSON [`providers::Format`] that first strips `//` and `/* */` comments,
-/// so user-facing `config.json` files can be written as JSONC.
+/// A JSON [`providers::Format`] backed by the [`json5`] parser, so
+/// user-facing `config.json` files can contain `//` and `/* */` comments
+/// (and other JSON5 conveniences like trailing commas).
 struct Jsonc;
 
 impl providers::Format for Jsonc {
-    type Error = serde_json::Error;
+    type Error = json5::Error;
 
     const NAME: &'static str = "JSON";
 
     fn from_str<T: serde::de::DeserializeOwned>(string: &str) -> Result<T, Self::Error> {
-        serde_json::from_reader(json_comments::StripComments::new(string.as_bytes()))
+        json5::from_str(string)
     }
 }
 
