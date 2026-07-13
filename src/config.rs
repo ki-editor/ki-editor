@@ -236,14 +236,17 @@ fn extract_lenient(figment: &figment::Figment) -> (RawConfig, Vec<String>) {
     }
 
     let languages = extract_languages(figment, &mut errors);
+    let status_lines = extract_status_lines(figment, &default, &mut errors);
+    let leader_keymap = extract_leader_keymap(figment, &default, &mut errors);
+    let custom_keyboard_layouts = extract_custom_keyboard_layouts(figment, &mut errors);
 
     let config = RawConfig {
         languages,
         keyboard_layout: extract_field!(keyboard_layout, "keyboard_layout"),
         theme: extract_field!(theme, "theme"),
-        status_lines: extract_field!(status_lines, "status_lines"),
-        leader_keymap: extract_field!(leader_keymap, "leader_keymap"),
-        custom_keyboard_layouts: extract_field!(custom_keyboard_layouts, "custom_keyboard_layouts"),
+        status_lines,
+        leader_keymap,
+        custom_keyboard_layouts,
         indent_char: extract_field!(indent_char, "indent_char"),
         indent_width: extract_field!(indent_width, "indent_width"),
         show_key_in_keymap: extract_field!(show_key_in_keymap, "show_key_in_keymap"),
@@ -267,9 +270,10 @@ fn describe_path_error(prefix: &str, error: serde_path_to_error::Error<figment::
     format!("`{full_path}` {}", error.into_inner())
 }
 
-/// Parses the `languages` map entry-by-entry so a malformed config for one
-/// language (e.g. a bad rust-analyzer `lsp_command`) only drops that one
-/// language's override instead of the entire config.
+/// Parses the `languages` map entry-by-entry, and within each entry,
+/// field-by-field, so a malformed value for one field of one language (e.g.
+/// a bad `formatter`) only resets that field to its default instead of
+/// dropping the whole language override, let alone the entire config.
 fn extract_languages(
     figment: &figment::Figment,
     errors: &mut Vec<String>,
@@ -279,17 +283,29 @@ fn extract_languages(
         Ok(value) => {
             if let Some(dict) = value.into_dict() {
                 for (name, entry) in dict {
-                    match serde_path_to_error::deserialize::<_, Language>(&entry) {
-                        Ok(language) => {
-                            languages.insert(name, language);
-                        }
-                        Err(error) => {
-                            errors.push(format!(
-                                "{}, ignoring language `{name}`",
-                                describe_path_error(&format!("languages.{name}"), error)
-                            ));
-                        }
+                    let entry_json: serde_json::Value =
+                        match serde_path_to_error::deserialize(&entry) {
+                            Ok(value) => value,
+                            Err(error) => {
+                                errors.push(format!(
+                                    "{}, ignoring language `{name}`",
+                                    describe_path_error(&format!("languages.{name}"), error)
+                                ));
+                                continue;
+                            }
+                        };
+                    let default_language = languages.get(&name).cloned().unwrap_or_default();
+                    let (language, field_errors) =
+                        Language::extract_lenient(&entry_json, &default_language);
+                    for (field_path, message) in field_errors {
+                        let full_path = if field_path.is_empty() {
+                            format!("languages.{name}")
+                        } else {
+                            format!("languages.{name}.{field_path}")
+                        };
+                        errors.push(format!("`{full_path}` {message}, using default value"));
                     }
+                    languages.insert(name, language);
                 }
             } else {
                 errors.push("`languages` config must be an object/table.".to_string());
@@ -300,6 +316,127 @@ fn extract_languages(
         }
     }
     languages
+}
+
+/// Parses `custom_keyboard_layouts` entry-by-entry, so a malformed layout
+/// only drops that one entry instead of every custom layout the user
+/// defined.
+fn extract_custom_keyboard_layouts(
+    figment: &figment::Figment,
+    errors: &mut Vec<String>,
+) -> HashMap<String, KeyboardLayoutKeys> {
+    let mut layouts = HashMap::new();
+    match figment.find_value("custom_keyboard_layouts") {
+        Ok(value) => {
+            if let Some(dict) = value.into_dict() {
+                for (name, entry) in dict {
+                    match serde_path_to_error::deserialize(&entry) {
+                        Ok(keys) => {
+                            layouts.insert(name, keys);
+                        }
+                        Err(error) => {
+                            errors.push(format!(
+                                "{}, ignoring custom keyboard layout `{name}`",
+                                describe_path_error(
+                                    &format!("custom_keyboard_layouts.{name}"),
+                                    error
+                                )
+                            ));
+                        }
+                    }
+                }
+            } else {
+                errors
+                    .push("`custom_keyboard_layouts` config must be an object/table.".to_string());
+            }
+        }
+        // Absent entirely (e.g. not specified by the user), which is fine: it defaults to empty.
+        Err(_) => {}
+    }
+    layouts
+}
+
+/// Parses `status_lines` entry-by-entry, so a malformed status line only
+/// drops that one line instead of resetting the whole status line
+/// configuration back to the default.
+fn extract_status_lines(
+    figment: &figment::Figment,
+    default: &RawConfig,
+    errors: &mut Vec<String>,
+) -> Vec<StatusLine> {
+    match figment.find_value("status_lines") {
+        Ok(value) => {
+            if let Some(array) = value.into_array() {
+                array
+                    .into_iter()
+                    .enumerate()
+                    .filter_map(
+                        |(index, entry)| match serde_path_to_error::deserialize(&entry) {
+                            Ok(status_line) => Some(status_line),
+                            Err(error) => {
+                                errors.push(format!(
+                                    "{}, ignoring this status line",
+                                    describe_path_error(&format!("status_lines.{index}"), error)
+                                ));
+                                None
+                            }
+                        },
+                    )
+                    .collect()
+            } else {
+                errors.push(
+                    "`status_lines` config must be an array, using default value".to_string(),
+                );
+                default.status_lines.clone()
+            }
+        }
+        Err(_) => default.status_lines.clone(),
+    }
+}
+
+/// Parses `leader_keymap` cell-by-cell, so a malformed keybinding (e.g. one
+/// pointing to a missing script) only clears that one cell instead of
+/// wiping out every keybinding the user configured.
+fn extract_leader_keymap(
+    figment: &figment::Figment,
+    default: &RawConfig,
+    errors: &mut Vec<String>,
+) -> LeaderKeymap {
+    match figment.find_value("leader_keymap") {
+        Ok(value) => {
+            let Some(rows) = value.into_array() else {
+                errors.push(
+                    "`leader_keymap` config must be an array, using default value".to_string(),
+                );
+                return default.leader_keymap.clone();
+            };
+            let mut grid: [[Option<Keybinding>; 10]; 3] = Default::default();
+            for (row_index, row) in rows.into_iter().enumerate().take(3) {
+                let Some(cells) = row.into_array() else {
+                    errors.push(format!(
+                        "`leader_keymap.{row_index}` must be an array, using default value for this row"
+                    ));
+                    continue;
+                };
+                for (col_index, cell) in cells.into_iter().enumerate().take(10) {
+                    match serde_path_to_error::deserialize(&cell) {
+                        Ok(keybinding) => grid[row_index][col_index] = keybinding,
+                        Err(error) => {
+                            errors.push(format!(
+                                "{}, clearing this keybinding",
+                                describe_path_error(
+                                    &format!("leader_keymap.{row_index}.{col_index}"),
+                                    error
+                                )
+                            ));
+                        }
+                    }
+                }
+            }
+            LeaderKeymap(grid)
+        }
+        Err(_) => default.leader_keymap.clone(),
+    }
 }
 
 impl AppConfig {
@@ -366,7 +503,10 @@ impl AppConfig {
         INSTANCE.get_or_init(|| {
             let app_config = AppConfig::load_from_current_directory();
             if !app_config.load_errors.is_empty() {
-                eprintln!("Ki config warning:\n{}", app_config.load_errors.join("\n\n"));
+                eprintln!(
+                    "Ki config warning:\n{}",
+                    app_config.load_errors.join("\n\n")
+                );
                 println!("\n[Press any key to continue]");
                 // Best-effort: if stdin isn't interactive (e.g. under a test
                 // harness or piped input), don't block startup on it.
@@ -584,5 +724,107 @@ mod test_config {
             super::AppConfig::default().indent_width()
         );
         assert!(!config.languages().is_empty());
+    }
+
+    /// A malformed field *within* a language override (e.g. `formatter`)
+    /// should only reset that field, not drop the whole language override.
+    #[test]
+    fn malformed_language_field_falls_back_individually() {
+        let tempdir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(tempdir.path().join(".ki")).unwrap();
+        std::fs::write(
+            tempdir.path().join(".ki/config.json"),
+            r#"{"languages": {"javascript": {
+                "formatter": {"command": "prettier", "arguments": "format --stdin-file-path=_.js"},
+                "line_comment_prefix": "//"
+            }}}"#,
+        )
+        .unwrap();
+
+        let original_dir = std::env::current_dir().unwrap();
+        std::env::set_current_dir(tempdir.path()).unwrap();
+        let config = super::AppConfig::load_from_current_directory();
+        std::env::set_current_dir(original_dir).unwrap();
+
+        assert_eq!(config.load_errors().len(), 1);
+        assert!(config.load_errors()[0].contains("languages.javascript.formatter.arguments"));
+
+        let javascript = config.languages().get("javascript").unwrap();
+        // `line_comment_prefix` was valid and should still be applied...
+        assert_eq!(javascript.line_comment_prefix(), Some("//".to_string()));
+        // ...while `formatter` should fall back to the builtin default
+        // (which is `Some`), instead of the whole language override being
+        // discarded.
+        assert!(javascript.formatter().is_some());
+    }
+
+    /// One malformed status line (e.g. a typo'd component name) should only
+    /// drop that line, not reset `status_lines` to the default set.
+    #[test]
+    fn malformed_status_line_falls_back_individually() {
+        let tempdir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(tempdir.path().join(".ki")).unwrap();
+        std::fs::write(
+            tempdir.path().join(".ki/config.json"),
+            r#"{"status_lines": [
+                {"components": ["Mode"]},
+                {"components": ["NotAComponent"]}
+            ]}"#,
+        )
+        .unwrap();
+
+        let original_dir = std::env::current_dir().unwrap();
+        std::env::set_current_dir(tempdir.path()).unwrap();
+        let config = super::AppConfig::load_from_current_directory();
+        std::env::set_current_dir(original_dir).unwrap();
+
+        assert_eq!(config.load_errors().len(), 1);
+        assert!(config.load_errors()[0].contains("status_lines.1"));
+        assert_eq!(config.status_lines().len(), 1);
+    }
+
+    /// One malformed keybinding in `leader_keymap` should only clear that
+    /// cell, not wipe out every other configured keybinding.
+    #[test]
+    fn malformed_leader_keymap_cell_falls_back_individually() {
+        let tempdir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(tempdir.path().join(".ki")).unwrap();
+        let mut grid = vec![vec![serde_json::Value::Null; 10]; 3];
+        grid[0][0] = serde_json::json!({"name": "not-an-object"});
+        std::fs::write(
+            tempdir.path().join(".ki/config.json"),
+            serde_json::json!({ "leader_keymap": grid }).to_string(),
+        )
+        .unwrap();
+
+        let original_dir = std::env::current_dir().unwrap();
+        std::env::set_current_dir(tempdir.path()).unwrap();
+        let config = super::AppConfig::load_from_current_directory();
+        std::env::set_current_dir(original_dir).unwrap();
+
+        assert_eq!(config.load_errors().len(), 1);
+        assert!(config.load_errors()[0].contains("leader_keymap.0.0"));
+        assert!(config.leader_keymap().keybindings()[0][0].is_none());
+    }
+
+    /// One malformed custom keyboard layout should only drop that entry,
+    /// not every custom layout the user defined.
+    #[test]
+    fn malformed_custom_keyboard_layout_falls_back_individually() {
+        let tempdir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(tempdir.path().join(".ki")).unwrap();
+        std::fs::write(
+            tempdir.path().join(".ki/config.json"),
+            r#"{"custom_keyboard_layouts": {"bad": "not-a-grid"}}"#,
+        )
+        .unwrap();
+
+        let original_dir = std::env::current_dir().unwrap();
+        std::env::set_current_dir(tempdir.path()).unwrap();
+        let config = super::AppConfig::load_from_current_directory();
+        std::env::set_current_dir(original_dir).unwrap();
+
+        assert_eq!(config.load_errors().len(), 1);
+        assert!(config.load_errors()[0].contains("custom_keyboard_layouts.bad"));
     }
 }

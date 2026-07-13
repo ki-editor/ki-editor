@@ -326,6 +326,74 @@ impl Language {
     pub fn block_comment_affixes(&self) -> Option<(String, String)> {
         self.block_comment_affixes.clone()
     }
+
+    /// Parses a language override leniently, field by field, so an invalid
+    /// value for a single field (e.g. a malformed `formatter`) only resets
+    /// that field to `default`'s value instead of discarding the entire
+    /// language override. Returns the resulting language plus a
+    /// `(field_path, message)` pair for each field that failed to parse.
+    pub fn extract_lenient(value: &Value, default: &Language) -> (Language, Vec<(String, String)>) {
+        let Some(map) = value.as_object() else {
+            return (
+                default.clone(),
+                vec![(String::new(), "must be an object/table".to_string())],
+            );
+        };
+        let mut errors = Vec::new();
+
+        macro_rules! extract_field {
+            ($field:ident, $key:literal) => {
+                match map.get($key) {
+                    Some(value) => match serde_path_to_error::deserialize(value.clone()) {
+                        Ok(value) => value,
+                        Err(error) => {
+                            let path = error.path().to_string();
+                            let field_path = if path == "." {
+                                $key.to_string()
+                            } else {
+                                format!("{}.{}", $key, path)
+                            };
+                            errors.push((field_path, error.into_inner().to_string()));
+                            default.$field.clone()
+                        }
+                    },
+                    None => default.$field.clone(),
+                }
+            };
+        }
+
+        let known_keys = [
+            "extensions",
+            "file_names",
+            "lsp_language_id",
+            "lsp_command",
+            "tree_sitter_grammar_config",
+            "formatter",
+            "line_comment_prefix",
+            "block_comment_affixes",
+        ];
+        for key in map.keys() {
+            if !known_keys.contains(&key.as_str()) {
+                errors.push((key.clone(), "unknown field".to_string()));
+            }
+        }
+
+        let language = Language {
+            extensions: extract_field!(extensions, "extensions"),
+            file_names: extract_field!(file_names, "file_names"),
+            lsp_language_id: extract_field!(lsp_language_id, "lsp_language_id"),
+            lsp_command: extract_field!(lsp_command, "lsp_command"),
+            tree_sitter_grammar_config: extract_field!(
+                tree_sitter_grammar_config,
+                "tree_sitter_grammar_config"
+            ),
+            formatter: extract_field!(formatter, "formatter"),
+            line_comment_prefix: extract_field!(line_comment_prefix, "line_comment_prefix"),
+            block_comment_affixes: extract_field!(block_comment_affixes, "block_comment_affixes"),
+        };
+
+        (language, errors)
+    }
 }
 
 impl Default for Language {

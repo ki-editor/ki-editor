@@ -2410,6 +2410,7 @@ dependencies = [
  "schemars",
  "serde",
  "serde_json",
+ "serde_path_to_error",
  "tree-sitter",
  "tree-sitter-bash",
  "tree-sitter-c",
