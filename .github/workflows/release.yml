@@ -23,11 +23,8 @@ on:
           - 'false'
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: release
   cancel-in-progress: false
-
-env:
-  SNAPSHOT_KEEP: 14
 
 jobs:
   prepare:
@@ -67,11 +64,10 @@ jobs:
       - name: Determine release version
         id: release
         run: |
-          load_snapshot_versions() {
-            gh api \
-              "repos/${GITHUB_REPOSITORY}/contents/channels/snapshot-versions.txt?ref=gh-pages" \
-              --jq '.content' 2>/dev/null \
-              | base64 -d 2>/dev/null || true
+          load_snapshot_commits() {
+            git fetch origin channels --depth=1 >/dev/null 2>&1 || return 0
+            git show FETCH_HEAD:releases.jsonl 2>/dev/null |
+              jq -r 'select(.channel == "snapshot") | .commit_id' || true
           }
 
           if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
@@ -84,9 +80,9 @@ jobs:
             echo "sha=$sha" >> "$GITHUB_OUTPUT"
 
             if [ "$dedupe" = "true" ]; then
-              snapshot_versions="$(load_snapshot_versions)"
+              snapshot_commits="$(load_snapshot_commits)"
 
-              if printf '%s\n' "$snapshot_versions" | grep -q -- "-${short_sha}$"; then
+              if printf '%s\n' "$snapshot_commits" | grep -qxF "$sha"; then
                 echo "skip=true" >> "$GITHUB_OUTPUT"
                 echo "version=" >> "$GITHUB_OUTPUT"
               else
@@ -100,13 +96,13 @@ jobs:
           elif [ "${GITHUB_EVENT_NAME}" = "schedule" ]; then
             sha="$(git rev-parse HEAD)"
             short_sha="${sha::12}"
-            snapshot_versions="$(load_snapshot_versions)"
+            snapshot_commits="$(load_snapshot_commits)"
 
             echo "kind=snapshot" >> "$GITHUB_OUTPUT"
             echo "ref=$sha" >> "$GITHUB_OUTPUT"
             echo "sha=$sha" >> "$GITHUB_OUTPUT"
 
-            if printf '%s\n' "$snapshot_versions" | grep -q -- "-${short_sha}$"; then
+            if printf '%s\n' "$snapshot_commits" | grep -qxF "$sha"; then
               echo "skip=true" >> "$GITHUB_OUTPUT"
               echo "version=" >> "$GITHUB_OUTPUT"
             else
@@ -144,98 +140,74 @@ jobs:
       - uses: actions/download-artifact@v7
       - name: Publish release
         run: |
-          release_flags=
-          if [ "${{ needs.prepare.outputs.kind }}" = "snapshot" ]; then
-            release_flags=--prerelease
-          fi
-
-          gh release create "${{ needs.prepare.outputs.version }}" \
-            --target "${{ needs.prepare.outputs.sha }}" \
-            --title "${{ needs.prepare.outputs.version }}" \
-            $release_flags \
-            ki-linux-x64/ki-linux-x64.tar.gz \
-            ki-linux-arm64/ki-linux-arm64.tar.gz \
-            ki-windows-x64/ki-windows-x64.zip \
-            ki-windows-arm64/ki-windows-arm64.zip \
-            ki-macos-x64/ki-macos-x64.tar.gz \
-            ki-macos-arm64/ki-macos-arm64.tar.gz
-
-  channels:
-    if: needs.prepare.outputs.skip != 'true'
-    needs: [prepare, publish]
-    runs-on: ubuntu-latest
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    permissions:
-      contents: write
-    steps:
-      - name: Checkout gh-pages
-        uses: actions/checkout@v6
-        with:
-          ref: gh-pages
-          path: gh-pages
-
-      - name: Update channel metadata
-        working-directory: gh-pages
-        run: |
           set -eu
 
           version="${{ needs.prepare.outputs.version }}"
-          kind="${{ needs.prepare.outputs.kind }}"
+          expected_sha="${{ needs.prepare.outputs.sha }}"
+          release_info="$(
+            gh release view "$version" \
+              --json isDraft,targetCommitish \
+              --jq '[.isDraft, .targetCommitish] | @tsv' 2>/dev/null || true
+          )"
+          release_exists=false
 
-          mkdir -p channels
+          if [ -n "$release_info" ]; then
+            IFS=$'\t' read -r is_draft existing_target <<< "$release_info"
 
-          if [ "$kind" = "stable" ]; then
-            printf '%s\n' "$version" > channels/stable-latest.txt
-            touch channels/stable-versions.txt
-            grep -qxF "$version" channels/stable-versions.txt || printf '%s\n' "$version" >> channels/stable-versions.txt
-          else
-            printf '%s\n' "$version" > channels/snapshot-latest.txt
-            touch channels/snapshot-versions.txt
-            { printf '%s\n' "$version"; grep -vxF "$version" channels/snapshot-versions.txt || true; } \
-              | head -n "$SNAPSHOT_KEEP" > channels/snapshot-versions.txt.tmp
-            mv channels/snapshot-versions.txt.tmp channels/snapshot-versions.txt
+            if [ "$is_draft" = "true" ] && [ "$existing_target" = "$expected_sha" ]; then
+              echo "Removing stale draft release $version for $expected_sha"
+              gh release delete "$version" --yes
+            else
+              existing_sha="$existing_target"
+
+              if [ "$is_draft" = "false" ]; then
+                git fetch origin "refs/tags/$version" --depth=1 >/dev/null 2>&1 || true
+                existing_sha="$(git rev-parse 'FETCH_HEAD^{commit}' 2>/dev/null || printf '%s' "$existing_target")"
+              fi
+
+              if [ "$is_draft" = "false" ] && [ "$existing_sha" = "$expected_sha" ]; then
+                echo "Release already published: $version ($expected_sha)"
+                release_exists=true
+              else
+                echo "Release conflict for $version" >&2
+                echo "draft: $is_draft" >&2
+                echo "expected commit: $expected_sha" >&2
+                echo "existing commit: $existing_sha" >&2
+                echo "Resolve the existing release/tag manually, then rerun this workflow." >&2
+                exit 1
+              fi
+            fi
           fi
 
-          if [ -z "$(git status --porcelain -- channels)" ]; then
-            exit 0
+          if [ "$release_exists" = "false" ]; then
+            trap 'gh release delete "$version" --yes >/dev/null 2>&1 || true' EXIT
+
+            gh release create "$version" \
+              --target "${{ needs.prepare.outputs.sha }}" \
+              --title "$version" \
+              --draft \
+              ki-linux-x64/ki-linux-x64.tar.gz \
+              ki-linux-arm64/ki-linux-arm64.tar.gz \
+              ki-windows-x64/ki-windows-x64.zip \
+              ki-windows-arm64/ki-windows-arm64.zip \
+              ki-macos-x64/ki-macos-x64.tar.gz \
+              ki-macos-arm64/ki-macos-arm64.tar.gz
+
+            if [ "${{ needs.prepare.outputs.kind }}" = "snapshot" ]; then
+              gh release edit "$version" --draft=false --prerelease
+            else
+              gh release edit "$version" --draft=false --latest
+            fi
+
+            trap - EXIT
           fi
 
-          git config user.name github-actions[bot]
-          git config user.email github-actions[bot]@users.noreply.github.com
-          git add channels
-          git commit -m "Update release channel metadata for $version"
-          git push
-
-  gc-snapshots:
-    if: needs.prepare.outputs.kind == 'snapshot' && needs.prepare.outputs.skip != 'true'
-    needs: [prepare, channels]
-    runs-on: ubuntu-latest
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  sync-channels:
+    if: needs.prepare.outputs.skip != 'true'
+    needs: [prepare, publish]
+    uses: ./.github/workflows/sync-release-channels.yml
     permissions:
       contents: write
-    steps:
-      - name: Checkout gh-pages
-        uses: actions/checkout@v6
-        with:
-          ref: gh-pages
-          path: gh-pages
-
-      - name: Delete expired snapshot releases
-        working-directory: gh-pages
-        run: |
-          set -eu
-
-          keep_file="channels/snapshot-versions.txt"
-
-          gh release list \
-            --repo "$GITHUB_REPOSITORY" \
-            --limit 1000 \
-            --json tagName \
-            --jq '.[].tagName | select(startswith("snapshot-"))' \
-            | while IFS= read -r tag; do
-                if ! grep -qxF "$tag" "$keep_file"; then
-                  gh release delete "$tag" --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes
-                fi
-              done
+    with:
+      fast: true
+      expected_version: ${{ needs.prepare.outputs.version }}

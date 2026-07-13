@@ -1,0 +1,44 @@
+name: sync release channels
+
+on:
+  workflow_call:
+    inputs:
+      fast:
+        required: false
+        default: true
+        type: boolean
+      expected_version:
+        required: false
+        default: ''
+        type: string
+  workflow_dispatch:
+    inputs:
+      fast:
+        description: Only discover recent releases; do not remove missing records
+        required: true
+        default: true
+        type: boolean
+
+concurrency:
+  group: release-channels
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      SNAPSHOT_KEEP: 14
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout workflow source
+        uses: actions/checkout@v6
+        with:
+          path: source
+
+      - name: Sync release channels
+        env:
+          EXPECTED_VERSION: ${{ inputs.expected_version }}
+          FAST: ${{ inputs.fast }}
+        run: bash source/.github/scripts/sync-release-channels.sh
