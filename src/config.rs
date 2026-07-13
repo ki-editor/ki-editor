@@ -61,6 +61,20 @@ enum IndentChar {
 
 const DEFAULT_CONFIG: &str = include_str!("config_default.json");
 
+/// A JSON [`providers::Format`] that first strips `//` and `/* */` comments,
+/// so user-facing `config.json` files can be written as JSONC.
+struct Jsonc;
+
+impl providers::Format for Jsonc {
+    type Error = serde_json::Error;
+
+    const NAME: &'static str = "JSON";
+
+    fn from_str<T: serde::de::DeserializeOwned>(string: &str) -> Result<T, Self::Error> {
+        serde_json::from_reader(json_comments::StripComments::new(string.as_bytes()))
+    }
+}
+
 impl Default for RawConfig {
     fn default() -> Self {
         RawConfig {
@@ -226,7 +240,7 @@ impl AppConfig {
             let global_config =
                 |extension: &str| ki_global_directory().join(format!("config.{extension}"));
             figment
-                .merge(providers::Json::file(global_config("json")))
+                .merge(Jsonc::file(global_config("json")))
                 .merge(providers::Yaml::file(global_config("yaml")))
                 .merge(providers::Toml::file(global_config("toml")))
         };
@@ -235,7 +249,7 @@ impl AppConfig {
             let workspace_config =
                 |extension: &str| workspace_dir.join(format!("config.{extension}"));
             figment
-                .merge(providers::Json::file(workspace_config("json")))
+                .merge(Jsonc::file(workspace_config("json")))
                 .merge(providers::Yaml::file(workspace_config("yaml")))
                 .merge(providers::Toml::file(workspace_config("toml")))
         } else {
@@ -498,6 +512,30 @@ mod test_config {
             .load_errors()
             .iter()
             .all(|error| error.contains(".ki/config.json")));
+    }
+
+    /// `config.json` is allowed to contain `//` and `/* */` comments (JSONC),
+    /// since that's convenient for annotating settings.
+    #[test]
+    fn config_json_allows_comments() {
+        let tempdir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(tempdir.path().join(".ki")).unwrap();
+        std::fs::write(
+            tempdir.path().join(".ki/config.json"),
+            r#"{
+                // line comment
+                "indent_width": 7 /* inline comment */
+            }"#,
+        )
+        .unwrap();
+
+        let original_dir = std::env::current_dir().unwrap();
+        std::env::set_current_dir(tempdir.path()).unwrap();
+        let config = super::AppConfig::load_from_current_directory();
+        std::env::set_current_dir(original_dir).unwrap();
+
+        assert!(config.load_errors().is_empty());
+        assert_eq!(config.indent_width(), 7);
     }
 
     /// A malformed field *within* a language override (e.g. `formatter`)

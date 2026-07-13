@@ -105,6 +105,7 @@ ki-protocol-types = { path = "ki-protocol-types" }
 uuid = { version = "1.4.1", features = ["v4", "serde"] }
 url = { version = "2.5.2" }
 figment = { version = "0.10.19", features = ["json", "toml", "yaml"] }
+json_comments = "0.2.2"
 
 # Add tungstenite for WebSocket support
 tungstenite = "0.21"
