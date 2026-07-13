@@ -193,25 +193,34 @@ pub fn load_script(script_name: &str) -> anyhow::Result<Script> {
     }
 }
 
-/// Number of `RawConfig` fields (excluding `languages`, which is handled
-/// per-entry by [`extract_languages`]) attempted by [`extract_lenient`].
-const TOP_LEVEL_FIELD_COUNT: usize = 9;
-
 /// Extracts `RawConfig` from `figment` field-by-field instead of in one shot,
 /// so a malformed value for one field (or one language entry) falls back to
 /// its default instead of taking down the whole config. Returns the resulting
 /// config plus a human-readable message for each field that couldn't be parsed.
 fn extract_lenient(figment: &figment::Figment) -> (RawConfig, Vec<String>) {
     let default = RawConfig::default();
+
+    // If the merged config can't even be resolved into a generic value tree,
+    // the file itself is syntactically invalid (e.g. empty or malformed
+    // JSON/YAML/TOML): there are no individual fields to lenient-parse, so
+    // bail out with one clean message instead of a per-field extraction that
+    // would just fail on every field for the same root cause.
+    if let Err(error) = figment.find_value("") {
+        return (
+            default,
+            vec![format!(
+                "Ki config could not be parsed (invalid syntax), using defaults: {error}"
+            )],
+        );
+    }
+
     let mut errors = Vec::new();
-    let mut top_level_error_count = 0;
 
     macro_rules! extract_field {
         ($field:ident, $key:literal) => {
             match figment.extract_inner($key) {
                 Ok(value) => value,
                 Err(error) => {
-                    top_level_error_count += 1;
                     errors.push(format!(
                         "Failed to parse `{}`, using default value: {error}",
                         $key
@@ -222,7 +231,7 @@ fn extract_lenient(figment: &figment::Figment) -> (RawConfig, Vec<String>) {
         };
     }
 
-    let (languages, languages_root_error) = extract_languages(figment, &mut errors);
+    let languages = extract_languages(figment, &mut errors);
 
     let config = RawConfig {
         languages,
@@ -237,30 +246,16 @@ fn extract_lenient(figment: &figment::Figment) -> (RawConfig, Vec<String>) {
         icon_style: extract_field!(icon_style, "icon_style"),
     };
 
-    // If every single field failed, including `languages`, the config file
-    // itself is almost certainly syntactically invalid (e.g. empty or
-    // malformed JSON/YAML/TOML) rather than containing individually-wrong
-    // fields: collapse the noise into one message instead of repeating the
-    // same root cause for every field.
-    if languages_root_error && top_level_error_count == TOP_LEVEL_FIELD_COUNT {
-        (
-            config,
-            vec!["Ki config could not be parsed (invalid syntax); using defaults.".to_string()],
-        )
-    } else {
-        (config, errors)
-    }
+    (config, errors)
 }
 
 /// Parses the `languages` map entry-by-entry so a malformed config for one
 /// language (e.g. a bad rust-analyzer `lsp_command`) only drops that one
-/// language's override instead of the entire config. Returns the resulting
-/// map plus whether the `languages` key itself could not be looked up at all
-/// (a signal of a whole-file syntax error rather than a single bad entry).
+/// language's override instead of the entire config.
 fn extract_languages(
     figment: &figment::Figment,
     errors: &mut Vec<String>,
-) -> (HashMap<String, Language>, bool) {
+) -> HashMap<String, Language> {
     let mut languages = shared::languages::languages();
     match figment.find_value("languages") {
         Ok(value) => {
@@ -280,13 +275,12 @@ fn extract_languages(
             } else {
                 errors.push("`languages` config must be an object/table.".to_string());
             }
-            (languages, false)
         }
         Err(error) => {
             errors.push(format!("Failed to parse `languages`: {error}"));
-            (languages, true)
         }
     }
+    languages
 }
 
 impl AppConfig {
