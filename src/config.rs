@@ -293,8 +293,9 @@ impl AppConfig {
     /// Loads the config leniently: a malformed or missing value for any
     /// individual field (or language entry) falls back to its default
     /// instead of failing the entire config, so that Ki always starts up.
-    /// Anything that couldn't be parsed is recorded in [`AppConfig::load_errors`]
-    /// so the caller can surface it inside the TUI instead of blocking startup.
+    /// Anything that couldn't be parsed is printed to stderr (this runs
+    /// before the terminal enters raw/alternate-screen mode, so it's safe
+    /// to print here) and also kept in [`AppConfig::load_errors`].
     pub fn load_from_current_directory() -> Self {
         let mut errors = Vec::new();
 
@@ -338,6 +339,9 @@ impl AppConfig {
                 AppConfig::default()
             }
         };
+        if !errors.is_empty() {
+            eprintln!("Ki config warning:\n{}", errors.join("\n\n"));
+        }
         app_config.load_errors = errors;
         app_config
     }

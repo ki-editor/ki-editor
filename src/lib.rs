@@ -132,7 +132,7 @@ pub fn run(config: RunConfig) -> anyhow::Result<()> {
     let (priority_sender, priority_receiver) = crossbeam_channel::unbounded();
     let syntax_highlighter_sender = syntax_highlight::start_thread(sender.clone());
 
-    let mut app = App::from_channel(
+    let app = App::from_channel(
         Rc::new(Mutex::new(Crossterm::new())),
         config.working_directory.unwrap_or(".".try_into()?),
         sender,
@@ -148,16 +148,6 @@ pub fn run(config: RunConfig) -> anyhow::Result<()> {
             grammar::cache_dir().join("data.json"),
         )),
     )?;
-
-    let config_errors = AppConfig::singleton().load_errors();
-    if !config_errors.is_empty() {
-        app.handle_dispatch(app::Dispatch::ShowGlobalInfo(
-            crate::components::suggestive_editor::Info::new(
-                "Config Warning".to_string(),
-                config_errors.join("\n\n"),
-            ),
-        ))?;
-    }
 
     std::thread::spawn(move || loop {
         let message = match crossterm::event::read() {
