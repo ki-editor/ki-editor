@@ -215,43 +215,62 @@ fn extract_lenient(figment: &figment::Figment) -> (RawConfig, Vec<String>) {
         );
     }
 
-    let mut errors = Vec::new();
-
     macro_rules! extract_field {
         ($field:ident, $key:literal) => {
             match figment.find_value($key) {
                 Ok(value) => match serde_path_to_error::deserialize(&value) {
-                    Ok(value) => value,
-                    Err(error) => {
-                        errors.push(format!(
+                    Ok(value) => (value, None),
+                    Err(error) => (
+                        default.$field,
+                        Some(format!(
                             "{}, using default value",
                             describe_path_error($key, error)
-                        ));
-                        default.$field
-                    }
+                        )),
+                    ),
                 },
-                Err(_) => default.$field,
+                Err(_) => (default.$field, None),
             }
         };
     }
 
-    let languages = extract_languages(figment, &mut errors);
-    let status_lines = extract_status_lines(figment, &default, &mut errors);
-    let leader_keymap = extract_leader_keymap(figment, &default, &mut errors);
-    let custom_keyboard_layouts = extract_custom_keyboard_layouts(figment, &mut errors);
+    let (languages, language_errors) = extract_languages(figment);
+    let (status_lines, status_line_errors) = extract_status_lines(figment, &default);
+    let (leader_keymap, leader_keymap_errors) = extract_leader_keymap(figment, &default);
+    let (custom_keyboard_layouts, custom_layout_errors) = extract_custom_keyboard_layouts(figment);
+    let (keyboard_layout, keyboard_layout_error) =
+        extract_field!(keyboard_layout, "keyboard_layout");
+    let (theme, theme_error) = extract_field!(theme, "theme");
+    let (indent_char, indent_char_error) = extract_field!(indent_char, "indent_char");
+    let (indent_width, indent_width_error) = extract_field!(indent_width, "indent_width");
+    let (show_key_in_keymap, show_key_in_keymap_error) =
+        extract_field!(show_key_in_keymap, "show_key_in_keymap");
+    let (icon_style, icon_style_error) = extract_field!(icon_style, "icon_style");
 
     let config = RawConfig {
         languages,
-        keyboard_layout: extract_field!(keyboard_layout, "keyboard_layout"),
-        theme: extract_field!(theme, "theme"),
+        keyboard_layout,
+        theme,
         status_lines,
         leader_keymap,
         custom_keyboard_layouts,
-        indent_char: extract_field!(indent_char, "indent_char"),
-        indent_width: extract_field!(indent_width, "indent_width"),
-        show_key_in_keymap: extract_field!(show_key_in_keymap, "show_key_in_keymap"),
-        icon_style: extract_field!(icon_style, "icon_style"),
+        indent_char,
+        indent_width,
+        show_key_in_keymap,
+        icon_style,
     };
+
+    let errors = language_errors
+        .into_iter()
+        .chain(status_line_errors)
+        .chain(leader_keymap_errors)
+        .chain(custom_layout_errors)
+        .chain(keyboard_layout_error)
+        .chain(theme_error)
+        .chain(indent_char_error)
+        .chain(indent_width_error)
+        .chain(show_key_in_keymap_error)
+        .chain(icon_style_error)
+        .collect();
 
     (config, errors)
 }
@@ -274,48 +293,54 @@ fn describe_path_error(prefix: &str, error: serde_path_to_error::Error<figment::
 /// field-by-field, so a malformed value for one field of one language (e.g.
 /// a bad `formatter`) only resets that field to its default instead of
 /// dropping the whole language override, let alone the entire config.
-fn extract_languages(
-    figment: &figment::Figment,
-    errors: &mut Vec<String>,
-) -> HashMap<String, Language> {
-    let mut languages = shared::languages::languages();
+fn extract_languages(figment: &figment::Figment) -> (HashMap<String, Language>, Vec<String>) {
+    let languages = shared::languages::languages();
     match figment.find_value("languages") {
         Ok(value) => {
             if let Some(dict) = value.into_dict() {
-                for (name, entry) in dict {
-                    let entry_json: serde_json::Value =
-                        match serde_path_to_error::deserialize(&entry) {
-                            Ok(value) => value,
+                dict.into_iter().fold(
+                    (languages, Vec::new()),
+                    |(mut languages, mut errors), (name, entry)| {
+                        match serde_path_to_error::deserialize::<_, serde_json::Value>(&entry) {
+                            Ok(entry_json) => {
+                                let default_language =
+                                    languages.get(&name).cloned().unwrap_or_default();
+                                let (language, field_errors) =
+                                    Language::extract_lenient(&entry_json, &default_language);
+                                errors.extend(field_errors.into_iter().map(
+                                    |(field_path, message)| {
+                                        let full_path = if field_path.is_empty() {
+                                            format!("languages.{name}")
+                                        } else {
+                                            format!("languages.{name}.{field_path}")
+                                        };
+                                        format!("`{full_path}` {message}, using default value")
+                                    },
+                                ));
+                                languages.insert(name, language);
+                            }
                             Err(error) => {
                                 errors.push(format!(
                                     "{}, ignoring language `{name}`",
                                     describe_path_error(&format!("languages.{name}"), error)
                                 ));
-                                continue;
                             }
-                        };
-                    let default_language = languages.get(&name).cloned().unwrap_or_default();
-                    let (language, field_errors) =
-                        Language::extract_lenient(&entry_json, &default_language);
-                    for (field_path, message) in field_errors {
-                        let full_path = if field_path.is_empty() {
-                            format!("languages.{name}")
-                        } else {
-                            format!("languages.{name}.{field_path}")
-                        };
-                        errors.push(format!("`{full_path}` {message}, using default value"));
-                    }
-                    languages.insert(name, language);
-                }
+                        }
+                        (languages, errors)
+                    },
+                )
             } else {
-                errors.push("`languages` config must be an object/table.".to_string());
+                (
+                    languages,
+                    vec!["`languages` config must be an object/table.".to_string()],
+                )
             }
         }
-        Err(error) => {
-            errors.push(format!("Failed to parse `languages`: {error}"));
-        }
+        Err(error) => (
+            languages,
+            vec![format!("Failed to parse `languages`: {error}")],
+        ),
     }
-    languages
 }
 
 /// Parses `custom_keyboard_layouts` entry-by-entry, so a malformed layout
@@ -323,37 +348,40 @@ fn extract_languages(
 /// defined.
 fn extract_custom_keyboard_layouts(
     figment: &figment::Figment,
-    errors: &mut Vec<String>,
-) -> HashMap<String, KeyboardLayoutKeys> {
-    let mut layouts = HashMap::new();
+) -> (HashMap<String, KeyboardLayoutKeys>, Vec<String>) {
     match figment.find_value("custom_keyboard_layouts") {
         Ok(value) => {
             if let Some(dict) = value.into_dict() {
-                for (name, entry) in dict {
-                    match serde_path_to_error::deserialize(&entry) {
-                        Ok(keys) => {
-                            layouts.insert(name, keys);
+                dict.into_iter().fold(
+                    (HashMap::new(), Vec::new()),
+                    |(mut layouts, mut errors), (name, entry)| {
+                        match serde_path_to_error::deserialize(&entry) {
+                            Ok(keys) => {
+                                layouts.insert(name, keys);
+                            }
+                            Err(error) => {
+                                errors.push(format!(
+                                    "{}, ignoring custom keyboard layout `{name}`",
+                                    describe_path_error(
+                                        &format!("custom_keyboard_layouts.{name}"),
+                                        error
+                                    )
+                                ));
+                            }
                         }
-                        Err(error) => {
-                            errors.push(format!(
-                                "{}, ignoring custom keyboard layout `{name}`",
-                                describe_path_error(
-                                    &format!("custom_keyboard_layouts.{name}"),
-                                    error
-                                )
-                            ));
-                        }
-                    }
-                }
+                        (layouts, errors)
+                    },
+                )
             } else {
-                errors
-                    .push("`custom_keyboard_layouts` config must be an object/table.".to_string());
+                (
+                    HashMap::new(),
+                    vec!["`custom_keyboard_layouts` config must be an object/table.".to_string()],
+                )
             }
         }
         // Absent entirely (e.g. not specified by the user), which is fine: it defaults to empty.
-        Err(_) => {}
+        Err(_) => (HashMap::new(), Vec::new()),
     }
-    layouts
 }
 
 /// Parses `status_lines` entry-by-entry, so a malformed status line only
@@ -362,35 +390,38 @@ fn extract_custom_keyboard_layouts(
 fn extract_status_lines(
     figment: &figment::Figment,
     default: &RawConfig,
-    errors: &mut Vec<String>,
-) -> Vec<StatusLine> {
+) -> (Vec<StatusLine>, Vec<String>) {
     match figment.find_value("status_lines") {
         Ok(value) => {
             if let Some(array) = value.into_array() {
-                array
+                let (status_lines, errors): (Vec<_>, Vec<_>) = array
                     .into_iter()
                     .enumerate()
-                    .filter_map(
+                    .map(
                         |(index, entry)| match serde_path_to_error::deserialize(&entry) {
-                            Ok(status_line) => Some(status_line),
-                            Err(error) => {
-                                errors.push(format!(
+                            Ok(status_line) => (Some(status_line), None),
+                            Err(error) => (
+                                None,
+                                Some(format!(
                                     "{}, ignoring this status line",
                                     describe_path_error(&format!("status_lines.{index}"), error)
-                                ));
-                                None
-                            }
+                                )),
+                            ),
                         },
                     )
-                    .collect()
+                    .unzip();
+                (
+                    status_lines.into_iter().flatten().collect(),
+                    errors.into_iter().flatten().collect(),
+                )
             } else {
-                errors.push(
-                    "`status_lines` config must be an array, using default value".to_string(),
-                );
-                default.status_lines.clone()
+                (
+                    default.status_lines.clone(),
+                    vec!["`status_lines` config must be an array, using default value".to_string()],
+                )
             }
         }
-        Err(_) => default.status_lines.clone(),
+        Err(_) => (default.status_lines.clone(), Vec::new()),
     }
 }
 
@@ -400,42 +431,46 @@ fn extract_status_lines(
 fn extract_leader_keymap(
     figment: &figment::Figment,
     default: &RawConfig,
-    errors: &mut Vec<String>,
-) -> LeaderKeymap {
+) -> (LeaderKeymap, Vec<String>) {
     match figment.find_value("leader_keymap") {
         Ok(value) => {
             let Some(rows) = value.into_array() else {
-                errors.push(
-                    "`leader_keymap` config must be an array, using default value".to_string(),
+                return (
+                    default.leader_keymap.clone(),
+                    vec![
+                        "`leader_keymap` config must be an array, using default value".to_string(),
+                    ],
                 );
-                return default.leader_keymap.clone();
             };
-            let mut grid: [[Option<Keybinding>; 10]; 3] = Default::default();
-            for (row_index, row) in rows.into_iter().enumerate().take(3) {
-                let Some(cells) = row.into_array() else {
-                    errors.push(format!(
-                        "`leader_keymap.{row_index}` must be an array, using default value for this row"
-                    ));
-                    continue;
-                };
-                for (col_index, cell) in cells.into_iter().enumerate().take(10) {
-                    match serde_path_to_error::deserialize(&cell) {
-                        Ok(keybinding) => grid[row_index][col_index] = keybinding,
-                        Err(error) => {
-                            errors.push(format!(
-                                "{}, clearing this keybinding",
-                                describe_path_error(
-                                    &format!("leader_keymap.{row_index}.{col_index}"),
-                                    error
-                                )
-                            ));
+            let (grid, errors) = rows.into_iter().enumerate().take(3).fold(
+                (<[[Option<Keybinding>; 10]; 3]>::default(), Vec::new()),
+                |(mut grid, mut errors), (row_index, row)| {
+                    let Some(cells) = row.into_array() else {
+                        errors.push(format!(
+                            "`leader_keymap.{row_index}` must be an array, using default value for this row"
+                        ));
+                        return (grid, errors);
+                    };
+                    for (col_index, cell) in cells.into_iter().enumerate().take(10) {
+                        match serde_path_to_error::deserialize(&cell) {
+                            Ok(keybinding) => grid[row_index][col_index] = keybinding,
+                            Err(error) => {
+                                errors.push(format!(
+                                    "{}, clearing this keybinding",
+                                    describe_path_error(
+                                        &format!("leader_keymap.{row_index}.{col_index}"),
+                                        error
+                                    )
+                                ));
+                            }
                         }
                     }
-                }
-            }
-            LeaderKeymap(grid)
+                    (grid, errors)
+                },
+            );
+            (LeaderKeymap(grid), errors)
         }
-        Err(_) => default.leader_keymap.clone(),
+        Err(_) => (default.leader_keymap.clone(), Vec::new()),
     }
 }
 
@@ -452,50 +487,58 @@ impl AppConfig {
     /// Anything that couldn't be parsed is recorded in [`AppConfig::load_errors`];
     /// [`AppConfig::singleton`] is responsible for surfacing it to the user.
     pub fn load_from_current_directory() -> Self {
-        let mut errors = Vec::new();
-
-        let workspace_dir = match ki_workspace_directory() {
-            Ok(dir) => Some(dir),
-            Err(error) => {
-                errors.push(format!("Failed to determine workspace directory: {error}"));
-                None
-            }
+        let (workspace_dir, workspace_dir_error) = match ki_workspace_directory() {
+            Ok(dir) => (Some(dir), None),
+            Err(error) => (
+                None,
+                Some(format!("Failed to determine workspace directory: {error}")),
+            ),
         };
 
-        let mut figment =
+        let figment =
             figment::Figment::from(providers::Serialized::defaults(&RawConfig::default()));
 
         #[cfg(not(test))]
-        {
+        let figment = {
             let global_config =
                 |extension: &str| ki_global_directory().join(format!("config.{extension}"));
-            figment = figment
+            figment
                 .merge(providers::Json::file(global_config("json")))
                 .merge(providers::Yaml::file(global_config("yaml")))
-                .merge(providers::Toml::file(global_config("toml")));
-        }
+                .merge(providers::Toml::file(global_config("toml")))
+        };
 
-        if let Some(workspace_dir) = &workspace_dir {
+        let figment = if let Some(workspace_dir) = &workspace_dir {
             let workspace_config =
                 |extension: &str| workspace_dir.join(format!("config.{extension}"));
-            figment = figment
+            figment
                 .merge(providers::Json::file(workspace_config("json")))
                 .merge(providers::Yaml::file(workspace_config("yaml")))
-                .merge(providers::Toml::file(workspace_config("toml")));
-        }
-
-        let (raw_config, mut field_errors) = extract_lenient(&figment);
-        errors.append(&mut field_errors);
-
-        let mut app_config = match AppConfig::try_from(raw_config) {
-            Ok(app_config) => app_config,
-            Err(error) => {
-                errors.push(format!("Failed to apply config, using defaults: {error}"));
-                AppConfig::default()
-            }
+                .merge(providers::Toml::file(workspace_config("toml")))
+        } else {
+            figment
         };
-        app_config.load_errors = errors;
-        app_config
+
+        let (raw_config, field_errors) = extract_lenient(&figment);
+
+        let (app_config, apply_error) = match AppConfig::try_from(raw_config) {
+            Ok(app_config) => (app_config, None),
+            Err(error) => (
+                AppConfig::default(),
+                Some(format!("Failed to apply config, using defaults: {error}")),
+            ),
+        };
+
+        let load_errors = workspace_dir_error
+            .into_iter()
+            .chain(field_errors)
+            .chain(apply_error)
+            .collect();
+
+        AppConfig {
+            load_errors,
+            ..app_config
+        }
     }
 
     pub fn singleton() -> &'static AppConfig {

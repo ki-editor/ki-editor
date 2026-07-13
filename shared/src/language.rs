@@ -339,13 +339,11 @@ impl Language {
                 vec![(String::new(), "must be an object/table".to_string())],
             );
         };
-        let mut errors = Vec::new();
-
         macro_rules! extract_field {
             ($field:ident, $key:literal) => {
                 match map.get($key) {
                     Some(value) => match serde_path_to_error::deserialize(value.clone()) {
-                        Ok(value) => value,
+                        Ok(value) => (value, None),
                         Err(error) => {
                             let path = error.path().to_string();
                             let field_path = if path == "." {
@@ -353,14 +351,29 @@ impl Language {
                             } else {
                                 format!("{}.{}", $key, path)
                             };
-                            errors.push((field_path, error.into_inner().to_string()));
-                            default.$field.clone()
+                            (
+                                default.$field.clone(),
+                                Some((field_path, error.into_inner().to_string())),
+                            )
                         }
                     },
-                    None => default.$field.clone(),
+                    None => (default.$field.clone(), None),
                 }
             };
         }
+
+        let (extensions, extensions_error) = extract_field!(extensions, "extensions");
+        let (file_names, file_names_error) = extract_field!(file_names, "file_names");
+        let (lsp_language_id, lsp_language_id_error) =
+            extract_field!(lsp_language_id, "lsp_language_id");
+        let (lsp_command, lsp_command_error) = extract_field!(lsp_command, "lsp_command");
+        let (tree_sitter_grammar_config, tree_sitter_grammar_config_error) =
+            extract_field!(tree_sitter_grammar_config, "tree_sitter_grammar_config");
+        let (formatter, formatter_error) = extract_field!(formatter, "formatter");
+        let (line_comment_prefix, line_comment_prefix_error) =
+            extract_field!(line_comment_prefix, "line_comment_prefix");
+        let (block_comment_affixes, block_comment_affixes_error) =
+            extract_field!(block_comment_affixes, "block_comment_affixes");
 
         let known_keys = [
             "extensions",
@@ -372,25 +385,33 @@ impl Language {
             "line_comment_prefix",
             "block_comment_affixes",
         ];
-        for key in map.keys() {
-            if !known_keys.contains(&key.as_str()) {
-                errors.push((key.clone(), "unknown field".to_string()));
-            }
-        }
+        let unknown_key_errors = map
+            .keys()
+            .filter(|key| !known_keys.contains(&key.as_str()))
+            .map(|key| (key.clone(), "unknown field".to_string()));
 
         let language = Language {
-            extensions: extract_field!(extensions, "extensions"),
-            file_names: extract_field!(file_names, "file_names"),
-            lsp_language_id: extract_field!(lsp_language_id, "lsp_language_id"),
-            lsp_command: extract_field!(lsp_command, "lsp_command"),
-            tree_sitter_grammar_config: extract_field!(
-                tree_sitter_grammar_config,
-                "tree_sitter_grammar_config"
-            ),
-            formatter: extract_field!(formatter, "formatter"),
-            line_comment_prefix: extract_field!(line_comment_prefix, "line_comment_prefix"),
-            block_comment_affixes: extract_field!(block_comment_affixes, "block_comment_affixes"),
+            extensions,
+            file_names,
+            lsp_language_id,
+            lsp_command,
+            tree_sitter_grammar_config,
+            formatter,
+            line_comment_prefix,
+            block_comment_affixes,
         };
+
+        let errors = extensions_error
+            .into_iter()
+            .chain(file_names_error)
+            .chain(lsp_language_id_error)
+            .chain(lsp_command_error)
+            .chain(tree_sitter_grammar_config_error)
+            .chain(formatter_error)
+            .chain(line_comment_prefix_error)
+            .chain(block_comment_affixes_error)
+            .chain(unknown_key_errors)
+            .collect();
 
         (language, errors)
     }
