@@ -1,5 +1,6 @@
 use std::borrow::Cow;
-use std::{collections::HashMap, io::Read, path::PathBuf};
+use std::io::Read;
+use std::{collections::HashMap, path::PathBuf};
 
 use anyhow::Context;
 use itertools::Itertools;
@@ -17,6 +18,9 @@ use serde::{Deserialize, Serialize};
 use shared::absolute_path::AbsolutePath;
 use shared::language::{self, Language};
 
+mod lenient;
+use lenient::{extract_lenient, Extracted};
+
 pub struct AppConfig {
     languages: HashMap<String, Language>,
     keyboard_layout: KeyboardLayout,
@@ -28,6 +32,7 @@ pub struct AppConfig {
     indent_width: usize,
     show_key_in_keymap: bool,
     icon_config: shared::icons::IconsConfig,
+    load_errors: Vec<String>,
 }
 
 #[derive(Deserialize, Serialize, JsonSchema)]
@@ -99,6 +104,7 @@ impl TryFrom<RawConfig> for AppConfig {
             indent_width: value.indent_width,
             show_key_in_keymap: value.show_key_in_keymap,
             icon_config: shared::icons::build_icon_config(&value.icon_style),
+            load_errors: Vec::new(),
         })
     }
 }
@@ -198,39 +204,91 @@ impl AppConfig {
             .expect("Default config can't be converted to an AppConfig, this is a bug!")
     }
 
-    pub fn load_from_current_directory() -> anyhow::Result<Self> {
-        let workspace_dir = ki_workspace_directory()?;
-        let workspace_config = |extension: &str| workspace_dir.join(format!("config.{extension}"));
-        #[cfg(not(test))]
-        let global_config =
-            |extension: &str| ki_global_directory().join(format!("config.{extension}"));
-        let config = figment::Figment::from(providers::Serialized::defaults(&RawConfig::default()));
-        #[cfg(not(test))]
-        let config = config
-            .merge(providers::Json::file(global_config("json")))
-            .merge(providers::Yaml::file(global_config("yaml")))
-            .merge(providers::Toml::file(global_config("toml")));
+    /// Loads the config leniently: a malformed or missing value for any
+    /// individual field (or language entry) falls back to its default
+    /// instead of failing the entire config, so that Ki always starts up.
+    /// Anything that couldn't be parsed is recorded in [`AppConfig::load_errors`];
+    /// [`AppConfig::singleton`] is responsible for surfacing it to the user.
+    pub fn load_from_current_directory() -> Self {
+        let (workspace_dir, workspace_dir_error) = match ki_workspace_directory() {
+            Ok(dir) => (Some(dir), None),
+            Err(error) => (
+                None,
+                Some(format!("Failed to determine workspace directory: {error}")),
+            ),
+        };
 
-        let config: RawConfig = config
-            .merge(providers::Json::file(workspace_config("json")))
-            .merge(providers::Yaml::file(workspace_config("yaml")))
-            .merge(providers::Toml::file(workspace_config("toml")))
-            .extract()?;
-        config.try_into()
+        let figment =
+            figment::Figment::from(providers::Serialized::defaults(&RawConfig::default()));
+
+        #[cfg(not(test))]
+        let figment = {
+            let global_config =
+                |extension: &str| ki_global_directory().join(format!("config.{extension}"));
+            figment
+                .merge(providers::Json::file(global_config("json")))
+                .merge(providers::Yaml::file(global_config("yaml")))
+                .merge(providers::Toml::file(global_config("toml")))
+        };
+
+        let figment = if let Some(workspace_dir) = &workspace_dir {
+            let workspace_config =
+                |extension: &str| workspace_dir.join(format!("config.{extension}"));
+            figment
+                .merge(providers::Json::file(workspace_config("json")))
+                .merge(providers::Yaml::file(workspace_config("yaml")))
+                .merge(providers::Toml::file(workspace_config("toml")))
+        } else {
+            figment
+        };
+
+        let Extracted {
+            value: raw_config,
+            errors: field_errors,
+        } = extract_lenient(&figment);
+
+        let (app_config, apply_error) = match AppConfig::try_from(raw_config) {
+            Ok(app_config) => (app_config, None),
+            Err(error) => (
+                AppConfig::default(),
+                Some(format!("Failed to apply config, using defaults: {error}")),
+            ),
+        };
+
+        let load_errors = workspace_dir_error
+            .into_iter()
+            .chain(field_errors)
+            .chain(apply_error)
+            .collect();
+
+        AppConfig {
+            load_errors,
+            ..app_config
+        }
     }
 
     pub fn singleton() -> &'static AppConfig {
         static INSTANCE: OnceCell<AppConfig> = OnceCell::new();
-        INSTANCE.get_or_init(|| match AppConfig::load_from_current_directory() {
-            Ok(config) => config,
-            Err(error) => {
-                eprintln!("Error parsing Ki config: {error}");
-                println!("\nConfig will be ignored. [Press any key to continue]");
-                let _ = std::io::stdin().read(&mut [0u8]).unwrap();
-
-                AppConfig::default()
+        INSTANCE.get_or_init(|| {
+            let app_config = AppConfig::load_from_current_directory();
+            if !app_config.load_errors.is_empty() {
+                eprintln!(
+                    "Ki config warning:\n{}",
+                    app_config.load_errors.join("\n\n")
+                );
+                println!("\n[Press any key to continue]");
+                // Best-effort: if stdin isn't interactive (e.g. under a test
+                // harness or piped input), don't block startup on it.
+                let _ = std::io::stdin().read(&mut [0u8]);
             }
+            app_config
         })
+    }
+
+    /// Human-readable descriptions of any config values that failed to parse
+    /// and were replaced by their defaults during [`AppConfig::load_from_current_directory`].
+    pub fn load_errors(&self) -> &[String] {
+        &self.load_errors
     }
 
     pub fn languages(&self) -> &HashMap<std::string::String, language::Language> {
@@ -388,5 +446,154 @@ mod test_config {
     fn doc_assets_default_config_json() {
         let path = "docs/static/config_default.json";
         std::fs::write(path, super::DEFAULT_CONFIG).unwrap();
+    }
+
+    /// Regression test: an empty (e.g. freshly auto-created) workspace config
+    /// file must never fail startup or block on stdin; it should be treated
+    /// as "no config" and reported as a single collapsed error.
+    #[test]
+    fn empty_config_file_falls_back_to_defaults() {
+        let tempdir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(tempdir.path().join(".ki")).unwrap();
+        std::fs::write(tempdir.path().join(".ki/config.json"), "").unwrap();
+
+        let original_dir = std::env::current_dir().unwrap();
+        std::env::set_current_dir(tempdir.path()).unwrap();
+        let config = super::AppConfig::load_from_current_directory();
+        std::env::set_current_dir(original_dir).unwrap();
+
+        assert_eq!(config.load_errors().len(), 1);
+        assert_eq!(
+            config.indent_width(),
+            super::AppConfig::default().indent_width()
+        );
+    }
+
+    /// A malformed field and a malformed language entry should each fall back
+    /// to their own default independently, instead of the whole config (or
+    /// even the whole `languages` map) failing.
+    #[test]
+    fn malformed_field_and_language_fall_back_individually() {
+        let tempdir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(tempdir.path().join(".ki")).unwrap();
+        std::fs::write(
+            tempdir.path().join(".ki/config.json"),
+            r#"{"indent_width": "two", "languages": {"rust": {"lsp_command": "not-an-object"}}}"#,
+        )
+        .unwrap();
+
+        let original_dir = std::env::current_dir().unwrap();
+        std::env::set_current_dir(tempdir.path()).unwrap();
+        let config = super::AppConfig::load_from_current_directory();
+        std::env::set_current_dir(original_dir).unwrap();
+
+        assert_eq!(config.load_errors().len(), 2);
+        assert_eq!(
+            config.indent_width(),
+            super::AppConfig::default().indent_width()
+        );
+        assert!(!config.languages().is_empty());
+    }
+
+    /// A malformed field *within* a language override (e.g. `formatter`)
+    /// should only reset that field, not drop the whole language override.
+    #[test]
+    fn malformed_language_field_falls_back_individually() {
+        let tempdir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(tempdir.path().join(".ki")).unwrap();
+        std::fs::write(
+            tempdir.path().join(".ki/config.json"),
+            r#"{"languages": {"javascript": {
+                "formatter": {"command": "prettier", "arguments": "format --stdin-file-path=_.js"},
+                "line_comment_prefix": "//"
+            }}}"#,
+        )
+        .unwrap();
+
+        let original_dir = std::env::current_dir().unwrap();
+        std::env::set_current_dir(tempdir.path()).unwrap();
+        let config = super::AppConfig::load_from_current_directory();
+        std::env::set_current_dir(original_dir).unwrap();
+
+        assert_eq!(config.load_errors().len(), 1);
+        assert!(config.load_errors()[0].contains("languages.javascript.formatter.arguments"));
+
+        let javascript = config.languages().get("javascript").unwrap();
+        // `line_comment_prefix` was valid and should still be applied...
+        assert_eq!(javascript.line_comment_prefix(), Some("//".to_string()));
+        // ...while `formatter` should fall back to the builtin default
+        // (which is `Some`), instead of the whole language override being
+        // discarded.
+        assert!(javascript.formatter().is_some());
+    }
+
+    /// One malformed status line (e.g. a typo'd component name) should only
+    /// drop that line, not reset `status_lines` to the default set.
+    #[test]
+    fn malformed_status_line_falls_back_individually() {
+        let tempdir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(tempdir.path().join(".ki")).unwrap();
+        std::fs::write(
+            tempdir.path().join(".ki/config.json"),
+            r#"{"status_lines": [
+                {"components": ["Mode"]},
+                {"components": ["NotAComponent"]}
+            ]}"#,
+        )
+        .unwrap();
+
+        let original_dir = std::env::current_dir().unwrap();
+        std::env::set_current_dir(tempdir.path()).unwrap();
+        let config = super::AppConfig::load_from_current_directory();
+        std::env::set_current_dir(original_dir).unwrap();
+
+        assert_eq!(config.load_errors().len(), 1);
+        assert!(config.load_errors()[0].contains("status_lines.1"));
+        assert_eq!(config.status_lines().len(), 1);
+    }
+
+    /// One malformed keybinding in `leader_keymap` should only clear that
+    /// cell, not wipe out every other configured keybinding.
+    #[test]
+    fn malformed_leader_keymap_cell_falls_back_individually() {
+        let tempdir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(tempdir.path().join(".ki")).unwrap();
+        let mut grid = vec![vec![serde_json::Value::Null; 10]; 3];
+        grid[0][0] = serde_json::json!({"name": "not-an-object"});
+        std::fs::write(
+            tempdir.path().join(".ki/config.json"),
+            serde_json::json!({ "leader_keymap": grid }).to_string(),
+        )
+        .unwrap();
+
+        let original_dir = std::env::current_dir().unwrap();
+        std::env::set_current_dir(tempdir.path()).unwrap();
+        let config = super::AppConfig::load_from_current_directory();
+        std::env::set_current_dir(original_dir).unwrap();
+
+        assert_eq!(config.load_errors().len(), 1);
+        assert!(config.load_errors()[0].contains("leader_keymap.0.0"));
+        assert!(config.leader_keymap().keybindings()[0][0].is_none());
+    }
+
+    /// One malformed custom keyboard layout should only drop that entry,
+    /// not every custom layout the user defined.
+    #[test]
+    fn malformed_custom_keyboard_layout_falls_back_individually() {
+        let tempdir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(tempdir.path().join(".ki")).unwrap();
+        std::fs::write(
+            tempdir.path().join(".ki/config.json"),
+            r#"{"custom_keyboard_layouts": {"bad": "not-a-grid"}}"#,
+        )
+        .unwrap();
+
+        let original_dir = std::env::current_dir().unwrap();
+        std::env::set_current_dir(tempdir.path()).unwrap();
+        let config = super::AppConfig::load_from_current_directory();
+        std::env::set_current_dir(original_dir).unwrap();
+
+        assert_eq!(config.load_errors().len(), 1);
+        assert!(config.load_errors()[0].contains("custom_keyboard_layouts.bad"));
     }
 }
