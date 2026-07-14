@@ -1197,7 +1197,7 @@ impl Editor {
                     })();
                     Ok(ActionGroup::new(
                         [
-                            Action::Edit(Edit::new(
+                            Action::edit_without_offset(Edit::new(
                                 self.buffer().rope(),
                                 delete_range,
                                 Rope::new(),
@@ -1244,7 +1244,7 @@ impl Editor {
                     let range_start = cursor + indent.chars().count();
                     Ok(ActionGroup::new(
                         [
-                            Action::Edit(Edit::new(
+                            Action::edit_without_offset(Edit::new(
                                 self.buffer().rope(),
                                 (cursor..cursor).into(),
                                 indent.into(),
@@ -1304,7 +1304,11 @@ impl Editor {
                 EditTransaction::from_action_groups(
                     [ActionGroup::new(
                         [
-                            Action::Edit(Edit::new(self.buffer().rope(), range, result.clone())),
+                            Action::edit_without_offset(Edit::new(
+                                self.buffer().rope(),
+                                range,
+                                result.clone(),
+                            )),
                             Action::Select(Selection::new({
                                 let start = start + result.len_chars();
                                 (start..start).into()
@@ -1348,7 +1352,7 @@ impl Editor {
             EditTransaction::from_action_groups(
                 [ActionGroup::new(
                     [
-                        Action::Edit(Edit::new(rope, range, replacement.clone())),
+                        Action::edit_without_offset(Edit::new(rope, range, replacement.clone())),
                         Action::Select(Selection::new({
                             let start = start + replacement.len_chars();
                             (start..start).into()
@@ -1405,7 +1409,7 @@ impl Editor {
                     };
                     ActionGroup::new(
                         [
-                            Action::Edit(Edit::new(
+                            Action::edit_without_offset(Edit::new(
                                 self.buffer().rope(),
                                 insertion_range.into(),
                                 paste_text,
@@ -1493,7 +1497,7 @@ impl Editor {
 
                     Ok(ActionGroup::new(
                         [
-                            Action::Edit(Edit::new(
+                            Action::edit_without_offset(Edit::new(
                                 self.buffer().rope(),
                                 insert_range.into(),
                                 insert_text.into(),
@@ -1769,7 +1773,7 @@ impl Editor {
 
                     Ok(ActionGroup::new(
                         [
-                            Action::Edit(Edit::new(
+                            Action::edit_without_offset(Edit::new(
                                 self.buffer().rope(),
                                 delete_range,
                                 Rope::new(),
@@ -1802,7 +1806,11 @@ impl Editor {
                     let range = selection.extended_range();
                     Ok(ActionGroup::new(
                         [
-                            Action::Edit(Edit::new(self.buffer().rope(), range, Rope::new())),
+                            Action::edit_without_offset(Edit::new(
+                                self.buffer().rope(),
+                                range,
+                                Rope::new(),
+                            )),
                             Action::Select(
                                 selection
                                     .clone()
@@ -1847,7 +1855,7 @@ impl Editor {
                     let new_char_index = range.start + s.chars().count();
                     ActionGroup::new(
                         [
-                            Action::Edit(Edit::new(
+                            Action::edit_without_offset(Edit::new(
                                 self.buffer().rope(),
                                 {
                                     let start = selection.to_char_index(&Direction::End);
@@ -2246,7 +2254,7 @@ impl Editor {
         );
         [
             ActionGroup::new(
-                [Action::Edit(Edit::new(
+                [Action::edit_without_offset(Edit::new(
                     rope,
                     first_selection_range,
                     second_selection_text.clone(),
@@ -2255,7 +2263,7 @@ impl Editor {
             ),
             ActionGroup::new(
                 [
-                    Action::Edit(Edit::new(
+                    Action::edit_without_offset(Edit::new(
                         rope,
                         second_selection_range,
                         first_selection_text.clone(),
@@ -2509,7 +2517,7 @@ impl Editor {
                     let start = CharIndex(selection.extended_range().start.0.saturating_sub(1));
                     ActionGroup::new(
                         [
-                            Action::Edit(Edit::new(
+                            Action::edit_without_offset(Edit::new(
                                 self.buffer().rope(),
                                 (start..selection.extended_range().start).into(),
                                 Rope::from(""),
@@ -2629,7 +2637,7 @@ impl Editor {
 
                 Ok(ActionGroup::new(
                     [
-                        Action::Edit(Edit::new(
+                        Action::edit_without_offset(Edit::new(
                             self.buffer().rope(),
                             (start..end).into(),
                             Rope::from(""),
@@ -2666,7 +2674,7 @@ impl Editor {
                     Ok(EditTransaction::from_action_groups(
                         [ActionGroup::new(
                             [
-                                Action::Edit(Edit::new(
+                                Action::edit_without_offset(Edit::new(
                                     self.buffer().rope(),
                                     range.clone().into(),
                                     new,
@@ -2806,7 +2814,7 @@ impl Editor {
                     let gap_len = gap.len_chars();
                     ActionGroup::new(
                         [
-                            Action::Edit(Edit::new(
+                            Action::edit_without_offset(Edit::new(
                                 self.buffer().rope(),
                                 {
                                     let start = match direction {
@@ -2848,7 +2856,7 @@ impl Editor {
                     let range = edit.range.start.to_char_index(&self.buffer()).ok()?
                         ..edit.range.end.to_char_index(&self.buffer()).ok()?;
 
-                    let action_edit = Action::Edit(Edit::new(
+                    let action_edit = Action::edit_without_offset(Edit::new(
                         self.buffer().rope(),
                         range.clone().into(),
                         edit.new_text.into(),
@@ -2928,7 +2936,7 @@ impl Editor {
                     let old = self.buffer().slice(&selection.extended_range())?;
                     Ok(ActionGroup::new(
                         [
-                            Action::Edit(Edit::new(
+                            Action::edit_without_offset(Edit::new(
                                 self.buffer().rope(),
                                 selection.extended_range(),
                                 format!("{open}{old}{close}").into(),
@@ -2975,7 +2983,11 @@ impl Editor {
                     let range = selection.extended_range();
                     Ok(ActionGroup::new(
                         [
-                            Action::Edit(Edit::new(self.buffer().rope(), range, new)),
+                            Action::edit_without_offset(Edit::new(
+                                self.buffer().rope(),
+                                range,
+                                new,
+                            )),
                             Action::Select(
                                 selection
                                     .clone()
@@ -3345,7 +3357,7 @@ impl Editor {
                     };
                     Ok(ActionGroup::new(
                         [
-                            Action::Edit(Edit::new(
+                            Action::edit_without_offset(Edit::new(
                                 self.buffer().rope(),
                                 delete_range,
                                 Rope::new(),
@@ -3490,7 +3502,7 @@ impl Editor {
                             .into();
                         Ok([
                             ActionGroup::new(
-                                [Action::Edit(Edit::new(
+                                [Action::edit_without_offset(Edit::new(
                                     self.buffer().rope(),
                                     open_range,
                                     new_open.into(),
@@ -3498,7 +3510,7 @@ impl Editor {
                                 .to_vec(),
                             ),
                             ActionGroup::new(
-                                [Action::Edit(Edit::new(
+                                [Action::edit_without_offset(Edit::new(
                                     self.buffer().rope(),
                                     close_range,
                                     new_close.into(),
@@ -3563,7 +3575,11 @@ impl Editor {
                                 let new_len_chars = new.len_chars();
                                 Ok(ActionGroup::new(
                                     [
-                                        Action::Edit(Edit::new(self.buffer().rope(), range, new)),
+                                        Action::edit_without_offset(Edit::new(
+                                            self.buffer().rope(),
+                                            range,
+                                            new,
+                                        )),
                                         Action::Select(selection.clone().set_range(
                                             (range.start..range.start + new_len_chars).into(),
                                         )),
@@ -3688,7 +3704,11 @@ impl Editor {
 
                     Ok(ActionGroup::new(
                         [
-                            Action::Edit(Edit::new(self.buffer().rope(), linewise_range, new)),
+                            Action::edit_without_offset(Edit::new(
+                                self.buffer().rope(),
+                                linewise_range,
+                                new,
+                            )),
                             Action::Select(selection.clone().set_range(select_range.into())),
                         ]
                         .to_vec(),
@@ -3761,7 +3781,11 @@ impl Editor {
                     };
                     Ok(ActionGroup::new(
                         [
-                            Action::Edit(Edit::new(self.buffer().rope(), linewise_range, new)),
+                            Action::edit_without_offset(Edit::new(
+                                self.buffer().rope(),
+                                linewise_range,
+                                new,
+                            )),
                             Action::Select(selection.clone().set_range(select_range.into())),
                         ]
                         .to_vec(),
@@ -3919,7 +3943,7 @@ impl Editor {
 
                     Ok([
                         ActionGroup::new(
-                            [Action::Edit(Edit::new(
+                            [Action::edit_without_offset(Edit::new(
                                 self.buffer().rope(),
                                 edit_range,
                                 format!("\n{indentation}{current}").into(),
@@ -4095,7 +4119,7 @@ impl Editor {
                 .len_chars();
 
             [ActionGroup::new(
-                [Action::Edit(Edit::new(
+                [Action::edit_without_offset(Edit::new(
                     self.buffer().rope(),
                     (line_char_index..line_char_index + line_length).into(),
                     replacement.into(),
@@ -4330,7 +4354,11 @@ impl Editor {
                     };
                     Ok(ActionGroup::new(
                         [
-                            Action::Edit(Edit::new(self.buffer().rope(), edit_range, replacement)),
+                            Action::edit_without_offset(Edit::new(
+                                self.buffer().rope(),
+                                edit_range,
+                                replacement,
+                            )),
                             Action::Select(selection.clone().set_range(select_range)),
                         ]
                         .to_vec(),
@@ -4555,7 +4583,7 @@ impl Editor {
                     let select_range = original_range.shift_right(extra_leading_whitespaces_count);
                     Ok(ActionGroup::new(
                         [
-                            Action::Edit(Edit::new(
+                            Action::edit_without_offset(Edit::new(
                                 self.buffer().rope(),
                                 original_range,
                                 new_content.into(),
@@ -4594,7 +4622,7 @@ impl Editor {
 
                     Ok([
                         ActionGroup::new(
-                            [Action::Edit(Edit::new(
+                            [Action::edit_without_offset(Edit::new(
                                 self.buffer().rope(),
                                 edit_range,
                                 new_text.into(),

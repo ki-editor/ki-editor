@@ -111,7 +111,7 @@ impl EmbeddedApp {
             // because the edits sent from VS Code are non-offseted.
             ki_edits
                 .into_iter()
-                .map(|edit| ActionGroup::new([Action::Edit(edit)].to_vec()))
+                .map(|edit| ActionGroup::new([Action::edit_without_offset(edit)].to_vec()))
                 .collect_vec(),
         );
 
