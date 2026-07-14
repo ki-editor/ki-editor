@@ -24,6 +24,7 @@ pub fn languages() -> HashMap<String, Language> {
         ("cpp", cpp()),
         ("c_sharp", c_sharp()),
         ("css", css()),
+        ("scss", scss()),
         ("csv", csv()),
         ("devicetree", devicetree()),
         ("diff", diff()),
@@ -296,6 +297,20 @@ fn css() -> Language {
             id: "css".to_string(),
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::CSS),
         }),
+        block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
+        ..Language::new()
+    }
+}
+
+fn scss() -> Language {
+    Language {
+        extensions: to_vec(&["scss"]),
+        formatter: Some(Command::new("prettierd", &[".scss"])),
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "scss".to_string(),
+            kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Scss),
+        }),
+        line_comment_prefix: Some("//".to_string()),
         block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
         ..Language::new()
     }
