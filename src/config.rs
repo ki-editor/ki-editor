@@ -640,12 +640,10 @@ mod test_config {
             super::AppConfig::default().indent_width()
         );
         assert!(!config.languages().is_empty());
-        assert!(
-            config
-                .load_errors()
-                .iter()
-                .all(|error| error.contains(".ki/config.json"))
-        );
+        assert!(config
+            .load_errors()
+            .iter()
+            .all(|error| error.contains(".ki/config.json")));
     }
 
     /// `config.json` is allowed to contain `//` and `/* */` comments (JSONC),
