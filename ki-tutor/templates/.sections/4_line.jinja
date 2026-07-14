@@ -1,0 +1,15 @@
+The only difference between Line and Line* selection modes is that Line* (Full Line) includes whitespaces at the edges while Line doesn't.
+
+You can switch to line selection mode by clicking {{ _.a }} in normal mode or click {{ _.A }} to switch to line* selection mode.
+
+╭────────────────┬──────────────────────────────────────────────╮
+│   Movements    │                   Action                     │
+├────────────────┼──────────────────────────────────────────────┤
+│ {{ _.u }} (<), {{ _.o }} (>)   │ Previous or next line                        │
+├────────────────┼──────────────────────────────────────────────┤
+│ {{ _.j }} (<<), {{ _.l }} (>>) │ Previous or next line (non empty lines only) │
+├────────────────┼──────────────────────────────────────────────┤
+│ {{ _.i }} (^), {{ _.k }} (v)   │ Nearest empty line above or below            │
+├────────────────┼──────────────────────────────────────────────┤
+│ {{ _.y }} (|<), {{ _.p }} (>|) │ First or last line                           │
+╰────────────────┴──────────────────────────────────────────────╯
