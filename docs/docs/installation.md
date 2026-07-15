@@ -13,12 +13,14 @@ versions are tagged as `vX.Y.Z`, while snapshot builds are tagged as
 archives for Linux and macOS, and `.zip` archives for Windows. Each archive
 contains the executable under `bin/ki` or `bin/ki.exe`.
 
-Release channel metadata is published as plain text files:
+Normalized release metadata and derived channel indexes are published from the
+`channels` branch:
 
-- `https://ki-editor.github.io/ki-editor/channels/stable-latest.txt`
-- `https://ki-editor.github.io/ki-editor/channels/stable-versions.txt`
-- `https://ki-editor.github.io/ki-editor/channels/snapshot-latest.txt`
-- `https://ki-editor.github.io/ki-editor/channels/snapshot-versions.txt`
+- `https://raw.githubusercontent.com/ki-editor/ki-editor/channels/releases.jsonl`
+- `https://raw.githubusercontent.com/ki-editor/ki-editor/channels/stable/latest.txt`
+- `https://raw.githubusercontent.com/ki-editor/ki-editor/channels/stable/versions.txt`
+- `https://raw.githubusercontent.com/ki-editor/ki-editor/channels/snapshot/latest.txt`
+- `https://raw.githubusercontent.com/ki-editor/ki-editor/channels/snapshot/versions.txt`
 
 ## VS Code Extension
 
