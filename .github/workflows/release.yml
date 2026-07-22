@@ -4,23 +4,12 @@ on:
   push:
     tags:
       - 'v*.*.*'
-  schedule:
-    # 03:00 Asia/Shanghai, 19:00 UTC.
-    - cron: '0 19 * * *'
   workflow_dispatch:
     inputs:
       ref:
         description: Branch, tag, or commit SHA to release as a snapshot
         required: true
         default: master
-      dedupe:
-        description: Skip publishing if this commit already has a retained snapshot
-        required: true
-        default: 'true'
-        type: choice
-        options:
-          - 'true'
-          - 'false'
 
 concurrency:
   group: release-${{ github.ref }}
@@ -32,14 +21,9 @@ env:
 jobs:
   prepare:
     runs-on: ubuntu-latest
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    permissions:
-      contents: read
     outputs:
       kind: ${{ steps.release.outputs.kind }}
       ref: ${{ steps.release.outputs.ref }}
-      skip: ${{ steps.release.outputs.skip }}
       sha: ${{ steps.release.outputs.sha }}
       version: ${{ steps.release.outputs.version }}
     steps:
@@ -50,15 +34,8 @@ jobs:
           ref: ${{ inputs.ref }}
           fetch-depth: 0
 
-      - name: Checkout scheduled snapshot ref
-        if: github.event_name == 'schedule'
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event.repository.default_branch }}
-          fetch-depth: 0
-
       - name: Checkout release tag
-        if: github.event_name != 'workflow_dispatch' && github.event_name != 'schedule'
+        if: github.event_name != 'workflow_dispatch'
         uses: actions/checkout@v6
         with:
           ref: ${{ github.ref }}
@@ -67,56 +44,16 @@ jobs:
       - name: Determine release version
         id: release
         run: |
-          load_snapshot_versions() {
-            gh api \
-              "repos/${GITHUB_REPOSITORY}/contents/channels/snapshot-versions.txt?ref=gh-pages" \
-              --jq '.content' 2>/dev/null \
-              | base64 -d 2>/dev/null || true
-          }
-
           if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
             sha="$(git rev-parse HEAD)"
-            short_sha="${sha::12}"
-            dedupe="${{ inputs.dedupe }}"
 
             echo "kind=snapshot" >> "$GITHUB_OUTPUT"
             echo "ref=$sha" >> "$GITHUB_OUTPUT"
             echo "sha=$sha" >> "$GITHUB_OUTPUT"
-
-            if [ "$dedupe" = "true" ]; then
-              snapshot_versions="$(load_snapshot_versions)"
-
-              if printf '%s\n' "$snapshot_versions" | grep -q -- "-${short_sha}$"; then
-                echo "skip=true" >> "$GITHUB_OUTPUT"
-                echo "version=" >> "$GITHUB_OUTPUT"
-              else
-                echo "skip=false" >> "$GITHUB_OUTPUT"
-                echo "version=snapshot-$(date -u +%Y%m%d-%H%M)-${short_sha}" >> "$GITHUB_OUTPUT"
-              fi
-            else
-              echo "skip=false" >> "$GITHUB_OUTPUT"
-              echo "version=snapshot-$(date -u +%Y%m%d-%H%M)-${short_sha}" >> "$GITHUB_OUTPUT"
-            fi
-          elif [ "${GITHUB_EVENT_NAME}" = "schedule" ]; then
-            sha="$(git rev-parse HEAD)"
-            short_sha="${sha::12}"
-            snapshot_versions="$(load_snapshot_versions)"
-
-            echo "kind=snapshot" >> "$GITHUB_OUTPUT"
-            echo "ref=$sha" >> "$GITHUB_OUTPUT"
-            echo "sha=$sha" >> "$GITHUB_OUTPUT"
-
-            if printf '%s\n' "$snapshot_versions" | grep -q -- "-${short_sha}$"; then
-              echo "skip=true" >> "$GITHUB_OUTPUT"
-              echo "version=" >> "$GITHUB_OUTPUT"
-            else
-              echo "skip=false" >> "$GITHUB_OUTPUT"
-              echo "version=snapshot-$(date -u +%Y%m%d-%H%M)-${short_sha}" >> "$GITHUB_OUTPUT"
-            fi
+            echo "version=snapshot-$(date -u +%Y%m%d-%H%M)-${sha::7}" >> "$GITHUB_OUTPUT"
           elif [[ "${GITHUB_REF_NAME}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "kind=stable" >> "$GITHUB_OUTPUT"
             echo "ref=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
-            echo "skip=false" >> "$GITHUB_OUTPUT"
             echo "sha=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
             echo "version=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
           else
@@ -125,14 +62,12 @@ jobs:
           fi
 
   build:
-    if: needs.prepare.outputs.skip != 'true'
     needs: [prepare]
     uses: ./.github/workflows/release-common.yml
     with:
       ref: ${{ needs.prepare.outputs.ref }}
 
   publish:
-    if: needs.prepare.outputs.skip != 'true'
     needs: [prepare, build]
     runs-on: ubuntu-latest
     env:
@@ -161,7 +96,6 @@ jobs:
             ki-macos-arm64/ki-macos-arm64.tar.gz
 
   channels:
-    if: needs.prepare.outputs.skip != 'true'
     needs: [prepare, publish]
     runs-on: ubuntu-latest
     env:
@@ -208,7 +142,7 @@ jobs:
           git push
 
   gc-snapshots:
-    if: needs.prepare.outputs.kind == 'snapshot' && needs.prepare.outputs.skip != 'true'
+    if: needs.prepare.outputs.kind == 'snapshot'
     needs: [prepare, channels]
     runs-on: ubuntu-latest
     env:
