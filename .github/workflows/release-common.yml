@@ -1,10 +1,6 @@
 name: release-common
 on:
   workflow_call:
-    inputs:
-      ref:
-        type: string
-        required: false
 
 jobs:
   build:
@@ -20,51 +16,34 @@ jobs:
           - runner: windows-latest
             code: windows-x64
             extension: .exe
-            archive: zip
+            mv: move
           - runner: windows-11-arm
             code: windows-arm64
             extension: .exe
-            archive: zip
+            mv: move
           - runner: macos-15-intel
             code: macos-x64
             extension:
-            archive: tar.gz
+            mv: mv
           - runner: macos-latest
             code: macos-arm64
             extension:
-            archive: tar.gz
+            mv: mv
 
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v6
-        with:
-          ref: ${{ inputs.ref }}
       - name: Build
         run: cargo build --profile release-lto --locked
 
-      - name: Package zip
-        if: matrix.archive == 'zip'
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Path "ki-${{ matrix.code }}/bin"
-          Copy-Item "target/release-lto/ki${{ matrix.extension }}" "ki-${{ matrix.code }}/bin/ki${{ matrix.extension }}"
-          Push-Location "ki-${{ matrix.code }}"
-          Compress-Archive -Path "bin" -DestinationPath "../ki-${{ matrix.code }}.zip"
-          Pop-Location
-
-      - name: Package tarball
-        if: matrix.archive == 'tar.gz'
-        run: |
-          mkdir -p "ki-${{ matrix.code }}/bin"
-          cp "target/release-lto/ki" "ki-${{ matrix.code }}/bin/ki"
-          chmod 755 "ki-${{ matrix.code }}/bin/ki"
-          tar -czf "ki-${{ matrix.code }}.tar.gz" -C "ki-${{ matrix.code }}" bin
+      - name: Rename
+        run: ${{ matrix.mv }} target/release-lto/ki${{ matrix.extension }} ki-${{ matrix.code }}${{ matrix.extension }}
 
       - name: Upload
         uses: actions/upload-artifact@v6
         with:
           name: ki-${{ matrix.code }}
-          path: ki-${{ matrix.code }}.${{ matrix.archive }}
+          path: ki-${{ matrix.code }}${{ matrix.extension }}
           retention-days: 1
 
   # GitHub doesn't provide musl runners, so we have to work around that
@@ -86,26 +65,20 @@ jobs:
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v6
-        with:
-          ref: ${{ inputs.ref }}
       - name: Get musl
         run: |
           sudo apt install musl-tools
           rustup target add ${{ matrix.rustup_target }}
-
+        
       - name: Build
         run: cargo build --profile release-lto --locked --target ${{ matrix.rustup_target }}
 
-      - name: Package
-        run: |
-          mkdir -p "ki-${{ matrix.code }}/bin"
-          cp "target/${{ matrix.rustup_target }}/release-lto/ki" "ki-${{ matrix.code }}/bin/ki"
-          chmod 755 "ki-${{ matrix.code }}/bin/ki"
-          tar -czf "ki-${{ matrix.code }}.tar.gz" -C "ki-${{ matrix.code }}" bin
+      - name: Rename
+        run: mv target/${{ matrix.rustup_target }}/release-lto/ki ki-${{ matrix.code }}
 
       - name: Upload
         uses: actions/upload-artifact@v6
         with:
           name: ki-${{ matrix.code }}
-          path: ki-${{ matrix.code }}.tar.gz
+          path: ki-${{ matrix.code }}
           retention-days: 1
