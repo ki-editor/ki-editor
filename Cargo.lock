@@ -3252,8 +3252,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-scss"
 version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "33909a9ca86390ebbf3461e9949c4bbe2767d2d024b486306d27616641d4ba24"
+source = "git+https://github.com/tree-sitter-grammars/tree-sitter-scss?rev=2ef6d42e3ad7a8208900f9346f4529806ae0f9f9#2ef6d42e3ad7a8208900f9346f4529806ae0f9f9"
 dependencies = [
  "cc",
  "tree-sitter",
