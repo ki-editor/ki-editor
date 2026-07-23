@@ -1,0 +1,3 @@
+This file is a placeholder to create the revert commit.
+Revert of: feat(copy): disable selection extension after copying
+See: https://ki-editor.zulipchat.com/#narrow/channel/551672-.F0.9F.8C.B1-Feature/topic/Copy.20disable.20extension.20selection/near/611100364
