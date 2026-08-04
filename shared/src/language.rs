@@ -127,6 +127,7 @@ pub enum CargoLinkedTreesitterLanguage {
     Gitcommit,
     Rescript,
     Typst,
+    Php,
 }
 
 impl CargoLinkedTreesitterLanguage {
@@ -202,6 +203,7 @@ impl CargoLinkedTreesitterLanguage {
             CargoLinkedTreesitterLanguage::Gitcommit => tree_sitter_gitcommit::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::Rescript => arborium_rescript::language().into(),
             CargoLinkedTreesitterLanguage::Typst => arborium_typst::language().into(),
+            CargoLinkedTreesitterLanguage::Php => tree_sitter_php::LANGUAGE_PHP.into(),
         }
     }
 
@@ -285,6 +287,7 @@ impl CargoLinkedTreesitterLanguage {
             }
             CargoLinkedTreesitterLanguage::Rescript => Some(arborium_rescript::HIGHLIGHTS_QUERY),
             CargoLinkedTreesitterLanguage::Typst => Some(arborium_typst::HIGHLIGHTS_QUERY),
+            CargoLinkedTreesitterLanguage::Php => Some(tree_sitter_php::HIGHLIGHTS_QUERY),
         }
     }
 }
