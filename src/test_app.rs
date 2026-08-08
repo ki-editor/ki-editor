@@ -1166,7 +1166,7 @@ fn cut_replace() -> anyhow::Result<()> {
 
 #[serial]
 #[test]
-fn cut_extended_selection() -> anyhow::Result<()> {
+fn highlight_mode_cut() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile {
@@ -1195,7 +1195,7 @@ fn cut_extended_selection() -> anyhow::Result<()> {
 
 #[serial]
 #[test]
-fn copy_extended_selection() -> anyhow::Result<()> {
+fn highlight_mode_copy() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile {
@@ -1226,7 +1226,7 @@ fn copy_extended_selection() -> anyhow::Result<()> {
 
 #[serial]
 #[test]
-fn replace_extended_selection() -> anyhow::Result<()> {
+fn highlight_mode_replace() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile {
