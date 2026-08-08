@@ -82,6 +82,7 @@ arborium-gitattributes = "2.18.1"
 arborium-rescript = "2.18.1"
 arborium-typst = "2.18.1"
 tree-sitter-gitcommit = "0.5.0"
+tree-sitter-php = "0.24.2"
 
 [dev-dependencies]
 quickcheck.workspace = true

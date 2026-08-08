@@ -3,7 +3,7 @@
 Multi-cursor combinatoric modal editor.
 
 - For installation instructions, building instructions, and complete documentation, please consult the [Ki wiki](https://ki-editor.org).
-- For directly downloading release binaries, refer to the [GitHub releases](https://github.com/ki-editor/ki-editor/releases).
+- For directly downloading the latest release binaries refer to [Latest master build](https://github.com/ki-editor/ki-editor/releases/tag/latest)
 - If you need help, please reach out on [Ki Editor community chat room](https://ki-editor.zulipchat.com/).
 
 [![asciicast](https://asciinema.org/a/1087449.svg)](https://asciinema.org/a/1087449)

@@ -2456,6 +2456,7 @@ dependencies = [
  "tree-sitter-nix",
  "tree-sitter-ocaml",
  "tree-sitter-odin",
+ "tree-sitter-php",
  "tree-sitter-python",
  "tree-sitter-qmldir",
  "tree-sitter-qmljs",
@@ -3164,6 +3165,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "tree-sitter-php"
+version = "0.24.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0d8c17c3ab69052c5eeaa7ff5cd972dd1bc25d1b97ee779fec391ad3b5df5592"
+dependencies = [
+ "cc",
+ "tree-sitter-language",
+]
+
+[[package]]
 name = "tree-sitter-python"
 version = "0.23.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3252,8 +3263,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-scss"
 version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "33909a9ca86390ebbf3461e9949c4bbe2767d2d024b486306d27616641d4ba24"
+source = "git+https://github.com/tree-sitter-grammars/tree-sitter-scss?rev=2ef6d42e3ad7a8208900f9346f4529806ae0f9f9#2ef6d42e3ad7a8208900f9346f4529806ae0f9f9"
 dependencies = [
  "cc",
  "tree-sitter",

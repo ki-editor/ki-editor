@@ -135,6 +135,13 @@ nvim-treesitter-highlight-queries = { path = "nvim-treesitter-highlight-queries"
 tempfile.workspace = true
 
 
+[patch.crates-io]
+# tree-sitter-scss 1.0.0 passes a GCC-only flag ("-Wno-unused-parameter") to
+# the MSVC compiler, breaking the Windows build. Pin to the upstream commit
+# that guards the flag per-compiler, until a new version is published.
+# See: https://github.com/tree-sitter-grammars/tree-sitter-scss/commit/9ab738d
+tree-sitter-scss = { git = "https://github.com/tree-sitter-grammars/tree-sitter-scss", rev = "2ef6d42e3ad7a8208900f9346f4529806ae0f9f9" }
+
 [profile.release]
 debug = false # Set this to true when using `sudo cargo flamegraph`
 
