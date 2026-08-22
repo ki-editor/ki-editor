@@ -1001,9 +1001,12 @@ fn execute_test_helper(
         if render {
             app.render()?;
         }
-        let buffer_contents = app.get_buffer_contents_map();
+        let buffer_contents_map = app.get_buffer_contents_map();
         let mode = app.current_component().borrow().editor().mode.clone();
-        Ok((buffer_contents, mode))
+        Ok(CallbackOutput {
+            buffer_contents_map,
+            mode,
+        })
     };
     run_test(options, writer, status_lines, callback)
 }
@@ -1015,11 +1018,16 @@ pub struct RunTestOptions {
     pub enable_file_watcher: bool,
 }
 
+struct CallbackOutput {
+    buffer_contents_map: BufferContentsMap,
+    mode: Mode,
+}
+
 fn run_test(
     options: RunTestOptions,
     writer: fn() -> Box<dyn MyWriter>,
     status_lines: Vec<StatusLine>,
-    callback: impl Fn(App<MockFrontend>, AbsolutePath) -> anyhow::Result<(BufferContentsMap, Mode)>,
+    callback: impl Fn(App<MockFrontend>, AbsolutePath) -> anyhow::Result<CallbackOutput>,
 ) -> anyhow::Result<TestOutput> {
     TestRunner::run(move |temp_dir| {
         let frontend = Rc::new(Mutex::new(MockFrontend::new(writer())));
@@ -1029,7 +1037,10 @@ fn run_test(
             status_lines.clone(),
             options,
         )?;
-        let (buffer_contents_map, mode) = callback(app, temp_dir)?;
+        let CallbackOutput {
+            buffer_contents_map,
+            mode,
+        } = callback(app, temp_dir)?;
         use std::borrow::Borrow;
         let term_output = frontend.lock().unwrap().borrow().string_content();
         let output = TestOutput {
