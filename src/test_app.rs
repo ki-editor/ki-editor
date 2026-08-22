@@ -1002,7 +1002,8 @@ fn execute_test_helper(
             app.render()?;
         }
         let buffer_contents = app.get_buffer_contents_map();
-        Ok(buffer_contents)
+        let mode = app.current_component().borrow().editor().mode.clone();
+        Ok((buffer_contents, mode))
     };
     run_test(options, writer, status_lines, callback)
 }
@@ -1018,7 +1019,7 @@ fn run_test(
     options: RunTestOptions,
     writer: fn() -> Box<dyn MyWriter>,
     status_lines: Vec<StatusLine>,
-    callback: impl Fn(App<MockFrontend>, AbsolutePath) -> anyhow::Result<BufferContentsMap>,
+    callback: impl Fn(App<MockFrontend>, AbsolutePath) -> anyhow::Result<(BufferContentsMap, Mode)>,
 ) -> anyhow::Result<TestOutput> {
     TestRunner::run(move |temp_dir| {
         let frontend = Rc::new(Mutex::new(MockFrontend::new(writer())));
@@ -1028,12 +1029,13 @@ fn run_test(
             status_lines.clone(),
             options,
         )?;
-        let buffer_contents_map = callback(app, temp_dir)?;
+        let (buffer_contents_map, mode) = callback(app, temp_dir)?;
         use std::borrow::Borrow;
         let term_output = frontend.lock().unwrap().borrow().string_content();
         let output = TestOutput {
             term_output,
             buffer_contents_map,
+            mode,
         };
 
         Ok(output)
