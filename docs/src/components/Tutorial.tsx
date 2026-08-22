@@ -3,11 +3,12 @@ import { useEffect, useMemo, useState } from "react";
 
 import { type UseXTermProps, useXTerm } from "react-xtermjs";
 import * as z from "zod";
-
-const keyboardLayoutSchema = z.object({
-    name: z.string(),
-    keys: z.array(z.array(z.string())),
-});
+import { useChosenKeyboardLayout } from "./Keymap";
+import {
+    type KeyboardLayout,
+    keyboardLayoutSchema,
+    translateQwertyToTargetLayout,
+} from "./utils/parseQwertyKey";
 
 const recipeSchema = z.object({
     description: z.string(),
@@ -15,6 +16,7 @@ const recipeSchema = z.object({
         z.object({
             description: z.string(),
             key: z.string(),
+            translate_key: z.boolean(),
             term_output: z.string(),
             buffer_contents_map: z.record(z.string(), z.string()),
         }),
@@ -40,6 +42,17 @@ export const Tutorial = (props: { filename: string }) => {
             .then((recipes) => setRecipes(recipes ?? []))
             .catch((error) => setError(error));
     }, [url]);
+
+    const [keyboardLayouts, setKeyboardLayouts] = useState<KeyboardLayout[]>(
+        [],
+    );
+    const keyboardLayoutsUrl = useBaseUrl("/keyboard-layouts.json");
+    useEffect(() => {
+        loadKeyboardLayouts(keyboardLayoutsUrl).then((keyboardLayouts) =>
+            setKeyboardLayouts(keyboardLayouts),
+        );
+    }, [keyboardLayoutsUrl]);
+
     return (
         <div style={{ display: "grid", gap: 64 }}>
             <link
@@ -48,7 +61,11 @@ export const Tutorial = (props: { filename: string }) => {
             />
 
             {recipes.map((recipe, index) => (
-                <Recipe key={index} recipe={recipe} />
+                <Recipe
+                    key={index}
+                    recipe={recipe}
+                    keyboardLayouts={keyboardLayouts}
+                />
             ))}
             {error && <div style={{ color: "red" }}>{error.message}</div>}
         </div>
@@ -61,7 +78,10 @@ export async function loadKeyboardLayouts(url: string) {
     return z.array(keyboardLayoutSchema).parse(json);
 }
 
-const Recipe = (props: { recipe: Recipe }) => {
+const Recipe = (props: {
+    recipe: Recipe;
+    keyboardLayouts: KeyboardLayout[];
+}) => {
     const xtermOptions: UseXTermProps = useMemo(
         () => ({
             options: {
@@ -75,6 +95,12 @@ const Recipe = (props: { recipe: Recipe }) => {
 
     const { instance, ref } = useXTerm(xtermOptions);
     const [stepIndex, setStepIndex] = useState(0);
+
+    const [chosenKeyboardLayoutName] = useChosenKeyboardLayout();
+    const targetLayout =
+        props.keyboardLayouts.find(
+            (layout) => layout.name === chosenKeyboardLayoutName,
+        ) ?? props.keyboardLayouts[0];
 
     useEffect(() => {
         const step = props.recipe.steps[stepIndex];
@@ -202,19 +228,28 @@ const Recipe = (props: { recipe: Recipe }) => {
                         justifyContent: "start",
                     }}
                 >
-                    {props.recipe.steps.map((step, index) => (
-                        <button
-                            key={index}
-                            onClick={() => setStepIndex(index)}
-                            className={[
-                                "kbc-button",
-                                index === stepIndex ? "active" : undefined,
-                            ].join(" ")}
-                            style={{ fontFamily: "monospace" }}
-                        >
-                            {step.key}
-                        </button>
-                    ))}
+                    {props.recipe.steps.map((step, index) => {
+                        const displayKey =
+                            step.translate_key && targetLayout
+                                ? (translateQwertyToTargetLayout(
+                                      step.key,
+                                      targetLayout,
+                                  ) ?? step.key)
+                                : step.key;
+                        return (
+                            <button
+                                key={index}
+                                onClick={() => setStepIndex(index)}
+                                className={[
+                                    "kbc-button",
+                                    index === stepIndex ? "active" : undefined,
+                                ].join(" ")}
+                                style={{ fontFamily: "monospace" }}
+                            >
+                                {displayKey}
+                            </button>
+                        );
+                    })}
                 </div>
             </div>
         </div>

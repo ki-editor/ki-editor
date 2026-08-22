@@ -2,12 +2,16 @@ use crossterm::event::KeyCode;
 
 use event::KeyEventKind;
 
+#[cfg(test)]
+use crate::keymap::insert_mode_keymap_legend_config;
 use crate::{
     app::{Dispatch, Dispatches},
     components::editor_keymap::CombinedKeyEvent,
     keymap::keymap_universal,
 };
 
+#[cfg(test)]
+use super::editor::Mode;
 use super::{editor::Editor, keymap_legend::Keymap};
 
 impl Editor {
@@ -39,6 +43,53 @@ impl Editor {
         } else {
             Ok(None)
         }
+    }
+}
+
+/// Mirrors the classification in `Editor::handle_insert_mode`: true unless `event`
+/// is Insert-mode literal text input that bypasses the insert-mode keymap.
+/// Keep in sync with `handle_insert_mode` if its fallback logic changes.
+///
+/// Only used by doc recipe generation (`generate_recipes.rs`) and its own tests,
+/// both of which are `#[cfg(test)]`-only, hence this is too.
+#[cfg(test)]
+pub fn is_positional_key_event(mode: Mode, event: &CombinedKeyEvent) -> bool {
+    mode != Mode::Insert
+        || insert_mode_keymap_legend_config(true)
+            .keymap()
+            .iter()
+            .any(|keymap| keymap.event() == &event.translated)
+}
+
+#[cfg(test)]
+mod test_is_positional_key_event {
+    use my_proc_macros::key;
+
+    use super::{is_positional_key_event, CombinedKeyEvent, Mode};
+
+    fn combined(event: event::KeyEvent) -> CombinedKeyEvent {
+        CombinedKeyEvent {
+            original: event,
+            translated: event,
+        }
+    }
+
+    #[test]
+    fn normal_mode_key_is_always_positional() {
+        assert!(is_positional_key_event(Mode::Normal, &combined(key!("s"))));
+    }
+
+    #[test]
+    fn insert_mode_literal_text_is_not_positional() {
+        assert!(!is_positional_key_event(Mode::Insert, &combined(key!("s"))));
+    }
+
+    #[test]
+    fn insert_mode_keymap_binding_is_positional() {
+        assert!(is_positional_key_event(
+            Mode::Insert,
+            &combined(key!("esc"))
+        ));
     }
 }
 

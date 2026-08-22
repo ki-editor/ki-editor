@@ -4,7 +4,7 @@ use crate::app::AppMessage;
 use shared::absolute_path::AbsolutePath;
 
 #[cfg(test)]
-use crate::layout::BufferContentsMap;
+use crate::{components::editor::Mode, layout::BufferContentsMap};
 
 pub struct TestRunner {
     temp_dir: AbsolutePath,
@@ -20,6 +20,7 @@ impl Drop for TestRunner {
 pub struct TestOutput {
     pub term_output: Option<String>,
     pub buffer_contents_map: BufferContentsMap,
+    pub mode: Mode,
 }
 
 impl TestRunner {

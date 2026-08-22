@@ -5,7 +5,17 @@ use std::collections::HashMap;
 // TODO:
 // 1. Emoji not rendering properly
 
-use crate::{buffer::BufferOwner, position::Position, recipes, rectangle::Rectangle, test_app::*};
+use crate::{
+    buffer::BufferOwner,
+    components::{
+        editor::Mode, editor_keymap::CombinedKeyEvent,
+        editor_keymap_legend::is_positional_key_event,
+    },
+    position::Position,
+    recipes,
+    rectangle::Rectangle,
+    test_app::*,
+};
 
 #[test]
 fn doc_assets_generate_recipes() -> anyhow::Result<()> {
@@ -101,9 +111,32 @@ fn doc_assets_generate_recipes() -> anyhow::Result<()> {
                                     description: "".to_string(),
                                     term_output: result.term_output.unwrap(),
                                     buffer_contents_map: result.buffer_contents_map,
+                                    translate_key: false,
+                                    mode_after: result.mode,
+                                    last_event: events.last().copied().unwrap_or(key!("esc")),
                                 })
                             })
                             .collect::<Result<Vec<_>, _>>()?;
+
+                        // `translate_key` depends on the *previous* step's resulting mode,
+                        // since that is the mode the current step's key was pressed in.
+                        let modes_before = std::iter::once(Mode::Normal)
+                            .chain(steps.iter().map(|step| step.mode_after.clone()))
+                            .collect_vec();
+                        let steps = steps
+                            .into_iter()
+                            .zip(modes_before)
+                            .map(|(step, mode_before)| StepOutput {
+                                translate_key: is_positional_key_event(
+                                    mode_before,
+                                    &CombinedKeyEvent {
+                                        original: step.last_event,
+                                        translated: step.last_event,
+                                    },
+                                ),
+                                ..step
+                            })
+                            .collect_vec();
 
                         Ok(RecipeOutput {
                             description: recipe.description.to_string(),
@@ -161,6 +194,15 @@ pub struct StepOutput {
     pub description: String,
     pub term_output: String,
     pub buffer_contents_map: HashMap<String, String>,
+    /// Whether `key` is a positional keybinding (and should therefore be translated to the
+    /// user's chosen keyboard layout in the docs site) as opposed to literal text typed in
+    /// Insert mode.
+    pub translate_key: bool,
+    /// Only used to compute `translate_key` for the *next* step; not part of the doc payload.
+    #[serde(skip)]
+    mode_after: Mode,
+    #[serde(skip)]
+    last_event: event::KeyEvent,
 }
 
 #[derive(serde::Serialize)]
