@@ -3214,7 +3214,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-roc"
 version = "1.0.0"
-source = "git+https://github.com/faldor20/tree-sitter-roc?rev=68f4054#68f405426d030a7625392aabf41836c1aad05d33"
+source = "git+https://git.sr.ht/~jwoudenberg/tree-sitter-roc?rev=5758e4bc#5758e4bc103b1fde8ecdcd985ae214dd478490cf"
 dependencies = [
  "cc",
  "tree-sitter-language",
