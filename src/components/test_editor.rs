@@ -1287,6 +1287,29 @@ fn enter_newline() -> anyhow::Result<()> {
 }
 
 #[test]
+fn enter_newline_auto_indent_python() -> anyhow::Result<()> {
+    // POC for issue #525: pressing Enter right after a Python line that
+    // opens a new block (ends with `:`) should indent one level deeper,
+    // instead of only copying the current line's own indentation.
+    execute_test(|s| {
+        let path = s.temp_dir().join("test.py").unwrap();
+        std::fs::write(path.to_path_buf(), "").unwrap();
+        Box::new([
+            App(OpenFile {
+                path,
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("def foo():\n    if x:".to_string())),
+            Editor(MoveToLastChar),
+            Editor(EnterInsertMode(Direction::End)),
+            App(HandleKeyEvent(key!("enter"))),
+            Expect(CurrentComponentContent("def foo():\n    if x:\n        ")),
+        ])
+    })
+}
+
+#[test]
 fn insert_mode_start() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([

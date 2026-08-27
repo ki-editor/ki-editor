@@ -1248,16 +1248,28 @@ impl Editor {
 
                     let current_line = buffer.get_line_by_line_index(current_line_index);
 
-                    let indent = "\n".to_string()
-                        + current_line
-                            .map(|line| {
-                                line.to_string()
-                                    .chars()
-                                    .take_while(|c| c.is_whitespace() && c != &'\n')
-                                    .join("")
-                            })
-                            .unwrap_or_default()
-                            .as_str();
+                    let current_line_indent = current_line
+                        .map(|line| {
+                            line.to_string()
+                                .chars()
+                                .take_while(|c| c.is_whitespace() && c != &'\n')
+                                .join("")
+                        })
+                        .unwrap_or_default();
+
+                    // POC (issue #525): bump the indentation by one level
+                    // when the line being left opens a new block/scope,
+                    // per the language's `indents.scm` query.
+                    let extra_indent_level =
+                        crate::indent_query::compute_extra_indent_level(&buffer, cursor)
+                            .unwrap_or(0);
+                    let extra_indent: String =
+                        std::iter::repeat_n(context.indent_char(), context.indent_width())
+                            .collect::<String>()
+                            .repeat(extra_indent_level);
+
+                    let indent =
+                        "\n".to_string() + current_line_indent.as_str() + extra_indent.as_str();
 
                     let range_start = cursor + indent.chars().count();
                     Ok(ActionGroup::new(

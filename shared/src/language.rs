@@ -518,6 +518,17 @@ impl Language {
         })
     }
 
+    /// POC: hand-written `indents.scm` queries, authored in this repo
+    /// (see `shared/src/queries/<id>/indents.scm`), rather than vendored
+    /// from an external source. Currently only implemented for Python
+    /// to validate the approach raised in issue #525.
+    pub fn indent_query(&self) -> Option<String> {
+        match self.tree_sitter_grammar_config.as_ref()?.id.as_str() {
+            "python" => Some(include_str!("queries/python/indents.scm").to_string()),
+            _ => None,
+        }
+    }
+
     fn highlight_query_default(&self) -> Option<String> {
         let config = self.tree_sitter_grammar_config.as_ref()?;
         match &config.kind {
