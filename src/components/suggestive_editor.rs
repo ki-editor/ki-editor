@@ -85,14 +85,12 @@ impl Component for SuggestiveEditor {
                 log::info!("dispatches = {:?}", keymap.get_dispatches());
                 return Ok(keymap.get_dispatches());
             };
-            // Note: `up`/`down` are intentionally NOT bound here to navigate the
-            // dropdown. Since Insert mode now uses them to move the cursor to the
-            // line above/below (see `DispatchEditor::MoveCursorVertically`), they
-            // are left to fall through to the editor below. Use `alt+j`/`alt+l`
-            // (handled by `completion_item_keymap` above) to navigate the dropdown
-            // instead.
-            if combined_key_event.translated == key!("tab") {
-                return self.select_completion_item();
+            match combined_key_event.translated {
+                key!("down") => return self.next_completion_item(),
+                key!("up") => return self.previous_completion_item(),
+                key!("tab") => return self.select_completion_item(),
+
+                _ => {}
             }
         }
 
@@ -814,36 +812,14 @@ mod test_suggestive_editor {
                 SuggestiveEditor(Completion(dummy_completion())),
                 Expect(CompletionDropdownIsOpen(true)),
                 Expect(CompletionDropdownSelectedItem("Patrick")),
-                // Note: `down`/`up` no longer navigate the dropdown, because they
-                // are used to move the cursor to the line above/below in Insert
-                // mode instead. Use `alt+l`/`alt+j` to navigate the dropdown.
+                App(HandleKeyEvent(key!("down"))),
+                Expect(CompletionDropdownSelectedItem("Spongebob")),
+                App(HandleKeyEvent(key!("up"))),
+                Expect(CompletionDropdownSelectedItem("Patrick")),
                 App(HandleKeyEvent(key!("alt+l"))),
                 Expect(CompletionDropdownSelectedItem("Spongebob")),
                 App(HandleKeyEvent(key!("alt+j"))),
                 Expect(CompletionDropdownSelectedItem("Patrick")),
-            ])
-        })
-    }
-
-    #[test]
-    fn up_down_moves_cursor_even_when_dropdown_is_open() -> anyhow::Result<()> {
-        execute_test(|s| {
-            Box::new([
-                App(OpenFile {
-                    path: s.main_rs(),
-                    owner: BufferOwner::User,
-                    focus: true,
-                }),
-                Editor(SetContent("abc\ndefgh".to_string())),
-                SuggestiveEditor(CompletionFilter(SuggestiveEditorFilter::CurrentWord)),
-                Editor(EnterInsertMode(Direction::Start)),
-                SuggestiveEditor(Completion(dummy_completion())),
-                Expect(CompletionDropdownIsOpen(true)),
-                Expect(CompletionDropdownSelectedItem("Patrick")),
-                App(HandleKeyEvent(key!("down"))),
-                // The cursor should have moved to the line below, instead of the
-                // dropdown selection changing.
-                Expect(EditorCursorPosition(Position::new(1, 0))),
             ])
         })
     }
