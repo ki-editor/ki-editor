@@ -1343,6 +1343,192 @@ fn insert_mode_end() -> anyhow::Result<()> {
 }
 
 #[test]
+fn insert_mode_down_moves_to_next_line_same_column() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("abc\ndefgh\nij".to_string())),
+            Editor(EnterInsertMode(Direction::Start)),
+            App(HandleKeyEvent(key!("right"))),
+            App(HandleKeyEvent(key!("right"))),
+            Expect(EditorCursorPosition(Position::new(0, 2))),
+            App(HandleKeyEvent(key!("down"))),
+            Expect(CurrentMode(Mode::Insert)),
+            Expect(EditorCursorPosition(Position::new(1, 2))),
+            Expect(CurrentComponentContent("abc\ndefgh\nij")),
+        ])
+    })
+}
+
+#[test]
+fn insert_mode_up_moves_to_previous_line_same_column() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("abc\ndefgh\nij".to_string())),
+            Editor(EnterInsertMode(Direction::Start)),
+            App(HandleKeyEvent(key!("down"))),
+            App(HandleKeyEvent(key!("right"))),
+            App(HandleKeyEvent(key!("right"))),
+            Expect(EditorCursorPosition(Position::new(1, 2))),
+            App(HandleKeyEvent(key!("up"))),
+            Expect(CurrentMode(Mode::Insert)),
+            Expect(EditorCursorPosition(Position::new(0, 2))),
+            Expect(CurrentComponentContent("abc\ndefgh\nij")),
+        ])
+    })
+}
+
+#[test]
+fn insert_mode_down_clamps_column_when_next_line_shorter() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("abcdefgh\nxy\nzzzzzzzz".to_string())),
+            Editor(EnterInsertMode(Direction::Start)),
+            App(HandleKeyEvent(key!("right"))),
+            App(HandleKeyEvent(key!("right"))),
+            App(HandleKeyEvent(key!("right"))),
+            App(HandleKeyEvent(key!("right"))),
+            App(HandleKeyEvent(key!("right"))),
+            App(HandleKeyEvent(key!("right"))),
+            Expect(EditorCursorPosition(Position::new(0, 6))),
+            App(HandleKeyEvent(key!("down"))),
+            // Line "xy" only has 2 columns, so the cursor should clamp to its end
+            Expect(EditorCursorPosition(Position::new(1, 2))),
+        ])
+    })
+}
+
+#[test]
+fn insert_mode_up_clamps_column_when_previous_line_shorter() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("xy\nabcdefgh".to_string())),
+            Editor(EnterInsertMode(Direction::Start)),
+            App(HandleKeyEvent(key!("down"))),
+            App(HandleKeyEvent(key!("right"))),
+            App(HandleKeyEvent(key!("right"))),
+            App(HandleKeyEvent(key!("right"))),
+            App(HandleKeyEvent(key!("right"))),
+            App(HandleKeyEvent(key!("right"))),
+            App(HandleKeyEvent(key!("right"))),
+            Expect(EditorCursorPosition(Position::new(1, 6))),
+            App(HandleKeyEvent(key!("up"))),
+            // Line "xy" only has 2 columns, so the cursor should clamp to its end
+            Expect(EditorCursorPosition(Position::new(0, 2))),
+        ])
+    })
+}
+
+#[test]
+fn insert_mode_up_on_first_line_does_nothing() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("abc\ndef".to_string())),
+            Editor(EnterInsertMode(Direction::Start)),
+            App(HandleKeyEvent(key!("right"))),
+            Expect(EditorCursorPosition(Position::new(0, 1))),
+            App(HandleKeyEvent(key!("up"))),
+            Expect(EditorCursorPosition(Position::new(0, 1))),
+            Expect(CurrentComponentContent("abc\ndef")),
+        ])
+    })
+}
+
+#[test]
+fn insert_mode_down_on_last_line_does_nothing() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("abc\ndef".to_string())),
+            Editor(EnterInsertMode(Direction::Start)),
+            App(HandleKeyEvent(key!("down"))),
+            App(HandleKeyEvent(key!("right"))),
+            Expect(EditorCursorPosition(Position::new(1, 1))),
+            App(HandleKeyEvent(key!("down"))),
+            Expect(EditorCursorPosition(Position::new(1, 1))),
+            Expect(CurrentComponentContent("abc\ndef")),
+        ])
+    })
+}
+
+#[test]
+fn insert_mode_down_remembers_sticky_column_across_short_line() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("abcdefgh\nxy\nzzzzzzzzzz".to_string())),
+            Editor(EnterInsertMode(Direction::Start)),
+            App(HandleKeyEvent(key!("right"))),
+            App(HandleKeyEvent(key!("right"))),
+            App(HandleKeyEvent(key!("right"))),
+            App(HandleKeyEvent(key!("right"))),
+            App(HandleKeyEvent(key!("right"))),
+            App(HandleKeyEvent(key!("right"))),
+            Expect(EditorCursorPosition(Position::new(0, 6))),
+            App(HandleKeyEvent(key!("down"))),
+            // Clamped to the short line's end
+            Expect(EditorCursorPosition(Position::new(1, 2))),
+            App(HandleKeyEvent(key!("down"))),
+            // The original desired column (6) should be remembered and
+            // restored once a long-enough line is reached again
+            Expect(EditorCursorPosition(Position::new(2, 6))),
+        ])
+    })
+}
+
+#[test]
+fn insert_mode_typing_after_moving_inserts_at_new_position() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("abc\ndef".to_string())),
+            Editor(EnterInsertMode(Direction::Start)),
+            App(HandleKeyEvent(key!("right"))),
+            App(HandleKeyEvent(key!("down"))),
+            Expect(EditorCursorPosition(Position::new(1, 1))),
+            Editor(Insert("X".to_string())),
+            Expect(CurrentComponentContent("abc\ndXef")),
+        ])
+    })
+}
+
+#[test]
 fn delete_extended_selection() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
