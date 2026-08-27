@@ -94,7 +94,20 @@ enum Commands {
     /// Used for running as VS Code extension for example.
     Embed(EmbedArgs),
 
+    /// LSP-related utilities
+    Lsp {
+        #[command(subcommand)]
+        command: LspCommand,
+    },
+
     Version,
+}
+
+#[derive(Subcommand)]
+enum LspCommand {
+    /// Check whether the language server command configured for each
+    /// language can be found on `$PATH`
+    Health,
 }
 
 #[derive(Subcommand, Default, Display, Clone)]
@@ -254,6 +267,12 @@ pub fn cli() -> anyhow::Result<()> {
                 working_directory: Some(args.path.try_into()?),
                 ..Default::default()
             }),
+            Commands::Lsp { command } => match command {
+                LspCommand::Health => {
+                    print_lsp_health();
+                    Ok(())
+                }
+            },
             Commands::Version => {
                 println!("{}", get_version());
                 Ok(())
@@ -284,4 +303,27 @@ pub fn build_grammars() {
 
 pub fn fetch_grammars() {
     grammar::grammar::fetch_grammars(grammar_configs()).unwrap();
+}
+
+/// Prints, for each configured language that has an LSP command, whether
+/// that command can be located on `$PATH`.
+pub fn print_lsp_health() {
+    let mut languages = crate::config::AppConfig::singleton()
+        .languages()
+        .iter()
+        .filter_map(|(name, language)| {
+            let process_command = language.lsp_process_command()?;
+            Some((name.clone(), process_command))
+        })
+        .collect::<Vec<_>>();
+    languages.sort_by(|(a, _), (b, _)| a.cmp(b));
+
+    for (name, process_command) in languages {
+        let status = if process_command.is_command_found() {
+            "✅"
+        } else {
+            "❌"
+        };
+        println!("{status} {name}: {process_command}");
+    }
 }
