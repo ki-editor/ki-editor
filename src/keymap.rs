@@ -1236,6 +1236,16 @@ pub fn insert_mode_keymap_legend_config(include_universal_keymap: bool) -> Keyma
                     "Move to line end",
                     Dispatch::ToEditor(MoveToLineEnd),
                 ),
+                Keybinding::new_undocumented(
+                    key!("up"),
+                    "Line ↑",
+                    Dispatch::ToEditor(MoveCursorVertically(Direction::Start)),
+                ),
+                Keybinding::new_undocumented(
+                    key!("down"),
+                    "Line ↓",
+                    Dispatch::ToEditor(MoveCursorVertically(Direction::End)),
+                ),
             ]
             .into_iter()
             .chain(if include_universal_keymap {

@@ -212,6 +212,13 @@ impl Component for Editor {
             dispatch.variant_name()
         );
         let last_visible_line = self.last_visible_line(context);
+        // The desired column for vertical cursor movement in Insert mode should
+        // only be remembered across consecutive `MoveCursorVertically` calls;
+        // any other dispatch resets it, so the next vertical movement starts
+        // fresh from the cursor's actual column.
+        if !matches!(dispatch, MoveCursorVertically(_)) {
+            self.insert_mode_sticky_column = None;
+        }
         match dispatch {
             #[cfg(test)]
             AlignViewTop => self.align_selection_to_top(),
@@ -321,6 +328,9 @@ impl Component for Editor {
                 let len_chars = self.buffer().len_chars();
                 self.selection_set
                     .move_right(&self.cursor_direction, len_chars);
+            }
+            MoveCursorVertically(direction) => {
+                return self.move_cursor_vertically(context, direction)
             }
             Open(get_gap_movement) => return self.open(context, get_gap_movement),
             OpenVertically(direction) => return self.open_vertically(context, direction),
@@ -471,6 +481,12 @@ pub struct Editor {
     pub incremental_search_matches: Option<Vec<Range<usize>>>,
 
     insert_session: InsertSession,
+
+    /// The desired column remembered across consecutive `MoveCursorVertically`
+    /// dispatches (Insert mode Up/Down), so that moving through a shorter line
+    /// does not permanently forget the original column. Reset to `None` by any
+    /// other dispatch. See [`DispatchEditor::MoveCursorVertically`].
+    insert_mode_sticky_column: Option<usize>,
 }
 
 #[derive(Clone, Default)]
@@ -725,6 +741,7 @@ impl Editor {
             visible_line_ranges: None,
             incremental_search_matches: None,
             insert_session: InsertSession::next(),
+            insert_mode_sticky_column: None,
         }
     }
 
@@ -772,6 +789,7 @@ impl Editor {
             visible_line_ranges: None,
             incremental_search_matches: None,
             insert_session: InsertSession::next(),
+            insert_mode_sticky_column: None,
         }
     }
 
@@ -3153,6 +3171,74 @@ impl Editor {
         self.apply_edit_transaction(edit_transaction, context)
     }
 
+    /// Moves the cursor to the line above/below, preserving the column as
+    /// closely as possible (clamping to the target line's length), and
+    /// remembering the "desired" column across consecutive calls so that
+    /// passing through a shorter line does not forget it (see
+    /// `insert_mode_sticky_column`). Does nothing if there is no line
+    /// above/below to move to.
+    pub fn move_cursor_vertically(
+        &mut self,
+        context: &Context,
+        direction: Direction,
+    ) -> anyhow::Result<Dispatches> {
+        let is_up = direction == Direction::Start;
+        let current_sticky_column = self.insert_mode_sticky_column;
+        let next_sticky_column = std::cell::Cell::new(current_sticky_column);
+
+        let action_groups = {
+            let buffer = self.buffer();
+            let len_lines = buffer.len_lines();
+            let line_effective_max_column = |line_index: usize| -> anyhow::Result<usize> {
+                let len_chars = buffer.get_line_by_line_index(line_index)?.len_chars();
+                // Ropey includes the trailing newline character as part of a
+                // line's chars, except for the last line. Exclude it here so
+                // that the cursor does not land past the visible content.
+                Ok(if line_index + 1 < len_lines {
+                    len_chars.saturating_sub(1)
+                } else {
+                    len_chars
+                })
+            };
+            self.selection_set
+                .map(|selection| -> anyhow::Result<_> {
+                    let cursor = selection.to_char_index(&self.cursor_direction);
+                    let position = buffer.char_to_position(cursor)?;
+                    let desired_column = current_sticky_column.unwrap_or(position.column);
+                    next_sticky_column.set(Some(desired_column));
+                    let new_line = if is_up {
+                        position.line.checked_sub(1)
+                    } else if position.line + 1 < len_lines {
+                        Some(position.line + 1)
+                    } else {
+                        None
+                    };
+                    let Some(new_line) = new_line else {
+                        return Ok(ActionGroup::new(Vec::new()));
+                    };
+                    let new_column = desired_column.min(line_effective_max_column(new_line)?);
+                    let char_index =
+                        buffer.position_to_char(Position::new(new_line, new_column))?;
+                    Ok(ActionGroup::new(
+                        [Action::Select(
+                            selection
+                                .clone()
+                                .set_range((char_index..char_index).into())
+                                .set_initial_range(None),
+                        )]
+                        .to_vec(),
+                    ))
+                })
+                .into_iter()
+                .flatten()
+                .collect_vec()
+        };
+
+        self.insert_mode_sticky_column = next_sticky_column.get();
+
+        self.apply_edit_transaction(EditTransaction::from_action_groups(action_groups), context)
+    }
+
     pub fn move_to_line_end(&mut self) -> anyhow::Result<Dispatches> {
         Ok([
             Dispatch::ToEditor(SelectLine(Movement::Current(
@@ -4887,6 +4973,10 @@ pub enum DispatchEditor {
     SwapCursor,
     MoveCharacterBack,
     MoveCharacterForward,
+    /// Moves the cursor to the line above (`Direction::Start`) or below
+    /// (`Direction::End`) while remaining in Insert mode, preserving (and
+    /// remembering, across consecutive calls) the desired column.
+    MoveCursorVertically(Direction),
     DeleteSurround(EnclosureKind),
     ChangeSurround {
         from: EnclosureKind,
