@@ -152,8 +152,8 @@ pub fn compute_indent_for_new_line(
 ///   (DEDENT/INDENT tokens), so e.g. `elif` only parses as part of an `elif_clause` once the
 ///   line is *already* dedented to align with its `if` -- which is exactly the correction this
 ///   function exists to make. The real tree can't be used to recognize the line while it is
-///   still wrong, so this path matches the typed text directly against
-///   `Language::outdent_keywords` instead.
+///   still wrong, so this path matches the typed text directly against the keyword literals
+///   `indents.scm` itself captures `@outdent` (see `outdent_keywords` below) instead.
 ///
 /// Unlike `compute_indent_for_new_line`, this never runs on every keystroke blindly -- both
 /// paths only ever fire on the keystroke that completes a trigger token, matching Helix's own
@@ -231,13 +231,38 @@ pub fn compute_reindent_for_outdent_keyword(
 
     keyword_outdent_target(
         buffer,
-        language.outdent_keywords(),
+        &outdent_keywords(&query, &query_source),
         &typed,
         current_line_index,
         line_start,
         indent_char,
         indent_width,
     )
+}
+
+/// Derives the keyword literals `keyword_outdent_target` matches typed text against (e.g.
+/// `elif`/`else`/`except`/`finally`) directly from `indents.scm`'s own `@outdent`-captured
+/// string patterns (`(elif_clause "elif" @outdent)`), instead of a hand-maintained list --
+/// keeping `indents.scm` the single source of truth so adding, renaming, or removing one of
+/// these keywords there is enough on its own, with nothing to also update in Rust.
+///
+/// Scans each pattern's own source slice (via `Query::start/end_byte_for_pattern`, rather than
+/// the whole query source at once) for a quoted, identifier-shaped literal immediately followed
+/// by `@outdent` -- identifier-shaped so that punctuation outdents like `")"` are left alone,
+/// since those are handled by `bracket_outdent_target` off the real tree instead.
+fn outdent_keywords(query: &Query, query_source: &str) -> Vec<String> {
+    let literal = regex::Regex::new(r#""([A-Za-z_][A-Za-z0-9_*]*)"\s*@outdent\b"#)
+        .expect("static regex is valid");
+    (0..query.pattern_count())
+        .flat_map(|index| {
+            let pattern_source = &query_source
+                [query.start_byte_for_pattern(index)..query.end_byte_for_pattern(index)];
+            literal
+                .captures_iter(pattern_source)
+                .map(|captures| captures[1].to_string())
+                .collect::<Vec<_>>()
+        })
+        .collect()
 }
 
 /// Closing-bracket path of `compute_reindent_for_outdent_keyword`: walks up from the leaf at
@@ -305,14 +330,14 @@ fn bracket_outdent_target(
 /// unlike the current, still-wrongly-indented one -- is already validly parsed.
 fn keyword_outdent_target(
     buffer: &Buffer,
-    outdent_keywords: &[&str],
+    outdent_keywords: &[String],
     typed: &str,
     current_line_index: usize,
     line_start: CharIndex,
     indent_char: char,
     indent_width: usize,
 ) -> anyhow::Result<Option<String>> {
-    if current_line_index == 0 || !outdent_keywords.contains(&typed) {
+    if current_line_index == 0 || !outdent_keywords.iter().any(|keyword| keyword == typed) {
         return Ok(None);
     }
     let one_level = std::iter::repeat_n(indent_char, indent_width).collect::<String>();
@@ -521,6 +546,28 @@ mod test_compute_reindent_for_outdent_keyword {
         assert_eq!(
             compute_reindent_for_outdent_keyword(&buffer, cursor, ' ', 4)?,
             None
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn outdent_keywords_are_derived_from_indents_scm_not_hand_maintained() -> anyhow::Result<()> {
+        // Pins `outdent_keywords` itself, so a future edit to `indents.scm`'s `@outdent`-
+        // captured keyword literals is reflected here automatically instead of silently
+        // drifting out of sync with a separate hand-maintained list.
+        let language = shared::languages::languages()
+            .get("python")
+            .unwrap()
+            .clone();
+        let ts_language = language.tree_sitter_language().unwrap();
+        let query_source = language.indent_query().unwrap();
+        let query = Query::new(&ts_language, &query_source)?;
+
+        let mut keywords = outdent_keywords(&query, &query_source);
+        keywords.sort();
+        assert_eq!(
+            keywords,
+            vec!["elif", "else", "except", "except*", "finally"]
         );
         Ok(())
     }

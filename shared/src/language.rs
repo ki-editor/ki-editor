@@ -529,28 +529,6 @@ impl Language {
         }
     }
 
-    /// POC: the subset of `indent_query`'s `@outdent`-captured tokens that are keywords
-    /// rather than punctuation (e.g. Python's `elif`/`else`/`except`/`except*`/`finally`).
-    ///
-    /// These can't be told apart from the tree the way closing brackets can: a keyword like
-    /// `elif` only parses as part of its clause once the line is *already* dedented to align
-    /// with the statement it belongs to (Python's grammar lexes indentation itself, via
-    /// DEDENT/INDENT), so the very line whose indentation `compute_reindent_for_outdent_keyword`
-    /// (in `src/indent_query.rs`) needs to correct can't be relied on to already show up in the
-    /// tree as the clause node `indents.scm` captures. This list lets that function recognize
-    /// the keyword from the raw text of the line instead, and compute the target indentation
-    /// from the (unaffected, still validly-parsed) content before it.
-    pub fn outdent_keywords(&self) -> &'static [&'static str] {
-        match self
-            .tree_sitter_grammar_config
-            .as_ref()
-            .map(|config| config.id.as_str())
-        {
-            Some("python") => &["elif", "else", "except", "except*", "finally"],
-            _ => &[],
-        }
-    }
-
     fn highlight_query_default(&self) -> Option<String> {
         let config = self.tree_sitter_grammar_config.as_ref()?;
         match &config.kind {
