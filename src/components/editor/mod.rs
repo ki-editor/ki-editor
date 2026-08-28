@@ -4880,13 +4880,84 @@ impl Editor {
     }
 
     fn insert_char(&mut self, context: &Context, c: char) -> Result<Dispatches, anyhow::Error> {
-        self.insert(
+        let dispatches = self.insert(
             &c.to_string(),
             context,
             EditHistoryKind::Fine {
                 insert_session: self.insert_session.clone(),
             },
-        )
+        )?;
+        Ok(dispatches.chain(self.maybe_reindent_current_line_after_outdent_keystroke(context)?))
+    }
+
+    /// POC follow-up: right after `insert_char` above, check whether the keystroke just
+    /// completed a token `indents.scm` captures `@outdent` -- e.g. a closing `)`/`]`/`}`, or
+    /// (for Python) `elif`/`else`/`except`/`finally` -- and if so, correct the current line's
+    /// indentation in place. See `indent_query::compute_reindent_for_outdent_keyword` for the
+    /// actual detection/computation; this only turns its answer into an edit.
+    fn maybe_reindent_current_line_after_outdent_keystroke(
+        &mut self,
+        context: &Context,
+    ) -> anyhow::Result<Dispatches> {
+        self.buffer_mut().reparse_tree()?;
+
+        let edit_transaction = EditTransaction::from_action_groups({
+            let buffer = self.buffer();
+            self.selection_set
+                .map(|selection| -> anyhow::Result<Option<ActionGroup>> {
+                    let cursor = selection.extended_range().start;
+                    let Some(new_indent) = crate::indent_query::compute_reindent_for_outdent_keyword(
+                        &buffer,
+                        cursor,
+                        context.indent_char(),
+                        context.indent_width(),
+                    )?
+                    else {
+                        return Ok(None);
+                    };
+
+                    let current_line_index = buffer.char_to_line(cursor)?;
+                    let line_start = buffer.line_to_char(current_line_index)?;
+                    let old_leading_whitespace_chars = buffer
+                        .get_line_by_line_index(current_line_index)
+                        .map(|line| {
+                            line.to_string()
+                                .chars()
+                                .take_while(|c| c.is_whitespace() && c != &'\n')
+                                .count()
+                        })
+                        .unwrap_or_default();
+                    let old_range =
+                        (line_start..(line_start + old_leading_whitespace_chars)).into();
+                    let new_indent_chars = new_indent.chars().count();
+                    let new_cursor = if new_indent_chars >= old_leading_whitespace_chars {
+                        cursor + (new_indent_chars - old_leading_whitespace_chars)
+                    } else {
+                        cursor - (old_leading_whitespace_chars - new_indent_chars)
+                    };
+
+                    Ok(Some(ActionGroup::new(
+                        [
+                            Action::Edit(Edit::new(
+                                self.buffer().rope(),
+                                old_range,
+                                new_indent.into(),
+                            )),
+                            Action::Select(
+                                selection
+                                    .clone()
+                                    .set_range((new_cursor..new_cursor).into())
+                                    .set_initial_range(None),
+                            ),
+                        ]
+                        .to_vec(),
+                    )))
+                })
+                .into_iter()
+                .filter_map(|result| result.ok().flatten())
+                .collect()
+        });
+        self.apply_edit_transaction(edit_transaction, context)
     }
 
     fn fine_undo(&mut self, context: &Context) -> Result<Dispatches, anyhow::Error> {

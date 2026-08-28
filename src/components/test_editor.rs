@@ -1335,6 +1335,61 @@ fn enter_newline_auto_indent_python_typed_within_insert_session() -> anyhow::Res
 }
 
 #[test]
+fn enter_newline_auto_indent_python_outdents_closing_bracket() -> anyhow::Result<()> {
+    // POC follow-up: pressing Enter right after `(`, with the matching `)` immediately
+    // following the cursor, should push `)` onto its own line *without* indenting it --
+    // `indents.scm`'s `@outdent` on `)`/`]`/`}` is what tells `compute_indent_for_new_line`
+    // to drop the level the (still-open) `argument_list` would otherwise add.
+    execute_test(|s| {
+        let path = s.temp_dir().join("test_outdent.py").unwrap();
+        std::fs::write(path.to_path_buf(), "").unwrap();
+        Box::new([
+            App(OpenFile {
+                path,
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("foo()".to_string())),
+            Editor(MoveToLastChar),
+            Editor(MoveCharacterBack), // cursor now between `(` and `)`
+            Editor(EnterInsertMode(Direction::Start)),
+            App(HandleKeyEvent(key!("enter"))),
+            Expect(CurrentComponentContent("foo(\n)")),
+        ])
+    })
+}
+
+#[test]
+fn typing_elif_outdents_it_to_match_its_if() -> anyhow::Result<()> {
+    // POC follow-up: pressing Enter after `pass` auto-indents the new line to 4 spaces
+    // (matching `pass`, the normal continuation level) -- and Python's grammar can only
+    // recognize `elif` as an `elif_clause` once it is dedented back to `if`'s own column, so
+    // typing it out at that (currently wrong) 4-space column must correct the line in place,
+    // one keystroke at a time via `insert_char`, not just when Enter is pressed.
+    execute_test(|s| {
+        let path = s.temp_dir().join("test_elif.py").unwrap();
+        std::fs::write(path.to_path_buf(), "").unwrap();
+        Box::new([
+            App(OpenFile {
+                path,
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("if x:\n    pass".to_string())),
+            Editor(MoveToLastChar),
+            Editor(EnterInsertMode(Direction::End)),
+            App(HandleKeyEvent(key!("enter"))),
+            Expect(CurrentComponentContent("if x:\n    pass\n    ")),
+            App(HandleKeyEvent(key!("e"))),
+            App(HandleKeyEvent(key!("l"))),
+            App(HandleKeyEvent(key!("i"))),
+            App(HandleKeyEvent(key!("f"))),
+            Expect(CurrentComponentContent("if x:\n    pass\nelif")),
+        ])
+    })
+}
+
+#[test]
 fn insert_mode_start() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
