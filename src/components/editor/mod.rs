@@ -4898,6 +4898,26 @@ impl Editor {
         &mut self,
         context: &Context,
     ) -> anyhow::Result<Dispatches> {
+        // Reparsing the tree is expensive (and, in tests, count-tracked as an observable cost),
+        // so it must not happen on every keystroke -- only ever on the rare one that could
+        // plausibly complete an `@outdent`-captured token. `might_complete_outdent_token` makes
+        // that call cheaply, off the buffer's rope content alone, with no tree involved.
+        let any_selection_might_outdent = self
+            .selection_set
+            .map(|selection| {
+                crate::indent_query::might_complete_outdent_token(
+                    &self.buffer(),
+                    selection.extended_range().start,
+                )
+            })
+            .into_iter()
+            .collect::<anyhow::Result<Vec<_>>>()?
+            .into_iter()
+            .any(|might_outdent| might_outdent);
+        if !any_selection_might_outdent {
+            return Ok(Dispatches::default());
+        }
+
         self.buffer_mut().reparse_tree()?;
 
         let edit_transaction = EditTransaction::from_action_groups({
@@ -4957,7 +4977,24 @@ impl Editor {
                 .filter_map(|result| result.ok().flatten())
                 .collect()
         });
-        self.apply_edit_transaction(edit_transaction, context)
+        // Guard against pushing a no-op edit onto the undo stack: most keystrokes do not
+        // trigger a reindent, and `apply_edit_transaction_with_edit_history_kind` always
+        // records a history entry, even an empty one. Applying it unconditionally with the
+        // default `EditHistoryKind::Coarse` would (a) inject a spurious Coarse boundary after
+        // every keystroke, breaking `CoarseUndo`/`CoarseRedo` grouping of the surrounding fine
+        // insert edits, and (b) even when non-empty, split what should be a single fine insert
+        // session into two separate history entries. So: skip entirely when there is nothing to
+        // do, and otherwise apply it as part of the same fine insert session as `insert_char`.
+        if edit_transaction.edits().is_empty() {
+            return Ok(Dispatches::default());
+        }
+        self.apply_edit_transaction_with_edit_history_kind(
+            edit_transaction,
+            context,
+            EditHistoryKind::Fine {
+                insert_session: self.insert_session.clone(),
+            },
+        )
     }
 
     fn fine_undo(&mut self, context: &Context) -> Result<Dispatches, anyhow::Error> {

@@ -186,10 +186,43 @@ pub fn compute_reindent_for_outdent_keyword(
         return Ok(None);
     };
 
-    // The token that begins the current line (skipping leading whitespace) is the only thing
-    // ever eligible to trigger a reindent, and only once the user has finished typing it
-    // exactly (nothing follows it on the line) -- so a still-incomplete prefix (`eli`) or
-    // unrelated typing elsewhere on the line never touches this line's indentation.
+    let current_line_index = buffer.char_to_line(cursor)?;
+    let line_start = buffer.line_to_char(current_line_index)?;
+    let Some((typed, content_start)) = typed_prefix_on_current_line(buffer, cursor)? else {
+        return Ok(None);
+    };
+
+    if let Some(target) = bracket_outdent_target(
+        tree,
+        &indent_node_ranges,
+        &outdent_node_ranges,
+        buffer.char_to_byte(content_start)?,
+        buffer.char_to_byte(cursor)?,
+        indent_char,
+        indent_width,
+    ) {
+        return Ok(Some(target));
+    }
+
+    keyword_outdent_target(
+        buffer,
+        &outdent_keywords(&query, &query_source),
+        &typed,
+        current_line_index,
+        line_start,
+        indent_char,
+        indent_width,
+    )
+}
+
+/// Returns the current line's content from just past its leading whitespace up to `cursor`
+/// (the `typed` text both outdent paths key off of), together with the `CharIndex` that
+/// content starts at -- or `None` when `cursor` has not moved past that leading whitespace
+/// yet, i.e. nothing has been typed on this line so far.
+fn typed_prefix_on_current_line(
+    buffer: &Buffer,
+    cursor: CharIndex,
+) -> anyhow::Result<Option<(String, CharIndex)>> {
     let current_line_index = buffer.char_to_line(cursor)?;
     let line_start = buffer.line_to_char(current_line_index)?;
     let line = buffer
@@ -216,28 +249,56 @@ pub fn compute_reindent_for_outdent_keyword(
     if !rest_of_line.trim_end_matches('\n').is_empty() {
         return Ok(None);
     }
+    Ok(Some((typed, content_start)))
+}
 
-    if let Some(target) = bracket_outdent_target(
-        tree,
-        &indent_node_ranges,
-        &outdent_node_ranges,
-        buffer.char_to_byte(content_start)?,
-        buffer.char_to_byte(cursor)?,
-        indent_char,
-        indent_width,
-    ) {
-        return Ok(Some(target));
-    }
+/// Cheap prefilter for `compute_reindent_for_outdent_keyword`: reports whether the keystroke
+/// that just landed at `cursor` could possibly complete an `@outdent`-captured token (a closing
+/// bracket or a clause keyword), using only the buffer's rope content and `indents.scm`'s own
+/// literal patterns -- crucially, without touching the syntax tree at all.
+///
+/// `compute_reindent_for_outdent_keyword` itself needs an up-to-date tree (to recognize the
+/// bracket that was just closed), which costs a full reparse -- expensive enough that it must
+/// not happen on every keystroke. This lets the caller reparse only on the rare keystroke this
+/// reports `true` for, since both real paths only ever fire when the current line's typed
+/// content, with nothing following the cursor, exactly matches one of these literals.
+pub fn might_complete_outdent_token(buffer: &Buffer, cursor: CharIndex) -> anyhow::Result<bool> {
+    let Some(language) = buffer.language() else {
+        return Ok(false);
+    };
+    let Some(query_source) = language.indent_query() else {
+        return Ok(false);
+    };
+    let Some(ts_language) = buffer.treesitter_language() else {
+        return Ok(false);
+    };
+    let Some((typed, _)) = typed_prefix_on_current_line(buffer, cursor)? else {
+        return Ok(false);
+    };
 
-    keyword_outdent_target(
-        buffer,
-        &outdent_keywords(&query, &query_source),
-        &typed,
-        current_line_index,
-        line_start,
-        indent_char,
-        indent_width,
-    )
+    let query = Query::new(&ts_language, &query_source)?;
+    Ok(outdent_trigger_literals(&query, &query_source)
+        .iter()
+        .any(|literal| literal == &typed))
+}
+
+/// Every literal string pattern `indents.scm` captures `@outdent` (e.g. `"elif"` or `")"`),
+/// regardless of shape -- the union of what `outdent_keywords` (identifier-shaped only) and
+/// `bracket_outdent_target`'s tree-based bracket recognition each handle. Used by
+/// `might_complete_outdent_token`, which -- unlike those two -- has no tree to read a bracket's
+/// token text off of, and so must match against literal patterns for brackets too.
+fn outdent_trigger_literals(query: &Query, query_source: &str) -> Vec<String> {
+    let literal = regex::Regex::new(r#""([^"\\]+)"\s*@outdent\b"#).expect("static regex is valid");
+    (0..query.pattern_count())
+        .flat_map(|index| {
+            let pattern_source = &query_source
+                [query.start_byte_for_pattern(index)..query.end_byte_for_pattern(index)];
+            literal
+                .captures_iter(pattern_source)
+                .map(|captures| captures[1].to_string())
+                .collect::<Vec<_>>()
+        })
+        .collect()
 }
 
 /// Derives the keyword literals `keyword_outdent_target` matches typed text against (e.g.
