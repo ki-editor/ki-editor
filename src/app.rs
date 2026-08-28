@@ -1331,6 +1331,17 @@ impl<T: Frontend> App<T> {
             }
             Dispatch::ToggleRevealSelections => self.toggle_reveal_selections()?,
             Dispatch::SaveFile => self.save()?,
+            Dispatch::ReplaceWithPattern => {
+                // When the global multicursor (multi-buffer) is active, the search/replacement
+                // pattern was configured via the Global search prompt (used to populate the
+                // quickfix list), not the Local one, so read the pattern from the matching scope.
+                let scope = if self.multibuffer.is_some() {
+                    Scope::Global
+                } else {
+                    Scope::Local
+                };
+                self.handle_dispatch_editor(DispatchEditor::ReplaceWithPattern(scope))?;
+            }
         }
         Ok(())
     }
@@ -4096,6 +4107,7 @@ pub enum Dispatch {
     },
     ToggleRevealSelections,
     SaveFile,
+    ReplaceWithPattern,
 }
 
 /// Used to send notify host app about changes

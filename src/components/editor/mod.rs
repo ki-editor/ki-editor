@@ -341,7 +341,7 @@ impl Component for Editor {
             }
             DeleteSurround(enclosure) => return self.delete_surround(enclosure, context),
             ChangeSurround { from, to } => return self.change_surround(from, Some(to), context),
-            ReplaceWithPattern => return self.replace_with_pattern(context),
+            ReplaceWithPattern(scope) => return self.replace_with_pattern(scope, context),
             Eat(movement) => return self.eat(&movement, context),
             ApplyPositionalEdits(edits) => {
                 return self.apply_positional_edits(
@@ -3610,8 +3610,12 @@ impl Editor {
         self.apply_edit_transaction(edit_transaction, context)
     }
 
-    fn replace_with_pattern(&mut self, context: &Context) -> Result<Dispatches, anyhow::Error> {
-        let config = context.local_search_config(Scope::Local);
+    fn replace_with_pattern(
+        &mut self,
+        scope: Scope,
+        context: &Context,
+    ) -> Result<Dispatches, anyhow::Error> {
+        let config = context.local_search_config(scope);
         match config.mode {
             LocalSearchConfigMode::AstGrep => {
                 let edits = if let Some(language) = self.buffer().treesitter_language() {
@@ -4931,7 +4935,7 @@ pub enum DispatchEditor {
     ReplaceWithCopiedText {
         cut: bool,
     },
-    ReplaceWithPattern,
+    ReplaceWithPattern(Scope),
     SelectLine(Movement),
     Backspace,
     Insert(String),

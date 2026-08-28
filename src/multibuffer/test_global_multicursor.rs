@@ -5,7 +5,7 @@ use crate::{
     app::{
         Dimension,
         Dispatch::{self, *},
-        Scope,
+        LocalSearchConfigUpdate, Scope,
     },
     buffer::BufferOwner,
     components::editor::{Direction, DispatchEditor::*, IfCurrentNotFound, Mode},
@@ -780,6 +780,41 @@ fn quickfix_list_should_be_closed_when_global_multicursor_is_activated() -> Resu
             )),
             App(AddCursorToAllSelections),
             Expect(ComponentsOrder([ComponentKind::SuggestiveEditor].to_vec())),
+        ])
+    })
+}
+
+#[test]
+fn replace_with_pattern_should_work_across_all_files_in_global_multicursor(
+) -> Result<(), anyhow::Error> {
+    execute_test(|s| {
+        Box::new([
+            App(SetFileContent(s.main_rs(), "// foo xxx".to_string())),
+            App(SetFileContent(s.foo_rs(), "// foo yyy".to_string())),
+            App(OpenSearchPrompt {
+                scope: Scope::Global,
+                if_current_not_found: IfCurrentNotFound::LookForward,
+            }),
+            App(HandleKeyEvents(keys!("f o o enter").to_vec())),
+            WaitForAppMessage(regex!("GlobalSearchFinished")),
+            App(AddCursorToAllSelections),
+            // The replacement pattern is configured under `Scope::Global`, since that is the
+            // scope under which the search that seeded this global multicursor was performed.
+            App(Dispatch::UpdateLocalSearchConfig {
+                update: LocalSearchConfigUpdate::Replacement("bar".to_string()),
+                scope: Scope::Global,
+                if_current_not_found: IfCurrentNotFound::LookForward,
+                run_search_after_config_updated: false,
+            }),
+            App(Dispatch::ReplaceWithPattern),
+            Expect(ExpectKind::FileContent(
+                s.main_rs(),
+                "// bar xxx".to_string(),
+            )),
+            Expect(ExpectKind::FileContent(
+                s.foo_rs(),
+                "// bar yyy".to_string(),
+            )),
         ])
     })
 }

@@ -3013,7 +3013,7 @@ fn replace_with_pattern() -> Result<(), anyhow::Error> {
                         if_current_not_found: IfCurrentNotFound::LookForward,
                         run_search_after_config_updated: true,
                     }),
-                    Editor(ReplaceWithPattern),
+                    Editor(DispatchEditor::ReplaceWithPattern(Scope::Local)),
                     Expect(CurrentComponentContent(expected_content)),
                     Expect(CurrentSelectedTexts(expected_selected_text)),
                 ])
