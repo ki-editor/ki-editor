@@ -1239,37 +1239,47 @@ impl Editor {
     }
 
     fn enter_newline(&mut self, context: &Context) -> anyhow::Result<Dispatches> {
+        // Edits made while already in insert mode do not eagerly reparse the tree (see
+        // `apply_edit_transaction_with_edit_history_kind`), so force a reparse here to make
+        // sure any `indents.scm`-driven computation below sees the content typed so far in
+        // the current insert session, not a stale tree from before it started.
+        self.buffer_mut().reparse_tree()?;
+
         let edit_transaction = EditTransaction::from_action_groups({
             let buffer = self.buffer();
             self.selection_set
                 .map(|selection| -> anyhow::Result<_> {
                     let cursor = selection.extended_range().start;
-                    let current_line_index = buffer.char_to_line(cursor)?;
 
-                    let current_line = buffer.get_line_by_line_index(current_line_index);
-
-                    let current_line_indent = current_line
-                        .map(|line| {
-                            line.to_string()
-                                .chars()
-                                .take_while(|c| c.is_whitespace() && c != &'\n')
-                                .join("")
-                        })
-                        .unwrap_or_default();
-
-                    // POC (issue #525): bump the indentation by one level
-                    // when the line being left opens a new block/scope,
-                    // per the language's `indents.scm` query.
-                    let extra_indent_level =
-                        crate::indent_query::compute_extra_indent_level(&buffer, cursor)
-                            .unwrap_or(0);
-                    let extra_indent: String =
-                        std::iter::repeat_n(context.indent_char(), context.indent_width())
-                            .collect::<String>()
-                            .repeat(extra_indent_level);
-
-                    let indent =
-                        "\n".to_string() + current_line_indent.as_str() + extra_indent.as_str();
+                    // POC (issue #525): when the language supplies an `indents.scm`, let it
+                    // fully decide the new line's indentation instead of falling back to the
+                    // default heuristic of copying the current line's own indentation --
+                    // a hand-authored `indents.scm` is assumed to know better than whatever
+                    // whitespace happens to precede the cursor.
+                    let indent = match crate::indent_query::compute_indent_for_new_line(
+                        &buffer,
+                        cursor,
+                        context.indent_char(),
+                        context.indent_width(),
+                    )? {
+                        Some(query_computed_indent) => {
+                            "\n".to_string() + query_computed_indent.as_str()
+                        }
+                        None => {
+                            let current_line_index = buffer.char_to_line(cursor)?;
+                            let current_line =
+                                buffer.get_line_by_line_index(current_line_index);
+                            let current_line_indent = current_line
+                                .map(|line| {
+                                    line.to_string()
+                                        .chars()
+                                        .take_while(|c| c.is_whitespace() && c != &'\n')
+                                        .join("")
+                                })
+                                .unwrap_or_default();
+                            "\n".to_string() + current_line_indent.as_str()
+                        }
+                    };
 
                     let range_start = cursor + indent.chars().count();
                     Ok(ActionGroup::new(

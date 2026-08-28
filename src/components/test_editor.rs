@@ -1310,6 +1310,31 @@ fn enter_newline_auto_indent_python() -> anyhow::Result<()> {
 }
 
 #[test]
+fn enter_newline_auto_indent_python_typed_within_insert_session() -> anyhow::Result<()> {
+    // Regression test: unlike `enter_newline_auto_indent_python` above, this types the
+    // whole compound statement via insert-mode keystrokes -- without ever leaving insert
+    // mode before pressing Enter -- matching how a user actually types it. The tree is
+    // not eagerly reparsed on every insert-mode edit, so `enter_newline` must force a
+    // reparse itself before computing the indent, rather than relying on a tree that is
+    // only refreshed on leaving insert mode.
+    execute_test(|s| {
+        let path = s.temp_dir().join("test_typed.py").unwrap();
+        std::fs::write(path.to_path_buf(), "").unwrap();
+        Box::new([
+            App(OpenFile {
+                path,
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(EnterInsertMode(Direction::Start)),
+            Editor(Insert("def foo():\n    if x:".to_string())),
+            App(HandleKeyEvent(key!("enter"))),
+            Expect(CurrentComponentContent("def foo():\n    if x:\n        ")),
+        ])
+    })
+}
+
+#[test]
 fn insert_mode_start() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
