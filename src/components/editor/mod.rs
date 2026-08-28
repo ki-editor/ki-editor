@@ -1267,8 +1267,7 @@ impl Editor {
                         }
                         None => {
                             let current_line_index = buffer.char_to_line(cursor)?;
-                            let current_line =
-                                buffer.get_line_by_line_index(current_line_index);
+                            let current_line = buffer.get_line_by_line_index(current_line_index);
                             let current_line_indent = current_line
                                 .map(|line| {
                                     line.to_string()
@@ -4906,12 +4905,13 @@ impl Editor {
             self.selection_set
                 .map(|selection| -> anyhow::Result<Option<ActionGroup>> {
                     let cursor = selection.extended_range().start;
-                    let Some(new_indent) = crate::indent_query::compute_reindent_for_outdent_keyword(
-                        &buffer,
-                        cursor,
-                        context.indent_char(),
-                        context.indent_width(),
-                    )?
+                    let Some(new_indent) =
+                        crate::indent_query::compute_reindent_for_outdent_keyword(
+                            &buffer,
+                            cursor,
+                            context.indent_char(),
+                            context.indent_width(),
+                        )?
                     else {
                         return Ok(None);
                     };
