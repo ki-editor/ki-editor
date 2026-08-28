@@ -1694,7 +1694,7 @@ pub fn paste_keymap() -> Keymap {
             Keybinding::new_undocumented(
                 key!("m"),
                 "Replace w/ pattern",
-                Dispatch::ToEditor(ReplaceWithPattern),
+                Dispatch::ReplaceWithPattern,
             ),
             Keybinding::new_undocumented(
                 key!("y"),
