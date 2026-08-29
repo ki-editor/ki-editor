@@ -785,6 +785,39 @@ fn quickfix_list_should_be_closed_when_global_multicursor_is_activated() -> Resu
 }
 
 #[test]
+fn replace_with_pattern_should_use_global_search_config_without_reveal() -> Result<(), anyhow::Error>
+{
+    execute_test(|s| {
+        Box::new([
+            App(SetFileContent(s.main_rs(), "// quux xxx".to_string())),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            App(OpenSearchPrompt {
+                scope: Scope::Global,
+                if_current_not_found: IfCurrentNotFound::LookForward,
+            }),
+            App(HandleKeyEvents(keys!("q u u x enter").to_vec())),
+            WaitForAppMessage(regex!("GlobalSearchFinished")),
+            // Note: neither `AddCursorToAllSelections` nor `ToggleRevealSelections` is
+            // dispatched here, so `self.multibuffer` remains `None`, even though a global
+            // search (with its own replacement pattern) is still active.
+            App(Dispatch::UpdateLocalSearchConfig {
+                update: LocalSearchConfigUpdate::Replacement("bar".to_string()),
+                scope: Scope::Global,
+                if_current_not_found: IfCurrentNotFound::LookForward,
+                run_search_after_config_updated: false,
+            }),
+            App(Dispatch::ReplaceWithPattern),
+            Expect(CurrentComponentPath(Some(s.main_rs()))),
+            Expect(CurrentComponentContent("// bar xxx")),
+        ])
+    })
+}
+
+#[test]
 fn replace_with_pattern_should_work_across_all_files_in_global_multicursor(
 ) -> Result<(), anyhow::Error> {
     execute_test(|s| {
