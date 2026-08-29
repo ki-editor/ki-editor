@@ -1332,10 +1332,13 @@ impl<T: Frontend> App<T> {
             Dispatch::ToggleRevealSelections => self.toggle_reveal_selections()?,
             Dispatch::SaveFile => self.save()?,
             Dispatch::ReplaceWithPattern => {
-                // When the global multicursor (multi-buffer) is active, the search/replacement
-                // pattern was configured via the Global search prompt (used to populate the
-                // quickfix list), not the Local one, so read the pattern from the matching scope.
-                let scope = if self.multibuffer.is_some() {
+                // When a global search is active — whether still shown as a quickfix list, or
+                // turned into a multi-buffer view via the global multicursor / Reveal Selections
+                // — the search/replacement pattern was configured via the Global search prompt,
+                // not the Local one, so read the pattern from the matching scope.
+                let scope = if self.multibuffer.is_some()
+                    || self.context.mode() == Some(GlobalMode::QuickfixListItem)
+                {
                     Scope::Global
                 } else {
                     Scope::Local
