@@ -236,6 +236,21 @@ impl Buffer {
             &Selection::default().set_range((char_index..char_index + 1).into()),
             false,
         )?;
+        // `char_index` may fall in a byte range not covered by any specific
+        // leaf/statement node — e.g. a blank line sitting between two
+        // sibling statements. In that case `node` resolves to the nearest
+        // enclosing (coarser) ancestor, whose start line is some other,
+        // unrelated line (typically the block's first statement), not
+        // `line_index`. Such a node does not represent `line_index`'s own
+        // line, so it must not be recorded as though it were one — that
+        // would surface as a spurious extra parent/sticky line. Skip it and
+        // start the ancestor walk from its parent instead.
+        let node = match node {
+            Some(node) if self.byte_to_position(node.start_byte())?.line != line_index => {
+                node.parent()
+            }
+            node => node,
+        };
         fn get_parent_lines(
             buffer: &Buffer,
             node: Option<tree_sitter::Node>,
