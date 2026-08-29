@@ -236,6 +236,21 @@ impl Buffer {
             &Selection::default().set_range((char_index..char_index + 1).into()),
             false,
         )?;
+        // `char_index` may fall in a byte range not covered by any specific
+        // leaf/statement node — e.g. a blank line sitting between two
+        // sibling statements. In that case `node` resolves to the nearest
+        // enclosing (coarser) ancestor, whose start line is some other,
+        // unrelated line (typically the block's first statement), not
+        // `line_index`. Such a node does not represent `line_index`'s own
+        // line, so it must not be recorded as though it were one — that
+        // would surface as a spurious extra parent/sticky line. Skip it and
+        // start the ancestor walk from its parent instead.
+        let node = match node {
+            Some(node) if self.byte_to_position(node.start_byte())?.line != line_index => {
+                node.parent()
+            }
+            node => node,
+        };
         fn get_parent_lines(
             buffer: &Buffer,
             node: Option<tree_sitter::Node>,
@@ -1346,6 +1361,47 @@ fn f(
             .trim()
             .to_string();
         pretty_assertions::assert_eq!(actual, expected);
+    }
+
+    #[test]
+    /// Reproduces https://github.com/ki-editor/ki-editor/issues/1687
+    ///
+    /// The parent lines of a blank line should be identical to the parent
+    /// lines of the text lines immediately surrounding it, because a blank
+    /// line does not introduce (or leave) any scope by itself.
+    fn get_parent_lines_blank_line_should_not_introduce_extra_line() {
+        let buffer = Buffer::new(
+            crate::config::from_extension("py")
+                .unwrap()
+                .tree_sitter_language(),
+            "
+class ObservationSpecification(Base):
+    __tablename__ = \"observation_specifications\"
+
+    is_proposer_modified: Mapped[bool]
+",
+        );
+        let expected = ["class ObservationSpecification(Base):".to_string()].to_vec();
+
+        // Line 4 = `is_proposer_modified: Mapped[bool]` (a text line)
+        let text_line_parent_lines = buffer
+            .get_parent_lines(4)
+            .unwrap()
+            .into_iter()
+            .map(|line| line.content)
+            .collect_vec();
+        pretty_assertions::assert_eq!(text_line_parent_lines, expected);
+
+        // Line 3 = the blank line between `__tablename__` and
+        // `is_proposer_modified`. Its parent lines must match the text
+        // line's, not gain a spurious extra `__tablename__` entry.
+        let blank_line_parent_lines = buffer
+            .get_parent_lines(3)
+            .unwrap()
+            .into_iter()
+            .map(|line| line.content)
+            .collect_vec();
+        pretty_assertions::assert_eq!(blank_line_parent_lines, expected);
     }
 
     mod replace {
