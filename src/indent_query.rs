@@ -105,7 +105,28 @@ pub fn compute_indent_for_new_line(
     let mut indent_rows = BTreeSet::new();
     while let Some(node) = current_node {
         if indent_node_ranges.contains(&(node.start_byte(), node.end_byte())) {
-            indent_rows.insert(node.start_position().row);
+            // A bracketed construct (`argument_list`, `list`, ...) that was opened *and*
+            // closed on this same line, entirely before the cursor -- e.g. the cursor right
+            // after `print(f"Do something")` -- must not contribute a level: per the
+            // convention documented on `@indent`/`@outdent` in indents.scm, only a construct
+            // the cursor is still genuinely inside of (an unclosed bracket) counts as hanging
+            // content. It reaches this branch at all only because the lookup below is
+            // deliberately biased one byte to the left (see the comment on `lookup_byte`),
+            // which lands on the closing bracket leaf itself -- whose ancestors naturally
+            // include the very construct it just closed. Detect that case directly: the node
+            // ends exactly at the cursor, and its own last token is `@outdent`-captured (the
+            // closing bracket that ends it), as opposed to e.g. `if_statement`/
+            // `function_definition`, whose last child is never a closing-bracket token.
+            let closed_by_outdent_token = node.end_byte() == byte
+                && node
+                    .child(node.child_count().wrapping_sub(1))
+                    .is_some_and(|last_child| {
+                        outdent_node_ranges
+                            .contains(&(last_child.start_byte(), last_child.end_byte()))
+                    });
+            if !closed_by_outdent_token {
+                indent_rows.insert(node.start_position().row);
+            }
         }
         current_node = node.parent();
     }
@@ -505,6 +526,21 @@ mod test_compute_indent_for_new_line {
         assert_eq!(
             compute_indent_for_new_line(&buffer, cursor, ' ', 4)?,
             Some("    ".to_string())
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn no_extra_level_after_a_call_closed_on_the_same_line() -> anyhow::Result<()> {
+        // Regression test for https://github.com/ki-editor/ki-editor/pull/1685#issuecomment-5453879084:
+        // `argument_list` is opened and closed entirely on this line, before the cursor, so it
+        // must not count as hanging content the way an unclosed bracket would.
+        let text = "def foo():\n    if True:\n        print(f\"Do something\")";
+        let buffer = python_buffer(text);
+        let cursor = CharIndex(text.chars().count());
+        assert_eq!(
+            compute_indent_for_new_line(&buffer, cursor, ' ', 4)?,
+            Some("        ".to_string())
         );
         Ok(())
     }
