@@ -128,6 +128,7 @@ pub enum CargoLinkedTreesitterLanguage {
     Rescript,
     Typst,
     Php,
+    Gherkin,
 }
 
 impl CargoLinkedTreesitterLanguage {
@@ -204,6 +205,7 @@ impl CargoLinkedTreesitterLanguage {
             CargoLinkedTreesitterLanguage::Rescript => arborium_rescript::language().into(),
             CargoLinkedTreesitterLanguage::Typst => arborium_typst::language().into(),
             CargoLinkedTreesitterLanguage::Php => tree_sitter_php::LANGUAGE_PHP.into(),
+            CargoLinkedTreesitterLanguage::Gherkin => tree_sitter_gherkin::LANGUAGE.into(),
         }
     }
 
@@ -288,6 +290,13 @@ impl CargoLinkedTreesitterLanguage {
             CargoLinkedTreesitterLanguage::Rescript => Some(arborium_rescript::HIGHLIGHTS_QUERY),
             CargoLinkedTreesitterLanguage::Typst => Some(arborium_typst::HIGHLIGHTS_QUERY),
             CargoLinkedTreesitterLanguage::Php => Some(tree_sitter_php::HIGHLIGHTS_QUERY),
+            // tree-sitter-gherkin doesn't export `HIGHLIGHTS_QUERY` from its Rust bindings
+            // (the constant is commented out upstream), so a vendored copy of its
+            // `queries/gherkin/highlights.scm` lives at `shared/queries/gherkin/highlights.scm`
+            // instead. See https://github.com/binhtddev/tree-sitter-gherkin
+            CargoLinkedTreesitterLanguage::Gherkin => {
+                Some(include_str!("../queries/gherkin/highlights.scm"))
+            }
         }
     }
 }

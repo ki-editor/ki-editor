@@ -31,6 +31,7 @@ pub fn languages() -> HashMap<String, Language> {
         ("dockerfile", dockerfile()),
         ("elixir", elixir()),
         ("fsharp", fsharp()),
+        ("gherkin", gherkin()),
         ("gitattributes", gitattributes()),
         ("gitcommit", gitcommit()),
         ("gitconfig", gitconfig()),
@@ -1037,6 +1038,21 @@ fn ruby() -> Language {
         tree_sitter_grammar_config: Some(GrammarConfig {
             id: "ruby".to_string(),
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Ruby),
+        }),
+        line_comment_prefix: Some("#".to_string()),
+        ..Language::new()
+    }
+}
+
+fn gherkin() -> Language {
+    Language {
+        extensions: to_vec(&["feature"]),
+        formatter: None,
+        lsp_command: None,
+        lsp_language_id: Some(LanguageId::new("feature")),
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "gherkin".to_string(),
+            kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Gherkin),
         }),
         line_comment_prefix: Some("#".to_string()),
         ..Language::new()
