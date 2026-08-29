@@ -1348,6 +1348,47 @@ fn f(
         pretty_assertions::assert_eq!(actual, expected);
     }
 
+    #[test]
+    /// Reproduces https://github.com/ki-editor/ki-editor/issues/1687
+    ///
+    /// The parent lines of a blank line should be identical to the parent
+    /// lines of the text lines immediately surrounding it, because a blank
+    /// line does not introduce (or leave) any scope by itself.
+    fn get_parent_lines_blank_line_should_not_introduce_extra_line() {
+        let buffer = Buffer::new(
+            crate::config::from_extension("py")
+                .unwrap()
+                .tree_sitter_language(),
+            "
+class ObservationSpecification(Base):
+    __tablename__ = \"observation_specifications\"
+
+    is_proposer_modified: Mapped[bool]
+",
+        );
+        let expected = ["class ObservationSpecification(Base):".to_string()].to_vec();
+
+        // Line 4 = `is_proposer_modified: Mapped[bool]` (a text line)
+        let text_line_parent_lines = buffer
+            .get_parent_lines(4)
+            .unwrap()
+            .into_iter()
+            .map(|line| line.content)
+            .collect_vec();
+        pretty_assertions::assert_eq!(text_line_parent_lines, expected);
+
+        // Line 3 = the blank line between `__tablename__` and
+        // `is_proposer_modified`. Its parent lines must match the text
+        // line's, not gain a spurious extra `__tablename__` entry.
+        let blank_line_parent_lines = buffer
+            .get_parent_lines(3)
+            .unwrap()
+            .into_iter()
+            .map(|line| line.content)
+            .collect_vec();
+        pretty_assertions::assert_eq!(blank_line_parent_lines, expected);
+    }
+
     mod replace {
 
         use crate::{
