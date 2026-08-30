@@ -66,9 +66,9 @@ Throughout this document, you'll see examples using different separators (like s
 
 For example, in the input `a/hell\o\/`:
 
-- The first backslash before `o` is treated as a literal character (not escaping anything)
-- The second backslash before `/` is escaping the separator
-- The resulting search query is `hello\/` (searching for the text "hello/")
+- The first backslash before `o` is treated as a literal character (not escaping anything), so it is kept as-is in the search query
+- The second backslash before `/` is escaping the separator, so it is consumed and the `/` becomes a literal character in the search query
+- The resulting search query is `hell\o/` (searching for the text `hell\o/`, i.e. `hell`, followed by a literal backslash, followed by `o/`)
 
 ### No Error Policy
 

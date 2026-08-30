@@ -28,8 +28,11 @@ Secondary selection modes are nested below the following two keybinds,
 with the exception of Search and Search Current, which are placed on the
 first layer due to their ubiquity.
 
-- `⚲ Local`
-- Global
+- `⚲ Local` (`n` in Normal mode)
+- Global (`space`, i.e. the [Space menu](../space-menu.md); the Global
+  secondary selection modes are merged directly into the left side of that
+  menu, so for example Search is invoked via `space d`, not via a dedicated
+  "Global" key)
 
 Local Find is directional, meaning that if the cursor position does not overlap
 with any selections of the chosen secondary selection mode, the cursor will
