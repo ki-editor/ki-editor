@@ -22,6 +22,52 @@ Note: Workspace config overrides Global config.
 
 <AppConfigSchemaViewerFallback/>
 
+## Keyboard Layouts
+
+Ki's normal-mode keybindings are positional: they are defined against QWERTY
+key positions, then remapped to whichever `keyboard_layout` you select, so
+the same physical action stays reachable regardless of layout.
+
+Besides the built-in layouts (see the config schema above for the full
+list), you can define your own via `custom_keyboard_layouts`, then select it
+with `keyboard_layout`:
+
+```json
+{
+  "keyboard_layout": "ergol",
+  "custom_keyboard_layouts": {
+    "ergol": [
+      ["q", "c", "o", "p", "w", "j", "m", "d", "'", "y"],
+      ["a", "s", "e", "n", "f", "l", "r", "t", "i", "u"],
+      ["z", "x", "-", "v", "b", ".", "h", "g", ",", "k"]
+    ]
+  }
+}
+```
+
+Each entry must be a 3x10 grid of characters, laid out the same way as the
+built-in layouts: row 1 is `q w e r t y u i o p` on QWERTY, row 2 is
+`a s d f g h j k l ;`, and row 3 is `z x c v b n m , . /`.
+
+### Dead keys
+
+Some layouts (e.g. [Ergo-L](https://github.com/Nuclear-Squid/ErgoL),
+[Bépo](https://bepo.fr)) place a "dead key" — a key that doesn't produce a
+character by itself, but combines with the next keypress to produce an
+accented one — inside that 3x10 grid. Dead-key composition happens below
+the terminal (in the OS/driver layer), so terminal apps like Ki never see a
+"dead key was pressed" event; they only see the final composed character,
+if anything reaches the terminal at all. This means Ki cannot bind a
+command to a dead key's physical slot today. See
+[#719](https://github.com/ki-editor/ki-editor/issues/719) for the ongoing
+discussion and possible layout-agnostic fixes.
+
+As a workaround, set the dead key's slot to whichever character it actually
+composes when pressed on its own (typically an accent mark, e.g. `'` for
+Ergo-L's dead key). This won't bind a Ki command to that physical key, but
+it keeps the rest of the layout's positional mapping correct and lets Ki
+run.
+
 ## Scripting
 
 You can define up to 30 custom actions that can execute arbitrary scripts and interact with Ki's state.
