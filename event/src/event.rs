@@ -45,15 +45,44 @@ impl From<crossterm::event::KeyEventKind> for KeyEventKind {
 /// The `crossterm` crate does not support this out of the box.
 ///
 /// It also replaces Repeat events with Press events
-#[derive(Copy, Clone, PartialEq, Eq, Hash)]
+#[derive(Copy, Clone)]
 pub struct KeyEvent {
     pub code: crossterm::event::KeyCode,
     pub modifiers: KeyModifiers,
     pub kind: KeyEventKind,
+    /// The key at the same physical position on a standard PC-101 keyboard,
+    /// independent of the active OS/keyboard layout.
+    ///
+    /// Only populated when the terminal implements the Kitty Keyboard
+    /// Protocol's `REPORT_ALTERNATE_KEYS` flag (see
+    /// `src/frontend/crossterm.rs`). This is what lets Ki dispatch
+    /// normal-mode commands positionally even for dead-key layouts, whose
+    /// composed output character otherwise can't be looked up in
+    /// `KeyboardLayout` (see `KeyboardLayout::make_combined_key_event`) —
+    /// see https://github.com/ki-editor/ki-editor/issues/719.
+    ///
+    /// Deliberately excluded from `PartialEq`/`Hash` below, mirroring
+    /// crossterm's own `KeyEvent`, so that key events built without live
+    /// terminal data (tests, the `key!`/`keys!` macros, etc.) keep comparing
+    /// equal regardless of this field.
+    pub base_layout_code: Option<crossterm::event::KeyCode>,
 }
 impl fmt::Debug for KeyEvent {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.display())
+    }
+}
+impl PartialEq for KeyEvent {
+    fn eq(&self, other: &Self) -> bool {
+        self.code == other.code && self.modifiers == other.modifiers && self.kind == other.kind
+    }
+}
+impl Eq for KeyEvent {}
+impl std::hash::Hash for KeyEvent {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.code.hash(state);
+        self.modifiers.hash(state);
+        self.kind.hash(state);
     }
 }
 impl KeyEvent {
@@ -62,6 +91,7 @@ impl KeyEvent {
             code: key,
             modifiers,
             kind: KeyEventKind::Press,
+            base_layout_code: None,
         }
     }
 
@@ -70,12 +100,13 @@ impl KeyEvent {
             code: key,
             modifiers,
             kind: KeyEventKind::Release,
+            base_layout_code: None,
         }
     }
 
     pub fn to_rust_code(&self) -> String {
         format!(
-            "event::KeyEvent {{ code: crossterm::event::KeyCode::{:#?}, modifiers: event::{:#?}, kind: event::KeyEventKind::{:#?} }}",
+            "event::KeyEvent {{ code: crossterm::event::KeyCode::{:#?}, modifiers: event::{:#?}, kind: event::KeyEventKind::{:#?}, base_layout_code: None }}",
             self.code, self.modifiers, self.kind
         )
     }
@@ -135,6 +166,7 @@ impl From<crossterm::event::KeyEvent> for KeyEvent {
             code: value.code,
             modifiers: value.modifiers.into(),
             kind: value.kind.into(),
+            base_layout_code: value.base_layout_code,
         }
     }
 }
