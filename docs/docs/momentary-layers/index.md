@@ -10,7 +10,7 @@ This terminology comes from the keyboard modding community. For more details, se
 
 Momentary Layer is the same as the `⊞ Win` key. You can use it as a modifier, and you can tap it to trigger an action: `⊞ Win` to open Windows menu, `⊞ Win + R` to open the Run dialog.
 
-In ki, for example, tapping `≡ Insert` deletes the current selection and enters Insert mode. Holding `≡ Insert` additionally displays a menu with additional actions like opening new line below.
+In ki, for example, tapping `≡ Open` deletes the current selection and enters Insert mode. Holding `≡ Open` additionally displays a menu with additional actions like opening new line below.
 
 Windows keyboards use `⊞` for Win, MacBook keyboards use e.g., `⌘` for Command, to visually denote modifier keys. The `≡` symbol here mimics that convention by representing layered or "stacked" functionality, similar to a hamburger menu.
 

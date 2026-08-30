@@ -9,7 +9,7 @@ sidebar_position: 3
 | Mental model                              | Selection mode → Movement → Action | Action → Movement | Movement → Action |
 | Structural editing                        | First-class                        | With plugin       | Second class[^1]  |
 | Multi-cursor                              | Good                               | With plugin       | Extensive         |
-| Built-in file explorer                    | Yes                                | Yes (but buggy)   | No                |
+| Built-in file explorer                    | Yes                                | Yes (but buggy)   | Yes[^2]           |
 | Built-in LSP                              | Yes                                | Require config    | Yes               |
 | Built-in global search & replace          | Yes                                | Require config    | No global replace |
 | Auto-reload when files changed externally | Yes                                | Require config    | No                |
@@ -19,6 +19,8 @@ sidebar_position: 3
 [^1]:
     The default keybindings for structural navigation in Helix are hard to access: `alt+n`, `alt+p`, `alt+i` and `alt+o`.
     Also, there's no easy way to [revert to previous selection](normal-mode/other-movements.md#-selectselect-), which is crucial for structural manipulation.
+
+[^2]: Added in Helix 25.07, accessible via `space e`.
 
 ## Keybindings coherence
 
