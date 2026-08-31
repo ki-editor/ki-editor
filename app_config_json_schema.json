@@ -136,7 +136,8 @@
                 "Gitcommit",
                 "Rescript",
                 "Typst",
-                "Php"
+                "Php",
+                "Gherkin"
             ]
         },
         "Command": {
