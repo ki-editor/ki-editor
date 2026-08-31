@@ -31,6 +31,7 @@ pub fn languages() -> HashMap<String, Language> {
         ("dockerfile", dockerfile()),
         ("elixir", elixir()),
         ("fsharp", fsharp()),
+        ("gherkin", gherkin()),
         ("gitattributes", gitattributes()),
         ("gitcommit", gitcommit()),
         ("gitconfig", gitconfig()),
@@ -1043,6 +1044,21 @@ fn ruby() -> Language {
     }
 }
 
+fn gherkin() -> Language {
+    Language {
+        extensions: to_vec(&["feature"]),
+        formatter: None,
+        lsp_command: None,
+        lsp_language_id: Some(LanguageId::new("feature")),
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "gherkin".to_string(),
+            kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Gherkin),
+        }),
+        line_comment_prefix: Some("#".to_string()),
+        ..Language::new()
+    }
+}
+
 fn roc() -> Language {
     Language {
         extensions: to_vec(&["roc"]),
@@ -1322,8 +1338,14 @@ fn glsl() -> Language {
 mod test {
     #[test]
     fn test_languages_match_nvim_treesitter_languages() {
-        const MISSING_NVIM_HIGHLIGHTS: &[&str] =
-            &["dune", "ki_quickfix", "tsq", "jj description", "qml"];
+        const MISSING_NVIM_HIGHLIGHTS: &[&str] = &[
+            "dune",
+            "ki_quickfix",
+            "tsq",
+            "jj description",
+            "qml",
+            "gherkin",
+        ];
 
         // This test is a major consistency check.
         // First, we check that all builtin languages were searched for in nvim-treesitter.

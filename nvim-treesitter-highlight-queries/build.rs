@@ -21,6 +21,7 @@ const INCLUDED_NVIM_TREESITTER_LANGUAGES: &[&str] = &[
     "git_config",
     "git_rebase",
     "gitattributes",
+    "gherkin",
     "gitcommit",
     "gitignore",
     "gleam",
@@ -85,6 +86,7 @@ const MISSING_NVIM_HIGHLIGHTS: &[&str] = &[
     "jj description",
     "gnuplot",
     "qml",
+    "gherkin",
 ];
 
 fn main() {
