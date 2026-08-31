@@ -1338,8 +1338,14 @@ fn glsl() -> Language {
 mod test {
     #[test]
     fn test_languages_match_nvim_treesitter_languages() {
-        const MISSING_NVIM_HIGHLIGHTS: &[&str] =
-            &["dune", "ki_quickfix", "tsq", "jj description", "qml", "gherkin"];
+        const MISSING_NVIM_HIGHLIGHTS: &[&str] = &[
+            "dune",
+            "ki_quickfix",
+            "tsq",
+            "jj description",
+            "qml",
+            "gherkin",
+        ];
 
         // This test is a major consistency check.
         // First, we check that all builtin languages were searched for in nvim-treesitter.
