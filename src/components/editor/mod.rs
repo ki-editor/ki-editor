@@ -1239,25 +1239,46 @@ impl Editor {
     }
 
     fn enter_newline(&mut self, context: &Context) -> anyhow::Result<Dispatches> {
+        // Edits made while already in insert mode do not eagerly reparse the tree (see
+        // `apply_edit_transaction_with_edit_history_kind`), so force a reparse here to make
+        // sure any `indents.scm`-driven computation below sees the content typed so far in
+        // the current insert session, not a stale tree from before it started.
+        self.buffer_mut().reparse_tree()?;
+
         let edit_transaction = EditTransaction::from_action_groups({
             let buffer = self.buffer();
             self.selection_set
                 .map(|selection| -> anyhow::Result<_> {
                     let cursor = selection.extended_range().start;
-                    let current_line_index = buffer.char_to_line(cursor)?;
 
-                    let current_line = buffer.get_line_by_line_index(current_line_index);
-
-                    let indent = "\n".to_string()
-                        + current_line
-                            .map(|line| {
-                                line.to_string()
-                                    .chars()
-                                    .take_while(|c| c.is_whitespace() && c != &'\n')
-                                    .join("")
-                            })
-                            .unwrap_or_default()
-                            .as_str();
+                    // POC (issue #525): when the language supplies an `indents.scm`, let it
+                    // fully decide the new line's indentation instead of falling back to the
+                    // default heuristic of copying the current line's own indentation --
+                    // a hand-authored `indents.scm` is assumed to know better than whatever
+                    // whitespace happens to precede the cursor.
+                    let indent = match crate::indent_query::compute_indent_for_new_line(
+                        &buffer,
+                        cursor,
+                        context.indent_char(),
+                        context.indent_width(),
+                    )? {
+                        Some(query_computed_indent) => {
+                            "\n".to_string() + query_computed_indent.as_str()
+                        }
+                        None => {
+                            let current_line_index = buffer.char_to_line(cursor)?;
+                            let current_line = buffer.get_line_by_line_index(current_line_index);
+                            let current_line_indent = current_line
+                                .map(|line| {
+                                    line.to_string()
+                                        .chars()
+                                        .take_while(|c| c.is_whitespace() && c != &'\n')
+                                        .join("")
+                                })
+                                .unwrap_or_default();
+                            "\n".to_string() + current_line_indent.as_str()
+                        }
+                    };
 
                     let range_start = cursor + indent.chars().count();
                     Ok(ActionGroup::new(
@@ -4858,8 +4879,117 @@ impl Editor {
     }
 
     fn insert_char(&mut self, context: &Context, c: char) -> Result<Dispatches, anyhow::Error> {
-        self.insert(
+        let dispatches = self.insert(
             &c.to_string(),
+            context,
+            EditHistoryKind::Fine {
+                insert_session: self.insert_session.clone(),
+            },
+        )?;
+        Ok(dispatches.chain(self.maybe_reindent_current_line_after_outdent_keystroke(context)?))
+    }
+
+    /// POC follow-up: right after `insert_char` above, check whether the keystroke just
+    /// completed a token `indents.scm` captures `@outdent` -- e.g. a closing `)`/`]`/`}`, or
+    /// (for Python) `elif`/`else`/`except`/`finally` -- and if so, correct the current line's
+    /// indentation in place. See `indent_query::compute_reindent_for_outdent_keyword` for the
+    /// actual detection/computation; this only turns its answer into an edit.
+    fn maybe_reindent_current_line_after_outdent_keystroke(
+        &mut self,
+        context: &Context,
+    ) -> anyhow::Result<Dispatches> {
+        // Reparsing the tree is expensive (and, in tests, count-tracked as an observable cost),
+        // so it must not happen on every keystroke -- only ever on the rare one that could
+        // plausibly complete an `@outdent`-captured token. `might_complete_outdent_token` makes
+        // that call cheaply, off the buffer's rope content alone, with no tree involved.
+        let any_selection_might_outdent = self
+            .selection_set
+            .map(|selection| {
+                crate::indent_query::might_complete_outdent_token(
+                    &self.buffer(),
+                    selection.extended_range().start,
+                )
+            })
+            .into_iter()
+            .collect::<anyhow::Result<Vec<_>>>()?
+            .into_iter()
+            .any(|might_outdent| might_outdent);
+        if !any_selection_might_outdent {
+            return Ok(Dispatches::default());
+        }
+
+        self.buffer_mut().reparse_tree()?;
+
+        let edit_transaction = EditTransaction::from_action_groups({
+            let buffer = self.buffer();
+            self.selection_set
+                .map(|selection| -> anyhow::Result<Option<ActionGroup>> {
+                    let cursor = selection.extended_range().start;
+                    let Some(new_indent) =
+                        crate::indent_query::compute_reindent_for_outdent_keyword(
+                            &buffer,
+                            cursor,
+                            context.indent_char(),
+                            context.indent_width(),
+                        )?
+                    else {
+                        return Ok(None);
+                    };
+
+                    let current_line_index = buffer.char_to_line(cursor)?;
+                    let line_start = buffer.line_to_char(current_line_index)?;
+                    let old_leading_whitespace_chars = buffer
+                        .get_line_by_line_index(current_line_index)
+                        .map(|line| {
+                            line.to_string()
+                                .chars()
+                                .take_while(|c| c.is_whitespace() && c != &'\n')
+                                .count()
+                        })
+                        .unwrap_or_default();
+                    let old_range =
+                        (line_start..(line_start + old_leading_whitespace_chars)).into();
+                    let new_indent_chars = new_indent.chars().count();
+                    let new_cursor = if new_indent_chars >= old_leading_whitespace_chars {
+                        cursor + (new_indent_chars - old_leading_whitespace_chars)
+                    } else {
+                        cursor - (old_leading_whitespace_chars - new_indent_chars)
+                    };
+
+                    Ok(Some(ActionGroup::new(
+                        [
+                            Action::Edit(Edit::new(
+                                self.buffer().rope(),
+                                old_range,
+                                new_indent.into(),
+                            )),
+                            Action::Select(
+                                selection
+                                    .clone()
+                                    .set_range((new_cursor..new_cursor).into())
+                                    .set_initial_range(None),
+                            ),
+                        ]
+                        .to_vec(),
+                    )))
+                })
+                .into_iter()
+                .filter_map(|result| result.ok().flatten())
+                .collect()
+        });
+        // Guard against pushing a no-op edit onto the undo stack: most keystrokes do not
+        // trigger a reindent, and `apply_edit_transaction_with_edit_history_kind` always
+        // records a history entry, even an empty one. Applying it unconditionally with the
+        // default `EditHistoryKind::Coarse` would (a) inject a spurious Coarse boundary after
+        // every keystroke, breaking `CoarseUndo`/`CoarseRedo` grouping of the surrounding fine
+        // insert edits, and (b) even when non-empty, split what should be a single fine insert
+        // session into two separate history entries. So: skip entirely when there is nothing to
+        // do, and otherwise apply it as part of the same fine insert session as `insert_char`.
+        if edit_transaction.edits().is_empty() {
+            return Ok(Dispatches::default());
+        }
+        self.apply_edit_transaction_with_edit_history_kind(
+            edit_transaction,
             context,
             EditHistoryKind::Fine {
                 insert_session: self.insert_session.clone(),
