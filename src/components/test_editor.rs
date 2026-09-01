@@ -1335,6 +1335,38 @@ fn enter_newline_auto_indent_python_typed_within_insert_session() -> anyhow::Res
 }
 
 #[test]
+fn enter_newline_auto_indent_python_at_buffer_start() -> anyhow::Result<()> {
+    // Regression test (PR #1685 review): pressing Enter at row 0, column 0 -- i.e. to
+    // insert a blank line above the very first statement in the buffer -- must not indent
+    // that statement. `compute_indent_for_new_line` looks at the node one byte *before* the
+    // cursor to find `@indent`-captured ancestors, which normally lands safely outside
+    // whatever the cursor is about to precede; but at buffer position 0 there is no byte
+    // before the cursor to land on (`saturating_sub` clamps to 0), so the lookup instead
+    // lands right back inside the `for_statement` itself, which starts on the very same row
+    // as the cursor and so wrongly gets counted as an indent level.
+    execute_test(|s| {
+        let path = s.temp_dir().join("test_buffer_start.py").unwrap();
+        std::fs::write(path.to_path_buf(), "").unwrap();
+        Box::new([
+            App(OpenFile {
+                path,
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent(
+                "for i in range(1, n):\n    print(i)".to_string(),
+            )),
+            Editor(MoveToLineStart),
+            Editor(EnterInsertMode(Direction::Start)),
+            App(HandleKeyEvent(key!("enter"))),
+            Expect(CurrentComponentContent(
+                "\nfor i in range(1, n):\n    print(i)",
+            )),
+        ])
+    })
+}
+
+#[test]
 fn enter_newline_auto_indent_python_outdents_closing_bracket() -> anyhow::Result<()> {
     // POC follow-up: pressing Enter right after `(`, with the matching `)` immediately
     // following the cursor, should push `)` onto its own line *without* indenting it --

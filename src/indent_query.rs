@@ -97,11 +97,18 @@ pub fn compute_indent_for_new_line(
     // into the empty range past the end of the last token (e.g. right after `if x:` at
     // the end of the buffer, it would resolve all the way up to the root), whereas biasing
     // one byte to the left lands inside whatever was just typed.
+    //
+    // At buffer position 0 there is no character before the cursor to bias onto -- e.g.
+    // pressing Enter at the very start of the buffer to push its first statement down --
+    // so skip the lookup entirely rather than clamping to byte 0, which would otherwise
+    // land back inside whatever the cursor is about to precede (that construct starts on
+    // the cursor's own line, so it would wrongly count as an indent level even though the
+    // cursor has not actually entered it).
     let byte = buffer.char_to_byte(cursor)?;
-    let lookup_byte = byte.saturating_sub(1);
-    let mut current_node = tree
-        .root_node()
-        .descendant_for_byte_range(lookup_byte, lookup_byte);
+    let mut current_node = byte.checked_sub(1).and_then(|lookup_byte| {
+        tree.root_node()
+            .descendant_for_byte_range(lookup_byte, lookup_byte)
+    });
     let mut indent_rows = BTreeSet::new();
     while let Some(node) = current_node {
         if indent_node_ranges.contains(&(node.start_byte(), node.end_byte())) {
