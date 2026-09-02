@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::app::AppMessage;
 
-use super::process::{FromEditor, LspServerProcessChannel};
+use super::process::{FromEditor, LspNotification, LspServerProcessChannel};
 use shared::{
     absolute_path::AbsolutePath,
     language::{Language, LanguageId},
@@ -131,6 +131,52 @@ impl LspManager {
                 .shutdown()
                 .unwrap_or_else(|error| log::error!("{error:?}"));
         }
+    }
+
+    /// Restarts the LSP server process for the given `language`, if one is running.
+    ///
+    /// The existing process (if any) is shut down and a fresh one is spawned.
+    /// Once the new process reports that it is initialized, `documents_did_open`
+    /// will be replayed for currently open buffers (see `App::handle_lsp_notification`),
+    /// so callers do not need to re-open any documents themselves.
+    pub fn restart_language(&mut self, language: &Language) -> anyhow::Result<()> {
+        let Some(language_id) = language.id() else {
+            return Ok(());
+        };
+
+        if let Some(channel) = self.lsp_server_process_channels.remove(&language_id) {
+            // `shutdown` blocks until the old process has actually stopped (or failed
+            // to), so a failure is reported here before the replacement process is
+            // spawned below, rather than racing with it. Success is not reported —
+            // it's the expected outcome and not worth surfacing to the user.
+            if let Err(error) = channel.shutdown() {
+                let _ = self.sender.send(AppMessage::LspNotification(Box::new(
+                    LspNotification::Error(format!(
+                        "LSP server for {language_id} failed to shut down cleanly: {error:?}"
+                    )),
+                )));
+            }
+        }
+
+        LspServerProcessChannel::new(
+            language.clone(),
+            self.sender.clone(),
+            self.current_working_directory.clone(),
+        )
+        .map(|channel| {
+            if let Some(channel) = channel {
+                self.lsp_server_process_channels
+                    .insert(language_id, channel);
+            }
+        })
+    }
+
+    /// Returns the distinct `Language`s that currently have a running LSP server process.
+    pub fn running_languages(&self) -> Vec<Language> {
+        self.lsp_server_process_channels
+            .values()
+            .map(|channel| channel.language().clone())
+            .collect()
     }
 
     #[cfg(test)]

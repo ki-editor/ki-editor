@@ -1156,6 +1156,8 @@ impl<T: Frontend> App<T> {
             }
             Dispatch::GetRepoGitHunks(diff_mode) => self.get_repo_git_hunks(diff_mode)?,
             Dispatch::SaveAll => self.save_all()?,
+            Dispatch::RestartLsp => self.restart_lsp()?,
+            Dispatch::RestartAllLsps => self.restart_all_lsps()?,
             #[cfg(test)]
             Dispatch::TerminalDimensionChanged(dimension) => self.resize(dimension),
             #[cfg(test)]
@@ -2174,6 +2176,25 @@ impl<T: Frontend> App<T> {
     fn save_all(&mut self) -> anyhow::Result<()> {
         let dispatches = self.layout.save_all(&self.context)?;
         self.handle_dispatches(dispatches)
+    }
+
+    /// Restarts the LSP server responsible for the current buffer's language, if any.
+    fn restart_lsp(&mut self) -> anyhow::Result<()> {
+        let Some(language) = self
+            .get_current_file_path()
+            .and_then(|path| crate::config::from_path(&path))
+        else {
+            return Ok(());
+        };
+        self.lsp_manager().restart_language(&language)
+    }
+
+    /// Restarts every currently running LSP server.
+    fn restart_all_lsps(&mut self) -> anyhow::Result<()> {
+        let languages = self.lsp_manager().running_languages();
+        languages
+            .iter()
+            .try_for_each(|language| self.lsp_manager().restart_language(language))
     }
 
     fn open_yes_no_prompt(&mut self, prompt: YesNoPrompt) -> anyhow::Result<()> {
@@ -3979,6 +4000,10 @@ pub enum Dispatch {
     HandleKeyEvents(Vec<event::KeyEvent>),
     GetRepoGitHunks(git::DiffMode),
     SaveAll,
+    /// Restarts the LSP server for the current buffer's language.
+    RestartLsp,
+    /// Restarts every currently running LSP server.
+    RestartAllLsps,
     #[cfg(test)]
     TerminalDimensionChanged(Dimension),
     #[cfg(test)]
