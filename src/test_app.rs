@@ -4451,6 +4451,40 @@ fn save_all_sets_dirty_status() -> anyhow::Result<()> {
 }
 
 #[test]
+fn reload_all_files_picks_up_external_changes() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            // Make the buffer dirty with an in-memory edit that was never saved.
+            Editor(SetContent("// unsaved local edit".to_string())),
+            Expect(EditorIsDirty()),
+            // Simulate another process (e.g. a formatter, or `git checkout`)
+            // changing the file on disk.
+            Shell(
+                "sh",
+                [
+                    "-c".to_string(),
+                    format!(
+                        "printf '%s' '// changed on disk' > {}",
+                        s.main_rs().display_absolute()
+                    ),
+                ]
+                .to_vec(),
+            ),
+            App(ReloadAllFiles),
+            // The buffer should now reflect the on-disk content,
+            // discarding the unsaved local edit.
+            Expect(CurrentComponentContent("// changed on disk")),
+            Expect(Not(Box::new(EditorIsDirty()))),
+        ])
+    })
+}
+
+#[test]
 fn should_specially_handle_formatter_not_exist_errors() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
