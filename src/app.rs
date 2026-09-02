@@ -1157,6 +1157,7 @@ impl<T: Frontend> App<T> {
             Dispatch::GetRepoGitHunks(diff_mode) => self.get_repo_git_hunks(diff_mode)?,
             Dispatch::SaveAll => self.save_all()?,
             Dispatch::RestartLsp => self.restart_lsp()?,
+            Dispatch::ReloadAllFiles => self.reload_all_files()?,
             #[cfg(test)]
             Dispatch::TerminalDimensionChanged(dimension) => self.resize(dimension),
             #[cfg(test)]
@@ -2186,6 +2187,18 @@ impl<T: Frontend> App<T> {
             return Ok(());
         };
         self.lsp_manager().restart_language(&language)
+    }
+
+    /// Reloads every open buffer whose file has changed on disk.
+    fn reload_all_files(&mut self) -> anyhow::Result<()> {
+        let paths = self
+            .layout
+            .buffers()
+            .into_iter()
+            .filter_map(|buffer| buffer.borrow().path())
+            .collect_vec();
+        let dispatches = self.layout.reload_buffers(&self.context, paths)?;
+        self.handle_dispatches(dispatches)
     }
 
     fn open_yes_no_prompt(&mut self, prompt: YesNoPrompt) -> anyhow::Result<()> {
@@ -3993,6 +4006,8 @@ pub enum Dispatch {
     SaveAll,
     /// Restarts the LSP server for the current buffer's language.
     RestartLsp,
+    /// Reloads every open buffer whose file has changed on disk.
+    ReloadAllFiles,
     #[cfg(test)]
     TerminalDimensionChanged(Dimension),
     #[cfg(test)]

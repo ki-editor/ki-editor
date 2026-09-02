@@ -49,6 +49,7 @@ pub fn languages() -> HashMap<String, Language> {
         ("html", html()),
         ("idris", idris()),
         ("haskell", haskell()),
+        ("java", java()),
         ("javascript", javascript()),
         ("qml", qml()),
         ("qmldir", qmldir()),
@@ -666,6 +667,24 @@ fn haskell() -> Language {
         }),
         line_comment_prefix: Some("--".to_string()),
         block_comment_affixes: Some(("{-".to_string(), "-}".to_string())),
+        ..Language::new()
+    }
+}
+
+fn java() -> Language {
+    Language {
+        extensions: to_vec(&["java"]),
+        lsp_command: Some(LspCommand {
+            command: Command::new("jdtls", &[]),
+            ..LspCommand::default()
+        }),
+        lsp_language_id: Some(LanguageId::new("java")),
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "java".to_string(),
+            kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Java),
+        }),
+        line_comment_prefix: Some("//".to_string()),
+        block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
         ..Language::new()
     }
 }

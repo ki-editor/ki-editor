@@ -171,6 +171,10 @@ Reload the current file. A prompt will be shown if there are conflicts.
 
 Save all files.
 
+### `Reload All Files`
+
+Reload every open file that has changed on disk.
+
 ### `Replace all`
 
 Replace all matches across all files of the current working directory with the specified replacement.
