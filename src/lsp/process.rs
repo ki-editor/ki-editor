@@ -131,10 +131,12 @@ enum LspServerProcessMessage {
     FromEditor(FromEditor),
     /// Throttled message should be executed immediately
     Throttled(FromEditor),
-    /// Carries a sender for reporting back whether the shutdown succeeded, so that
-    /// the caller can wait for (and surface) the outcome before doing anything else,
-    /// e.g. spawning a replacement process during a restart.
-    Shutdown(Sender<anyhow::Result<()>>),
+    /// Carries an optional sender for reporting back whether the shutdown succeeded.
+    /// `Some` when the caller wants to wait for (and surface) the outcome before doing
+    /// anything else, e.g. spawning a replacement process during a restart. `None` for
+    /// a fire-and-forget shutdown, e.g. one triggered internally after too many
+    /// consecutive read errors, where nobody is waiting on the result.
+    Shutdown(Option<Sender<anyhow::Result<()>>>),
 }
 
 #[derive(Debug, NamedVariant, Clone, PartialEq)]
@@ -229,7 +231,7 @@ impl LspServerProcessChannel {
         }
         let (result_sender, result_receiver) = std::sync::mpsc::channel();
         self.sender
-            .send(LspServerProcessMessage::Shutdown(result_sender))
+            .send(LspServerProcessMessage::Shutdown(Some(result_sender)))
             .map_err(|err| anyhow::anyhow!("Unable to send request: {}", err))?;
         result_receiver
             .recv_timeout(Duration::from_secs(5))
@@ -597,9 +599,8 @@ impl LspServerProcess {
                                         "[LspServerProcess] Error sending error to app: {error:?}"
                                     );
                                 });
-                            let (result_sender, _) = std::sync::mpsc::channel();
                             sender
-                            .send(LspServerProcessMessage::Shutdown(result_sender))
+                            .send(LspServerProcessMessage::Shutdown(None))
                             .unwrap_or_else(|error| {
                                 lsp_error!(
                                     lsp_command,
@@ -673,7 +674,9 @@ impl LspServerProcess {
                             "LspServerProcess::process_messages: failed to shutdown due to {err:?}"
                         );
                     }
-                    let _ = result_sender.send(result);
+                    if let Some(result_sender) = result_sender {
+                        let _ = result_sender.send(result);
+                    }
                     break;
                 }
             }
