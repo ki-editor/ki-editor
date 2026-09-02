@@ -1156,6 +1156,7 @@ impl<T: Frontend> App<T> {
             }
             Dispatch::GetRepoGitHunks(diff_mode) => self.get_repo_git_hunks(diff_mode)?,
             Dispatch::SaveAll => self.save_all()?,
+            Dispatch::ReloadAllFiles => self.reload_all_files()?,
             #[cfg(test)]
             Dispatch::TerminalDimensionChanged(dimension) => self.resize(dimension),
             #[cfg(test)]
@@ -2173,6 +2174,18 @@ impl<T: Frontend> App<T> {
 
     fn save_all(&mut self) -> anyhow::Result<()> {
         let dispatches = self.layout.save_all(&self.context)?;
+        self.handle_dispatches(dispatches)
+    }
+
+    /// Reloads every open buffer whose file has changed on disk.
+    fn reload_all_files(&mut self) -> anyhow::Result<()> {
+        let paths = self
+            .layout
+            .buffers()
+            .into_iter()
+            .filter_map(|buffer| buffer.borrow().path())
+            .collect_vec();
+        let dispatches = self.layout.reload_buffers(&self.context, paths)?;
         self.handle_dispatches(dispatches)
     }
 
@@ -3979,6 +3992,8 @@ pub enum Dispatch {
     HandleKeyEvents(Vec<event::KeyEvent>),
     GetRepoGitHunks(git::DiffMode),
     SaveAll,
+    /// Reloads every open buffer whose file has changed on disk.
+    ReloadAllFiles,
     #[cfg(test)]
     TerminalDimensionChanged(Dimension),
     #[cfg(test)]

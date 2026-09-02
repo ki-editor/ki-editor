@@ -515,6 +515,7 @@ pub fn space_editor_keymap_legend_config() -> KeymapLegendConfig {
                 "Reload File",
                 Dispatch::ToEditor(ReloadFile { force: false }),
             ),
+            Keybinding::new_undocumented(key!("l"), "Reload All Files", Dispatch::ReloadAllFiles),
         ]),
     }
 }
