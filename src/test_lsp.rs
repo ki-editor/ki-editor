@@ -139,38 +139,6 @@ fn typescript_lsp_restart() -> Result<(), anyhow::Error> {
 }
 
 #[test]
-fn typescript_lsp_restart_all() -> Result<(), anyhow::Error> {
-    let options = RunTestOptions {
-        enable_lsp: true,
-        enable_syntax_highlighting: false,
-        enable_file_watcher: false,
-    };
-    execute_test_custom(options, |s| {
-        Box::new([
-            App(AddPath(s.new_path("hello.ts").display().to_string())),
-            App(HandleKeyEvent(key!("enter"))),
-            Editor(SetContent("export function hello() {}".to_string())),
-            WaitForAppMessage(lazy_regex::regex!("LspNotification.*Initialized")),
-            App(Dispatch::RestartAllLsps),
-            WaitForAppMessage(lazy_regex::regex!("LspNotification.*Initialized")),
-            Editor(Save),
-            Editor(MatchLiteral("hello".to_string())),
-            App(Dispatch::RequestHover),
-            Expect(AppMessageIsReceived {
-                matches: regex!("LspNotification.*Hover"),
-                timeout: Duration::from_secs(5),
-            }),
-            App(Dispatch::OpenWorkspaceSymbolsPicker),
-            App(HandleKeyEvents(keys!("h e").to_vec())),
-            Expect(AppMessageIsReceived {
-                matches: regex!("LspNotification.*WorkspaceSymbols"),
-                timeout: Duration::from_secs(5),
-            }),
-        ])
-    })
-}
-
-#[test]
 fn typescript_lsp_references() -> Result<(), anyhow::Error> {
     let options = RunTestOptions {
         enable_lsp: true,

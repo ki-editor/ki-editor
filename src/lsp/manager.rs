@@ -171,14 +171,6 @@ impl LspManager {
         })
     }
 
-    /// Returns the distinct `Language`s that currently have a running LSP server process.
-    pub fn running_languages(&self) -> Vec<Language> {
-        self.lsp_server_process_channels
-            .values()
-            .map(|channel| channel.language().clone())
-            .collect()
-    }
-
     #[cfg(test)]
     pub fn lsp_request_sent(&self, from_editor: &FromEditor) -> bool {
         self.history.get(from_editor.variant()) == Some(from_editor)

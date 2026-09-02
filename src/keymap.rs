@@ -512,11 +512,6 @@ pub fn space_editor_keymap_legend_config() -> KeymapLegendConfig {
             ),
             Keybinding::new_undocumented(key!("r"), "Restart LSP", Dispatch::RestartLsp),
             Keybinding::new_undocumented(
-                key!("shift+r"),
-                "Restart All LSPs",
-                Dispatch::RestartAllLsps,
-            ),
-            Keybinding::new_undocumented(
                 key!("d"),
                 "Reload File",
                 Dispatch::ToEditor(ReloadFile { force: false }),

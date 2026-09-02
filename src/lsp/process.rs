@@ -280,10 +280,6 @@ impl LspServerProcessChannel {
         self.is_initialized
     }
 
-    pub fn language(&self) -> &Language {
-        &self.language
-    }
-
     pub fn initialized(&mut self) {
         self.is_initialized = true;
     }
