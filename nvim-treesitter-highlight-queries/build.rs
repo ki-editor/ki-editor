@@ -35,6 +35,7 @@ const INCLUDED_NVIM_TREESITTER_LANGUAGES: &[&str] = &[
     "html",
     "html_tags",
     "idris",
+    "java",
     "javascript",
     "qmljs",
     "qmldir",

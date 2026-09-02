@@ -76,6 +76,7 @@ pub enum CargoLinkedTreesitterLanguage {
     Rust,
     Graphql,
     Gnuplot,
+    Java,
     Javascript,
     QmlJs,
     QmlDir,
@@ -206,6 +207,7 @@ impl CargoLinkedTreesitterLanguage {
             CargoLinkedTreesitterLanguage::Typst => arborium_typst::language().into(),
             CargoLinkedTreesitterLanguage::Php => tree_sitter_php::LANGUAGE_PHP.into(),
             CargoLinkedTreesitterLanguage::Gherkin => tree_sitter_gherkin::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::Java => tree_sitter_java::LANGUAGE.into(),
         }
     }
 
@@ -297,6 +299,7 @@ impl CargoLinkedTreesitterLanguage {
             CargoLinkedTreesitterLanguage::Gherkin => {
                 Some(include_str!("../queries/gherkin/highlights.scm"))
             }
+            CargoLinkedTreesitterLanguage::Java => Some(tree_sitter_java::HIGHLIGHTS_QUERY),
         }
     }
 }
