@@ -5,7 +5,7 @@
             { "normal": "Quit No Save", "alted": null, "shifted": null },
             { "normal": null, "alted": null, "shifted": null },
             { "normal": "Reload All Files", "alted": null, "shifted": null },
-            { "normal": null, "alted": null, "shifted": null },
+            { "normal": "Restart LSP", "alted": null, "shifted": null },
             { "normal": null, "alted": null, "shifted": null },
             { "normal": null, "alted": null, "shifted": null },
             { "normal": null, "alted": null, "shifted": null },
