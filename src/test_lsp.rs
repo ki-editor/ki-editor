@@ -101,6 +101,44 @@ fn typescript_lsp_workspace_symbols() -> Result<(), anyhow::Error> {
 }
 
 #[test]
+fn typescript_lsp_restart() -> Result<(), anyhow::Error> {
+    let options = RunTestOptions {
+        enable_lsp: true,
+        enable_syntax_highlighting: false,
+        enable_file_watcher: false,
+    };
+    execute_test_custom(options, |s| {
+        Box::new([
+            App(AddPath(s.new_path("hello.ts").display().to_string())),
+            App(HandleKeyEvent(key!("enter"))),
+            Editor(SetContent("export function hello() {}".to_string())),
+            WaitForAppMessage(lazy_regex::regex!("LspNotification.*Initialized")),
+            // Restarting should kill the current server and spawn a fresh one,
+            // which reports `Initialized` again once ready.
+            App(Dispatch::RestartLsp),
+            WaitForAppMessage(lazy_regex::regex!("LspNotification.*Initialized")),
+            // The restarted server should have `hello.ts` re-opened automatically
+            // (via the replayed `documents_did_open`), so basic requests should
+            // still work, e.g. Hover...
+            Editor(Save),
+            Editor(MatchLiteral("hello".to_string())),
+            App(Dispatch::RequestHover),
+            Expect(AppMessageIsReceived {
+                matches: regex!("LspNotification.*Hover"),
+                timeout: Duration::from_secs(5),
+            }),
+            // ...and Workspace Symbols.
+            App(Dispatch::OpenWorkspaceSymbolsPicker),
+            App(HandleKeyEvents(keys!("h e").to_vec())),
+            Expect(AppMessageIsReceived {
+                matches: regex!("LspNotification.*WorkspaceSymbols"),
+                timeout: Duration::from_secs(5),
+            }),
+        ])
+    })
+}
+
+#[test]
 fn typescript_lsp_references() -> Result<(), anyhow::Error> {
     let options = RunTestOptions {
         enable_lsp: true,

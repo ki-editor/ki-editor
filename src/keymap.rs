@@ -510,6 +510,7 @@ pub fn space_editor_keymap_legend_config() -> KeymapLegendConfig {
                 "Change Work Dir",
                 Dispatch::OpenChangeWorkingDirectoryPrompt,
             ),
+            Keybinding::new_undocumented(key!("r"), "Restart LSP", Dispatch::RestartLsp),
             Keybinding::new_undocumented(
                 key!("d"),
                 "Reload File",

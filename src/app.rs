@@ -1156,6 +1156,7 @@ impl<T: Frontend> App<T> {
             }
             Dispatch::GetRepoGitHunks(diff_mode) => self.get_repo_git_hunks(diff_mode)?,
             Dispatch::SaveAll => self.save_all()?,
+            Dispatch::RestartLsp => self.restart_lsp()?,
             Dispatch::ReloadAllFiles => self.reload_all_files()?,
             #[cfg(test)]
             Dispatch::TerminalDimensionChanged(dimension) => self.resize(dimension),
@@ -2175,6 +2176,17 @@ impl<T: Frontend> App<T> {
     fn save_all(&mut self) -> anyhow::Result<()> {
         let dispatches = self.layout.save_all(&self.context)?;
         self.handle_dispatches(dispatches)
+    }
+
+    /// Restarts the LSP server responsible for the current buffer's language, if any.
+    fn restart_lsp(&mut self) -> anyhow::Result<()> {
+        let Some(language) = self
+            .get_current_file_path()
+            .and_then(|path| crate::config::from_path(&path))
+        else {
+            return Ok(());
+        };
+        self.lsp_manager().restart_language(&language)
     }
 
     /// Reloads every open buffer whose file has changed on disk.
@@ -3992,6 +4004,8 @@ pub enum Dispatch {
     HandleKeyEvents(Vec<event::KeyEvent>),
     GetRepoGitHunks(git::DiffMode),
     SaveAll,
+    /// Restarts the LSP server for the current buffer's language.
+    RestartLsp,
     /// Reloads every open buffer whose file has changed on disk.
     ReloadAllFiles,
     #[cfg(test)]
