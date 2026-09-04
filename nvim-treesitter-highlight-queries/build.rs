@@ -78,6 +78,7 @@ const INCLUDED_NVIM_TREESITTER_LANGUAGES: &[&str] = &[
     "zig",
     "jj description",
     "glsl",
+    "wit",
 ];
 
 const MISSING_NVIM_HIGHLIGHTS: &[&str] = &[

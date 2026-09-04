@@ -130,6 +130,7 @@ pub enum CargoLinkedTreesitterLanguage {
     Typst,
     Php,
     Gherkin,
+    Wit,
 }
 
 impl CargoLinkedTreesitterLanguage {
@@ -208,6 +209,7 @@ impl CargoLinkedTreesitterLanguage {
             CargoLinkedTreesitterLanguage::Php => tree_sitter_php::LANGUAGE_PHP.into(),
             CargoLinkedTreesitterLanguage::Gherkin => tree_sitter_gherkin::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::Java => tree_sitter_java::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::Wit => tree_sitter_wit::language(),
         }
     }
 
@@ -300,6 +302,7 @@ impl CargoLinkedTreesitterLanguage {
                 Some(include_str!("../queries/gherkin/highlights.scm"))
             }
             CargoLinkedTreesitterLanguage::Java => Some(tree_sitter_java::HIGHLIGHTS_QUERY),
+            CargoLinkedTreesitterLanguage::Wit => Some(tree_sitter_wit::HIGHLIGHTS_QUERY),
         }
     }
 }
