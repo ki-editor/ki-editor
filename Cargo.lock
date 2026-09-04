@@ -2473,6 +2473,7 @@ dependencies = [
  "tree-sitter-swift",
  "tree-sitter-toml-ng",
  "tree-sitter-typescript",
+ "tree-sitter-wit",
  "tree-sitter-xml",
  "tree-sitter-yaml",
  "tree-sitter-zig",
@@ -3328,6 +3329,16 @@ checksum = "6c5f76ed8d947a75cc446d5fccd8b602ebf0cde64ccf2ffa434d873d7a575eff"
 dependencies = [
  "cc",
  "tree-sitter-language",
+]
+
+[[package]]
+name = "tree-sitter-wit"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "24209abae5617628330744bc186a5f02498693de8f0d8360a2bc50500fde3336"
+dependencies = [
+ "cc",
+ "tree-sitter",
 ]
 
 [[package]]

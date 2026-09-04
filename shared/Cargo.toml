@@ -85,6 +85,7 @@ tree-sitter-gitcommit = "0.5.0"
 tree-sitter-php = "0.24.2"
 tree-sitter-gherkin = { git = "https://github.com/binhtddev/tree-sitter-gherkin", rev = "1a709ae" }
 tree-sitter-java = "0.23.5"
+tree-sitter-wit = "0.2.0"
 
 [dev-dependencies]
 quickcheck.workspace = true

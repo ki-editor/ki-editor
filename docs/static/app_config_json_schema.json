@@ -138,7 +138,8 @@
                 "Rescript",
                 "Typst",
                 "Php",
-                "Gherkin"
+                "Gherkin",
+                "Wit"
             ]
         },
         "Command": {

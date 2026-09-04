@@ -87,6 +87,7 @@ pub fn languages() -> HashMap<String, Language> {
         ("clojure", clojure()),
         ("scala", scala()),
         ("glsl", glsl()),
+        ("wit", wit()),
     ]
     .into_iter()
     .map(|(str, language)| (str.to_string(), language))
@@ -1346,6 +1347,22 @@ fn glsl() -> Language {
         tree_sitter_grammar_config: Some(GrammarConfig {
             id: "glsl".to_string(),
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Glsl),
+        }),
+        line_comment_prefix: Some("//".to_string()),
+        block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
+        ..Language::new()
+    }
+}
+
+fn wit() -> Language {
+    Language {
+        extensions: to_vec(&["wit"]),
+        formatter: None,
+        lsp_command: None,
+        lsp_language_id: Some(LanguageId::new("wit")),
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "wit".to_string(),
+            kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Wit),
         }),
         line_comment_prefix: Some("//".to_string()),
         block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
