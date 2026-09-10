@@ -2130,7 +2130,7 @@ impl<T: Frontend> App<T> {
 
         // Buffers with unsaved changes should be searched using their live
         // content instead of what is currently saved on disk.
-        let dirty_buffers = Arc::new(self.layout.get_dirty_buffers(&self.context));
+        let dirty_buffers = self.layout.get_dirty_buffers(&self.context);
 
         // TODO: we need to create a new sender for each global search, so that it can be cancelled, but when?
         // Is it when the quickfix list is closed?

@@ -32,7 +32,18 @@ type GetRange = dyn Fn(&Buffer) -> Vec<Range<usize>> + Send + Sync;
 /// Buffers that have unsaved changes, keyed by their file path.
 /// Used so that a global search/replace reflects the live buffer content
 /// instead of what is currently saved on disk.
-pub type DirtyBuffers = Arc<HashMap<AbsolutePath, Buffer>>;
+#[derive(Clone, Default)]
+pub struct DirtyBuffers(Arc<HashMap<AbsolutePath, Buffer>>);
+
+impl DirtyBuffers {
+    pub fn new(dirty_buffers: HashMap<AbsolutePath, Buffer>) -> Self {
+        Self(Arc::new(dirty_buffers))
+    }
+
+    pub fn get(&self, path: &AbsolutePath) -> Option<&Buffer> {
+        self.0.get(path)
+    }
+}
 
 impl WalkBuilderConfig {
     pub fn run_with_search(
