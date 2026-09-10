@@ -176,7 +176,7 @@ impl Component for Editor {
         Ok(events
             .iter()
             .map(|event| -> anyhow::Result<_> {
-                Ok(self.handle_key_event(&context, *event)?.into_vec())
+                Ok(self.handle_key_event(&context, event.clone())?.into_vec())
             })
             .collect::<Result<Vec<_>, _>>()?
             .into_iter()
@@ -1718,7 +1718,9 @@ impl Editor {
         context: &Context,
         key_event: KeyEvent,
     ) -> anyhow::Result<Dispatches> {
-        let combined_key_event = context.keyboard_layout().make_combined_key_event(key_event);
+        let combined_key_event = context
+            .keyboard_layout()
+            .make_combined_key_event(key_event.clone());
         match self.handle_universal_key(&combined_key_event)? {
             Some(dispatches) => Ok(dispatches),
             None => match &mut self.keymap_override {
@@ -1734,8 +1736,9 @@ impl Editor {
                     if let Mode::Insert = self.mode {
                         self.handle_insert_mode(combined_key_event)
                     } else {
-                        let translated_key_event =
-                            context.keyboard_layout().make_combined_key_event(key_event);
+                        let translated_key_event = context
+                            .keyboard_layout()
+                            .make_combined_key_event(key_event.clone());
                         let keymap_legend_config = self.get_current_keymap_legend_config();
 
                         if let Some(keybinding) =

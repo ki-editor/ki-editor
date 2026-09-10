@@ -174,7 +174,7 @@ pub fn builtin_layout_map() -> HashMap<String, KeyboardLayout> {
         .collect()
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct CombinedKeyEvent {
     pub original: KeyEvent,
     pub translated: KeyEvent,
@@ -213,38 +213,34 @@ impl KeyboardLayout {
     }
 
     pub fn make_combined_key_event(&self, event: KeyEvent) -> CombinedKeyEvent {
-        let qwerty = match event.code {
-            KeyCode::Char(pressed_char) => {
-                // Dead keys compose below the terminal (OS/XKB/IME layer), so
-                // the terminal only ever reports the final composed
-                // character — never "this physical slot was pressed". That
-                // breaks Ki's positional lookup below for any layout whose
-                // dead key composes to a character absent from the layout
-                // table (see https://github.com/ki-editor/ki-editor/issues/719).
-                //
-                // `base_layout_code`, when the terminal implements the Kitty
-                // Keyboard Protocol's `REPORT_ALTERNATE_KEYS` (see
-                // `src/frontend/crossterm.rs`), reports the physical PC-101
-                // slot independent of composition/layout — exactly the
-                // layout-agnostic signal positional dispatch needs. Prefer
-                // it over the literal composed character here, for
-                // normal-mode dispatch only; insert mode keeps inserting
-                // whatever text the terminal actually sends, since it never
-                // goes through this translation.
-                let effective_char = match event.base_layout_code {
-                    Some(KeyCode::Char(base_char)) => base_char,
-                    _ => pressed_char,
-                };
-                let translated_char = self.translate_char_to_qwerty(effective_char);
-                let shift = translated_char.is_uppercase();
-                KeyEvent {
-                    code: KeyCode::Char(translated_char),
-                    modifiers: event.modifiers.set_shift(shift),
-                    kind: event.kind,
-                    base_layout_code: None,
+        // The terminal's base key already names the QWERTY physical position.
+        // This also applies to ISO level selectors such as Ergo-L's ★.
+        let code = match event.base_layout_code {
+            Some(KeyCode::Char(base)) => KeyCode::Char(if event.modifiers.shift {
+                shifted_char(base)
+            } else {
+                base
+            }),
+            Some(code) => code,
+            None => match event.code {
+                KeyCode::Char(c) => {
+                    let translated = self.translate_char_to_qwerty(c);
+                    KeyCode::Char(if event.modifiers.shift {
+                        shifted_char(translated)
+                    } else {
+                        translated
+                    })
                 }
-            }
-            _ => event,
+                code => code,
+            },
+        };
+        let shift = event.modifiers.shift || matches!(code, KeyCode::Char(c) if c.is_uppercase());
+        let qwerty = KeyEvent {
+            code,
+            modifiers: event.modifiers.set_shift(shift),
+            kind: event.kind,
+            base_layout_code: None,
+            text: None,
         };
         CombinedKeyEvent {
             original: event,
@@ -355,6 +351,64 @@ pub fn alted(mut key_event: KeyEvent) -> KeyEvent {
 #[cfg(test)]
 mod test_make_combined_key_event {
     use super::*;
+
+    fn ergol() -> KeyboardLayout {
+        KeyboardLayout::new(
+            "ERGOL".into(),
+            [
+                ['q', 'c', 'o', 'p', 'w', 'j', 'm', 'd', '★', 'y'],
+                ['a', 's', 'e', 'n', 'f', 'l', 'r', 't', 'i', 'u'],
+                ['z', 'x', '-', 'v', 'b', '.', 'h', 'g', ',', 'k'],
+            ],
+        )
+    }
+
+    #[test]
+    fn terminal_positions_are_not_translated_twice() {
+        let mut input = KeyEvent::pressed(KeyCode::Char('c'), Default::default());
+        input.base_layout_code = Some(KeyCode::Char('w'));
+        input.text = Some("c".into());
+        let combined = ergol().make_combined_key_event(input);
+        assert_eq!(combined.translated, key!("w"));
+        assert_eq!(combined.original.text.as_deref(), Some("c"));
+    }
+
+    #[test]
+    fn level_five_selector_has_a_physical_press_and_release() {
+        for kind in [event::KeyEventKind::Press, event::KeyEventKind::Release] {
+            let mut input = KeyEvent::pressed(
+                KeyCode::Modifier(crossterm::event::ModifierKeyCode::IsoLevel5Shift),
+                Default::default(),
+            );
+            input.kind = kind;
+            input.base_layout_code = Some(KeyCode::Char('o'));
+            let combined = ergol().make_combined_key_event(input);
+            assert_eq!(combined.translated, key!("o").set_event_kind(kind));
+            assert_eq!(combined.original.text, None);
+        }
+    }
+
+    #[test]
+    fn physical_shift_applies_to_letters_and_punctuation() {
+        for (base, expected) in [('w', shifted(key!("w"))), (';', shifted(key!(";")))] {
+            let mut input = key!("shift+!");
+            input.base_layout_code = Some(KeyCode::Char(base));
+            assert_eq!(ergol().make_combined_key_event(input).translated, expected);
+        }
+    }
+
+    #[test]
+    fn composed_text_does_not_change_command_identity() {
+        let mut input = key!("a");
+        input.text = Some("à".into());
+        let combined = ergol().make_combined_key_event(input);
+        assert_eq!(combined.translated, key!("a"));
+        assert_eq!(combined.original.text.as_deref(), Some("à"));
+        assert_eq!(
+            ergol().make_combined_key_event(key!("c")).translated,
+            key!("w")
+        );
+    }
 
     #[test]
     fn prefers_composed_char_when_base_layout_code_is_absent() {

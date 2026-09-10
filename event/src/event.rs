@@ -45,7 +45,7 @@ impl From<crossterm::event::KeyEventKind> for KeyEventKind {
 /// The `crossterm` crate does not support this out of the box.
 ///
 /// It also replaces Repeat events with Press events
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 pub struct KeyEvent {
     pub code: crossterm::event::KeyCode,
     pub modifiers: KeyModifiers,
@@ -66,6 +66,8 @@ pub struct KeyEvent {
     /// terminal data (tests, the `key!`/`keys!` macros, etc.) keep comparing
     /// equal regardless of this field.
     pub base_layout_code: Option<crossterm::event::KeyCode>,
+    /// Committed text, independent of the physical key used for commands.
+    pub text: Option<String>,
 }
 impl fmt::Debug for KeyEvent {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -92,6 +94,7 @@ impl KeyEvent {
             modifiers,
             kind: KeyEventKind::Press,
             base_layout_code: None,
+            text: None,
         }
     }
 
@@ -101,12 +104,13 @@ impl KeyEvent {
             modifiers,
             kind: KeyEventKind::Release,
             base_layout_code: None,
+            text: None,
         }
     }
 
     pub fn to_rust_code(&self) -> String {
         format!(
-            "event::KeyEvent {{ code: crossterm::event::KeyCode::{:#?}, modifiers: event::{:#?}, kind: event::KeyEventKind::{:#?}, base_layout_code: None }}",
+            "event::KeyEvent {{ code: crossterm::event::KeyCode::{:#?}, modifiers: event::{:#?}, kind: event::KeyEventKind::{:#?}, base_layout_code: None, text: None }}",
             self.code, self.modifiers, self.kind
         )
     }
@@ -167,6 +171,7 @@ impl From<crossterm::event::KeyEvent> for KeyEvent {
             modifiers: value.modifiers.into(),
             kind: value.kind.into(),
             base_layout_code: value.base_layout_code,
+            text: value.text,
         }
     }
 }

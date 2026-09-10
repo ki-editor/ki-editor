@@ -410,7 +410,7 @@ pub fn leader_keymap_legend_config() -> KeymapLegendConfig {
                     let (_, description, _) =
                         custom_keymap().into_iter().find(|(k, _, _)| k == key)?;
                     Some(Keybinding::new_dynamic(
-                        *key_event,
+                        key_event.clone(),
                         description,
                         Dispatch::ExecuteLeaderKey(key.to_string()),
                     ))

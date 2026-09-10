@@ -16,7 +16,7 @@ members = [
   'ki-protocol-types',
   'nvim-treesitter-highlight-queries',
 ]
-exclude = ['mock_repos/rust1']
+exclude = ['mock_repos/rust1', 'vendor/crossterm']
 
 [workspace.dependencies]
 # `use-dev-tty` is needed so that the app doesn't hang if STDIN is present
@@ -24,14 +24,9 @@ exclude = ['mock_repos/rust1']
 # - https://github.com/crossterm-rs/crossterm/pull/956
 # - https://github.com/crossterm-rs/crossterm/issues/828
 #
-# Pinned to a fork carrying the Kitty Keyboard Protocol's `base-layout-key`
-# support (`KeyEvent::base_layout_code`, `REPORT_ALTERNATE_KEYS`), which
-# hasn't landed upstream yet. This is what lets Ki dispatch normal-mode
-# commands positionally on dead-key layouts (Ergo-L, Bépo, ...) — see
-# https://github.com/ki-editor/ki-editor/issues/719. Track the upstream PR
-# at https://github.com/crossterm-rs/crossterm/pull/1074 and switch back to
-# a released `crossterm` once it merges.
-crossterm = { git = "https://github.com/vshylov/crossterm.git", rev = "0f086ab06bf6d577cdc0972d450d8a2c0dfe9363", features = [
+# Local copy of the base-layout fork with Kitty associated-text parsing and
+# physical Shift preservation. See vendor/crossterm/KI-PATCH.md for provenance.
+crossterm = { path = "vendor/crossterm", features = [
   "osc52",
   "use-dev-tty",
 ] }

@@ -502,21 +502,6 @@ checksum = "d0a5c400df2834b80a4c3327b3aad3a4c4cd4de0629063962b03235697506a28"
 [[package]]
 name = "crossterm"
 version = "0.29.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d8b9f2e4c67f833b660cdb0a3523065869fb35570177239812ed4c905aeff87b"
-dependencies = [
- "bitflags 2.9.1",
- "crossterm_winapi",
- "document-features",
- "parking_lot",
- "rustix 1.0.8",
- "winapi",
-]
-
-[[package]]
-name = "crossterm"
-version = "0.29.0"
-source = "git+https://github.com/vshylov/crossterm.git?rev=0f086ab06bf6d577cdc0972d450d8a2c0dfe9363#0f086ab06bf6d577cdc0972d450d8a2c0dfe9363"
 dependencies = [
  "base64",
  "bitflags 2.9.1",
@@ -528,6 +513,20 @@ dependencies = [
  "rustix 1.0.8",
  "signal-hook",
  "signal-hook-mio",
+ "winapi",
+]
+
+[[package]]
+name = "crossterm"
+version = "0.29.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d8b9f2e4c67f833b660cdb0a3523065869fb35570177239812ed4c905aeff87b"
+dependencies = [
+ "bitflags 2.9.1",
+ "crossterm_winapi",
+ "document-features",
+ "parking_lot",
+ "rustix 1.0.8",
  "winapi",
 ]
 
@@ -765,7 +764,7 @@ dependencies = [
 name = "event"
 version = "0.1.0"
 dependencies = [
- "crossterm 0.29.0 (git+https://github.com/vshylov/crossterm.git?rev=0f086ab06bf6d577cdc0972d450d8a2c0dfe9363)",
+ "crossterm 0.29.0",
  "pretty_assertions",
 ]
 
@@ -1385,7 +1384,7 @@ dependencies = [
  "convert_case 0.6.0",
  "crc32fast",
  "crossbeam-channel",
- "crossterm 0.29.0 (git+https://github.com/vshylov/crossterm.git?rev=0f086ab06bf6d577cdc0972d450d8a2c0dfe9363)",
+ "crossterm 0.29.0",
  "debounce",
  "diffy",
  "event",

@@ -100,7 +100,11 @@ impl Frontend for Crossterm {
                 // working on dead-key layouts, whose composed characters
                 // otherwise can't be looked up positionally.
                 // See https://github.com/ki-editor/ki-editor/issues/719.
-                | KeyboardEnhancementFlags::REPORT_ALTERNATE_KEYS,
+                | KeyboardEnhancementFlags::REPORT_ALTERNATE_KEYS
+                // Modifier-only keys (including Ergo-L ★) require report-all.
+                | KeyboardEnhancementFlags::REPORT_ALL_KEYS_AS_ESCAPE_CODES
+                // Keep composed text separate from the key used for commands.
+                | KeyboardEnhancementFlags::REPORT_ASSOCIATED_TEXT,
             // DISAMBIGUATE_ESCAPE_CODES is necessary for preventing an Esc tap to be captured as a double esc presses
         ))?;
         Ok(())

@@ -99,11 +99,11 @@ impl KeymapPrintSection {
                             normal: keymap.iter().find(|keymap| keymap.event() == cell).cloned(),
                             shifted: keymap
                                 .iter()
-                                .find(|keymap| keymap.event() == &shifted(*cell))
+                                .find(|keymap| keymap.event() == &shifted(cell.clone()))
                                 .cloned(),
                             alted: keymap
                                 .iter()
-                                .find(|keymap| keymap.event() == &alted(*cell))
+                                .find(|keymap| keymap.event() == &alted(cell.clone()))
                                 .cloned(),
                         })
                         .collect()

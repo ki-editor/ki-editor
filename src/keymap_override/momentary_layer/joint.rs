@@ -24,7 +24,10 @@ impl MomentaryLayerBaseTrait for JointMomentaryLayer {
                 Dispatches::one(Dispatch::ShowKeymapLegend {
                     on_root: false,
                     keymap_legend_config: self.active.config.clone(),
-                    release_key: Some(ReleaseKey::new(self.tap_key, self.active.tap.clone())),
+                    release_key: Some(ReleaseKey::new(
+                        self.tap_key.clone(),
+                        self.active.tap.clone(),
+                    )),
                 }),
             ))
         } else {
