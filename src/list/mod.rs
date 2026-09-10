@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     ops::Range,
     path::PathBuf,
     sync::{mpsc::Sender, Arc},
@@ -28,16 +29,23 @@ pub struct WalkBuilderConfig {
 }
 type GetRange = dyn Fn(&Buffer) -> Vec<Range<usize>> + Send + Sync;
 
+/// Buffers that have unsaved changes, keyed by their file path.
+/// Used so that a global search/replace reflects the live buffer content
+/// instead of what is currently saved on disk.
+pub type DirtyBuffers = Arc<HashMap<AbsolutePath, Buffer>>;
+
 impl WalkBuilderConfig {
     pub fn run_with_search(
         self,
         enable_tree_sitter: bool,
+        dirty_buffers: DirtyBuffers,
         send_match: Arc<dyn Fn(Match) -> SendResult + Send + Sync>,
         get_ranges: Arc<GetRange>,
     ) -> anyhow::Result<()> {
         let sender = reorder_batches(send_match);
         self.run_async(
             enable_tree_sitter,
+            dirty_buffers,
             Arc::new(move |path_index, path, buffer| {
                 let matches = get_ranges(&buffer)
                     .into_iter()
@@ -125,6 +133,7 @@ impl WalkBuilderConfig {
     pub fn run_async(
         self,
         enable_tree_sitter: bool,
+        dirty_buffers: DirtyBuffers,
         on_visit_buffer: Arc<
             dyn Fn(/*file index (0 = first file)*/ usize, AbsolutePath, Buffer) + Send + Sync,
         >,
@@ -166,17 +175,19 @@ impl WalkBuilderConfig {
                 })
                 .filter_map(|path| {
                     let path: PathBuf = path.path().into();
-                    if let Ok(path) = path.try_into() {
-                        // Tree-sitter should be disabled whenever possible during
-                        // global search, because it will slow down the operation tremendously
-                        if let Ok(buffer) = Buffer::from_path(&path, enable_tree_sitter) {
-                            if !enable_tree_sitter {
-                                debug_assert!(buffer.tree().is_none());
-                            }
-                            return Some((path, buffer));
-                        }
+                    let path: AbsolutePath = path.try_into().ok()?;
+                    // If this file has an open buffer with unsaved changes, search
+                    // its in-memory content instead of what is saved on disk.
+                    if let Some(buffer) = dirty_buffers.get(&path) {
+                        return Some((path, buffer.clone()));
                     }
-                    None
+                    // Tree-sitter should be disabled whenever possible during
+                    // global search, because it will slow down the operation tremendously
+                    let buffer = Buffer::from_path(&path, enable_tree_sitter).ok()?;
+                    if !enable_tree_sitter {
+                        debug_assert!(buffer.tree().is_none());
+                    }
+                    Some((path, buffer))
                 })
                 .enumerate()
                 .par_bridge()
