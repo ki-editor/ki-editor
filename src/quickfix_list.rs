@@ -261,7 +261,16 @@ impl QuickfixList {
                 }
             })
             .collect_vec();
+
+        // `set_items` resets the current item index to 0 whenever the rendered
+        // items differ from before, which they always do after an edit. Save
+        // and restore the index here so that applying an edit does not silently
+        // discard the user's current position in the quickfix list.
+        let current_item_index = self.current_index();
+        let items_count = items.len();
         self.set_items(items, current_working_directory);
+        self.dropdown
+            .set_current_item_index(current_item_index.min(items_count.saturating_sub(1)));
     }
 
     pub(crate) fn title(&self) -> String {
@@ -489,6 +498,7 @@ mod test_quickfix_list {
     };
 
     use super::{Location, QuickfixList, QuickfixListItem};
+    use itertools::Itertools;
     use pretty_assertions::assert_eq;
     use shared::absolute_path::AbsolutePath;
 
@@ -705,6 +715,65 @@ src/foo.rs
                 Expect(QuickfixListCurrentLine("    1: 1  aslmlkm world aslmlkm")),
             ])
         })
+    }
+
+    #[test]
+    fn current_item_index_should_survive_an_unrelated_edit() {
+        // Given a quickfix list with 6 items (2 matches on each of 3 lines),
+        //    currently on the 3rd match (index 4: the first match on line 5)
+        // When an edit is applied that shifts every item's line/column
+        //    (inserting a line before all of them), without touching any
+        //    item's own range
+        // Then the current item index should still point to the 3rd match,
+        //    not be reset back to the 1st (index 0).
+        let content =
+            "aslmlkm world aslmlkm\nbar bar\naslmlkm kitty aslmlkm\nspam spam\naslmlkm ki aslmlkm";
+        let dir = tempfile::tempdir().unwrap();
+        let file_path = dir.path().join("search.txt");
+        std::fs::write(&file_path, content).unwrap();
+        let path: AbsolutePath = file_path.as_path().try_into().unwrap();
+
+        // Locate the 6 occurrences of "aslmlkm" directly in the source string,
+        // rather than computing char offsets by hand.
+        let match_positions = content
+            .match_indices("aslmlkm")
+            .map(|(index, _)| index)
+            .collect_vec();
+        assert_eq!(match_positions.len(), 6);
+
+        let item_at = |start: usize| QuickfixListItem {
+            location: Location {
+                path: path.clone(),
+                range: (CharIndex(start)..CharIndex(start + "aslmlkm".len())).into(),
+            },
+            info: None,
+            line: None,
+        };
+        let current_working_directory = std::env::current_dir().unwrap().try_into().unwrap();
+
+        let mut quickfix_list = QuickfixList::default();
+        quickfix_list.set_items(
+            match_positions.iter().map(|&pos| item_at(pos)).collect(),
+            &current_working_directory,
+        );
+        quickfix_list.set_current_item_index(4);
+        assert_eq!(quickfix_list.current_index(), 4);
+
+        // An edit that inserts a new line before everything, shifting every
+        // item's line number (and therefore its rendered content) without
+        // overlapping any item's own range.
+        let edit = crate::edit::Edit {
+            range: (CharIndex(0)..CharIndex(0)).into(),
+            old: "".into(),
+            new: "// leading comment\n".into(),
+        };
+        quickfix_list.handle_applied_edits(&path, &[edit], &current_working_directory);
+
+        assert_eq!(
+            quickfix_list.current_index(),
+            4,
+            "current item index should be preserved after an edit, not reset to 0"
+        );
     }
 
     #[test]

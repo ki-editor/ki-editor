@@ -417,6 +417,21 @@ impl Layout {
             .collect_vec()
     }
 
+    /// Returns the content of every open buffer that has unsaved changes,
+    /// keyed by file path. Used so that global search/replace reflects the
+    /// live buffer content instead of what is currently saved on disk.
+    pub fn get_dirty_buffers(&self, context: &Context) -> crate::list::DirtyBuffers {
+        crate::list::DirtyBuffers::new(
+            self.background_suggestive_editors
+                .iter()
+                .filter_map(|(path, editor)| {
+                    let buffer = editor.borrow().editor().buffer().clone();
+                    buffer.dirty(context).then(|| (path.clone(), buffer))
+                })
+                .collect(),
+        )
+    }
+
     pub fn reload_buffers(
         &self,
         context: &Context,

@@ -4383,6 +4383,51 @@ fn global_search_should_not_change_dirty_status() -> anyhow::Result<()> {
 }
 
 #[test]
+fn global_search_should_use_unsaved_buffer_content() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("fn main() { call_main() }".to_string())),
+            Editor(Save),
+            App(UpdateLocalSearchConfig {
+                update: LocalSearchConfigUpdate::Search("call_main".to_string()),
+                scope: Scope::Global,
+                if_current_not_found: IfCurrentNotFound::LookForward,
+                run_search_after_config_updated: true,
+            }),
+            WaitForAppMessage(regex!("GlobalSearchFinished")),
+            // Sanity check: the match is found while the file is on disk and unmodified.
+            Expect(Quickfixes(Box::new([QuickfixListItem::new(
+                Location {
+                    path: s.main_rs(),
+                    range: (CharIndex(16)..CharIndex(25)).into(),
+                },
+                None,
+                Some("    call_main()\n".to_string()),
+            )]))),
+            // Modify the buffer without saving, so that "call_main" no longer
+            // appears in the buffer, even though it still appears on disk.
+            Editor(SetContent("fn main() { call_renamed() }".to_string())),
+            Expect(EditorIsDirty()),
+            App(UpdateLocalSearchConfig {
+                update: LocalSearchConfigUpdate::Search("call_main".to_string()),
+                scope: Scope::Global,
+                if_current_not_found: IfCurrentNotFound::LookForward,
+                run_search_after_config_updated: true,
+            }),
+            WaitForAppMessage(regex!("GlobalSearchFinished")),
+            // The global search should use the unsaved buffer content, so it
+            // should no longer find any match for "call_main".
+            Expect(Quickfixes(Box::new([]))),
+        ])
+    })
+}
+
+#[test]
 fn release_open_mol_should_not_close_popups() -> anyhow::Result<()> {
     execute_test(|s| {
         fn signature_help() -> LspNotification {
@@ -4445,6 +4490,40 @@ fn save_all_sets_dirty_status() -> anyhow::Result<()> {
             App(SaveAll),
             Expect(Not(Box::new(EditorIsDirty()))),
             App(OpenAlternateFile),
+            Expect(Not(Box::new(EditorIsDirty()))),
+        ])
+    })
+}
+
+#[test]
+fn reload_all_files_picks_up_external_changes() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            // Make the buffer dirty with an in-memory edit that was never saved.
+            Editor(SetContent("// unsaved local edit".to_string())),
+            Expect(EditorIsDirty()),
+            // Simulate another process (e.g. a formatter, or `git checkout`)
+            // changing the file on disk.
+            Shell(
+                "sh",
+                [
+                    "-c".to_string(),
+                    format!(
+                        "printf '%s' '// changed on disk' > {}",
+                        s.main_rs().display_absolute()
+                    ),
+                ]
+                .to_vec(),
+            ),
+            App(ReloadAllFiles),
+            // The buffer should now reflect the on-disk content,
+            // discarding the unsaved local edit.
+            Expect(CurrentComponentContent("// changed on disk")),
             Expect(Not(Box::new(EditorIsDirty()))),
         ])
     })

@@ -17,7 +17,7 @@ use crate::{
 };
 use shared::absolute_path::AbsolutePath;
 
-use super::WalkBuilderConfig;
+use super::{DirtyBuffers, WalkBuilderConfig};
 
 #[derive(Clone, Debug, PartialEq, Eq, Copy)]
 pub struct RegexConfig {
@@ -128,6 +128,7 @@ pub fn run(
     pattern: &str,
     walk_builder_config: WalkBuilderConfig,
     grep_config: RegexConfig,
+    dirty_buffers: DirtyBuffers,
     send_match: Arc<dyn Fn(Match) -> SendResult + Send + Sync>,
 ) -> anyhow::Result<()> {
     let pattern = get_regex(pattern, grep_config)?.as_str().to_string();
@@ -138,13 +139,16 @@ pub fn run(
 
     walk_builder_config.run_async(
         false,
+        dirty_buffers,
         Arc::new(move |path_index, path, buffer| {
             let mut searcher = SearcherBuilder::new().build();
             let mut matches = vec![];
 
-            let _ = searcher.search_path(
+            // Search the buffer's own content (rather than re-reading the
+            // file from disk) so that unsaved changes are reflected.
+            let _ = searcher.search_slice(
                 &matcher,
-                path.clone(),
+                buffer.content().as_bytes(),
                 sinks::UTF8(|line_number, line| {
                     if let Ok(locations) = to_locations(
                         &buffer,

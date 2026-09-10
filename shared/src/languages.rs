@@ -31,6 +31,7 @@ pub fn languages() -> HashMap<String, Language> {
         ("dockerfile", dockerfile()),
         ("elixir", elixir()),
         ("fsharp", fsharp()),
+        ("gherkin", gherkin()),
         ("gitattributes", gitattributes()),
         ("gitcommit", gitcommit()),
         ("gitconfig", gitconfig()),
@@ -48,6 +49,7 @@ pub fn languages() -> HashMap<String, Language> {
         ("html", html()),
         ("idris", idris()),
         ("haskell", haskell()),
+        ("java", java()),
         ("javascript", javascript()),
         ("qml", qml()),
         ("qmldir", qmldir()),
@@ -85,6 +87,7 @@ pub fn languages() -> HashMap<String, Language> {
         ("clojure", clojure()),
         ("scala", scala()),
         ("glsl", glsl()),
+        ("wit", wit()),
     ]
     .into_iter()
     .map(|(str, language)| (str.to_string(), language))
@@ -669,6 +672,24 @@ fn haskell() -> Language {
     }
 }
 
+fn java() -> Language {
+    Language {
+        extensions: to_vec(&["java"]),
+        lsp_command: Some(LspCommand {
+            command: Command::new("jdtls", &[]),
+            ..LspCommand::default()
+        }),
+        lsp_language_id: Some(LanguageId::new("java")),
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "java".to_string(),
+            kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Java),
+        }),
+        line_comment_prefix: Some("//".to_string()),
+        block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
+        ..Language::new()
+    }
+}
+
 fn javascript() -> Language {
     Language {
         extensions: to_vec(&["js", "mjs", "cjs"]),
@@ -1043,6 +1064,21 @@ fn ruby() -> Language {
     }
 }
 
+fn gherkin() -> Language {
+    Language {
+        extensions: to_vec(&["feature"]),
+        formatter: None,
+        lsp_command: None,
+        lsp_language_id: Some(LanguageId::new("feature")),
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "gherkin".to_string(),
+            kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Gherkin),
+        }),
+        line_comment_prefix: Some("#".to_string()),
+        ..Language::new()
+    }
+}
+
 fn roc() -> Language {
     Language {
         extensions: to_vec(&["roc"]),
@@ -1318,12 +1354,34 @@ fn glsl() -> Language {
     }
 }
 
+fn wit() -> Language {
+    Language {
+        extensions: to_vec(&["wit"]),
+        formatter: None,
+        lsp_command: None,
+        lsp_language_id: Some(LanguageId::new("wit")),
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "wit".to_string(),
+            kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Wit),
+        }),
+        line_comment_prefix: Some("//".to_string()),
+        block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
+        ..Language::new()
+    }
+}
+
 #[cfg(test)]
 mod test {
     #[test]
     fn test_languages_match_nvim_treesitter_languages() {
-        const MISSING_NVIM_HIGHLIGHTS: &[&str] =
-            &["dune", "ki_quickfix", "tsq", "jj description", "qml"];
+        const MISSING_NVIM_HIGHLIGHTS: &[&str] = &[
+            "dune",
+            "ki_quickfix",
+            "tsq",
+            "jj description",
+            "qml",
+            "gherkin",
+        ];
 
         // This test is a major consistency check.
         // First, we check that all builtin languages were searched for in nvim-treesitter.

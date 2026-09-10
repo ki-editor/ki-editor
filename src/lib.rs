@@ -23,6 +23,7 @@ pub mod frontend;
 mod generate_recipes;
 mod grid;
 pub mod history;
+mod indent_query;
 mod integration_event;
 #[cfg(test)]
 mod integration_test;

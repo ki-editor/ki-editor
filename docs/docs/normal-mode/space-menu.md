@@ -161,11 +161,19 @@ Quit Ki without saving any unsaved files.
 
 Save all files.
 
+### `Restart LSP`
+
+Restart the LSP server for the current file's language.
+
 ### `Reload File`
 
 Reload the current file. A prompt will be shown if there are conflicts.
 
 Save all files.
+
+### `Reload All Files`
+
+Reload every open file that has changed on disk.
 
 ### `Replace all`
 

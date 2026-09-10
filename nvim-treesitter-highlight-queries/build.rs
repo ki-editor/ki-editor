@@ -21,6 +21,7 @@ const INCLUDED_NVIM_TREESITTER_LANGUAGES: &[&str] = &[
     "git_config",
     "git_rebase",
     "gitattributes",
+    "gherkin",
     "gitcommit",
     "gitignore",
     "gleam",
@@ -34,6 +35,7 @@ const INCLUDED_NVIM_TREESITTER_LANGUAGES: &[&str] = &[
     "html",
     "html_tags",
     "idris",
+    "java",
     "javascript",
     "qmljs",
     "qmldir",
@@ -76,6 +78,7 @@ const INCLUDED_NVIM_TREESITTER_LANGUAGES: &[&str] = &[
     "zig",
     "jj description",
     "glsl",
+    "wit",
 ];
 
 const MISSING_NVIM_HIGHLIGHTS: &[&str] = &[
@@ -85,6 +88,7 @@ const MISSING_NVIM_HIGHLIGHTS: &[&str] = &[
     "jj description",
     "gnuplot",
     "qml",
+    "gherkin",
 ];
 
 fn main() {

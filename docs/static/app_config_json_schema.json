@@ -85,6 +85,7 @@
                 "Rust",
                 "Graphql",
                 "Gnuplot",
+                "Java",
                 "Javascript",
                 "QmlJs",
                 "QmlDir",
@@ -136,7 +137,9 @@
                 "Gitcommit",
                 "Rescript",
                 "Typst",
-                "Php"
+                "Php",
+                "Gherkin",
+                "Wit"
             ]
         },
         "Command": {

@@ -76,6 +76,7 @@ pub enum CargoLinkedTreesitterLanguage {
     Rust,
     Graphql,
     Gnuplot,
+    Java,
     Javascript,
     QmlJs,
     QmlDir,
@@ -128,6 +129,8 @@ pub enum CargoLinkedTreesitterLanguage {
     Rescript,
     Typst,
     Php,
+    Gherkin,
+    Wit,
 }
 
 impl CargoLinkedTreesitterLanguage {
@@ -204,6 +207,9 @@ impl CargoLinkedTreesitterLanguage {
             CargoLinkedTreesitterLanguage::Rescript => arborium_rescript::language().into(),
             CargoLinkedTreesitterLanguage::Typst => arborium_typst::language().into(),
             CargoLinkedTreesitterLanguage::Php => tree_sitter_php::LANGUAGE_PHP.into(),
+            CargoLinkedTreesitterLanguage::Gherkin => tree_sitter_gherkin::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::Java => tree_sitter_java::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::Wit => tree_sitter_wit::language(),
         }
     }
 
@@ -288,6 +294,15 @@ impl CargoLinkedTreesitterLanguage {
             CargoLinkedTreesitterLanguage::Rescript => Some(arborium_rescript::HIGHLIGHTS_QUERY),
             CargoLinkedTreesitterLanguage::Typst => Some(arborium_typst::HIGHLIGHTS_QUERY),
             CargoLinkedTreesitterLanguage::Php => Some(tree_sitter_php::HIGHLIGHTS_QUERY),
+            // tree-sitter-gherkin doesn't export `HIGHLIGHTS_QUERY` from its Rust bindings
+            // (the constant is commented out upstream), so a vendored copy of its
+            // `queries/gherkin/highlights.scm` lives at `shared/queries/gherkin/highlights.scm`
+            // instead. See https://github.com/binhtddev/tree-sitter-gherkin
+            CargoLinkedTreesitterLanguage::Gherkin => {
+                Some(include_str!("../queries/gherkin/highlights.scm"))
+            }
+            CargoLinkedTreesitterLanguage::Java => Some(tree_sitter_java::HIGHLIGHTS_QUERY),
+            CargoLinkedTreesitterLanguage::Wit => Some(tree_sitter_wit::HIGHLIGHTS_QUERY),
         }
     }
 }
@@ -516,6 +531,17 @@ impl Language {
                 .replace("@spell", "")
                 .replace("@nospell", "")
         })
+    }
+
+    /// POC: hand-written `indents.scm` queries, authored in this repo
+    /// (see `shared/src/queries/<id>/indents.scm`), rather than vendored
+    /// from an external source. Currently only implemented for Python
+    /// to validate the approach raised in issue #525.
+    pub fn indent_query(&self) -> Option<String> {
+        match self.tree_sitter_grammar_config.as_ref()?.id.as_str() {
+            "python" => Some(include_str!("queries/python/indents.scm").to_string()),
+            _ => None,
+        }
     }
 
     fn highlight_query_default(&self) -> Option<String> {

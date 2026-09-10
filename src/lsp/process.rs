@@ -16,6 +16,7 @@ use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Read, Write};
 
 use std::process::{self};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::Arc;
 use std::thread::{self, JoinHandle};
@@ -47,11 +48,20 @@ macro_rules! lsp_error {
 }
 struct LspServerProcess {
     language: Language,
-    stdin: process::ChildStdin,
+    /// `None` once the shutdown sequence has closed the pipe to the LSP server,
+    /// so that the server observes EOF on its stdin.
+    stdin: Option<process::ChildStdin>,
 
     /// This is hacky, but we need to keep the stdout around so that it doesn't get dropped
     stdout: Option<process::ChildStdout>,
     stderr: Option<process::ChildStderr>,
+
+    /// The underlying OS process, kept so that a graceful shutdown can wait for
+    /// (or, failing that, forcefully terminate) the actual process.
+    child: process::Child,
+    /// Set to `true` for the duration of a deliberate shutdown, so that the stdout
+    /// reader thread can tell an expected pipe closure apart from a genuine error.
+    shutting_down: Arc<AtomicBool>,
 
     server_capabilities: Option<ServerCapabilities>,
     current_working_directory: AbsolutePath,
@@ -121,7 +131,12 @@ enum LspServerProcessMessage {
     FromEditor(FromEditor),
     /// Throttled message should be executed immediately
     Throttled(FromEditor),
-    Shutdown,
+    /// Carries an optional sender for reporting back whether the shutdown succeeded.
+    /// `Some` when the caller wants to wait for (and surface) the outcome before doing
+    /// anything else, e.g. spawning a replacement process during a restart. `None` for
+    /// a fire-and-forget shutdown, e.g. one triggered internally after too many
+    /// consecutive read errors, where nobody is waiting on the result.
+    Shutdown(Option<Sender<anyhow::Result<()>>>),
 }
 
 #[derive(Debug, NamedVariant, Clone, PartialEq)]
@@ -207,8 +222,24 @@ impl LspServerProcessChannel {
         LspServerProcess::start(language, screen_message_sender, current_working_directory)
     }
 
+    /// Shuts down the underlying LSP server process and blocks until the outcome
+    /// (success or error) is known, so that callers can rely on the shutdown having
+    /// actually finished — e.g. before spawning a replacement process on restart.
     pub fn shutdown(self) -> anyhow::Result<()> {
-        self.send(LspServerProcessMessage::Shutdown)
+        if !self.is_initialized {
+            return Ok(());
+        }
+        let (result_sender, result_receiver) = std::sync::mpsc::channel();
+        self.sender
+            .send(LspServerProcessMessage::Shutdown(Some(result_sender)))
+            .map_err(|err| anyhow::anyhow!("Unable to send request: {}", err))?;
+        result_receiver
+            .recv_timeout(Duration::from_secs(5))
+            .unwrap_or_else(|_| {
+                Err(anyhow::anyhow!(
+                    "Timed out waiting for confirmation that the LSP server shut down"
+                ))
+            })
     }
 
     fn send(&self, message: LspServerProcessMessage) -> anyhow::Result<()> {
@@ -287,9 +318,11 @@ impl LspServerProcess {
         let (sender, receiver) = std::sync::mpsc::channel::<LspServerProcessMessage>();
         let mut lsp_server_process = LspServerProcess {
             language: language.clone(),
-            stdin,
+            stdin: Some(stdin),
             stdout: Some(stdout),
             stderr: Some(stderr),
+            child: process,
+            shutting_down: Arc::new(AtomicBool::new(false)),
             current_working_directory,
             next_request_id: 0,
             pending_response_requests: HashMap::new(),
@@ -486,6 +519,7 @@ impl LspServerProcess {
             sender.clone(),
             app_message_sender.clone(),
             lsp_command,
+            self.shutting_down.clone(),
         );
 
         // Start the message processor loop in the main thread
@@ -512,6 +546,7 @@ impl LspServerProcess {
         sender: Sender<LspServerProcessMessage>,
         app_message_sender: crossbeam_channel::Sender<AppMessage>,
         lsp_command: String,
+        shutting_down: Arc<AtomicBool>,
     ) -> JoinHandle<()> {
         thread::spawn(move || {
             let mut error_tracker = ErrorTracker::new(lsp_command.clone());
@@ -521,6 +556,17 @@ impl LspServerProcess {
                 match Self::read_response(&mut stdout_reader, &sender) {
                     Ok(()) => error_tracker.handle_success(),
                     Err(error) => {
+                        // A deliberate shutdown closes the server's stdin/stdout, which
+                        // surfaces here as read errors. That is expected, not a fault of
+                        // the LSP server, so it is reported (elsewhere) as a shutdown
+                        // outcome rather than as this alarming error path.
+                        if shutting_down.load(Ordering::SeqCst) {
+                            lsp_info!(
+                                lsp_command,
+                                "[LspServerProcess] stdout closed as part of a deliberate shutdown: {error:?}"
+                            );
+                            break;
+                        }
                         lsp_error!(
                             lsp_command,
                             "[LspServerProcess] read_response error = {error:?}"
@@ -550,7 +596,7 @@ impl LspServerProcess {
                                     );
                                 });
                             sender
-                            .send(LspServerProcessMessage::Shutdown)
+                            .send(LspServerProcessMessage::Shutdown(None))
                             .unwrap_or_else(|error| {
                                 lsp_error!(
                                     lsp_command,
@@ -616,12 +662,16 @@ impl LspServerProcess {
                 LspServerProcessMessage::Throttled(from_editor) => {
                     self.handle_from_editor(from_editor);
                 }
-                LspServerProcessMessage::Shutdown => {
-                    if let Err(err) = self.shutdown() {
+                LspServerProcessMessage::Shutdown(result_sender) => {
+                    let result = self.shutdown_process();
+                    if let Err(err) = &result {
                         lsp_error!(
                             self.lsp_command(),
                             "LspServerProcess::process_messages: failed to shutdown due to {err:?}"
                         );
+                    }
+                    if let Some(result_sender) = result_sender {
+                        let _ = result_sender.send(result);
                     }
                     break;
                 }
@@ -1110,6 +1160,64 @@ impl LspServerProcess {
         Ok(())
     }
 
+    /// Performs a full graceful shutdown of the LSP server process: sends the LSP
+    /// `shutdown` request followed by the `exit` notification, then closes stdin so
+    /// the server observes EOF even if it does not react to `exit`, then waits for
+    /// the underlying OS process to actually terminate — force-killing it if it
+    /// does not, within a bounded timeout.
+    ///
+    /// While this runs, `shutting_down` is set so the stdout reader thread can tell
+    /// this expected pipe closure apart from a genuine communication error.
+    fn shutdown_process(&mut self) -> anyhow::Result<()> {
+        self.shutting_down.store(true, Ordering::SeqCst);
+
+        // Best-effort: the server may already be gone or unresponsive.
+        if let Err(err) = self.shutdown() {
+            lsp_error!(
+                self.lsp_command(),
+                "Failed to send `shutdown` request: {err:?}"
+            );
+        }
+        if let Err(err) = self.send_notification::<lsp_types::notification::Exit>(()) {
+            lsp_error!(
+                self.lsp_command(),
+                "Failed to send `exit` notification: {err:?}"
+            );
+        }
+
+        // Close our end of stdin so the server sees EOF even if it ignores `exit`.
+        self.stdin = None;
+
+        const TIMEOUT: Duration = Duration::from_secs(3);
+        let started_at = Instant::now();
+        loop {
+            match self.child.try_wait() {
+                Ok(Some(status)) => {
+                    lsp_info!(
+                        self.lsp_command(),
+                        "LSP server process exited with status: {status}"
+                    );
+                    return Ok(());
+                }
+                Ok(None) => {
+                    if started_at.elapsed() >= TIMEOUT {
+                        let _ = self.child.kill();
+                        let _ = self.child.wait();
+                        return Err(anyhow::anyhow!(
+                            "LSP server did not exit within {TIMEOUT:?} after being asked to shut down; the process was force-killed"
+                        ));
+                    }
+                    thread::sleep(Duration::from_millis(50));
+                }
+                Err(err) => {
+                    return Err(anyhow::anyhow!(
+                        "Failed to wait on LSP server process: {err}"
+                    ));
+                }
+            }
+        }
+    }
+
     fn send_notification<N: Notification>(&mut self, params: N::Params) -> anyhow::Result<()> {
         let notification = json_rpc_types::Request {
             id: None,
@@ -1156,14 +1264,13 @@ impl LspServerProcess {
     /// Send JSON to the LSP server by writing to the server's stdin
     fn send_json<T: serde::Serialize>(&mut self, value: T) -> anyhow::Result<()> {
         let json = serde_json::to_string(&value)?;
+        let stdin = self
+            .stdin
+            .as_mut()
+            .ok_or_else(|| anyhow::anyhow!("Cannot write to stdin: LSP server is shutting down"))?;
 
         // The message format is according to https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#contentPart
-        write!(
-            &mut self.stdin,
-            "Content-Length: {}\r\n\r\n{}",
-            json.len(),
-            json
-        )?;
+        write!(stdin, "Content-Length: {}\r\n\r\n{}", json.len(), json)?;
         Ok(())
     }
 
@@ -1894,9 +2001,14 @@ mod test_lsp_server_process {
 
         let lsp_process = LspServerProcess {
             language: Language::default(),
-            stdin,
+            stdin: Some(stdin),
             stdout: Some(stdout),
             stderr: Some(stderr),
+            // Ownership of the child moves here; it exits on its own once the
+            // shell script above finishes, which is what drives the stdout
+            // reader into the error path below.
+            child: process,
+            shutting_down: Arc::new(AtomicBool::new(false)),
             server_capabilities: None,
             current_working_directory: std::env::current_dir()?.try_into()?,
             next_request_id: 0,
@@ -1912,10 +2024,6 @@ mod test_lsp_server_process {
 
         // Start listening in a separate thread
         let handle = lsp_process.listen(receiver, app_sender)?;
-
-        // Kill the process before checking for error
-        process.kill()?;
-        process.wait()?;
 
         // We expect an error message after max consecutive errors
         match app_receiver.recv_timeout(Duration::from_secs(1)) {
