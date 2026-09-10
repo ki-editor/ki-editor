@@ -92,7 +92,19 @@ impl Frontend for Crossterm {
         #[cfg(not(windows))]
         self.stdout.execute(PushKeyboardEnhancementFlags(
             KeyboardEnhancementFlags::REPORT_EVENT_TYPES
-                | KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES,
+                | KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES
+                // Reports `base_layout_code`: the physical PC-101 slot
+                // pressed, independent of the active OS keyboard layout or
+                // dead-key composition. Ki's positional keybindings use this
+                // (see `KeyboardLayout::make_combined_key_event`) to keep
+                // working on dead-key layouts, whose composed characters
+                // otherwise can't be looked up positionally.
+                // See https://github.com/ki-editor/ki-editor/issues/719.
+                | KeyboardEnhancementFlags::REPORT_ALTERNATE_KEYS
+                // Modifier-only keys (including Ergo-L ★) require report-all.
+                | KeyboardEnhancementFlags::REPORT_ALL_KEYS_AS_ESCAPE_CODES
+                // Keep composed text separate from the key used for commands.
+                | KeyboardEnhancementFlags::REPORT_ASSOCIATED_TEXT,
             // DISAMBIGUATE_ESCAPE_CODES is necessary for preventing an Esc tap to be captured as a double esc presses
         ))?;
         Ok(())

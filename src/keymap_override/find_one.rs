@@ -32,7 +32,7 @@ impl KeymapOverrideTrait for FindOneCharKeymapOverride {
                     self.if_current_not_found,
                     SelectionMode::Find {
                         search: Search {
-                            search: c.to_string(),
+                            search: key_event.original.text.unwrap_or_else(|| c.to_string()),
                             mode: LocalSearchConfigMode::Regex(RegexConfig {
                                 escaped: true,
                                 case_sensitive: true,

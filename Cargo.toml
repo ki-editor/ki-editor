@@ -16,14 +16,20 @@ members = [
   'ki-protocol-types',
   'nvim-treesitter-highlight-queries',
 ]
-exclude = ['mock_repos/rust1']
+exclude = ['mock_repos/rust1', 'vendor/crossterm']
 
 [workspace.dependencies]
 # `use-dev-tty` is needed so that the app doesn't hang if STDIN is present
 # See:
 # - https://github.com/crossterm-rs/crossterm/pull/956
 # - https://github.com/crossterm-rs/crossterm/issues/828
-crossterm = { version = "0.29.0", features = ["osc52", "use-dev-tty"] }
+#
+# Local copy of the base-layout fork with Kitty associated-text parsing and
+# physical Shift preservation. See vendor/crossterm/KI-PATCH.md for provenance.
+crossterm = { path = "vendor/crossterm", features = [
+  "osc52",
+  "use-dev-tty",
+] }
 convert_case = "0.6.0"
 regex = "1.8.1"
 fancy-regex = "0.14.0"
