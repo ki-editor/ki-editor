@@ -2128,19 +2128,35 @@ impl<T: Frontend> App<T> {
         let send_match =
             crate::thread::batch(send_matches, on_finish, Duration::from_millis(100), limit); // Around 10 ticks per second
 
+        // Buffers with unsaved changes should be searched using their live
+        // content instead of what is currently saved on disk.
+        let dirty_buffers = self.layout.get_dirty_buffers(&self.context);
+
         // TODO: we need to create a new sender for each global search, so that it can be cancelled, but when?
         // Is it when the quickfix list is closed?
         match config.mode {
             LocalSearchConfigMode::Regex(regex) => {
-                list::grep::run(&config.search(), walk_builder_config, regex, send_match)?;
+                list::grep::run(
+                    &config.search(),
+                    walk_builder_config,
+                    regex,
+                    dirty_buffers,
+                    send_match,
+                )?;
             }
             LocalSearchConfigMode::AstGrep => {
-                list::ast_grep::run(config.search().clone(), walk_builder_config, send_match)?;
+                list::ast_grep::run(
+                    config.search().clone(),
+                    walk_builder_config,
+                    dirty_buffers,
+                    send_match,
+                )?;
             }
             LocalSearchConfigMode::NamingConventionAgnostic => {
                 list::naming_convention_agnostic::run(
                     config.search().clone(),
                     walk_builder_config,
+                    dirty_buffers,
                     send_match,
                 )?;
             }
