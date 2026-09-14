@@ -1994,6 +1994,33 @@ fn jump_inside_delete_momentary_layer() -> anyhow::Result<()> {
 }
 
 #[test]
+fn jump_inside_delete_momentary_layer_release_before_target() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("apple banana cake durian egg".to_string())),
+            Editor(SetRectangle(Rectangle {
+                origin: Position::default(),
+                width: 100,
+                height: 1,
+            })),
+            // Same as `jump_inside_delete_momentary_layer`, except "r" is released right
+            // after "m" is pressed, before the jump target key "d" is typed. Pressing "m"
+            // already swaps the Delete momentary layer override for the Jump override, so
+            // the later release of "r" is a no-op and the result should be identical.
+            App(HandleKeyEvents(keys!("r m release-r d").to_vec())),
+            Expect(CurrentComponentContent("durian egg")),
+            Expect(CurrentSelectedTexts(&["durian"])),
+            Expect(JumpChars(&[])),
+        ])
+    })
+}
+
+#[test]
 fn jump_inside_cut_momentary_layer() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
