@@ -1661,6 +1661,15 @@ pub fn eat_keymap() -> Keymap {
             doc_format!("eat/movement.md", { movement: ">", old: "[foo] / bar", new: "[foo] bar" }),
             Dispatch::ToEditor(DispatchEditor::Eat(Movement::Next)),
         ),
+        Keybinding::new_undocumented(
+            key!("m"),
+            "Eat → Jump",
+            Dispatch::ToEditor(ShowJumps {
+                use_current_selection_mode: false,
+                prior_change: None,
+                landing_action: JumpLandingAction::Eat,
+            }),
+        ),
     ])
 }
 
@@ -1811,6 +1820,15 @@ pub fn cut_keymap() -> Keymap {
             key!("p"),
             "Cut >|",
             Dispatch::ToEditor(CutWithMovement(Movement::Last)),
+        ),
+        Keybinding::new_undocumented(
+            key!("m"),
+            "Cut → Jump",
+            Dispatch::ToEditor(ShowJumps {
+                use_current_selection_mode: false,
+                prior_change: None,
+                landing_action: JumpLandingAction::CutWithMovement,
+            }),
         ),
     ])
 }

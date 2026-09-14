@@ -112,10 +112,11 @@ Recommended selection modes:
 
 This movement can also work with the Swap mode to swap two syntax expressions that are far apart.
 
-`Jump` can also be used while holding down a Momentary Layer such as the
-[≡ Delete](../momentary-layers/delete-mol.mdx), letting you combine "move to" and "act on" in a
-single combo — e.g. holding `r` then pressing `m` followed by the jump keys deletes everything
-from your current position to the jumped-to target, without releasing `r` in between.
+`Jump` can also be used while holding down a Momentary Layer such as
+[≡ Delete](../momentary-layers/delete-mol.mdx), [≡ Cut](../momentary-layers/cut-mol.mdx), or
+[≡ Eat](../momentary-layers/eat-mol.mdx), letting you combine "move to" and "act on" in a single
+combo — e.g. holding `r` then pressing `m` followed by the jump keys deletes everything from your
+current position to the jumped-to target, without releasing `r` in between.
 
 [^1]: hop.nvim, leap.nvim, lightspeed.nvim etc.
 

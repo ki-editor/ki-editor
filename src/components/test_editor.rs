@@ -1994,6 +1994,67 @@ fn jump_inside_delete_momentary_layer() -> anyhow::Result<()> {
 }
 
 #[test]
+fn jump_inside_cut_momentary_layer() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("apple banana cake durian egg".to_string())),
+            Editor(SetRectangle(Rectangle {
+                origin: Position::default(),
+                width: 100,
+                height: 1,
+            })),
+            // Holding "x" activates the Cut momentary layer, "m" (within that layer)
+            // triggers Jump, and "d" lands on "durian" (its subword starts with a unique
+            // character), cutting from the current selection up to the jump target.
+            App(HandleKeyEvents(keys!("x m d release-x").to_vec())),
+            Expect(CurrentComponentContent("durian egg")),
+            Expect(CurrentSelectedTexts(&["durian"])),
+            // The Jump override (and the outer Cut momentary layer) should both be
+            // dismissed, so the editor is back to plain Normal mode.
+            Expect(JumpChars(&[])),
+        ])
+    })
+}
+
+#[test]
+fn jump_inside_eat_momentary_layer() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("apple banana cake durian egg".to_string())),
+            Editor(SetRectangle(Rectangle {
+                origin: Position::default(),
+                width: 100,
+                height: 1,
+            })),
+            // Unlike Delete/Cut (which only care about the *start* of the current
+            // selection), Eat re-inserts the current selection's own text verbatim, so
+            // its content must be pinned to "apple" rather than left at the default
+            // (Line) mode's selection.
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Subword)),
+            Expect(CurrentSelectedTexts(&["apple"])),
+            // Holding "r" activates the Delete/Eat momentary layer, "space" swaps it into
+            // Eat, "m" (within that layer) triggers Jump, and "d" lands on "durian" (its
+            // subword starts with a unique character), eating everything between the
+            // current selection ("apple") and the jump target, keeping "apple".
+            App(HandleKeyEvents(keys!("r space m d release-r").to_vec())),
+            Expect(CurrentComponentContent("apple egg")),
+            Expect(CurrentSelectedTexts(&["apple"])),
+            Expect(JumpChars(&[])),
+        ])
+    })
+}
+
+#[test]
 fn switch_view_alignment() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([

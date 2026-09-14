@@ -15,6 +15,8 @@ use crate::{
 pub enum JumpLandingAction {
     MoveSelection,
     DeleteWithMovement,
+    CutWithMovement,
+    Eat,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -55,6 +57,10 @@ impl KeymapOverrideTrait for JumpKeymapOverride {
                     JumpLandingAction::DeleteWithMovement => {
                         Dispatch::ToEditor(DispatchEditor::DeleteWithMovement(movement))
                     }
+                    JumpLandingAction::CutWithMovement => {
+                        Dispatch::ToEditor(DispatchEditor::CutWithMovement(movement))
+                    }
+                    JumpLandingAction::Eat => Dispatch::ToEditor(DispatchEditor::Eat(movement)),
                 };
                 Dispatches::from(vec![
                     Dispatch::ToEditor(DispatchEditor::SetKeymapOverride(None)),
