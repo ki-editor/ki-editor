@@ -21,8 +21,9 @@ use crate::{
         space_keymap_legend_config,
     },
     keymap_override::{
-        find_one::FindOneCharKeymapOverride, jump::JumpKeymapOverride, EditorKeymapOverride,
-        KeymapOverrideTrait,
+        find_one::FindOneCharKeymapOverride,
+        jump::{JumpKeymapOverride, JumpLandingAction},
+        EditorKeymapOverride, KeymapOverrideTrait,
     },
     list::grep::RegexConfig,
     lsp::{
@@ -303,7 +304,15 @@ impl Component for Editor {
             ShowJumps {
                 use_current_selection_mode,
                 prior_change,
-            } => return self.show_jumps(use_current_selection_mode, context, prior_change),
+                landing_action,
+            } => {
+                return self.show_jumps(
+                    use_current_selection_mode,
+                    context,
+                    prior_change,
+                    landing_action,
+                )
+            }
             SwitchViewAlignment => self.switch_view_alignment(context),
             #[cfg(test)]
             SetScrollOffset(n) => self.set_scroll_offset(n),
@@ -1046,6 +1055,7 @@ impl Editor {
         selection: &Selection,
         use_current_selection_mode: bool,
         context: &Context,
+        landing_action: JumpLandingAction,
     ) -> anyhow::Result<()> {
         let chars = Self::jump_characters(context);
 
@@ -1076,6 +1086,7 @@ impl Editor {
         )?;
         self.keymap_override = Some(EditorKeymapOverride::Jumps(JumpKeymapOverride {
             jumps: jumps.clone(),
+            landing_action,
         }));
 
         Ok(())
@@ -1086,12 +1097,14 @@ impl Editor {
         use_current_selection_mode: bool,
         context: &Context,
         prior_change: Option<PriorChange>,
+        landing_action: JumpLandingAction,
     ) -> anyhow::Result<Dispatches> {
         self.handle_prior_change(prior_change);
         self.jump_from_selection(
             &self.selection_set.primary_selection().clone(),
             use_current_selection_mode,
             context,
+            landing_action,
         )?;
         Ok(Dispatches::one(self.dispatch_jumps_changed()))
     }
@@ -5027,6 +5040,7 @@ pub enum DispatchEditor {
     ShowJumps {
         use_current_selection_mode: bool,
         prior_change: Option<PriorChange>,
+        landing_action: JumpLandingAction,
     },
     SetKeymapOverride(Option<EditorKeymapOverride>),
     ScrollPageDown,

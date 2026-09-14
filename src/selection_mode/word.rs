@@ -166,6 +166,7 @@ fn get_current_word_by_cursor(
 mod test_word {
     use crate::buffer::BufferOwner;
 
+    use crate::keymap_override::jump::JumpLandingAction;
     use crate::selection::SelectionMode;
     use crate::selection_mode::GetGapMovement;
     use crate::test_app::*;
@@ -241,6 +242,7 @@ mod test_word {
                 Editor(ShowJumps {
                     use_current_selection_mode: true,
                     prior_change: None,
+                    landing_action: JumpLandingAction::MoveSelection,
                 }),
                 Expect(JumpChars(&['f', '?', 'b', ':', 's'])),
             ])

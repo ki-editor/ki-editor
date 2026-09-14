@@ -13,6 +13,7 @@ use crate::{
     },
     context::{Context, LocalSearchConfigMode, Search},
     git::DiffMode,
+    keymap_override::jump::JumpLandingAction,
     list::grep::RegexConfig,
     quickfix_list::{DiagnosticSeverityRange, QuickfixListType},
     scripting::custom_keymap,
@@ -946,6 +947,7 @@ pub fn multicursor_momentary_layer_keymap(editor: &Editor) -> Keymap {
                 Dispatch::ToEditor(ShowJumps {
                     use_current_selection_mode: true,
                     prior_change: Some(PriorChange::EnterMultiCursorMode),
+                    landing_action: JumpLandingAction::MoveSelection,
                 }),
             ),
             Keybinding::new_undocumented(
@@ -1046,6 +1048,7 @@ pub fn keymap_core_movements(prior_change: Option<PriorChange>) -> Vec<Keybindin
             Dispatch::ToEditor(DispatchEditor::ShowJumps {
                 use_current_selection_mode: true,
                 prior_change,
+                landing_action: JumpLandingAction::MoveSelection,
             }),
         ),
         Keybinding::new_undocumented(
@@ -1602,6 +1605,7 @@ pub fn swap_keymap() -> Keymap {
             Dispatch::ToEditor(ShowJumps {
                 use_current_selection_mode: true,
                 prior_change: Some(PriorChange::EnterSwapMode),
+                landing_action: JumpLandingAction::MoveSelection,
             }),
         ),
     ])
@@ -1656,6 +1660,15 @@ pub fn eat_keymap() -> Keymap {
             "Eat >",
             doc_format!("eat/movement.md", { movement: ">", old: "[foo] / bar", new: "[foo] bar" }),
             Dispatch::ToEditor(DispatchEditor::Eat(Movement::Next)),
+        ),
+        Keybinding::new_undocumented(
+            key!("m"),
+            "Eat → Jump",
+            Dispatch::ToEditor(ShowJumps {
+                use_current_selection_mode: false,
+                prior_change: None,
+                landing_action: JumpLandingAction::Eat,
+            }),
         ),
     ])
 }
@@ -1808,6 +1821,15 @@ pub fn cut_keymap() -> Keymap {
             "Cut >|",
             Dispatch::ToEditor(CutWithMovement(Movement::Last)),
         ),
+        Keybinding::new_undocumented(
+            key!("m"),
+            "Cut → Jump",
+            Dispatch::ToEditor(ShowJumps {
+                use_current_selection_mode: false,
+                prior_change: None,
+                landing_action: JumpLandingAction::CutWithMovement,
+            }),
+        ),
     ])
 }
 
@@ -1928,6 +1950,15 @@ pub fn delete_keymap() -> Keymap {
             key!("p"),
             "Delete >|",
             Dispatch::ToEditor(DeleteWithMovement(Movement::Last)),
+        ),
+        Keybinding::new_undocumented(
+            key!("m"),
+            "Delete → Jump",
+            Dispatch::ToEditor(ShowJumps {
+                use_current_selection_mode: false,
+                prior_change: None,
+                landing_action: JumpLandingAction::DeleteWithMovement,
+            }),
         ),
     ])
 }
