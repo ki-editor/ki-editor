@@ -11,6 +11,7 @@ use crate::components::editor::{
 use crate::context::{Context, GlobalMode, LocalSearchConfigMode, Search};
 use crate::git::DiffMode;
 use crate::grid::IndexedHighlightGroup;
+use crate::keymap_override::jump::JumpLandingAction;
 use crate::list::grep::RegexConfig;
 use crate::lsp::process::LspNotification;
 use crate::quickfix_list::{Location, QuickfixListItem};
@@ -356,6 +357,7 @@ fn extend_jump() -> anyhow::Result<()> {
             Editor(ShowJumps {
                 use_current_selection_mode: true,
                 prior_change: None,
+                landing_action: JumpLandingAction::MoveSelection,
             }),
             App(HandleKeyEvents(keys!("d").to_vec())),
             Expect(CurrentSelectedTexts(&["banana cake durian"])),
@@ -1828,6 +1830,7 @@ fn jump() -> anyhow::Result<()> {
             Editor(ShowJumps {
                 use_current_selection_mode: false,
                 prior_change: None,
+                landing_action: JumpLandingAction::MoveSelection,
             }),
             // Expect the jump to be the first character of each subword
             // Note 'y' and 'd' are excluded because they are out of view,
@@ -1888,6 +1891,7 @@ fn main() {
             Editor(ShowJumps {
                 use_current_selection_mode: true,
                 prior_change: None,
+                landing_action: JumpLandingAction::MoveSelection,
             }),
             Expect(JumpChars(&['b', 'f', '}'])),
             App(HandleKeyEvent(key!("f"))),
@@ -1920,6 +1924,7 @@ fn extend_and_jump() -> anyhow::Result<()> {
             Editor(ShowJumps {
                 use_current_selection_mode: false,
                 prior_change: None,
+                landing_action: JumpLandingAction::MoveSelection,
             }),
             // Expect the jump to be the first character of each word
             // Note 'y' and 'd' are excluded because they are out of view,
@@ -1951,10 +1956,39 @@ fn jump_all_selection_start_with_same_char() -> anyhow::Result<()> {
             Editor(ShowJumps {
                 use_current_selection_mode: false,
                 prior_change: None,
+                landing_action: JumpLandingAction::MoveSelection,
             }),
             // Expect the jump to NOT be the first character of each word
             // Since, the first character of each selection are the same, which is 'w'
             Expect(JumpChars(&['d', 'k', 's', 'l'])),
+        ])
+    })
+}
+
+#[test]
+fn jump_inside_delete_momentary_layer() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("apple banana cake durian egg".to_string())),
+            Editor(SetRectangle(Rectangle {
+                origin: Position::default(),
+                width: 100,
+                height: 1,
+            })),
+            // Holding "r" activates the Delete momentary layer, "m" (within that layer)
+            // triggers Jump, and "d" lands on "durian" (its subword starts with a unique
+            // character), deleting from the current selection up to the jump target.
+            App(HandleKeyEvents(keys!("r m d release-r").to_vec())),
+            Expect(CurrentComponentContent("durian egg")),
+            Expect(CurrentSelectedTexts(&["durian"])),
+            // The Jump override (and the outer Delete momentary layer) should both be
+            // dismissed, so the editor is back to plain Normal mode.
+            Expect(JumpChars(&[])),
         ])
     })
 }
@@ -6477,6 +6511,7 @@ fn release_key_events_should_not_affect_jump_mode() -> anyhow::Result<()> {
             Editor(ShowJumps {
                 use_current_selection_mode: false,
                 prior_change: None,
+                landing_action: JumpLandingAction::MoveSelection,
             }),
             Expect(JumpChars(&['f', 'b'])),
             App(HandleKeyEvent(key!("release-b"))),

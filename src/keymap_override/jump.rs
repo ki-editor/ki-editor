@@ -12,8 +12,15 @@ use crate::{
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub enum JumpLandingAction {
+    MoveSelection,
+    DeleteWithMovement,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct JumpKeymapOverride {
     pub jumps: Vec<Jump>,
+    pub landing_action: JumpLandingAction,
 }
 
 impl KeymapOverrideTrait for JumpKeymapOverride {
@@ -39,12 +46,21 @@ impl KeymapOverrideTrait for JumpKeymapOverride {
             .collect_vec();
         Ok(match matching_jumps.split_first() {
             None => Dispatches::default(),
-            Some((jump, [])) => Dispatches::from(vec![
-                Dispatch::ToEditor(DispatchEditor::SetKeymapOverride(None)),
-                Dispatch::ToEditor(DispatchEditor::MoveSelection(Movement::Jump(
-                    jump.selection.range(),
-                ))),
-            ]),
+            Some((jump, [])) => {
+                let movement = Movement::Jump(jump.selection.range());
+                let landing_dispatch = match self.landing_action {
+                    JumpLandingAction::MoveSelection => {
+                        Dispatch::ToEditor(DispatchEditor::MoveSelection(movement))
+                    }
+                    JumpLandingAction::DeleteWithMovement => {
+                        Dispatch::ToEditor(DispatchEditor::DeleteWithMovement(movement))
+                    }
+                };
+                Dispatches::from(vec![
+                    Dispatch::ToEditor(DispatchEditor::SetKeymapOverride(None)),
+                    landing_dispatch,
+                ])
+            }
             Some(_) => {
                 self.jumps = matching_jumps
                     .into_iter()

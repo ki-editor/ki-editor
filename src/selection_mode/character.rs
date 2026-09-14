@@ -114,6 +114,7 @@ mod test_character {
     use crate::app::Dimension;
     use crate::buffer::BufferOwner;
     use crate::components::editor::Movement;
+    use crate::keymap_override::jump::JumpLandingAction;
     use crate::selection::SelectionMode;
     use crate::selection_mode::{PositionBased, SelectionModeTrait};
     use crate::test_app::*;
@@ -242,6 +243,7 @@ mod test_character {
                 Editor(ShowJumps {
                     use_current_selection_mode: true,
                     prior_change: None,
+                    landing_action: JumpLandingAction::MoveSelection,
                 }),
                 Expect(JumpChars(&[
                     '\n', '\n', 'a', 'a', 'b', 'f', 'm', 'o', 'o', 'p', 'r', 's',
