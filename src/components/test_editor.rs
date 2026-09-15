@@ -526,6 +526,103 @@ fn test_delete_subword_forward_from_middle_of_file() -> anyhow::Result<()> {
 }
 
 #[test]
+fn move_word_forward() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("hello_world".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Editor(EnterInsertMode(Direction::Start)),
+            Editor(MoveWord {
+                short: true,
+                direction: Direction::End,
+            }),
+            Expect(EditorCursorPosition(Position::new(0, 5))),
+            Editor(MoveWord {
+                short: true,
+                direction: Direction::End,
+            }),
+            Expect(EditorCursorPosition(Position::new(0, 6))),
+            Editor(MoveWord {
+                short: true,
+                direction: Direction::End,
+            }),
+            Expect(EditorCursorPosition(Position::new(0, 11))),
+            // The content itself should remain untouched, only the cursor moves
+            Expect(CurrentComponentContent("hello_world")),
+        ])
+    })
+}
+
+#[test]
+fn move_word_backward() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("hello_world".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Editor(EnterInsertMode(Direction::End)),
+            Editor(MoveWord {
+                short: true,
+                direction: Direction::Start,
+            }),
+            Expect(EditorCursorPosition(Position::new(0, 6))),
+            Editor(MoveWord {
+                short: true,
+                direction: Direction::Start,
+            }),
+            Expect(EditorCursorPosition(Position::new(0, 5))),
+            Editor(MoveWord {
+                short: true,
+                direction: Direction::Start,
+            }),
+            Expect(EditorCursorPosition(Position::new(0, 0))),
+            // The content itself should remain untouched, only the cursor moves
+            Expect(CurrentComponentContent("hello_world")),
+        ])
+    })
+}
+
+#[test]
+fn ctrl_left_right_backspace_delete_in_insert_mode() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("hello_world".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Editor(EnterInsertMode(Direction::Start)),
+            // ctrl+left/right should move by word without editing the content
+            App(HandleKeyEvent(key!("ctrl+right"))),
+            Expect(EditorCursorPosition(Position::new(0, 5))),
+            Expect(CurrentComponentContent("hello_world")),
+            App(HandleKeyEvent(key!("ctrl+left"))),
+            Expect(EditorCursorPosition(Position::new(0, 0))),
+            Expect(CurrentComponentContent("hello_world")),
+            // ctrl+delete deletes the word forward
+            App(HandleKeyEvent(key!("ctrl+delete"))),
+            Expect(CurrentComponentContent("_world")),
+            // ctrl+backspace deletes the word backward
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+            Editor(EnterInsertMode(Direction::End)),
+            App(HandleKeyEvent(key!("ctrl+backspace"))),
+            Expect(CurrentComponentContent("_")),
+        ])
+    })
+}
+
+#[test]
 fn test_pipe_to_shell_1() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
