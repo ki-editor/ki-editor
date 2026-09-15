@@ -623,6 +623,29 @@ fn ctrl_left_right_backspace_delete_in_insert_mode() -> anyhow::Result<()> {
 }
 
 #[test]
+fn alt_left_right_in_insert_mode() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("hello_world".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Editor(EnterInsertMode(Direction::Start)),
+            // alt+left/right should move by word, same as ctrl+left/right
+            App(HandleKeyEvent(key!("alt+right"))),
+            Expect(EditorCursorPosition(Position::new(0, 5))),
+            Expect(CurrentComponentContent("hello_world")),
+            App(HandleKeyEvent(key!("alt+left"))),
+            Expect(EditorCursorPosition(Position::new(0, 0))),
+            Expect(CurrentComponentContent("hello_world")),
+        ])
+    })
+}
+
+#[test]
 fn move_word_backward_stops_at_word_start_across_whitespace() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
