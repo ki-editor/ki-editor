@@ -1196,6 +1196,22 @@ pub fn insert_mode_keymap_legend_config(include_universal_keymap: bool) -> Keyma
                     Dispatch::ToEditor(MoveCharacterForward),
                 ),
                 Keybinding::new_undocumented(
+                    key!("ctrl+left"),
+                    "Word ←",
+                    Dispatch::ToEditor(MoveWord {
+                        short: true,
+                        direction: Direction::Start,
+                    }),
+                ),
+                Keybinding::new_undocumented(
+                    key!("ctrl+right"),
+                    "Word →",
+                    Dispatch::ToEditor(MoveWord {
+                        short: true,
+                        direction: Direction::End,
+                    }),
+                ),
+                Keybinding::new_undocumented(
                     key!("alt+y"),
                     "Line ←",
                     Dispatch::ToEditor(MoveToLineStart),
@@ -1209,6 +1225,19 @@ pub fn insert_mode_keymap_legend_config(include_universal_keymap: bool) -> Keyma
                     key!("alt+backspace"),
                     "Delete Word ←",
                     Dispatch::ToEditor(DeleteWordBackward { short: true }),
+                ),
+                Keybinding::new_undocumented(
+                    key!("ctrl+backspace"),
+                    "Delete Word ←",
+                    Dispatch::ToEditor(DeleteWordBackward { short: true }),
+                ),
+                Keybinding::new_undocumented(
+                    key!("ctrl+delete"),
+                    "Delete Word →",
+                    Dispatch::ToEditor(DeleteWord {
+                        short: true,
+                        direction: Direction::End,
+                    }),
                 ),
                 Keybinding::new_undocumented(
                     key!("esc"),

@@ -288,6 +288,7 @@ impl Component for Editor {
                 return self.delete_word(short, context, Direction::Start)
             }
             DeleteWord { short, direction } => return self.delete_word(short, context, direction),
+            MoveWord { short, direction } => return self.move_word(short, context, direction),
             Backspace => return self.backspace(context),
             MoveToLineStart => return self.move_to_line_start(context),
             MoveToLineEnd => return self.move_to_line_end(),
@@ -2572,6 +2573,108 @@ impl Editor {
         self.apply_edit_transaction(edit_transaction, context)
     }
 
+    /// Computes the word (or subword, if `short`) boundary range starting
+    /// from `current_selection`'s cursor, in `direction`. This is the range
+    /// that `delete_word` deletes, and the range whose `start`/`end` is
+    /// where `move_word` lands the cursor, clamped to the edges of the
+    /// buffer.
+    fn word_boundary_range(
+        &self,
+        current_selection: &Selection,
+        short: bool,
+        direction: Direction,
+        context: &Context,
+    ) -> anyhow::Result<CharIndexRange> {
+        let current_range = current_selection.extended_range();
+
+        let len_chars = self.buffer().rope().len_chars();
+
+        let cursor_char_index = {
+            let index = CharIndex(current_range.start.0.min(len_chars));
+            match direction {
+                Direction::Start => index - 1,
+                Direction::End => index,
+            }
+        };
+
+        let get_word = |range: CharIndexRange, movement: Movement| {
+            Selection::get_selection_(
+                &self.buffer(),
+                &current_selection.clone().set_range(range),
+                &if short {
+                    SelectionMode::Subword
+                } else {
+                    SelectionMode::Word
+                },
+                &movement.into_movement_applicandum(self.selection_set.sticky_column_index()),
+                &self.cursor_direction,
+                context,
+            )
+            .map(|option| option.map(|result| result.selection))
+        };
+
+        let Some(current_word) = get_word(
+            (cursor_char_index..cursor_char_index).into(),
+            Movement::Current(direction.to_if_current_not_found()),
+        )?
+        else {
+            return Ok(current_range);
+        };
+
+        let other_word = {
+            get_word(
+                current_word.range(),
+                match direction {
+                    Direction::Start => Movement::Previous,
+                    Direction::End => Movement::Next,
+                },
+            )?
+        };
+
+        let boundary_range = if let Some(other_word) = other_word {
+            let other_word_range = other_word.extended_range();
+
+            if other_word_range == current_word.range() {
+                current_word.range()
+            } else {
+                CharIndexRange::from(match direction {
+                    Direction::Start => {
+                        let start = other_word_range.end;
+                        let end = current_word.range().end;
+                        start..end
+                    }
+                    Direction::End => {
+                        let start = current_word.range().start;
+                        let end = other_word_range.start;
+                        start..end
+                    }
+                })
+            }
+        } else {
+            current_word.range()
+        };
+
+        let boundary_range: CharIndexRange = match direction {
+            Direction::Start => {
+                if cursor_char_index == CharIndex(0) {
+                    (CharIndex(0)..CharIndex(0)).into()
+                } else {
+                    boundary_range
+                }
+            }
+            Direction::End => {
+                let max_cursor_char_index = CharIndex(self.buffer().len_chars());
+                if cursor_char_index == max_cursor_char_index {
+                    (max_cursor_char_index..max_cursor_char_index).into()
+                } else {
+                    boundary_range
+                }
+            }
+        };
+
+        Ok(boundary_range)
+    }
+
     pub fn delete_word(
         &mut self,
         short: bool,
@@ -2581,95 +2684,8 @@ impl Editor {
         let action_groups = self
             .selection_set
             .map(|current_selection| -> anyhow::Result<_> {
-                let current_range = current_selection.extended_range();
-
-                let len_chars = self.buffer().rope().len_chars();
-
-                let cursor_char_index = {
-                    let index = CharIndex(current_range.start.0.min(len_chars));
-                    match direction {
-                        Direction::Start => index - 1,
-                        Direction::End => index,
-                    }
-                };
-
-                let get_word = |range: CharIndexRange, movement: Movement| {
-                    Selection::get_selection_(
-                        &self.buffer(),
-                        &current_selection.clone().set_range(range),
-                        &if short {
-                            SelectionMode::Subword
-                        } else {
-                            SelectionMode::Word
-                        },
-                        &movement
-                            .into_movement_applicandum(self.selection_set.sticky_column_index()),
-                        &self.cursor_direction,
-                        context,
-                    )
-                    .map(|option| option.map(|result| result.selection))
-                };
-
-                let Some(current_word) = get_word(
-                    (cursor_char_index..cursor_char_index).into(),
-                    Movement::Current(direction.to_if_current_not_found()),
-                )?
-                else {
-                    return Ok(ActionGroup::new(
-                        [Action::Select(current_selection.clone())].to_vec(),
-                    ));
-                };
-
-                let other_word = {
-                    get_word(
-                        current_word.range(),
-                        match direction {
-                            Direction::Start => Movement::Previous,
-                            Direction::End => Movement::Next,
-                        },
-                    )?
-                };
-
-                let delete_range = if let Some(other_word) = other_word {
-                    let other_word_range = other_word.extended_range();
-
-                    if other_word_range == current_word.range() {
-                        current_word.range()
-                    } else {
-                        CharIndexRange::from(match direction {
-                            Direction::Start => {
-                                let start = other_word_range.end;
-                                let end = current_word.range().end;
-                                start..end
-                            }
-                            Direction::End => {
-                                let start = current_word.range().start;
-                                let end = other_word_range.start;
-                                start..end
-                            }
-                        })
-                    }
-                } else {
-                    current_word.range()
-                };
-
-                let delete_range: CharIndexRange = match direction {
-                    Direction::Start => {
-                        if cursor_char_index == CharIndex(0) {
-                            (CharIndex(0)..CharIndex(0)).into()
-                        } else {
-                            delete_range
-                        }
-                    }
-                    Direction::End => {
-                        let max_cursor_char_index = CharIndex(self.buffer().len_chars());
-                        if cursor_char_index == max_cursor_char_index {
-                            (max_cursor_char_index..max_cursor_char_index).into()
-                        } else {
-                            delete_range
-                        }
-                    }
-                };
+                let delete_range =
+                    self.word_boundary_range(current_selection, short, direction.clone(), context)?;
 
                 let start = delete_range.start;
                 let end = delete_range.end;
@@ -2690,6 +2706,40 @@ impl Editor {
             .flatten()
             .collect();
         let edit_transaction = EditTransaction::from_action_groups(action_groups);
+        self.apply_edit_transaction(edit_transaction, context)
+    }
+
+    /// Moves the cursor by word (or subword, if `short`) boundary, without
+    /// deleting anything, in `direction`.
+    pub fn move_word(
+        &mut self,
+        short: bool,
+        context: &Context,
+        direction: Direction,
+    ) -> anyhow::Result<Dispatches> {
+        let edit_transaction = EditTransaction::from_action_groups(
+            self.selection_set
+                .map(|selection| -> anyhow::Result<_> {
+                    let range =
+                        self.word_boundary_range(selection, short, direction.clone(), context)?;
+                    let target = match &direction {
+                        Direction::Start => range.start,
+                        Direction::End => range.end,
+                    };
+                    Ok(ActionGroup::new(
+                        [Action::Select(
+                            selection
+                                .clone()
+                                .set_range((target..target).into())
+                                .set_initial_range(None),
+                        )]
+                        .to_vec(),
+                    ))
+                })
+                .into_iter()
+                .flatten()
+                .collect(),
+        );
         self.apply_edit_transaction(edit_transaction, context)
     }
 
@@ -5111,6 +5161,10 @@ pub enum DispatchEditor {
         short: bool,
     },
     DeleteWord {
+        short: bool,
+        direction: Direction,
+    },
+    MoveWord {
         short: bool,
         direction: Direction,
     },
