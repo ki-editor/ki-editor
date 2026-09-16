@@ -1195,6 +1195,28 @@ fn multi_insert() -> anyhow::Result<()> {
     })
 }
 
+#[test]
+fn delete_character_forward() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("struct A(usize, char)".to_string())),
+            Editor(MatchLiteral("usize".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
+            Editor(CursorAddToAllSelections),
+            Expect(CurrentSelectedTexts(&["usize", "char"])),
+            Editor(EnterInsertMode(Direction::Start)),
+            Editor(Delete),
+            Expect(CurrentComponentContent("struct A(size, har)")),
+            Expect(CurrentSelectedTexts(&["", ""])),
+        ])
+    })
+}
+
 #[serial]
 #[test]
 fn paste_in_insert_mode_1() -> anyhow::Result<()> {
