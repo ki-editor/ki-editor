@@ -446,6 +446,9 @@ impl Component for Editor {
             DuplicateWithMovement(get_gap_movement) => {
                 return self.duplicate_with_movement(context, get_gap_movement)
             }
+            DuplicateWithExtension(movement) => {
+                return self.duplicate_with_extension(&movement, context)
+            }
             DuplicateVertically(direction) => return self.duplicate_vertically(context, direction),
             CoarseUndo => return self.coarse_undo(context),
             CoarseRedo => return self.coarse_redo(context),
@@ -2859,6 +2862,65 @@ impl Editor {
                                 )),
                                 Action::Select(current_selection.clone().set_range(
                                     (range.start..(range.start + new_len_chars)).into(),
+                                )),
+                            ]
+                            .to_vec(),
+                        )]
+                        .to_vec(),
+                    ))
+                };
+            self.get_valid_selection(
+                selection,
+                self.selection_set.mode(),
+                movement,
+                get_edit_transaction,
+                context,
+            )
+        });
+        let edit_transaction = EditTransaction::merge(
+            edit_transactions
+                .into_iter()
+                .filter_map(|edit_transaction| edit_transaction.ok())
+                .filter_map(|edit_transaction| edit_transaction.map_right(Some).right_or(None))
+                .collect(),
+        );
+        self.apply_edit_transaction(edit_transaction, context)
+    }
+
+    /// Extends the current selection(s) to `movement`'s target, then inserts a copy of that
+    /// whole extended range immediately after itself (no gap), mirroring how [`Self::eat`]
+    /// extends-then-replaces but without deleting anything.
+    pub fn duplicate_with_extension(
+        &mut self,
+        movement: &Movement,
+        context: &Context,
+    ) -> anyhow::Result<Dispatches> {
+        let buffer = self.buffer.borrow().clone();
+        let edit_transactions = self.selection_set.map(|selection| {
+            let get_edit_transaction =
+                |current_selection: &Selection, other_selection: &Selection| -> anyhow::Result<_> {
+                    let range: CharIndexRange = (current_selection
+                        .extended_range()
+                        .start
+                        .min(other_selection.extended_range().start)
+                        ..current_selection
+                            .extended_range()
+                            .end
+                            .max(other_selection.extended_range().end))
+                        .into();
+                    let copied_text: Rope = buffer.slice(&range)?;
+                    let copied_text_len = copied_text.len_chars();
+                    let insertion_point = range.end;
+                    Ok(EditTransaction::from_action_groups(
+                        [ActionGroup::new(
+                            [
+                                Action::Edit(Edit::new(
+                                    self.buffer().rope(),
+                                    (insertion_point..insertion_point).into(),
+                                    copied_text,
+                                )),
+                                Action::Select(current_selection.clone().set_range(
+                                    (insertion_point..(insertion_point + copied_text_len)).into(),
                                 )),
                             ]
                             .to_vec(),
@@ -5335,6 +5397,7 @@ pub enum DispatchEditor {
     EnterMulticursorMode,
     PasteVertically(Direction),
     DuplicateWithMovement(GetGapMovement),
+    DuplicateWithExtension(Movement),
     DuplicateVertically(Direction),
     CoarseUndo,
     CoarseRedo,

@@ -2253,6 +2253,37 @@ fn jump_inside_eat_momentary_layer() -> anyhow::Result<()> {
 }
 
 #[test]
+fn jump_inside_duplicate_momentary_layer() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("apple banana cake durian egg".to_string())),
+            Editor(SetRectangle(Rectangle {
+                origin: Position::default(),
+                width: 100,
+                height: 1,
+            })),
+            // Holding "c" activates the Copy/Duplicate momentary layer, "m" (within that
+            // layer) triggers Jump, and "d" lands on "durian" (its subword starts with a
+            // unique character), extending the current selection up to the jump target and
+            // inserting a copy of that whole extended range immediately after itself.
+            App(HandleKeyEvents(keys!("c m d release-c").to_vec())),
+            Expect(CurrentComponentContent(
+                "apple banana cake durianapple banana cake durian egg",
+            )),
+            Expect(CurrentSelectedTexts(&["apple banana cake durian"])),
+            // The Jump override (and the outer Copy/Duplicate momentary layer) should both be
+            // dismissed, so the editor is back to plain Normal mode.
+            Expect(JumpChars(&[])),
+        ])
+    })
+}
+
+#[test]
 fn switch_view_alignment() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
