@@ -290,6 +290,7 @@ impl Component for Editor {
             DeleteWord { short, direction } => return self.delete_word(short, context, direction),
             MoveWord { short, direction } => return self.move_word(short, context, direction),
             Backspace => return self.backspace(context),
+            Delete => return self.delete_character_forward(context),
             MoveToLineStart => return self.move_to_line_start(context),
             MoveToLineEnd => return self.move_to_line_end(),
             SelectLine(movement) => return self.select_line(movement, context),
@@ -2563,6 +2564,32 @@ impl Editor {
                                 Rope::from(""),
                             )),
                             Action::Select(selection.clone().set_range((start..start).into())),
+                        ]
+                        .to_vec(),
+                    )
+                })
+                .into(),
+        );
+
+        self.apply_edit_transaction(edit_transaction, context)
+    }
+
+    pub fn delete_character_forward(&mut self, context: &Context) -> anyhow::Result<Dispatches> {
+        let edit_transaction = EditTransaction::from_action_groups(
+            self.selection_set
+                .map(|selection| {
+                    let end = CharIndex(
+                        (selection.extended_range().end.0 + 1)
+                            .min(self.buffer().rope().len_chars()),
+                    );
+                    ActionGroup::new(
+                        [
+                            Action::Edit(Edit::new(
+                                self.buffer().rope(),
+                                (selection.extended_range().end..end).into(),
+                                Rope::from(""),
+                            )),
+                            Action::Select(selection.clone()),
                         ]
                         .to_vec(),
                     )
@@ -5194,6 +5221,7 @@ pub enum DispatchEditor {
     ReplaceWithPattern(Scope),
     SelectLine(Movement),
     Backspace,
+    Delete,
     Insert(String),
     InsertChar(char),
     MoveToLineStart,
