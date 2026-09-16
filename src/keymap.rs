@@ -1212,6 +1212,22 @@ pub fn insert_mode_keymap_legend_config(include_universal_keymap: bool) -> Keyma
                     }),
                 ),
                 Keybinding::new_undocumented(
+                    key!("alt+left"),
+                    "Word ←",
+                    Dispatch::ToEditor(MoveWord {
+                        short: true,
+                        direction: Direction::Start,
+                    }),
+                ),
+                Keybinding::new_undocumented(
+                    key!("alt+right"),
+                    "Word →",
+                    Dispatch::ToEditor(MoveWord {
+                        short: true,
+                        direction: Direction::End,
+                    }),
+                ),
+                Keybinding::new_undocumented(
                     key!("alt+y"),
                     "Line ←",
                     Dispatch::ToEditor(MoveToLineStart),

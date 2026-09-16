@@ -623,6 +623,58 @@ fn ctrl_left_right_backspace_delete_in_insert_mode() -> anyhow::Result<()> {
 }
 
 #[test]
+fn alt_left_right_in_insert_mode() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("hello_world".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Editor(EnterInsertMode(Direction::Start)),
+            // alt+left/right should move by word, same as ctrl+left/right
+            App(HandleKeyEvent(key!("alt+right"))),
+            Expect(EditorCursorPosition(Position::new(0, 5))),
+            Expect(CurrentComponentContent("hello_world")),
+            App(HandleKeyEvent(key!("alt+left"))),
+            Expect(EditorCursorPosition(Position::new(0, 0))),
+            Expect(CurrentComponentContent("hello_world")),
+        ])
+    })
+}
+
+#[test]
+fn move_word_backward_stops_at_word_start_across_whitespace() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("if (condition) {\n  auto foo\n}".to_string())),
+            Editor(MatchLiteral("foo".to_string())),
+            Editor(EnterInsertMode(Direction::End)),
+            // First press should stop at the start of "foo", not skip past
+            // it to the end of "auto".
+            Editor(MoveWord {
+                short: false,
+                direction: Direction::Start,
+            }),
+            Expect(EditorCursorPosition(Position::new(1, 7))),
+            // Second press should stop at the start of "auto".
+            Editor(MoveWord {
+                short: false,
+                direction: Direction::Start,
+            }),
+            Expect(EditorCursorPosition(Position::new(1, 2))),
+        ])
+    })
+}
+
+#[test]
 fn test_pipe_to_shell_1() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([

@@ -2575,9 +2575,9 @@ impl Editor {
 
     /// Computes the word (or subword, if `short`) boundary range starting
     /// from `current_selection`'s cursor, in `direction`. This is the range
-    /// that `delete_word` deletes, and the range whose `start`/`end` is
-    /// where `move_word` lands the cursor, clamped to the edges of the
-    /// buffer.
+    /// that `delete_word` deletes: the current word plus the gap (e.g.
+    /// whitespace) between it and the previous/next word, clamped to the
+    /// edges of the buffer.
     fn word_boundary_range(
         &self,
         current_selection: &Selection,
@@ -2709,6 +2709,68 @@ impl Editor {
         self.apply_edit_transaction(edit_transaction, context)
     }
 
+    /// Computes the word (or subword, if `short`) boundary that
+    /// `current_selection`'s cursor is on or adjacent to, in `direction`,
+    /// clamped to the edges of the buffer. Unlike `word_boundary_range`,
+    /// this does not extend the range to merge in the gap (e.g. whitespace)
+    /// before/after the word, so `move_word` lands the cursor right at the
+    /// word's own boundary instead of skipping past it to the next word.
+    fn current_word_range(
+        &self,
+        current_selection: &Selection,
+        short: bool,
+        direction: Direction,
+        context: &Context,
+    ) -> anyhow::Result<CharIndexRange> {
+        let current_range = current_selection.extended_range();
+
+        let len_chars = self.buffer().rope().len_chars();
+
+        let cursor_char_index = {
+            let index = CharIndex(current_range.start.0.min(len_chars));
+            match direction {
+                Direction::Start => index - 1,
+                Direction::End => index,
+            }
+        };
+
+        match direction {
+            Direction::Start if cursor_char_index == CharIndex(0) => {
+                return Ok((CharIndex(0)..CharIndex(0)).into())
+            }
+            Direction::End if cursor_char_index == CharIndex(len_chars) => {
+                return Ok((cursor_char_index..cursor_char_index).into())
+            }
+            _ => {}
+        }
+
+        let get_word = |range: CharIndexRange, movement: Movement| {
+            Selection::get_selection_(
+                &self.buffer(),
+                &current_selection.clone().set_range(range),
+                &if short {
+                    SelectionMode::Subword
+                } else {
+                    SelectionMode::Word
+                },
+                &movement.into_movement_applicandum(self.selection_set.sticky_column_index()),
+                &self.cursor_direction,
+                context,
+            )
+            .map(|option| option.map(|result| result.selection))
+        };
+
+        let Some(current_word) = get_word(
+            (cursor_char_index..cursor_char_index).into(),
+            Movement::Current(direction.to_if_current_not_found()),
+        )?
+        else {
+            return Ok(current_range);
+        };
+
+        Ok(current_word.range())
+    }
+
     /// Moves the cursor by word (or subword, if `short`) boundary, without
     /// deleting anything, in `direction`.
     pub fn move_word(
@@ -2721,7 +2783,7 @@ impl Editor {
             self.selection_set
                 .map(|selection| -> anyhow::Result<_> {
                     let range =
-                        self.word_boundary_range(selection, short, direction.clone(), context)?;
+                        self.current_word_range(selection, short, direction.clone(), context)?;
                     let target = match &direction {
                         Direction::Start => range.start,
                         Direction::End => range.end,
