@@ -17,6 +17,7 @@ pub enum JumpLandingAction {
     DeleteWithMovement,
     CutWithMovement,
     Eat,
+    DuplicateWithExtension,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -61,6 +62,9 @@ impl KeymapOverrideTrait for JumpKeymapOverride {
                         Dispatch::ToEditor(DispatchEditor::CutWithMovement(movement))
                     }
                     JumpLandingAction::Eat => Dispatch::ToEditor(DispatchEditor::Eat(movement)),
+                    JumpLandingAction::DuplicateWithExtension => {
+                        Dispatch::ToEditor(DispatchEditor::DuplicateWithExtension(movement))
+                    }
                 };
                 Dispatches::from(vec![
                     Dispatch::ToEditor(DispatchEditor::SetKeymapOverride(None)),
