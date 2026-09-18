@@ -210,9 +210,9 @@ checksum = "c08606f8c3cbf4ce6ec8e28fb0014a2c086708fe954eaa885384a6165172e7e8"
 
 [[package]]
 name = "base64"
-version = "0.22.1"
+version = "0.23.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
+checksum = "ac07cdecf99051d9a5238b80f35af32cdeba5b336e55d957b318b50137e18da5"
 
 [[package]]
 name = "baz-tree-sitter-traversal"
@@ -397,7 +397,7 @@ version = "7.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "958c5d6ecf1f214b4c2bbbbf6ab9523a864bd136dcf71a7e8904799acfe1ad47"
 dependencies = [
- "crossterm",
+ "crossterm 0.29.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "unicode-segmentation",
  "unicode-width",
 ]
@@ -505,11 +505,23 @@ version = "0.29.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d8b9f2e4c67f833b660cdb0a3523065869fb35570177239812ed4c905aeff87b"
 dependencies = [
+ "bitflags 2.9.1",
+ "crossterm_winapi",
+ "document-features",
+ "parking_lot",
+ "rustix 1.0.8",
+ "winapi",
+]
+
+[[package]]
+name = "crossterm"
+version = "0.29.0"
+source = "git+https://github.com/vshylov/crossterm.git?rev=0f086ab06bf6d577cdc0972d450d8a2c0dfe9363#0f086ab06bf6d577cdc0972d450d8a2c0dfe9363"
+dependencies = [
  "base64",
  "bitflags 2.9.1",
  "crossterm_winapi",
  "derive_more",
- "document-features",
  "filedescriptor",
  "mio",
  "parking_lot",
@@ -753,7 +765,7 @@ dependencies = [
 name = "event"
 version = "0.1.0"
 dependencies = [
- "crossterm",
+ "crossterm 0.29.0 (git+https://github.com/vshylov/crossterm.git?rev=0f086ab06bf6d577cdc0972d450d8a2c0dfe9363)",
  "pretty_assertions",
 ]
 
@@ -1373,7 +1385,7 @@ dependencies = [
  "convert_case 0.6.0",
  "crc32fast",
  "crossbeam-channel",
- "crossterm",
+ "crossterm 0.29.0 (git+https://github.com/vshylov/crossterm.git?rev=0f086ab06bf6d577cdc0972d450d8a2c0dfe9363)",
  "debounce",
  "diffy",
  "event",

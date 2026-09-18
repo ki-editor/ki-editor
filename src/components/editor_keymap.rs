@@ -215,12 +215,33 @@ impl KeyboardLayout {
     pub fn make_combined_key_event(&self, event: KeyEvent) -> CombinedKeyEvent {
         let qwerty = match event.code {
             KeyCode::Char(pressed_char) => {
-                let translated_char = self.translate_char_to_qwerty(pressed_char);
+                // Dead keys compose below the terminal (OS/XKB/IME layer), so
+                // the terminal only ever reports the final composed
+                // character — never "this physical slot was pressed". That
+                // breaks Ki's positional lookup below for any layout whose
+                // dead key composes to a character absent from the layout
+                // table (see https://github.com/ki-editor/ki-editor/issues/719).
+                //
+                // `base_layout_code`, when the terminal implements the Kitty
+                // Keyboard Protocol's `REPORT_ALTERNATE_KEYS` (see
+                // `src/frontend/crossterm.rs`), reports the physical PC-101
+                // slot independent of composition/layout — exactly the
+                // layout-agnostic signal positional dispatch needs. Prefer
+                // it over the literal composed character here, for
+                // normal-mode dispatch only; insert mode keeps inserting
+                // whatever text the terminal actually sends, since it never
+                // goes through this translation.
+                let effective_char = match event.base_layout_code {
+                    Some(KeyCode::Char(base_char)) => base_char,
+                    _ => pressed_char,
+                };
+                let translated_char = self.translate_char_to_qwerty(effective_char);
                 let shift = translated_char.is_uppercase();
                 KeyEvent {
                     code: KeyCode::Char(translated_char),
                     modifiers: event.modifiers.set_shift(shift),
                     kind: event.kind,
+                    base_layout_code: None,
                 }
             }
             _ => event,
@@ -329,4 +350,38 @@ pub fn possibly_alted(key_event: KeyEvent, is_alted: bool) -> KeyEvent {
 pub fn alted(mut key_event: KeyEvent) -> KeyEvent {
     key_event.modifiers.alt = true;
     key_event
+}
+
+#[cfg(test)]
+mod test_make_combined_key_event {
+    use super::*;
+
+    #[test]
+    fn prefers_composed_char_when_base_layout_code_is_absent() {
+        // No `base_layout_code` (e.g. terminal doesn't implement the Kitty
+        // Keyboard Protocol's `REPORT_ALTERNATE_KEYS`): fall back to the
+        // literal composed character, same as before this existed.
+        let layout = KeyboardLayout::new("QWERTY".to_string(), QWERTY);
+        let event = KeyEvent::pressed(KeyCode::Char('j'), event::KeyModifiers::default());
+        let combined = layout.make_combined_key_event(event);
+        assert_eq!(combined.translated.code, KeyCode::Char('j'));
+    }
+
+    #[test]
+    fn prefers_base_layout_code_over_composed_char_when_present() {
+        // Simulates a dead-key layout: the physical slot that QWERTY calls
+        // `j` composes, on this layout, to a character absent from the
+        // layout table (e.g. an apostrophe produced by a dead key). Without
+        // `base_layout_code`, positional dispatch for that slot would be
+        // impossible to look up. With it, the physical slot ('j') is used
+        // regardless of what character it actually composed to.
+        let layout = KeyboardLayout::new("QWERTY".to_string(), QWERTY);
+        let mut event =
+            KeyEvent::pressed(KeyCode::Char('\u{2019}'), event::KeyModifiers::default());
+        event.base_layout_code = Some(KeyCode::Char('j'));
+        let combined = layout.make_combined_key_event(event);
+        assert_eq!(combined.translated.code, KeyCode::Char('j'));
+        // The untranslated original event is passed through unchanged.
+        assert_eq!(combined.original.code, KeyCode::Char('\u{2019}'));
+    }
 }
