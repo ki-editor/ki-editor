@@ -113,7 +113,7 @@ fn doc_assets_generate_recipes() -> anyhow::Result<()> {
                                     buffer_contents_map: result.buffer_contents_map,
                                     translate_key: false,
                                     mode_after: result.mode,
-                                    last_event: events.last().copied().unwrap_or(key!("esc")),
+                                    last_event: events.last().cloned().unwrap_or(key!("esc")),
                                 })
                             })
                             .collect::<Result<Vec<_>, _>>()?;
@@ -130,8 +130,8 @@ fn doc_assets_generate_recipes() -> anyhow::Result<()> {
                                 translate_key: is_positional_key_event(
                                     mode_before,
                                     &CombinedKeyEvent {
-                                        original: step.last_event,
-                                        translated: step.last_event,
+                                        original: step.last_event.clone(),
+                                        translated: step.last_event.clone(),
                                     },
                                 ),
                                 ..step

@@ -23,6 +23,15 @@ impl Editor {
             .map(|keymap| keymap.get_dispatches())
         {
             Ok(dispatches)
+        } else if event.original.kind == KeyEventKind::Press && event.original.text.is_some() {
+            Ok(event
+                .original
+                .text
+                .unwrap()
+                .chars()
+                .map(|c| Dispatch::ToEditor(super::editor::DispatchEditor::InsertChar(c)))
+                .collect::<Vec<_>>()
+                .into())
         } else if let (KeyCode::Char(c), KeyEventKind::Press) =
             (event.original.code, event.original.kind)
         {
@@ -69,9 +78,50 @@ mod test_is_positional_key_event {
 
     fn combined(event: event::KeyEvent) -> CombinedKeyEvent {
         CombinedKeyEvent {
-            original: event,
+            original: event.clone(),
             translated: event,
         }
+    }
+
+    #[test]
+    fn committed_ergol_text_is_inserted_and_releases_are_silent() {
+        use crate::{
+            app::Dispatch,
+            components::editor::{DispatchEditor, Editor},
+            components::editor_keymap::{KeyboardLayout, QWERTY},
+        };
+        let editor = Editor::from_text(None, "");
+        let layout = KeyboardLayout::new("QWERTY".into(), QWERTY);
+        for text in ["à", "ä", "a\u{308}"] {
+            let mut input = key!("a");
+            input.text = Some(text.into());
+            let dispatches = editor
+                .handle_insert_mode(layout.make_combined_key_event(input.clone()))
+                .unwrap()
+                .into_vec();
+            assert_eq!(
+                dispatches,
+                text.chars()
+                    .map(|c| { Dispatch::ToEditor(DispatchEditor::InsertChar(c)) })
+                    .collect::<Vec<_>>()
+            );
+            input.kind = event::KeyEventKind::Release;
+            assert!(editor
+                .handle_insert_mode(layout.make_combined_key_event(input))
+                .unwrap()
+                .into_vec()
+                .is_empty());
+        }
+        let mut star = event::KeyEvent::pressed(
+            crossterm::event::KeyCode::Modifier(crossterm::event::ModifierKeyCode::IsoLevel5Shift),
+            Default::default(),
+        );
+        star.base_layout_code = Some(crossterm::event::KeyCode::Char('o'));
+        assert!(editor
+            .handle_insert_mode(layout.make_combined_key_event(star))
+            .unwrap()
+            .into_vec()
+            .is_empty());
     }
 
     #[test]

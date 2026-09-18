@@ -1,0 +1,67 @@
+//! Demonstrates how to read events asynchronously with smol.
+//!
+//! cargo run --features="event-stream" --example event-stream-smol
+
+use std::{io::stdout, time::Duration};
+
+use futures::{StreamExt, future::FutureExt, select};
+use futures_timer::Delay;
+
+use crossterm::{
+    cursor::position,
+    event::{DisableMouseCapture, EnableMouseCapture, Event, EventStream, KeyCode},
+    execute,
+    terminal::{disable_raw_mode, enable_raw_mode},
+};
+
+const HELP: &str = r#"EventStream based on futures_util::stream::Stream with smol
+ - Keyboard, mouse and terminal resize events enabled
+ - Prints "." every second if there's no event
+ - Hit "c" to print current cursor position
+ - Use Esc to quit
+"#;
+
+async fn print_events() {
+    let mut reader = EventStream::new();
+
+    loop {
+        let mut delay = Delay::new(Duration::from_millis(1_000)).fuse();
+        let mut event = reader.next().fuse();
+
+        select! {
+            _ = delay => { println!(".\r"); },
+            maybe_event = event => {
+                match maybe_event {
+                    Some(Ok(event)) => {
+                        println!("Event::{event:?}\r");
+
+                        if event == Event::Key(KeyCode::Char('c').into()) {
+                            println!("Cursor position: {:?}\r", position());
+                        }
+
+                        if event == Event::Key(KeyCode::Esc.into()) {
+                            break;
+                        }
+                    }
+                    Some(Err(e)) => println!("Error: {e:?}\r"),
+                    None => break,
+                }
+            }
+        };
+    }
+}
+
+fn main() -> std::io::Result<()> {
+    println!("{HELP}");
+
+    enable_raw_mode()?;
+
+    let mut stdout = stdout();
+    execute!(stdout, EnableMouseCapture)?;
+
+    smol::block_on(print_events());
+
+    execute!(stdout, DisableMouseCapture)?;
+
+    disable_raw_mode()
+}

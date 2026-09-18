@@ -450,7 +450,7 @@ impl<T: Frontend> App<T> {
                         let combined_key_event = self
                             .context
                             .keyboard_layout()
-                            .make_combined_key_event(key_event);
+                            .make_combined_key_event(key_event.clone());
                         match key_event.kind {
                             KeyEventKind::Press => {
                                 keymap_override.handle_press(&self.context, combined_key_event)

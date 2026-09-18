@@ -79,7 +79,9 @@ impl Component for SuggestiveEditor {
         context: &Context,
         event: KeyEvent,
     ) -> anyhow::Result<Dispatches> {
-        let combined_key_event = context.keyboard_layout().make_combined_key_event(event);
+        let combined_key_event = context
+            .keyboard_layout()
+            .make_combined_key_event(event.clone());
         if self.editor.mode == Mode::Insert && self.completion_dropdown_opened() {
             if let Some(keymap) = completion_item_keymap().get(&combined_key_event) {
                 log::info!("dispatches = {:?}", keymap.get_dispatches());
@@ -98,7 +100,7 @@ impl Component for SuggestiveEditor {
         // relevant completions.
         Ok(self
             .editor
-            .handle_key_event(context, event)?
+            .handle_key_event(context, event.clone())?
             .chain(match event {
                 key!("esc") => [
                     Dispatch::CloseDropdown,

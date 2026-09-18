@@ -77,7 +77,7 @@ impl ReleaseKey {
     }
 
     pub fn key_event(&self) -> KeyEvent {
-        self.key_event
+        self.key_event.clone()
     }
 
     pub fn on_tap(&self) -> Option<&OnTap> {
@@ -210,7 +210,7 @@ impl Keybinding {
         }: MomentaryLayer,
     ) -> Keybinding {
         Keybinding {
-            event,
+            event: event.clone(),
             action: KeybindingAction {
                 name: name.into(),
                 documentation: None,
@@ -228,7 +228,7 @@ impl Keybinding {
         }: MomentaryLayer,
     ) -> Keybinding {
         Keybinding {
-            event,
+            event: event.clone(),
             action: KeybindingAction {
                 name: name.into(),
                 documentation: None,
@@ -299,7 +299,7 @@ impl KeymapLegend {
             .keymap()
             .0
             .into_iter()
-            .duplicates_by(|keymap| keymap.event)
+            .duplicates_by(|keymap| keymap.event.clone())
             .collect_vec();
 
         if !duplicates.is_empty() {
