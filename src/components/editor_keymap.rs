@@ -66,8 +66,29 @@ pub const QWERTY_EVENT: [[KeyEvent; 10]; 3] = [
     ],
 ];
 
+/// German QWERTZ (ISO), which is QWERTY with Y and Z swapped,
+/// `ö` in place of `;`, and `-` in place of `/`.
+/// Refer https://en.wikipedia.org/wiki/QWERTZ
+pub const QWERTZ: KeyboardLayoutKeys = [
+    ['q', 'w', 'e', 'r', 't', 'z', 'u', 'i', 'o', 'p'],
+    ['a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', 'ö'],
+    ['y', 'x', 'c', 'v', 'b', 'n', 'm', ',', '.', '-'],
+];
+
+/// Unlike QWERTY, shifting `,` `.` `-` on QWERTZ yields `;` `:` `_`.
+const QWERTZ_SHIFTED: KeyboardLayoutKeys = [
+    ['Q', 'W', 'E', 'R', 'T', 'Z', 'U', 'I', 'O', 'P'],
+    ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', 'Ö'],
+    ['Y', 'X', 'C', 'V', 'B', 'N', 'M', ';', ':', '_'],
+];
+
+/// Shifted keys of built-in layouts whose shifted characters
+/// cannot be derived via [`shifted_char`].
+const BUILTIN_SHIFTED_KEYS_OVERRIDES: &[(&str, KeyboardLayoutKeys)] = &[("QWERTZ", QWERTZ_SHIFTED)];
+
 pub const BUILTIN_KEYBOARD_LAYOUTS: &[(&str, KeyboardLayoutKeys)] = &[
     ("QWERTY", QWERTY),
+    ("QWERTZ", QWERTZ),
     (
         "DVORAK",
         [
@@ -163,13 +184,13 @@ pub fn builtin_layout_map() -> HashMap<String, KeyboardLayout> {
     BUILTIN_KEYBOARD_LAYOUTS
         .iter()
         .map(|(name, keys)| {
-            (
-                name.to_string(),
-                KeyboardLayout {
-                    name: name.to_string(),
-                    keys: *keys,
-                },
-            )
+            let layout = KeyboardLayout::new(name.to_string(), *keys);
+            let layout = BUILTIN_SHIFTED_KEYS_OVERRIDES
+                .iter()
+                .find(|(override_name, _)| override_name == name)
+                .map(|(_, shifted_keys)| layout.clone().with_shifted_keys(*shifted_keys))
+                .unwrap_or(layout);
+            (name.to_string(), layout)
         })
         .collect()
 }
@@ -184,11 +205,24 @@ pub struct CombinedKeyEvent {
 pub struct KeyboardLayout {
     name: String,
     keys: KeyboardLayoutKeys,
+    /// The characters produced when each key is pressed with Shift.
+    shifted_keys: KeyboardLayoutKeys,
 }
 
 impl KeyboardLayout {
     pub fn new(name: String, keys: KeyboardLayoutKeys) -> Self {
-        Self { name, keys }
+        Self {
+            name,
+            keys,
+            shifted_keys: keys.map(|row| row.map(shifted_char)),
+        }
+    }
+
+    fn with_shifted_keys(self, shifted_keys: KeyboardLayoutKeys) -> Self {
+        Self {
+            shifted_keys,
+            ..self
+        }
     }
     pub fn name(&self) -> &str {
         &self.name
@@ -199,15 +233,16 @@ impl KeyboardLayout {
     }
 
     pub fn translate_char_to_qwerty(&self, char_to_translate: char) -> char {
-        let zipped_chars = || {
-            self.get_keyboard_layout()
-                .iter()
-                .flatten()
-                .zip(QWERTY.iter().flatten())
-                .map(|(a, b)| (*a, *b))
-        };
-        zipped_chars()
-            .chain(zipped_chars().map(|(this, qwerty)| (shifted_char(this), shifted_char(qwerty))))
+        let unshifted = self.keys.iter().flatten().zip(QWERTY.iter().flatten());
+        let shifted = self
+            .shifted_keys
+            .iter()
+            .flatten()
+            .zip(QWERTY.iter().flatten())
+            .map(|(this, qwerty)| (this, shifted_char(*qwerty)));
+        unshifted
+            .map(|(this, qwerty)| (*this, *qwerty))
+            .chain(shifted.map(|(this, qwerty)| (*this, qwerty)))
             .find_map(|(this, qwerty)| (this == char_to_translate).then_some(qwerty))
             .unwrap_or(char_to_translate)
     }
@@ -329,4 +364,36 @@ pub fn possibly_alted(key_event: KeyEvent, is_alted: bool) -> KeyEvent {
 pub fn alted(mut key_event: KeyEvent) -> KeyEvent {
     key_event.modifiers.alt = true;
     key_event
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn qwertz_translates_to_same_physical_keys_as_qwerty() {
+        let qwertz = &builtin_layout_map()["QWERTZ"];
+        [
+            ('z', 'y'),
+            ('y', 'z'),
+            ('ö', ';'),
+            ('-', '/'),
+            ('Z', 'Y'),
+            ('Y', 'Z'),
+            ('Ö', ':'),
+            (';', '<'),
+            (':', '>'),
+            ('_', '?'),
+            ('a', 'a'),
+            (',', ','),
+        ]
+        .into_iter()
+        .for_each(|(pressed, expected)| {
+            assert_eq!(
+                qwertz.translate_char_to_qwerty(pressed),
+                expected,
+                "pressed {pressed:?}"
+            )
+        });
+    }
 }
