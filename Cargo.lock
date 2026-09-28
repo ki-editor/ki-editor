@@ -2934,7 +2934,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-gherkin"
 version = "0.1.0"
-source = "git+https://github.com/binhtddev/tree-sitter-gherkin?rev=1a709ae#1a709aebeecbe81bd70dfd6ea784894844be1511"
+source = "git+https://github.com/binhtddev/tree-sitter-gherkin?rev=6bd665dd7d4159c63c0b7a9f69d784f3315328c1#6bd665dd7d4159c63c0b7a9f69d784f3315328c1"
 dependencies = [
  "cc",
  "tree-sitter-language",
