@@ -393,7 +393,7 @@ mod tests {
                 qwertz.translate_char_to_qwerty(pressed),
                 expected,
                 "pressed {pressed:?}"
-            )
+            );
         });
     }
 }
