@@ -1,0 +1,9 @@
+# TEMPORARY: verify the release build (incl. Windows/MSVC) on this PR. Remove before merging.
+name: temp-pr-release-build
+on:
+  pull_request:
+    branches: [master]
+
+jobs:
+  build:
+    uses: ./.github/workflows/release-common.yml
