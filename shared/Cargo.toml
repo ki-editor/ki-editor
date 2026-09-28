@@ -83,7 +83,10 @@ arborium-rescript = "2.18.1"
 arborium-typst = "2.18.1"
 tree-sitter-gitcommit = "0.5.0"
 tree-sitter-php = "0.24.2"
-tree-sitter-gherkin = { git = "https://github.com/binhtddev/tree-sitter-gherkin", rev = "1a709ae" }
+# Fork of binhtddev/tree-sitter-gherkin with an MSVC build fix (C2099 in
+# dialect.c). Switch back to upstream once this is merged:
+# https://github.com/binhtddev/tree-sitter-gherkin/pull/18
+tree-sitter-gherkin = { git = "https://github.com/wongjiahau/tree-sitter-gherkin", rev = "835be7944941be2f671b8ffadfdb9041efc1b619" }
 tree-sitter-java = "0.23.5"
 tree-sitter-wit = "0.2.0"
 
