@@ -413,6 +413,14 @@ impl Buffer {
         Ok(CharIndex(self.rope.try_line_to_char(line_index)?))
     }
 
+    /// Returns the `CharIndex` of the first non-whitespace character of
+    /// `line_index`, or the end of the line if it is entirely whitespace.
+    pub fn first_non_whitespace_char_index(&self, line_index: usize) -> anyhow::Result<CharIndex> {
+        let line = self.get_line_by_line_index(line_index)?;
+        let indentation = line.chars().take_while(|c| c.is_whitespace()).count();
+        Ok(self.line_to_char(line_index)? + indentation)
+    }
+
     pub fn char_to_byte(&self, char_index: CharIndex) -> anyhow::Result<usize> {
         Ok(self.rope.try_char_to_byte(char_index.0)?)
     }
