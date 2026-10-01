@@ -287,6 +287,18 @@
                         }
                     ]
                 },
+                "injected_languages": {
+                    "description": "Language configuration keys needed by the injection query.",
+                    "type": "array",
+                    "default": [],
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "injection_query": {
+                    "description": "Tree-sitter query describing embedded language regions.",
+                    "type": ["string", "null"]
+                },
                 "line_comment_prefix": {
                     "type": ["string", "null"],
                     "examples": ["//"]

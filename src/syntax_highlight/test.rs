@@ -9,6 +9,31 @@ use crate::{
 };
 
 #[test]
+fn highlights_configured_injections() -> anyhow::Result<()> {
+    let source = r##"fn main() { let data = r#"{"answer": 42}"#; }"##;
+    let (language, errors) = shared::language::Language::extract_lenient(
+        &serde_json::json!({
+            "injection_query": "((raw_string_literal (string_content) @injection.content) (#set! injection.language \"json\"))",
+            "injected_languages": ["json"]
+        }),
+        &crate::config::from_extension("rs").unwrap(),
+    );
+    assert!(errors.is_empty(), "{errors:?}");
+    let spans = super::HighlightConfigs::new().highlight(
+        language,
+        source,
+        &std::sync::atomic::AtomicUsize::new(0),
+    )?;
+    let start = source.find("42").unwrap();
+    let number = StyleKey::Syntax(IndexedHighlightGroup::from_str("number").unwrap());
+    assert!(spans
+        .0
+        .iter()
+        .any(|span| span.style_key == number && span.byte_range == (start..start + 2)));
+    Ok(())
+}
+
+#[test]
 fn syntax_highlight_json() -> anyhow::Result<()> {
     let options = RunTestOptions {
         enable_lsp: false,

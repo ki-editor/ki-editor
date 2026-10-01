@@ -54,6 +54,11 @@ pub struct Language {
     pub(crate) lsp_language_id: Option<LanguageId>,
     pub(crate) lsp_command: Option<LspCommand>,
     pub(crate) tree_sitter_grammar_config: Option<GrammarConfig>,
+    /// Tree-sitter query describing embedded language regions.
+    pub(crate) injection_query: Option<String>,
+    /// Language configuration keys needed by the injection query.
+    #[serde(default)]
+    pub(crate) injected_languages: Vec<String>,
     /// The formatter command will receive the content from STDIN
     /// and is expected to return the formatted output to STDOUT.
     pub(crate) formatter: Option<Command>,
@@ -326,6 +331,8 @@ impl Language {
             lsp_language_id: None,
             lsp_command: None,
             tree_sitter_grammar_config: None,
+            injection_query: None,
+            injected_languages: Vec::new(),
             formatter: None,
             line_comment_prefix: None,
             block_comment_affixes: None,
@@ -390,6 +397,10 @@ impl Language {
         let (lsp_command, lsp_command_error) = extract_field!(lsp_command, "lsp_command");
         let (tree_sitter_grammar_config, tree_sitter_grammar_config_error) =
             extract_field!(tree_sitter_grammar_config, "tree_sitter_grammar_config");
+        let (injection_query, injection_query_error) =
+            extract_field!(injection_query, "injection_query");
+        let (injected_languages, injected_languages_error) =
+            extract_field!(injected_languages, "injected_languages");
         let (formatter, formatter_error) = extract_field!(formatter, "formatter");
         let (line_comment_prefix, line_comment_prefix_error) =
             extract_field!(line_comment_prefix, "line_comment_prefix");
@@ -402,6 +413,8 @@ impl Language {
             "lsp_language_id",
             "lsp_command",
             "tree_sitter_grammar_config",
+            "injection_query",
+            "injected_languages",
             "formatter",
             "line_comment_prefix",
             "block_comment_affixes",
@@ -417,6 +430,8 @@ impl Language {
             lsp_language_id,
             lsp_command,
             tree_sitter_grammar_config,
+            injection_query,
+            injected_languages,
             formatter,
             line_comment_prefix,
             block_comment_affixes,
@@ -428,6 +443,8 @@ impl Language {
             .chain(lsp_language_id_error)
             .chain(lsp_command_error)
             .chain(tree_sitter_grammar_config_error)
+            .chain(injection_query_error)
+            .chain(injected_languages_error)
             .chain(formatter_error)
             .chain(line_comment_prefix_error)
             .chain(block_comment_affixes_error)
@@ -562,8 +579,12 @@ impl Language {
         None
     }
 
-    pub fn injection_query(&self) -> Option<&'static str> {
-        None
+    pub fn injection_query(&self) -> Option<&str> {
+        self.injection_query.as_deref()
+    }
+
+    pub fn injected_language_ids(&self) -> impl Iterator<Item = &str> {
+        self.injected_languages.iter().map(String::as_str)
     }
 
     pub fn lsp_process_command(&self) -> Option<ProcessCommand> {
