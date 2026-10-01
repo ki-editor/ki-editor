@@ -7,6 +7,7 @@ use crate::history::History;
 use crate::lsp::diagnostic::Diagnostic;
 use crate::selection::Selection;
 use crate::selection_mode::naming_convention_agnostic::NamingConventionAgnostic;
+use crate::syntax_highlight::language_from_injection_name;
 use crate::syntax_highlight::SyntaxHighlightRequestBatchId;
 use crate::{
     char_index_range::CharIndexRange,
@@ -25,10 +26,10 @@ use regex::Regex;
 use ropey::Rope;
 use shared::process_command::SpawnCommandError;
 use shared::{absolute_path::AbsolutePath, language::Language};
-use std::ops::Range;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::SystemTime;
-use tree_sitter::{Node, Parser, Tree};
+use std::{cell::RefCell, ops::Range};
+use tree_sitter::{Node, Parser, Query, QueryCursor, StreamingIterator, Tree};
 #[cfg(test)]
 use tree_sitter_traversal2::{traverse, Order};
 
@@ -61,6 +62,8 @@ pub struct Buffer {
 
     /// We need to cache this because its computation is expensive.
     cached_hunks: Option<CachedHunks>,
+    cached_injected_syntax_trees: RefCell<Option<CachedInjectedSyntaxTrees>>,
+    content_revision: usize,
 
     /// Timestamp of the file when we last read/wrote it
     last_synced_time: Option<SystemTime>,
@@ -73,6 +76,23 @@ pub struct Buffer {
 struct CachedHunks {
     hunks: Vec<SimpleHunk>,
     file_content: Rope,
+}
+
+#[derive(Clone)]
+struct CachedInjectedSyntaxTrees {
+    content_revision: usize,
+    trees: Vec<InjectedSyntaxTree>,
+}
+
+#[derive(Clone)]
+struct InjectedSyntaxTree {
+    byte_range: Range<usize>,
+    tree: Tree,
+}
+
+pub(crate) struct SyntaxTreeLayer {
+    pub(crate) tree: Tree,
+    pub(crate) is_injected: bool,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
@@ -114,6 +134,8 @@ impl Buffer {
             redo_stack: Vec::default(),
             batch_id: SyntaxHighlightRequestBatchId::default(),
             cached_hunks: None,
+            cached_injected_syntax_trees: RefCell::new(None),
+            content_revision: 0,
             last_synced_time: None,
             #[cfg(test)]
             tree_reparsed_count: 0,
@@ -353,6 +375,7 @@ impl Buffer {
 
     pub fn update(&mut self, text: &str) -> Dispatches {
         (self.rope, self.tree) = Self::get_rope_and_tree(self.treesitter_language.clone(), text);
+        self.content_revision = self.content_revision.wrapping_add(1);
         self.flag_as_modified()
     }
 
@@ -494,39 +517,7 @@ impl Buffer {
         let Some(tree) = self.tree.as_ref() else {
             return Ok(None);
         };
-        let range = selection.range();
-        let start = self.char_to_byte(range.start)?;
-        let (start, end) = if get_largest_end {
-            (start, start + 1)
-        } else {
-            (start, self.char_to_byte(range.end)?)
-        };
-        let node = tree
-            .root_node()
-            .descendant_for_byte_range(start, end)
-            .unwrap_or_else(|| tree.root_node());
-
-        // Get the most ancestral node of this range
-        //
-        // This is because sometimes the parent of a node can have the same range as the node
-        // itself.
-        //
-        // If we don't get the most ancestral node, then movements like "go to next sibling" will
-        // not work as expected.
-        let mut result = node;
-        let root_node_id = tree.root_node().id();
-        while let Some(parent) = result.parent() {
-            if parent.start_byte() == node.start_byte()
-                && root_node_id != parent.id()
-                && (get_largest_end || node.end_byte() == parent.end_byte())
-            {
-                result = parent;
-            } else {
-                return Ok(Some(result));
-            }
-        }
-
-        Ok(Some(node))
+        self.get_current_node_in_tree(tree, selection, get_largest_end)
     }
 
     #[cfg(test)]
@@ -658,6 +649,7 @@ impl Buffer {
         self.rope.try_remove(edit.range.start.0..edit.end().0)?;
         self.rope
             .try_insert(edit.range.start.0, edit.new.to_string().as_str())?;
+        self.content_revision = self.content_revision.wrapping_add(1);
 
         let dispatches = self.flag_as_modified();
 
@@ -874,6 +866,7 @@ impl Buffer {
 
     pub fn set_language(&mut self, language: Language) -> anyhow::Result<()> {
         self.language = Some(language);
+        self.cached_injected_syntax_trees.replace(None);
         self.reparse_tree()
     }
 
@@ -888,6 +881,168 @@ impl Buffer {
 
     pub fn tree(&self) -> Option<&Tree> {
         self.tree.as_ref()
+    }
+
+    pub(crate) fn syntax_tree_layer_for_selection(
+        &self,
+        selection: &Selection,
+    ) -> anyhow::Result<Option<SyntaxTreeLayer>> {
+        let cursor_byte = self.char_to_byte(selection.range().start)?;
+        let end_byte = self.char_to_byte(selection.range().end)?;
+        if let Some(injected_tree) = self
+            .injected_syntax_trees()?
+            .into_iter()
+            .filter(|tree| {
+                tree.byte_range.contains(&cursor_byte) && end_byte <= tree.byte_range.end
+            })
+            .min_by_key(|tree| tree.byte_range.len())
+        {
+            return Ok(Some(SyntaxTreeLayer {
+                tree: injected_tree.tree,
+                is_injected: true,
+            }));
+        }
+
+        Ok(self.tree.clone().map(|tree| SyntaxTreeLayer {
+            tree,
+            is_injected: false,
+        }))
+    }
+
+    pub(crate) fn host_syntax_tree_layer(&self) -> Option<SyntaxTreeLayer> {
+        self.tree.clone().map(|tree| SyntaxTreeLayer {
+            tree,
+            is_injected: false,
+        })
+    }
+
+    pub(crate) fn get_current_node_in_tree<'a>(
+        &'a self,
+        tree: &'a Tree,
+        selection: &Selection,
+        get_largest_end: bool,
+    ) -> anyhow::Result<Option<Node<'a>>> {
+        let range = selection.range();
+        let start = self.char_to_byte(range.start)?;
+        let (start, end) = if get_largest_end {
+            (start, start + 1)
+        } else {
+            (start, self.char_to_byte(range.end)?)
+        };
+        let node = tree
+            .root_node()
+            .descendant_for_byte_range(start, end)
+            .unwrap_or_else(|| tree.root_node());
+
+        let root_node_id = tree.root_node().id();
+        // Prefer the most ancestral node with the same range, so sibling
+        // movements do not get trapped in an identically sized child.
+        Ok(std::iter::successors(Some(node), |node| node.parent())
+            .take_while(|parent| {
+                parent.id() == node.id()
+                    || (parent.start_byte() == node.start_byte()
+                        && root_node_id != parent.id()
+                        && (get_largest_end || node.end_byte() == parent.end_byte()))
+            })
+            .last())
+    }
+
+    fn injected_syntax_trees(&self) -> anyhow::Result<Vec<InjectedSyntaxTree>> {
+        if let Some(cache) = self.cached_injected_syntax_trees.borrow().as_ref() {
+            if cache.content_revision == self.content_revision {
+                return Ok(cache.trees.clone());
+            }
+        }
+
+        let trees = self.compute_injected_syntax_trees()?;
+        self.cached_injected_syntax_trees
+            .replace(Some(CachedInjectedSyntaxTrees {
+                content_revision: self.content_revision,
+                trees: trees.clone(),
+            }));
+        Ok(trees)
+    }
+
+    fn compute_injected_syntax_trees(&self) -> anyhow::Result<Vec<InjectedSyntaxTree>> {
+        let (Some(host_tree), Some(grammar), Some(query)) = (
+            self.tree.as_ref(),
+            self.treesitter_language.as_ref(),
+            self.language.as_ref().and_then(Language::injection_query),
+        ) else {
+            return Ok(Vec::new());
+        };
+        let query = Query::new(grammar, query)?;
+        let Some(content_capture) = query.capture_index_for_name("injection.content") else {
+            return Ok(Vec::new());
+        };
+        let language_capture = query.capture_index_for_name("injection.language");
+        let source = self.rope.to_string();
+        let mut cursor = QueryCursor::new();
+        let mut matches = cursor.matches(&query, host_tree.root_node(), source.as_bytes());
+        let regions = std::iter::from_fn(|| {
+            matches
+                .next()
+                .map(|m| (m.pattern_index, m.captures.to_vec()))
+        })
+        .flat_map(|(pattern, captures)| {
+            let language = captures
+                .iter()
+                .find(|capture| Some(capture.index) == language_capture)
+                .and_then(|capture| capture.node.utf8_text(source.as_bytes()).ok())
+                .or_else(|| {
+                    query
+                        .property_settings(pattern)
+                        .iter()
+                        .find(|property| property.key.as_ref() == "injection.language")
+                        .and_then(|property| property.value.as_deref())
+                })
+                .map(str::to_string);
+            captures.into_iter().filter_map(move |capture| {
+                (capture.index == content_capture && !capture.node.byte_range().is_empty())
+                    .then(|| language.clone().map(|language| (capture.node, language)))
+                    .flatten()
+            })
+        })
+        // A more specific later pattern overrides an earlier default for
+        // the same region, matching tree-sitter highlight query ordering.
+        .fold(
+            std::collections::BTreeMap::new(),
+            |mut regions, (node, language)| {
+                regions.insert((node.start_byte(), node.end_byte()), (node, language));
+                regions
+            },
+        );
+        regions
+            .into_values()
+            .map(|(node, language)| {
+                self.parse_injected_tree(&language, node, &source)
+                    .map(|tree| {
+                        tree.map(|tree| InjectedSyntaxTree {
+                            byte_range: node.byte_range(),
+                            tree,
+                        })
+                    })
+            })
+            .collect::<anyhow::Result<Vec<_>>>()
+            .map(|trees| trees.into_iter().flatten().collect())
+    }
+
+    fn parse_injected_tree(
+        &self,
+        language_name: &str,
+        raw_text: Node,
+        source: &str,
+    ) -> anyhow::Result<Option<Tree>> {
+        let Some(language) = language_from_injection_name(language_name) else {
+            return Ok(None);
+        };
+        let Some(tree_sitter_language) = language.tree_sitter_language() else {
+            return Ok(None);
+        };
+        let mut parser = Parser::new();
+        parser.set_language(&tree_sitter_language)?;
+        parser.set_included_ranges(&[raw_text.range()])?;
+        Ok(parser.parse(source, None))
     }
 
     pub fn line_to_byte(&self, line_index: usize) -> anyhow::Result<usize> {

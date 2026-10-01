@@ -10,14 +10,16 @@ impl IterBasedSelectionMode for SyntaxToken {
         params: &super::SelectionModeParams<'a>,
     ) -> anyhow::Result<Box<dyn Iterator<Item = ByteRange> + 'a>> {
         let buffer = params.buffer;
-        let tree = buffer
-            .tree()
+        let layer = buffer
+            .syntax_tree_layer_for_selection(params.current_selection)?
             .ok_or(anyhow::anyhow!("Unable to find Treesitter language"))?;
-        Ok(Box::new(
+        let tree = layer.tree;
+        let ranges =
             tree_sitter_traversal2::traverse(tree.walk(), tree_sitter_traversal2::Order::Post)
                 .filter(|node| node.child_count() == 0)
-                .map(|node| ByteRange::new(node.byte_range())),
-        ))
+                .map(|node| ByteRange::new(node.byte_range()))
+                .collect::<Vec<_>>();
+        Ok(Box::new(ranges.into_iter()))
     }
 
     fn expand(

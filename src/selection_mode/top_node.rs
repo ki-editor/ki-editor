@@ -9,11 +9,14 @@ impl IterBasedSelectionMode for TopNode {
         params: &super::SelectionModeParams<'a>,
     ) -> anyhow::Result<Box<dyn Iterator<Item = ByteRange> + 'a>> {
         let buffer = params.buffer;
-        let tree = buffer.tree().ok_or(anyhow::anyhow!(
-            "TopNode::iter: cannot find Treesitter language"
-        ))?;
+        let layer = buffer
+            .syntax_tree_layer_for_selection(params.current_selection)?
+            .ok_or(anyhow::anyhow!(
+                "TopNode::iter: cannot find Treesitter language"
+            ))?;
+        let tree = layer.tree;
         let root_node_id = tree.root_node().id();
-        Ok(Box::new(
+        let ranges =
             tree_sitter_traversal2::traverse(tree.walk(), tree_sitter_traversal2::Order::Pre)
                 .filter(|node| node.id() != root_node_id)
                 .chunk_by(|node| node.byte_range().start)
@@ -27,9 +30,8 @@ impl IterBasedSelectionMode for TopNode {
                             .byte_range(),
                     )
                 })
-                .collect_vec()
-                .into_iter(),
-        ))
+                .collect_vec();
+        Ok(Box::new(ranges.into_iter()))
     }
 }
 
