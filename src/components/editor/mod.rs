@@ -2666,8 +2666,23 @@ impl Editor {
             } else {
                 CharIndexRange::from(match direction {
                     Direction::Start => {
-                        let start = other_word_range.end;
                         let end = current_word.range().end;
+                        let current_line =
+                            self.buffer().char_to_line(current_word.range().start)?;
+                        // If the previous word is on a different line, stop
+                        // the deletion at the first non-whitespace character
+                        // of the current line instead of crossing the
+                        // newline, so indentation is preserved and lines are
+                        // not merged (matching Vim's behaviour).
+                        let start =
+                            if self.buffer().char_to_line(other_word_range.end)? != current_line {
+                                other_word_range.end.max(
+                                    self.buffer()
+                                        .first_non_whitespace_char_index(current_line)?,
+                                )
+                            } else {
+                                other_word_range.end
+                            };
                         start..end
                     }
                     Direction::End => {

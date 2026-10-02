@@ -292,6 +292,26 @@ fn test_delete_word_long() -> anyhow::Result<()> {
 }
 
 #[test]
+fn test_delete_word_backward_stops_at_indentation_instead_of_merging_lines() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("fn foo() {\n    bar\n}".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+            // Move to the "    bar" line
+            Editor(MoveSelection(Down)),
+            Editor(EnterInsertMode(Direction::End)),
+            Editor(DeleteWordBackward { short: false }),
+            Expect(CurrentComponentContent("fn foo() {\n    \n}")),
+        ])
+    })
+}
+
+#[test]
 fn test_delete_extended_selection_forward() -> anyhow::Result<()> {
     execute_test(move |s| {
         Box::new([
