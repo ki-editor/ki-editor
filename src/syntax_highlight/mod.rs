@@ -38,13 +38,20 @@ impl GetHighlightConfig for Language {
         let Some(highlights_query) = &self.highlight_query() else {
             return Ok(None);
         };
-        let mut config = HighlightConfiguration::new(
-            tree_sitter_language,
-            "highlight".to_string(),
-            highlights_query,
-            self.injection_query().unwrap_or_default(),
-            self.locals_query().unwrap_or_default(),
-        )?;
+        let new_config = |injection_query: &str| {
+            HighlightConfiguration::new(
+                tree_sitter_language.clone(),
+                "highlight".to_string(),
+                highlights_query,
+                injection_query,
+                self.locals_query().unwrap_or_default(),
+            )
+        };
+        // A malformed injection query must not disable highlighting of the host.
+        let mut config = match self.injection_query() {
+            Some(injection_query) => new_config(injection_query).or_else(|_| new_config(""))?,
+            None => new_config("")?,
+        };
 
         config.configure(crate::themes::highlight_names().as_slice());
 
@@ -270,7 +277,10 @@ impl HighlightConfigs {
         language
             .injected_language_ids()
             .filter_map(language_from_injection_name)
-            .try_for_each(|language| self.ensure_highlight_config(language).map(|_| ()))?;
+            // A broken injected language must not disable highlighting of the host.
+            .for_each(|language| {
+                let _ = self.ensure_highlight_config(language);
+            });
 
         let configs = &self.0;
         let config = configs.get(&grammar_id).ok_or_else(|| {

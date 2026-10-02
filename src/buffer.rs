@@ -917,6 +917,33 @@ impl Buffer {
         }))
     }
 
+    /// Collect ranges from the host tree and every injected tree. Host ranges
+    /// that lie within an injected region are replaced by the injected tree's
+    /// ranges, so movement can cross region boundaries.
+    pub(crate) fn collect_ranges_across_layers(
+        &self,
+        collect: impl Fn(&Tree) -> Vec<Range<usize>>,
+    ) -> anyhow::Result<Option<Vec<Range<usize>>>> {
+        let Some(host_tree) = self.tree.as_ref() else {
+            return Ok(None);
+        };
+        let injected_trees = self.injected_syntax_trees()?;
+        let host_ranges = collect(host_tree).into_iter().filter(|range| {
+            !injected_trees.iter().any(|injected| {
+                injected.byte_range.start <= range.start && range.end <= injected.byte_range.end
+            })
+        });
+        let injected_ranges = injected_trees
+            .iter()
+            .flat_map(|injected| collect(&injected.tree));
+        Ok(Some(
+            host_ranges
+                .chain(injected_ranges)
+                .sorted_by_key(|range| range.start)
+                .collect(),
+        ))
+    }
+
     pub(crate) fn host_syntax_tree_layer(&self) -> Option<SyntaxTreeLayer> {
         self.tree.clone().map(|tree| SyntaxTreeLayer {
             tree,
@@ -979,7 +1006,11 @@ impl Buffer {
         ) else {
             return Ok(Vec::new());
         };
-        let query = Query::new(grammar, query)?;
+        // A malformed user-supplied injection query must not break the buffer:
+        // fall back to the host tree only.
+        let Ok(query) = Query::new(grammar, query) else {
+            return Ok(Vec::new());
+        };
         let Some(content_capture) = query.capture_index_for_name("injection.content") else {
             return Ok(Vec::new());
         };
