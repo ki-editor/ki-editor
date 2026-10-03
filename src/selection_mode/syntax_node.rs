@@ -18,31 +18,30 @@ impl IterBasedSelectionMode for SyntaxNode {
     ) -> anyhow::Result<Box<dyn Iterator<Item = super::ByteRange> + 'a>> {
         let buffer = params.buffer;
         let current_selection = params.current_selection;
+        let layer = buffer
+            .syntax_tree_layer_for_selection(current_selection)?
+            .ok_or(anyhow::anyhow!(
+                "SyntaxNode::iter.get_current_node: Cannot find Treesitter language"
+            ))?;
         let node = buffer
-            .get_current_node(current_selection, false)?
+            .get_current_node_in_tree(&layer.tree, current_selection, false)?
             .ok_or(anyhow::anyhow!(
                 "SyntaxNode::iter.get_current_node: Cannot find Treesitter language"
             ))?;
         let Some(node) = node.parent() else {
             return Ok(Box::new(std::iter::empty()));
         };
-        let mut cursor = params
-            .buffer
-            .tree()
-            .ok_or(anyhow::anyhow!(
-                "SyntaxNode::iter.tree: Cannot find Treesitter language"
-            ))?
-            .walk();
+        let mut cursor = layer.tree.walk();
         let vector = if self.coarse {
             node.named_children(&mut cursor).collect_vec()
         } else {
             node.children(&mut cursor).collect_vec()
         };
-        Ok(Box::new(
-            vector
-                .into_iter()
-                .map(|node| ByteRange::new(node.byte_range())),
-        ))
+        let ranges = vector
+            .into_iter()
+            .map(|node| ByteRange::new(node.byte_range()))
+            .collect_vec();
+        Ok(Box::new(ranges.into_iter()))
     }
     fn iter<'a>(
         &'a self,
@@ -110,23 +109,25 @@ impl IterBasedSelectionMode for SyntaxNode {
     ) -> anyhow::Result<Box<dyn Iterator<Item = ByteRange> + 'a>> {
         let buffer = params.buffer;
         let current_selection = params.current_selection;
+        let layer = buffer
+            .syntax_tree_layer_for_selection(current_selection)?
+            .ok_or(anyhow::anyhow!(
+                "SyntaxNode::iter: Cannot find Treesitter language"
+            ))?;
         let node = buffer
-            .get_current_node(current_selection, false)?
+            .get_current_node_in_tree(&layer.tree, current_selection, false)?
             .ok_or(anyhow::anyhow!(
                 "SyntaxNode::iter: Cannot find Treesitter language"
             ))?;
 
         if let Some(parent) = node.parent() {
-            let children = {
+            let ranges = {
                 (0..parent.named_child_count())
                     .filter_map(move |i| parent.named_child(i))
+                    .map(|node| ByteRange::new(node.byte_range()))
                     .collect_vec()
             };
-            Ok(Box::new(
-                children
-                    .into_iter()
-                    .map(|node| ByteRange::new(node.byte_range())),
-            ))
+            Ok(Box::new(ranges.into_iter()))
         } else {
             Ok(Box::new(std::iter::empty()))
         }
@@ -139,23 +140,25 @@ impl IterBasedSelectionMode for SyntaxNode {
     ) -> anyhow::Result<Box<dyn Iterator<Item = ByteRange> + 'a>> {
         let buffer = params.buffer;
         let current_selection = params.current_selection;
+        let layer = buffer
+            .syntax_tree_layer_for_selection(current_selection)?
+            .ok_or(anyhow::anyhow!(
+                "SyntaxNode::iter: Cannot find Treesitter language"
+            ))?;
         let node = buffer
-            .get_current_node(current_selection, false)?
+            .get_current_node_in_tree(&layer.tree, current_selection, false)?
             .ok_or(anyhow::anyhow!(
                 "SyntaxNode::iter: Cannot find Treesitter language"
             ))?;
 
         if let Some(parent) = node.parent() {
-            let children = {
+            let ranges = {
                 (0..parent.child_count())
                     .filter_map(move |i| parent.child(i))
+                    .map(|node| ByteRange::new(node.byte_range()))
                     .collect_vec()
             };
-            Ok(Box::new(
-                children
-                    .into_iter()
-                    .map(|node| ByteRange::new(node.byte_range())),
-            ))
+            Ok(Box::new(ranges.into_iter()))
         } else {
             Ok(Box::new(std::iter::empty()))
         }
@@ -171,8 +174,13 @@ impl SyntaxNode {
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
         let buffer = params.buffer;
         let current_selection = params.current_selection;
+        let layer = buffer
+            .syntax_tree_layer_for_selection(current_selection)?
+            .ok_or(anyhow::anyhow!(
+                "SyntaxNode::iter: Cannot find Treesitter language"
+            ))?;
         let node = buffer
-            .get_current_node(current_selection, false)?
+            .get_current_node_in_tree(&layer.tree, current_selection, false)?
             .ok_or(anyhow::anyhow!(
                 "SyntaxNode::iter: Cannot find Treesitter language"
             ))?;
@@ -193,9 +201,16 @@ impl SyntaxNode {
         params: &super::SelectionModeParams,
         go_up: bool,
     ) -> anyhow::Result<Option<ApplyMovementResult>> {
-        let Some(mut node) = params
+        let Some(layer) = params
             .buffer
-            .get_current_node(params.current_selection, false)?
+            .syntax_tree_layer_for_selection(params.current_selection)?
+        else {
+            return Ok(None);
+        };
+        let Some(mut node) =
+            params
+                .buffer
+                .get_current_node_in_tree(&layer.tree, params.current_selection, false)?
         else {
             return Ok(None);
         };
@@ -209,6 +224,22 @@ impl SyntaxNode {
                 )));
             }
             node = some_node;
+        }
+        if go_up && layer.is_injected {
+            if let Some(host_layer) = params.buffer.host_syntax_tree_layer() {
+                if let Some(host_node) = params.buffer.get_current_node_in_tree(
+                    &host_layer.tree,
+                    params.current_selection,
+                    false,
+                )? {
+                    if let Some(parent) = host_node.parent() {
+                        return Ok(Some(ApplyMovementResult::from_selection(
+                            ByteRange::new(parent.byte_range())
+                                .to_selection(params.buffer, params.current_selection)?,
+                        )));
+                    }
+                }
+            }
         }
         Ok(None)
     }
@@ -239,6 +270,40 @@ mod test_syntax_node {
 
     use serial_test::serial;
 
+    fn injected_buffer(source: &str) -> Buffer {
+        let (language, errors) = shared::language::Language::extract_lenient(
+            &serde_json::json!({
+                "injection_query": "((raw_string_literal (string_content) @injection.content) (#set! injection.language \"json\"))",
+                "injected_languages": ["json"]
+            }),
+            &crate::config::from_extension("rs").unwrap(),
+        );
+        assert!(errors.is_empty());
+        let mut buffer = Buffer::new(language.tree_sitter_language(), source);
+        buffer.set_language(language).unwrap();
+        buffer
+    }
+
+    fn select_current_syntax_node_text(source: &str, cursor_text: &str) -> String {
+        let buffer = injected_buffer(source);
+        let start = source[..source.find(cursor_text).unwrap()].chars().count();
+        let selection =
+            Selection::default().set_range((CharIndex(start)..CharIndex(start + 1)).into());
+        let selected = super::SyntaxNode { coarse: true }
+            .current(
+                &SelectionModeParams {
+                    buffer: &buffer,
+                    current_selection: &selection,
+                    cursor_direction: &crate::components::editor::Direction::Start,
+                },
+                IfCurrentNotFound::LookForward,
+            )
+            .unwrap()
+            .unwrap();
+
+        buffer.slice(&selected.range()).unwrap().to_string()
+    }
+
     #[test]
     fn case_1() {
         let buffer = Buffer::new(
@@ -258,6 +323,54 @@ mod test_syntax_node {
                 (30..31, "}"),
             ],
         );
+    }
+
+    #[test]
+    fn injection_ranges_follow_unicode_edits() {
+        let source = r##"fn main() { let 你好 = r#"{"count": 1}"#; }"##;
+        let mut buffer = injected_buffer(source);
+        let selection_at = |buffer: &Buffer, text: &str| {
+            let byte = buffer.content().find(text).unwrap();
+            let start = buffer.byte_to_char(byte).unwrap();
+            Selection::default().set_range((start..start + 1).into())
+        };
+        let selection = selection_at(&buffer, "1");
+        assert!(
+            buffer
+                .syntax_tree_layer_for_selection(&selection)
+                .unwrap()
+                .unwrap()
+                .is_injected
+        );
+
+        let _ = buffer.update(r##"fn main() { let 你好 = r#"{"longer_name": 42}"#; }"##);
+        let selection = selection_at(&buffer, "42");
+        let layer = buffer
+            .syntax_tree_layer_for_selection(&selection)
+            .unwrap()
+            .unwrap();
+        let node = buffer
+            .get_current_node_in_tree(&layer.tree, &selection, false)
+            .unwrap()
+            .unwrap();
+        assert_eq!(node.utf8_text(buffer.content().as_bytes()).unwrap(), "42");
+
+        let selection =
+            Selection::default().set_range((CharIndex(0)..CharIndex(buffer.len_chars())).into());
+        assert!(
+            !buffer
+                .syntax_tree_layer_for_selection(&selection)
+                .unwrap()
+                .unwrap()
+                .is_injected
+        );
+    }
+
+    #[test]
+    fn configured_injection_uses_embedded_nodes_and_preserves_host_nodes() {
+        let source = r##"fn main() { let data = r#"{"answer": 42}"#; }"##;
+        assert_eq!(select_current_syntax_node_text(source, "42"), "42");
+        assert_eq!(select_current_syntax_node_text(source, "data"), "data");
     }
 
     #[test]

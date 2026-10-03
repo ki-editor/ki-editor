@@ -33,11 +33,11 @@ type GetRange = dyn Fn(&Buffer) -> Vec<Range<usize>> + Send + Sync;
 /// Used so that a global search/replace reflects the live buffer content
 /// instead of what is currently saved on disk.
 #[derive(Clone, Default)]
-pub struct DirtyBuffers(Arc<HashMap<AbsolutePath, Buffer>>);
+pub struct DirtyBuffers(HashMap<AbsolutePath, Buffer>);
 
 impl DirtyBuffers {
     pub fn new(dirty_buffers: HashMap<AbsolutePath, Buffer>) -> Self {
-        Self(Arc::new(dirty_buffers))
+        Self(dirty_buffers)
     }
 
     pub fn get(&self, path: &AbsolutePath) -> Option<&Buffer> {
@@ -184,7 +184,7 @@ impl WalkBuilderConfig {
                     path.file_type()
                         .is_some_and(|file_type| file_type.is_file())
                 })
-                .filter_map(|path| {
+                .filter_map(move |path| {
                     let path: PathBuf = path.path().into();
                     let path: AbsolutePath = path.try_into().ok()?;
                     // If this file has an open buffer with unsaved changes, search

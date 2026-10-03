@@ -182,6 +182,8 @@ fn make() -> Language {
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Make),
         }),
         line_comment_prefix: Some("#".to_string()),
+        injection_query: Some(include_str!("../queries/injections/make.scm").to_string()),
+        injected_languages: to_vec(&["bash"]),
         ..Language::new()
     }
 }
@@ -355,6 +357,8 @@ fn dockerfile() -> Language {
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Dockerfile),
         }),
         line_comment_prefix: Some("#".to_string()),
+        injection_query: Some(include_str!("../queries/injections/dockerfile.scm").to_string()),
+        injected_languages: to_vec(&["bash"]),
         ..Language::new()
     }
 }
@@ -374,6 +378,8 @@ fn elixir() -> Language {
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Elixir),
         }),
         line_comment_prefix: Some("#".to_string()),
+        injection_query: Some(include_str!("../queries/injections/elixir.scm").to_string()),
+        injected_languages: to_vec(&["heex", "json", "markdown", "zig"]),
         ..Language::new()
     }
 }
@@ -419,6 +425,8 @@ fn gitcommit() -> Language {
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Gitcommit),
         }),
         line_comment_prefix: Some("#".to_string()),
+        injection_query: Some(include_str!("../queries/injections/gitcommit.scm").to_string()),
+        injected_languages: to_vec(&["diff"]),
         ..Language::new()
     }
 }
@@ -597,6 +605,8 @@ fn heex() -> Language {
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Heex),
         }),
         block_comment_affixes: Some(("<!--".to_string(), "-->".to_string())),
+        injection_query: Some(include_str!("../queries/injections/heex.scm").to_string()),
+        injected_languages: to_vec(&["elixir"]),
         ..Language::new()
     }
 }
@@ -634,6 +644,14 @@ fn html() -> Language {
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::HTML),
         }),
         block_comment_affixes: Some(("<!--".to_string(), "-->".to_string())),
+        injection_query: Some(
+            concat!(
+                include_str!("../queries/injections/html_tags.scm"),
+                include_str!("../queries/injections/html.scm")
+            )
+            .to_string(),
+        ),
+        injected_languages: to_vec(&["css", "javascript", "json", "python", "toml", "typescript"]),
         ..Language::new()
     }
 }
@@ -705,6 +723,14 @@ fn javascript() -> Language {
         }),
         line_comment_prefix: Some("//".to_string()),
         block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
+        injection_query: Some(
+            concat!(
+                include_str!("../queries/injections/ecma.scm"),
+                include_str!("../queries/injections/jsx.scm")
+            )
+            .to_string(),
+        ),
+        injected_languages: to_vec(&["css", "graphql", "html", "sql"]),
         ..Language::new()
     }
 }
@@ -757,6 +783,14 @@ fn javascriptreact() -> Language {
         }),
         line_comment_prefix: Some("//".to_string()),
         block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
+        injection_query: Some(
+            concat!(
+                include_str!("../queries/injections/ecma.scm"),
+                include_str!("../queries/injections/jsx.scm")
+            )
+            .to_string(),
+        ),
+        injected_languages: to_vec(&["css", "graphql", "html", "sql"]),
         ..Language::new()
     }
 }
@@ -775,6 +809,14 @@ fn svelte() -> Language {
         }),
         line_comment_prefix: Some("//".to_string()),
         block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
+        injection_query: Some(
+            concat!(
+                include_str!("../queries/injections/html_tags.scm"),
+                include_str!("../queries/injections/svelte.scm")
+            )
+            .to_string(),
+        ),
+        injected_languages: to_vec(&["css", "javascript", "json", "scss", "typescript"]),
         ..Language::new()
     }
 }
@@ -814,6 +856,8 @@ fn julia() -> Language {
         }),
         line_comment_prefix: Some("#".to_string()),
         block_comment_affixes: Some(("#=".to_string(), "=#".to_string())),
+        injection_query: Some(include_str!("../queries/injections/julia.scm").to_string()),
+        injected_languages: to_vec(&["bash", "markdown"]),
         ..Language::new()
     }
 }
@@ -827,6 +871,17 @@ fn just() -> Language {
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Just),
         }),
         line_comment_prefix: Some("#".to_string()),
+        injection_query: Some(include_str!("../queries/injections/just.scm").to_string()),
+        injected_languages: to_vec(&[
+            "bash",
+            "fish",
+            "javascript",
+            "lua",
+            "perl",
+            "python",
+            "ruby",
+            "zsh",
+        ]),
         ..Language::new()
     }
 }
@@ -858,6 +913,8 @@ fn lua() -> Language {
         }),
         line_comment_prefix: Some("--".to_string()),
         block_comment_affixes: Some(("--[[".to_string(), "]]".to_string())),
+        injection_query: Some(include_str!("../queries/injections/lua.scm").to_string()),
+        injected_languages: to_vec(&["c"]),
         ..Language::new()
     }
 }
@@ -876,6 +933,19 @@ fn markdown() -> Language {
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Markdown),
         }),
         block_comment_affixes: Some(("<!--".to_string(), "-->".to_string())),
+        injection_query: Some(include_str!("../queries/injections/markdown.scm").to_string()),
+        injected_languages: to_vec(&[
+            "bash",
+            "css",
+            "html",
+            "javascript",
+            "json",
+            "python",
+            "rust",
+            "toml",
+            "typescript",
+            "yaml",
+        ]),
         ..Language::new()
     }
 }
@@ -895,6 +965,17 @@ fn nix() -> Language {
         }),
         line_comment_prefix: Some("#".to_string()),
         block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
+        injection_query: Some(include_str!("../queries/injections/nix.scm").to_string()),
+        injected_languages: to_vec(&[
+            "bash",
+            "fish",
+            "haskell",
+            "javascript",
+            "lua",
+            "perl",
+            "python",
+            "rust",
+        ]),
         ..Language::new()
     }
 }
@@ -977,6 +1058,17 @@ fn php() -> Language {
         }),
         line_comment_prefix: Some("//".to_string()),
         block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
+        injection_query: Some(include_str!("../queries/injections/php.scm").to_string()),
+        injected_languages: to_vec(&[
+            "bash",
+            "css",
+            "html",
+            "javascript",
+            "json",
+            "python",
+            "toml",
+            "typescript",
+        ]),
         ..Language::new()
     }
 }
@@ -1038,6 +1130,8 @@ fn rescript() -> Language {
         }),
         line_comment_prefix: Some("//".to_string()),
         block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
+        injection_query: Some(include_str!("../queries/injections/rescript.scm").to_string()),
+        injected_languages: to_vec(&["graphql", "javascript"]),
         ..Language::new()
     }
 }
@@ -1109,6 +1203,8 @@ fn rust() -> Language {
         }),
         line_comment_prefix: Some("//".to_string()),
         block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
+        injection_query: Some(include_str!("../queries/injections/rust.scm").to_string()),
+        injected_languages: to_vec(&["json", "rust"]),
         ..Language::new()
     }
 }
@@ -1207,6 +1303,14 @@ fn typescript() -> Language {
         }),
         line_comment_prefix: Some("//".to_string()),
         block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
+        injection_query: Some(
+            concat!(
+                include_str!("../queries/injections/ecma.scm"),
+                include_str!("../queries/injections/typescript.scm")
+            )
+            .to_string(),
+        ),
+        injected_languages: to_vec(&["css", "graphql", "html", "sql"]),
         ..Language::new()
     }
 }
@@ -1226,6 +1330,15 @@ fn typescriptreact() -> Language {
         }),
         line_comment_prefix: Some("//".to_string()),
         block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
+        injection_query: Some(
+            concat!(
+                include_str!("../queries/injections/ecma.scm"),
+                include_str!("../queries/injections/typescript.scm"),
+                include_str!("../queries/injections/jsx.scm")
+            )
+            .to_string(),
+        ),
+        injected_languages: to_vec(&["css", "graphql", "html", "sql"]),
         ..Language::new()
     }
 }
@@ -1258,6 +1371,8 @@ fn xml() -> Language {
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::XML),
         }),
         block_comment_affixes: Some(("<!--".to_string(), "-->".to_string())),
+        injection_query: Some(include_str!("../queries/injections/xml.scm").to_string()),
+        injected_languages: to_vec(&["css", "javascript", "sql"]),
         ..Language::new()
     }
 }
@@ -1270,6 +1385,8 @@ fn yaml() -> Language {
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::YAML),
         }),
         line_comment_prefix: Some("#".to_string()),
+        injection_query: Some(include_str!("../queries/injections/yaml.scm").to_string()),
+        injected_languages: to_vec(&["bash"]),
         ..Language::new()
     }
 }
