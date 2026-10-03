@@ -58,6 +58,22 @@ fn markdown_fence(
     }
 }
 
+fn embed(
+    host_extension: &'static str,
+    embedded_extension: &'static str,
+    prefix: &'static str,
+    snippet: &'static str,
+    suffix: &'static str,
+) -> InjectionCase {
+    InjectionCase {
+        host_extension,
+        embedded_extension,
+        prefix,
+        snippet,
+        suffix,
+    }
+}
+
 fn cases() -> Vec<InjectionCase> {
     [
         markdown_fence(
@@ -101,7 +117,253 @@ fn cases() -> Vec<InjectionCase> {
             suffix: "---\n\n# Body\n",
         },
     ]
-    .into()
+    .into_iter()
+    .chain(web_cases())
+    .collect()
+}
+
+const JS: &str = "const x = 1;\nfunction f(a) { return a + x; }\n";
+const CSS: &str = "a {\n  color: red;\n}\n";
+const HTML: &str = "<div class=\"x\">hello</div>";
+
+fn web_cases() -> Vec<InjectionCase> {
+    vec![
+        // html
+        embed(
+            "html",
+            "js",
+            "<p>x</p>\n<script defer>\n",
+            JS,
+            "</script>\n",
+        ),
+        embed(
+            "html",
+            "js",
+            "<script type=\"module\">\n",
+            JS,
+            "</script>\n",
+        ),
+        embed(
+            "html",
+            "js",
+            "<script async type=\"text/javascript\">\n",
+            JS,
+            "</script>\n",
+        ),
+        embed(
+            "html",
+            "ts",
+            "<script type=\"text/typescript\">\n",
+            "let x: number = 1;\n",
+            "</script>\n",
+        ),
+        embed(
+            "html",
+            "json",
+            "<script type=\"importmap\">\n",
+            "{\"imports\": {\"a\": \"./a.js\"}}\n",
+            "</script>\n",
+        ),
+        embed(
+            "html",
+            "json",
+            "<script type=\"application/json\">\n",
+            "{\"a\": [1, 2, true]}\n",
+            "</script>\n",
+        ),
+        embed("html", "css", "<style>\n", CSS, "</style>\n"),
+        embed(
+            "html",
+            "css",
+            "<style type=\"text/css\">\n",
+            CSS,
+            "</style>\n",
+        ),
+        embed(
+            "html",
+            "py",
+            "<py-script>\n",
+            "def f(x):\n    return x + 1\n",
+            "</py-script>\n",
+        ),
+        embed(
+            "html",
+            "py",
+            "<script type=\"pyscript\">\n",
+            "def f(x):\n    return x + 1\n",
+            "</script>\n",
+        ),
+        embed(
+            "html",
+            "toml",
+            "<py-config>\n",
+            "[package]\nname = \"ki\"\n",
+            "</py-config>\n",
+        ),
+        // svelte
+        embed(
+            "svelte",
+            "js",
+            "<div>x</div>\n<script>\n",
+            JS,
+            "</script>\n",
+        ),
+        embed("svelte", "js", "<script lang=\"js\">\n", JS, "</script>\n"),
+        embed(
+            "svelte",
+            "ts",
+            "<script lang=\"ts\">\n",
+            "let x: number = 1;\nconst f = (a: string) => a;\n",
+            "</script>\n",
+        ),
+        embed("svelte", "css", "<style>\n", CSS, "</style>\n"),
+        embed(
+            "svelte",
+            "scss",
+            "<style lang=\"scss\">\n",
+            "a {\n  b { color: red; }\n}\n",
+            "</style>\n",
+        ),
+        embed("svelte", "js", "<div>{", "count + 1", "}</div>\n"),
+        // php
+        embed(
+            "php",
+            "html",
+            "<?php\n$a = 1;\n?>\n",
+            "<div class=\"x\">hello</div>\n",
+            "<?php echo 1; ?>",
+        ),
+        embed("php", "sh", "<?php\n$x = `", "ls -la | wc -l", "`;\n"),
+        // ecmascript
+        embed("js", "html", "const a = html`", HTML, "`;\n"),
+        embed("js", "html", "const a = html(`", HTML, "`);\n"),
+        embed("js", "html", "const a = html`", "<div>${x}</div>", "`;\n"),
+        embed(
+            "js",
+            "html",
+            "const a = svg`",
+            "<svg><circle r=\"1\"></circle></svg>",
+            "`;\n",
+        ),
+        embed("js", "html", "el.innerHTML = `", HTML, "`;\n"),
+        embed("js", "html", "el.innerHTML = '", HTML, "';\n"),
+        embed(
+            "js",
+            "sql",
+            "const a = sql`",
+            "SELECT id FROM users WHERE id = 1",
+            "`;\n",
+        ),
+        embed(
+            "js",
+            "sql",
+            "const a = db.sql`",
+            "SELECT id FROM users WHERE id = 1",
+            "`;\n",
+        ),
+        embed(
+            "js",
+            "graphql",
+            "const a = gql`",
+            "query { user(id: 1) { name } }",
+            "`;\n",
+        ),
+        embed(
+            "js",
+            "graphql",
+            "const a = graphql`",
+            "query { user(id: 1) { name } }",
+            "`;\n",
+        ),
+        embed(
+            "js",
+            "graphql",
+            "const a = `",
+            "#graphql\nquery { user(id: 1) { name } }\n",
+            "`;\n",
+        ),
+        embed("js", "css", "const a = css`", CSS, "`;\n"),
+        embed("js", "css", "const a = keyframes`", CSS, "`;\n"),
+        embed("js", "css", "const a = styled.div`", CSS, "`;\n"),
+        embed("js", "css", "const a = styled(Button)`", CSS, "`;\n"),
+        embed(
+            "js",
+            "css",
+            "const a = styled.div.attrs({ a: 1 })`",
+            CSS,
+            "`;\n",
+        ),
+        embed(
+            "js",
+            "css",
+            "const a = styled(Button).attrs({ a: 1 })`",
+            CSS,
+            "`;\n",
+        ),
+        embed("js", "css", "const a = <style jsx>{`", CSS, "`}</style>;\n"),
+        embed("jsx", "html", "const a = html`", HTML, "`;\n"),
+        embed(
+            "jsx",
+            "css",
+            "const a = <style jsx>{`",
+            CSS,
+            "`}</style>;\n",
+        ),
+        embed("ts", "html", "const a = html`", HTML, "`;\n"),
+        embed(
+            "ts",
+            "css",
+            "@Component({\n  styles: [`",
+            CSS,
+            "`],\n})\nclass A {}\n",
+        ),
+        embed(
+            "ts",
+            "css",
+            "@Component({\n  styles: `",
+            CSS,
+            "`,\n})\nclass A {}\n",
+        ),
+        embed(
+            "ts",
+            "css",
+            "const a = styled.div<{ a: number }>`",
+            CSS,
+            "`;\n",
+        ),
+        embed("ts", "css", "const a = styled.div<Props>`", CSS, "`;\n"),
+        embed("tsx", "html", "const a = html`", HTML, "`;\n"),
+        embed("tsx", "css", "const a = styled.div<Props>`", CSS, "`;\n"),
+        embed(
+            "tsx",
+            "css",
+            "const a = <style jsx>{`",
+            CSS,
+            "`}</style>;\n",
+        ),
+        // xml
+        embed(
+            "xml",
+            "css",
+            "<svg>\n<style>",
+            "a { color: red; }",
+            "</style>\n</svg>\n",
+        ),
+        embed(
+            "xml",
+            "js",
+            "<svg>\n<script>",
+            "const x = 1;",
+            "</script>\n</svg>\n",
+        ),
+        embed(
+            "xml",
+            "sql",
+            "<db>\n<pma:table>",
+            "SELECT id FROM users;",
+            "</pma:table>\n</db>\n",
+        ),
+    ]
 }
 
 fn language_of(extension: &str) -> anyhow::Result<Language> {

@@ -620,6 +620,103 @@ fn latex() -> Language {
     }
 }
 
+/// Based on nvim-treesitter's `html_tags` injections, shared by languages that embed HTML
+/// elements. `#lua-match?` and `#gsub!` are rewritten as `#match?` and explicit `type` values.
+/// Not ported: `style="..."` (a declaration list is not a stylesheet), `on*="..."` handlers
+/// (the attribute value is highlighted as a string by the host, which tree-sitter-highlight
+/// lets win over the injected highlights at the start of the range), lit-html `${}`
+/// attributes (needs `#offset!`), `pattern="..."` (no regex language), and comments.
+const HTML_TAGS_INJECTION_QUERY: &str = r#"
+; <style>...</style>; `lang`/`type` attributes are handled by the rules below
+((style_element
+  (start_tag) @_start_tag
+  (raw_text) @injection.content)
+  (#not-match? @_start_tag "\\s(lang|type)\\s*=")
+  (#set! injection.language "css"))
+
+((style_element
+  (start_tag
+    (attribute
+      (attribute_name) @_attr
+      (quoted_attribute_value
+        (attribute_value) @_type)))
+  (raw_text) @injection.content)
+  (#eq? @_attr "type")
+  (#eq? @_type "text/css")
+  (#set! injection.language "css"))
+
+; <script>...</script>
+((script_element
+  (start_tag) @_start_tag
+  (raw_text) @injection.content)
+  (#not-match? @_start_tag "\\s(lang|type)\\s*=")
+  (#set! injection.language "javascript"))
+
+; <script type="module">, <script type="text/javascript">
+((script_element
+  (start_tag
+    (attribute
+      (attribute_name) @_attr
+      (quoted_attribute_value
+        (attribute_value) @_type)))
+  (raw_text) @injection.content)
+  (#eq? @_attr "type")
+  (#any-of? @_type "module" "text/javascript" "application/javascript" "text/ecmascript" "application/ecmascript")
+  (#set! injection.language "javascript"))
+
+((script_element
+  (start_tag
+    (attribute
+      (attribute_name) @_attr
+      (quoted_attribute_value
+        (attribute_value) @_type)))
+  (raw_text) @injection.content)
+  (#eq? @_attr "type")
+  (#any-of? @_type "text/typescript" "application/typescript")
+  (#set! injection.language "typescript"))
+
+; <script type="importmap">, <script type="application/json">
+((script_element
+  (start_tag
+    (attribute
+      (attribute_name) @_attr
+      (quoted_attribute_value
+        (attribute_value) @_type)))
+  (raw_text) @injection.content)
+  (#eq? @_attr "type")
+  (#any-of? @_type "importmap" "application/json")
+  (#set! injection.language "json"))
+"#;
+
+/// PyScript injections, which nvim-treesitter adds on top of `html_tags`.
+const HTML_INJECTION_QUERY: &str = r#"
+; PyScript: <py-script>, <py-repl>, <script type="pyscript">
+((element
+  (start_tag
+    (tag_name) @_py_script)
+  (text) @injection.content)
+  (#any-of? @_py_script "py-script" "py-repl")
+  (#set! injection.language "python"))
+
+((script_element
+  (start_tag
+    (attribute
+      (attribute_name) @_attr
+      (quoted_attribute_value
+        (attribute_value) @_type)))
+  (raw_text) @injection.content)
+  (#eq? @_attr "type")
+  (#any-of? @_type "pyscript" "py-script")
+  (#set! injection.language "python"))
+
+((element
+  (start_tag
+    (tag_name) @_py_config)
+  (text) @injection.content)
+  (#eq? @_py_config "py-config")
+  (#set! injection.language "toml"))
+"#;
+
 fn html() -> Language {
     Language {
         extensions: to_vec(&["htm", "html", "svg"]),
@@ -634,6 +731,8 @@ fn html() -> Language {
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::HTML),
         }),
         block_comment_affixes: Some(("<!--".to_string(), "-->".to_string())),
+        injection_query: Some(format!("{HTML_TAGS_INJECTION_QUERY}{HTML_INJECTION_QUERY}")),
+        injected_languages: to_vec(&["css", "javascript", "json", "python", "toml", "typescript"]),
         ..Language::new()
     }
 }
@@ -690,6 +789,173 @@ fn java() -> Language {
     }
 }
 
+/// Based on nvim-treesitter's `ecma` injections. Template literals are captured through their
+/// `string_fragment` children, which sidesteps `#offset!` (unsupported) for the backticks.
+/// CSS-in-JS is parsed as plain CSS rather than nvim-treesitter's `styled`. Not ported: jsdoc,
+/// regex, groq, glimmer and angular.
+const ECMA_INJECTION_QUERY: &str = r#"
+; html`...`, html(`...`), sql`...`, graphql`...`; template substitutions are
+; skipped and the remaining fragments are parsed as one document
+(call_expression
+  function: (identifier) @injection.language
+  arguments: [
+    (arguments
+      (template_string
+        (string_fragment) @injection.content))
+    (template_string
+      (string_fragment) @injection.content)
+  ]
+  (#any-of? @injection.language "html" "sql" "graphql")
+  (#set! injection.combined))
+
+; svg`...` or svg(`...`)
+(call_expression
+  function: (identifier) @_name
+  arguments: [
+    (arguments
+      (template_string
+        (string_fragment) @injection.content))
+    (template_string
+      (string_fragment) @injection.content)
+  ]
+  (#eq? @_name "svg")
+  (#set! injection.language "html")
+  (#set! injection.combined))
+
+; gql`...`
+(call_expression
+  function: (identifier) @_name
+  arguments: (template_string
+    (string_fragment) @injection.content)
+  (#eq? @_name "gql")
+  (#set! injection.language "graphql")
+  (#set! injection.combined))
+
+; foo.sql`...` or foo.sql(`...`)
+(call_expression
+  function: (member_expression
+    property: (property_identifier) @_name)
+  arguments: [
+    (arguments
+      (template_string
+        (string_fragment) @injection.content))
+    (template_string
+      (string_fragment) @injection.content)
+  ]
+  (#eq? @_name "sql")
+  (#set! injection.language "sql")
+  (#set! injection.combined))
+
+; /* tagged by a leading #graphql comment */
+((template_string
+  (string_fragment) @injection.content)
+  (#match? @injection.content "^#graphql")
+  (#set! injection.language "graphql"))
+
+; css`...`, keyframes`...`
+(call_expression
+  function: (identifier) @_name
+  arguments: (template_string
+    (string_fragment) @injection.content)
+  (#any-of? @_name "css" "keyframes")
+  (#set! injection.language "css")
+  (#set! injection.combined))
+
+; styled.div`...`
+(call_expression
+  function: (member_expression
+    object: (identifier) @_name)
+  arguments: (template_string
+    (string_fragment) @injection.content)
+  (#eq? @_name "styled")
+  (#set! injection.language "css")
+  (#set! injection.combined))
+
+; styled(Component)`...`
+(call_expression
+  function: (call_expression
+    function: (identifier) @_name)
+  arguments: (template_string
+    (string_fragment) @injection.content)
+  (#eq? @_name "styled")
+  (#set! injection.language "css")
+  (#set! injection.combined))
+
+; styled.div.attrs({ prop: "foo" })`...`
+(call_expression
+  function: (call_expression
+    function: (member_expression
+      object: (member_expression
+        object: (identifier) @_name)))
+  arguments: (template_string
+    (string_fragment) @injection.content)
+  (#eq? @_name "styled")
+  (#set! injection.language "css")
+  (#set! injection.combined))
+
+; styled(Component).attrs({ prop: "foo" })`...`
+(call_expression
+  function: (call_expression
+    function: (member_expression
+      object: (call_expression
+        function: (identifier) @_name)))
+  arguments: (template_string
+    (string_fragment) @injection.content)
+  (#eq? @_name "styled")
+  (#set! injection.language "css")
+  (#set! injection.combined))
+
+; el.innerHTML = `<b>x</b>` or el.innerHTML = '<b>x</b>'
+(assignment_expression
+  left: (member_expression
+    property: (property_identifier) @_prop)
+  right: [
+    (template_string
+      (string_fragment) @injection.content)
+    (string
+      (string_fragment) @injection.content)
+  ]
+  (#any-of? @_prop "outerHTML" "innerHTML")
+  (#set! injection.language "html")
+  (#set! injection.combined))
+
+; @Component({ styles: [`...`] }) and @Component({ styles: `...` })
+(decorator
+  (call_expression
+    function: (identifier) @_name
+    arguments: (arguments
+      (object
+        (pair
+          key: (property_identifier) @_prop
+          value: [
+            (array
+              (template_string
+                (string_fragment) @injection.content))
+            (template_string
+              (string_fragment) @injection.content)
+          ]))))
+  (#eq? @_name "Component")
+  (#eq? @_prop "styles")
+  (#set! injection.language "css")
+  (#set! injection.combined))
+"#;
+
+/// Based on nvim-treesitter's `jsx` injections.
+const JSX_INJECTION_QUERY: &str = r#"
+; <style jsx>{`...`}</style>
+(jsx_element
+  (jsx_opening_element
+    (identifier) @_name
+    (jsx_attribute) @_attr)
+  (jsx_expression
+    (template_string
+      (string_fragment) @injection.content))
+  (#eq? @_name "style")
+  (#eq? @_attr "jsx")
+  (#set! injection.language "css")
+  (#set! injection.combined))
+"#;
+
 fn javascript() -> Language {
     Language {
         extensions: to_vec(&["js", "mjs", "cjs"]),
@@ -705,6 +971,8 @@ fn javascript() -> Language {
         }),
         line_comment_prefix: Some("//".to_string()),
         block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
+        injection_query: Some(format!("{ECMA_INJECTION_QUERY}{JSX_INJECTION_QUERY}")),
+        injected_languages: to_vec(&["css", "graphql", "html", "sql"]),
         ..Language::new()
     }
 }
@@ -757,9 +1025,50 @@ fn javascriptreact() -> Language {
         }),
         line_comment_prefix: Some("//".to_string()),
         block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
+        injection_query: Some(format!("{ECMA_INJECTION_QUERY}{JSX_INJECTION_QUERY}")),
+        injected_languages: to_vec(&["css", "graphql", "html", "sql"]),
         ..Language::new()
     }
 }
+
+/// Svelte-specific injections on top of [`HTML_TAGS_INJECTION_QUERY`]. `pug` is not ported.
+const SVELTE_INJECTION_QUERY: &str = r#"
+((svelte_raw_text) @injection.content
+  (#set! injection.language "javascript"))
+
+((style_element
+  (start_tag
+    (attribute
+      (attribute_name) @_attr
+      (quoted_attribute_value
+        (attribute_value) @_lang)))
+  (raw_text) @injection.content)
+  (#eq? @_attr "lang")
+  (#any-of? @_lang "scss" "postcss" "less")
+  (#set! injection.language "scss"))
+
+((script_element
+  (start_tag
+    (attribute
+      (attribute_name) @_attr
+      (quoted_attribute_value
+        (attribute_value) @_lang)))
+  (raw_text) @injection.content)
+  (#eq? @_attr "lang")
+  (#any-of? @_lang "ts" "typescript")
+  (#set! injection.language "typescript"))
+
+((script_element
+  (start_tag
+    (attribute
+      (attribute_name) @_attr
+      (quoted_attribute_value
+        (attribute_value) @_lang)))
+  (raw_text) @injection.content)
+  (#eq? @_attr "lang")
+  (#any-of? @_lang "js" "javascript")
+  (#set! injection.language "javascript"))
+"#;
 
 fn svelte() -> Language {
     Language {
@@ -775,6 +1084,10 @@ fn svelte() -> Language {
         }),
         line_comment_prefix: Some("//".to_string()),
         block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
+        injection_query: Some(format!(
+            "{HTML_TAGS_INJECTION_QUERY}{SVELTE_INJECTION_QUERY}"
+        )),
+        injected_languages: to_vec(&["css", "javascript", "json", "scss", "typescript"]),
         ..Language::new()
     }
 }
@@ -1004,6 +1317,22 @@ fn dune() -> Language {
     }
 }
 
+/// Based on nvim-treesitter's `php_only` and `php` injections. Not ported: phpdoc, regex
+/// (`preg_*`), heredoc/nowdoc (the language is the case-sensitive label) and
+/// `shell_exec("...")` and friends (the host highlights the string content, which
+/// tree-sitter-highlight lets win over the injected highlights).
+const PHP_INJECTION_QUERY: &str = r#"
+; Inline HTML outside of <?php ... ?>
+((text) @injection.content
+  (#set! injection.language "html")
+  (#set! injection.combined))
+
+; `ls -la`
+((shell_command_expression
+  (string_content) @injection.content)
+  (#set! injection.language "bash"))
+"#;
+
 fn php() -> Language {
     Language {
         extensions: to_vec(&["php", "php3", "php4", "php5", "php7", "phtml"]),
@@ -1014,6 +1343,17 @@ fn php() -> Language {
         }),
         line_comment_prefix: Some("//".to_string()),
         block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
+        injection_query: Some(PHP_INJECTION_QUERY.to_string()),
+        injected_languages: to_vec(&[
+            "bash",
+            "css",
+            "html",
+            "javascript",
+            "json",
+            "python",
+            "toml",
+            "typescript",
+        ]),
         ..Language::new()
     }
 }
@@ -1229,6 +1569,36 @@ fn tree_sitter_query() -> Language {
     }
 }
 
+/// Based on nvim-treesitter's `typescript` injections, on top of [`ECMA_INJECTION_QUERY`].
+const TYPESCRIPT_INJECTION_QUERY: &str = r#"
+; styled.div<{}>`...`
+(call_expression
+  function: (non_null_expression
+    (instantiation_expression
+      (member_expression
+        object: (identifier) @_name
+        property: (property_identifier))
+      type_arguments: (type_arguments)))
+  arguments: (template_string
+    (string_fragment) @injection.content)
+  (#eq? @_name "styled")
+  (#set! injection.language "css")
+  (#set! injection.combined))
+
+; styled.div<T>`...`
+(binary_expression
+  left: (binary_expression
+    left: (member_expression
+      object: (identifier) @_name
+      property: (property_identifier))
+    right: (identifier))
+  right: (template_string
+    (string_fragment) @injection.content)
+  (#eq? @_name "styled")
+  (#set! injection.language "css")
+  (#set! injection.combined))
+"#;
+
 fn typescript() -> Language {
     Language {
         extensions: to_vec(&["ts", "mts", "cts"]),
@@ -1244,6 +1614,10 @@ fn typescript() -> Language {
         }),
         line_comment_prefix: Some("//".to_string()),
         block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
+        injection_query: Some(format!(
+            "{ECMA_INJECTION_QUERY}{TYPESCRIPT_INJECTION_QUERY}"
+        )),
+        injected_languages: to_vec(&["css", "graphql", "html", "sql"]),
         ..Language::new()
     }
 }
@@ -1263,6 +1637,10 @@ fn typescriptreact() -> Language {
         }),
         line_comment_prefix: Some("//".to_string()),
         block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
+        injection_query: Some(format!(
+            "{ECMA_INJECTION_QUERY}{TYPESCRIPT_INJECTION_QUERY}{JSX_INJECTION_QUERY}"
+        )),
+        injected_languages: to_vec(&["css", "graphql", "html", "sql"]),
         ..Language::new()
     }
 }
@@ -1287,6 +1665,37 @@ fn unison() -> Language {
     }
 }
 
+/// Based on nvim-treesitter's `xml` injections, except that `injection.combined` is not set so
+/// that every element is parsed on its own.
+const XML_INJECTION_QUERY: &str = r#"
+; <style> and <script> (e.g. in SVG). Children are included because the character
+; data of an element is a child of its `content` node.
+((element
+  (STag
+    (Name) @_name)
+  (content) @injection.content)
+  (#eq? @_name "style")
+  (#set! injection.include-children)
+  (#set! injection.language "css"))
+
+((element
+  (STag
+    (Name) @_name)
+  (content) @injection.content)
+  (#eq? @_name "script")
+  (#set! injection.include-children)
+  (#set! injection.language "javascript"))
+
+; phpMyAdmin dump
+((element
+  (STag
+    (Name) @_name)
+  (content) @injection.content)
+  (#eq? @_name "pma:table")
+  (#set! injection.include-children)
+  (#set! injection.language "sql"))
+"#;
+
 fn xml() -> Language {
     Language {
         extensions: to_vec(&["xml", "xaml", "axaml"]),
@@ -1295,6 +1704,8 @@ fn xml() -> Language {
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::XML),
         }),
         block_comment_affixes: Some(("<!--".to_string(), "-->".to_string())),
+        injection_query: Some(XML_INJECTION_QUERY.to_string()),
+        injected_languages: to_vec(&["css", "javascript", "sql"]),
         ..Language::new()
     }
 }
