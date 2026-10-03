@@ -18,6 +18,8 @@ use crate::{
     selection::{CharIndex, Selection},
 };
 
+use shared::language::Language;
+
 use super::{HighlightConfigs, HighlightedSpans};
 
 struct InjectionCase {
@@ -102,13 +104,17 @@ fn cases() -> Vec<InjectionCase> {
     .into()
 }
 
-fn highlight(extension: &str, source: &str) -> anyhow::Result<HighlightedSpans> {
-    HighlightConfigs::new().highlight(
-        crate::config::from_extension(extension)
-            .ok_or_else(|| anyhow::anyhow!("no language for extension {extension:?}"))?,
-        source,
-        &std::sync::atomic::AtomicUsize::new(0),
-    )
+fn language_of(extension: &str) -> anyhow::Result<Language> {
+    crate::config::from_extension(extension)
+        .ok_or_else(|| anyhow::anyhow!("no language for extension {extension:?}"))
+}
+
+fn highlight(
+    configs: &mut HighlightConfigs,
+    language: Language,
+    source: &str,
+) -> anyhow::Result<HighlightedSpans> {
+    configs.highlight(language, source, &std::sync::atomic::AtomicUsize::new(0))
 }
 
 /// The style of the innermost span covering `byte`.
@@ -120,11 +126,15 @@ fn style_at(spans: &HighlightedSpans, byte: usize) -> Option<crate::grid::StyleK
         .map(|span| span.style_key.clone())
 }
 
-fn check_highlight_parity(case: &InjectionCase) -> anyhow::Result<Vec<String>> {
+fn check_highlight_parity(
+    configs: &mut HighlightConfigs,
+    case: &InjectionCase,
+    host: Language,
+) -> anyhow::Result<Vec<String>> {
     let source = case.source();
     let offset = case.prefix.len();
-    let standalone = highlight(case.embedded_extension, case.snippet)?;
-    let embedded = highlight(case.host_extension, &source)?;
+    let standalone = highlight(configs, language_of(case.embedded_extension)?, case.snippet)?;
+    let embedded = highlight(configs, host, &source)?;
 
     let vacuous = standalone
         .0
@@ -148,12 +158,10 @@ fn check_highlight_parity(case: &InjectionCase) -> anyhow::Result<Vec<String>> {
     Ok(vacuous.into_iter().chain(mismatches).collect())
 }
 
-fn check_layers(case: &InjectionCase) -> anyhow::Result<Vec<String>> {
+fn check_layers(case: &InjectionCase, host: Language) -> anyhow::Result<Vec<String>> {
     let source = case.source();
-    let language = crate::config::from_extension(case.host_extension)
-        .ok_or_else(|| anyhow::anyhow!("no host language for {:?}", case.host_extension))?;
-    let mut buffer = Buffer::new(language.tree_sitter_language(), &source);
-    buffer.set_language(language)?;
+    let mut buffer = Buffer::new(host.tree_sitter_language(), &source);
+    buffer.set_language(host)?;
 
     let is_injected = |byte: usize| -> anyhow::Result<bool> {
         let start = source[..byte].chars().count();
@@ -179,15 +187,48 @@ fn check_layers(case: &InjectionCase) -> anyhow::Result<Vec<String>> {
     .collect())
 }
 
+fn check_case(
+    configs: &mut HighlightConfigs,
+    case: &InjectionCase,
+    host: Language,
+) -> anyhow::Result<Vec<String>> {
+    let parity = check_highlight_parity(configs, case, host.clone())?;
+    Ok(parity
+        .into_iter()
+        .chain(check_layers(case, host)?)
+        .collect_vec())
+}
+
+/// Every case must fail when the host language has no injections. Otherwise the case would
+/// also pass without the injection it is meant to cover.
+#[test]
+fn cases_are_not_vacuous() -> anyhow::Result<()> {
+    let mut configs = HighlightConfigs::new();
+    let vacuous = cases()
+        .iter()
+        .map(|case| -> anyhow::Result<_> {
+            let host = language_of(case.host_extension)?.without_injections();
+            Ok((case.name(), check_case(&mut configs, case, host)?))
+        })
+        .collect::<anyhow::Result<Vec<_>>>()?
+        .into_iter()
+        .filter(|(_, problems)| problems.is_empty())
+        .map(|(name, _)| name)
+        .collect_vec();
+    assert!(
+        vacuous.is_empty(),
+        "these cases pass without any injection query: {vacuous:?}"
+    );
+    Ok(())
+}
+
 #[test]
 fn supported_injections() -> anyhow::Result<()> {
+    let mut configs = HighlightConfigs::new();
     let failures = cases()
         .iter()
         .map(|case| -> anyhow::Result<_> {
-            let problems = check_highlight_parity(case)?
-                .into_iter()
-                .chain(check_layers(case)?)
-                .collect_vec();
+            let problems = check_case(&mut configs, case, language_of(case.host_extension)?)?;
             Ok((case.name(), problems))
         })
         .collect::<anyhow::Result<Vec<_>>>()?
@@ -200,5 +241,49 @@ fn supported_injections() -> anyhow::Result<()> {
         "injection cases failed:\n{}",
         failures.join("\n")
     );
+    Ok(())
+}
+
+/// Every built-in injection query must compile against its grammar. Otherwise highlighting
+/// silently falls back to the host language alone.
+#[test]
+fn injection_queries_are_valid() -> anyhow::Result<()> {
+    let problems = crate::config::AppConfig::singleton()
+        .languages()
+        .iter()
+        .filter_map(|(key, language)| {
+            let query = language.injection_query()?;
+            let grammar = language.tree_sitter_language()?;
+            let compile_error = tree_sitter::Query::new(&grammar, query)
+                .err()
+                .map(|error| format!("{key}: invalid injection query: {error}"));
+            let unlisted = query
+                .split("injection.language \"")
+                .skip(1)
+                .filter_map(|rest| rest.split('"').next())
+                .filter(|name| {
+                    super::language_from_injection_name(name).is_some()
+                        && !language.injected_language_ids().contains(name)
+                })
+                .unique()
+                .map(|name| {
+                    format!("{key}: injects {name:?} but does not list it in injected_languages")
+                });
+            let unknown = language
+                .injected_language_ids()
+                .filter(|name| super::language_from_injection_name(name).is_none())
+                .map(|name| format!("{key}: injected_languages has unknown language {name:?}"));
+            Some(
+                compile_error
+                    .into_iter()
+                    .chain(unlisted)
+                    .chain(unknown)
+                    .collect_vec(),
+            )
+        })
+        .flatten()
+        .sorted()
+        .collect_vec();
+    assert!(problems.is_empty(), "{}", problems.join("\n"));
     Ok(())
 }

@@ -579,6 +579,15 @@ impl Language {
         None
     }
 
+    /// The same language, without any language injection.
+    pub fn without_injections(self) -> Self {
+        Self {
+            injection_query: None,
+            injected_languages: Vec::new(),
+            ..self
+        }
+    }
+
     pub fn injection_query(&self) -> Option<&str> {
         self.injection_query.as_deref()
     }
