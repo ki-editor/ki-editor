@@ -124,7 +124,7 @@ fn markdown_code_snippet_highlight_matches_standalone_file() -> anyhow::Result<(
                 style_at(&embedded, offset + index),
                 style_at(&standalone, index),
                 "unexpected style for {c:?} at byte {index} of the snippet"
-            )
+            );
         });
     Ok(())
 }
