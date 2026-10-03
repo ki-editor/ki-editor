@@ -30,6 +30,9 @@ struct InjectionCase {
     snippet: &'static str,
     /// Source text after the snippet.
     suffix: &'static str,
+    /// Parts of the snippet that are host code (e.g. `${x}` in a template literal), which are
+    /// left out of the highlighting parity check.
+    host_spans: &'static [&'static str],
 }
 
 impl InjectionCase {
@@ -55,6 +58,7 @@ fn markdown_fence(
         prefix: Box::leak(format!("# Title\n\n```{info_string}\n").into_boxed_str()),
         snippet,
         suffix: "```\n",
+        host_spans: &[],
     }
 }
 
@@ -71,6 +75,7 @@ fn embed(
         prefix,
         snippet,
         suffix,
+        host_spans: &[],
     }
 }
 
@@ -108,6 +113,7 @@ fn cases() -> Vec<InjectionCase> {
             prefix: "# Title\n\n",
             snippet: "<div class=\"x\">hello</div>\n",
             suffix: "\n# After\n",
+            host_spans: &[],
         },
         InjectionCase {
             host_extension: "md",
@@ -115,11 +121,13 @@ fn cases() -> Vec<InjectionCase> {
             prefix: "---\n",
             snippet: "title: Hello\ntags:\n  - a\n",
             suffix: "---\n\n# Body\n",
+            host_spans: &[],
         },
     ]
     .into_iter()
     .chain(web_cases())
     .chain(beam_and_ml_cases())
+    .chain(shell_cases())
     .collect()
 }
 
@@ -234,11 +242,40 @@ fn web_cases() -> Vec<InjectionCase> {
             "<div class=\"x\">hello</div>\n",
             "<?php echo 1; ?>",
         ),
+        InjectionCase {
+            host_spans: &["<?php echo $cls; ?>"],
+            ..embed(
+                "php",
+                "html",
+                "<?php\n$a = 1;\n?>\n",
+                "<div class=\"<?php echo $cls; ?>\">hello</div>\n",
+                "<?php echo 1; ?>",
+            )
+        },
         embed("php", "sh", "<?php\n$x = `", "ls -la | wc -l", "`;\n"),
         // ecmascript
         embed("js", "html", "const a = html`", HTML, "`;\n"),
         embed("js", "html", "const a = html(`", HTML, "`);\n"),
-        embed("js", "html", "const a = html`", "<div>${x}</div>", "`;\n"),
+        InjectionCase {
+            host_spans: &["${cls}"],
+            ..embed(
+                "js",
+                "html",
+                "const a = html`",
+                "<div class=\"${cls}\">hello</div>",
+                "`;\n",
+            )
+        },
+        InjectionCase {
+            host_spans: &["${c}"],
+            ..embed(
+                "js",
+                "css",
+                "const a = styled.div`",
+                "a {\n  color: red;\n  ${c}\n  background: blue;\n}\n",
+                "`;\n",
+            )
+        },
         embed(
             "js",
             "html",
@@ -435,8 +472,84 @@ fn beam_and_ml_cases() -> Vec<InjectionCase> {
     ]
 }
 
+fn shell_cases() -> Vec<InjectionCase> {
+    vec![
+        // dockerfile
+        embed(
+            "dockerfile",
+            "sh",
+            "FROM alpine\nRUN ",
+            "echo hello && ls | wc -l",
+            "\n",
+        ),
+        embed(
+            "dockerfile",
+            "sh",
+            "FROM alpine\nRUN ",
+            "if true; then \\\n  echo hello; \\\n  fi",
+            "\n",
+        ),
+        // make
+        embed("make", "sh", "all:\n\t", "echo hello && ls | wc -l", "\n"),
+        embed("make", "sh", "FILES := $(shell ", "ls | wc -l", ")\n"),
+        // just
+        embed("just", "sh", "x := `", "ls | wc -l", "`\n"),
+        embed(
+            "just",
+            "py",
+            "py:\n    #!/usr/bin/env python\n    ",
+            "def f(x):\n        return x + 1",
+            "\n\nx := 1\n",
+        ),
+        embed(
+            "just",
+            "py",
+            "py:\n    #!/usr/bin/env python3\n    ",
+            "def f(x):\n        return x + 1",
+            "\n\nx := 1\n",
+        ),
+        embed(
+            "just",
+            "sh",
+            "sh:\n    #!/usr/bin/env sh\n    ",
+            "echo hello && ls | wc -l",
+            "\n\nx := 1\n",
+        ),
+        embed(
+            "just",
+            "js",
+            "js:\n    #!/usr/bin/env node\n    ",
+            "const x = 1;\n    function f(a) { return a + x; }",
+            "\n\nx := 1\n",
+        ),
+        // yaml: the block scalar indicator is part of the injected range
+        embed(
+            "yaml",
+            "sh",
+            "steps:\n  - run: |",
+            "\n      echo hello\n      ls | wc -l\n",
+            "other: 1\n",
+        ),
+        embed(
+            "yaml",
+            "sh",
+            "build:\n  script:\n    - |",
+            "\n      echo hello\n      ls | wc -l\n",
+            "other: 1\n",
+        ),
+    ]
+}
+
+/// Looks up a language by file extension, or by language key for languages that are only
+/// recognized by file name (such as `dockerfile`).
 fn language_of(extension: &str) -> anyhow::Result<Language> {
     crate::config::from_extension(extension)
+        .or_else(|| {
+            crate::config::AppConfig::singleton()
+                .languages()
+                .get(extension)
+                .cloned()
+        })
         .ok_or_else(|| anyhow::anyhow!("no language for extension {extension:?}"))
 }
 
@@ -457,6 +570,14 @@ fn style_at(spans: &HighlightedSpans, byte: usize) -> Option<crate::grid::StyleK
         .map(|span| span.style_key.clone())
 }
 
+fn is_host_span(case: &InjectionCase, index: usize) -> bool {
+    case.host_spans.iter().any(|span| {
+        case.snippet
+            .match_indices(span)
+            .any(|(start, _)| (start..start + span.len()).contains(&index))
+    })
+}
+
 fn check_highlight_parity(
     configs: &mut HighlightConfigs,
     case: &InjectionCase,
@@ -475,6 +596,7 @@ fn check_highlight_parity(
         .snippet
         .char_indices()
         .filter(|(_, char)| !char.is_whitespace())
+        .filter(|(index, _)| !is_host_span(case, *index))
         .filter(|(index, _)| {
             style_at(&standalone, *index)
                 .is_some_and(|style| style_at(&embedded, offset + index).as_ref() != Some(&style))

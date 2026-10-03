@@ -172,6 +172,15 @@ fn c() -> Language {
     }
 }
 
+/// Based on nvim-treesitter's `make` injections. Not ported: comments.
+const MAKE_INJECTION_QUERY: &str = r#"
+((shell_text) @injection.content
+  (#set! injection.language "bash"))
+
+((shell_command) @injection.content
+  (#set! injection.language "bash"))
+"#;
+
 fn make() -> Language {
     Language {
         file_names: to_vec(&["Makefile", "makefile", "GNUmakefile"]),
@@ -182,6 +191,8 @@ fn make() -> Language {
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Make),
         }),
         line_comment_prefix: Some("#".to_string()),
+        injection_query: Some(MAKE_INJECTION_QUERY.to_string()),
+        injected_languages: to_vec(&["bash"]),
         ..Language::new()
     }
 }
@@ -347,6 +358,18 @@ fn diff() -> Language {
     }
 }
 
+/// Based on nvim-treesitter's `dockerfile` injections. Not ported: `RUN <<EOF` heredocs (the
+/// host highlights each heredoc line as a string, which tree-sitter-highlight lets win over the
+/// injected highlights at the start of each line) and comments.
+const DOCKERFILE_INJECTION_QUERY: &str = r#"
+; RUN, CMD and ENTRYPOINT in shell form. A command continued over multiple lines has one
+; fragment per line, which are combined into one script.
+((shell_command
+  (shell_fragment) @injection.content)
+  (#set! injection.language "bash")
+  (#set! injection.combined))
+"#;
+
 fn dockerfile() -> Language {
     Language {
         file_names: to_vec(&["Dockerfile"]),
@@ -355,6 +378,8 @@ fn dockerfile() -> Language {
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Dockerfile),
         }),
         line_comment_prefix: Some("#".to_string()),
+        injection_query: Some(DOCKERFILE_INJECTION_QUERY.to_string()),
+        injected_languages: to_vec(&["bash"]),
         ..Language::new()
     }
 }
@@ -1202,6 +1227,52 @@ fn julia() -> Language {
     }
 }
 
+/// Based on nvim-treesitter's `just` injections. The shebang language is restricted to
+/// languages that are known to Ki. Not ported: bash for recipes without a shebang (the host
+/// highlights the recipe line as a string, which tree-sitter-highlight lets win over the injected
+/// highlight of the first token), regex (`=~`) and comments.
+const JUST_INJECTION_QUERY: &str = r#"
+; `ls`
+((external_command
+  (command_body) @injection.content)
+  (#set! injection.language "bash"))
+
+; For shebang recipes, use the shebang executable name as the language
+((recipe
+  (recipe_body
+    (shebang
+      (language) @injection.language)) @injection.content)
+  (#any-of? @injection.language "bash" "zsh" "fish" "python" "perl" "ruby" "lua")
+  (#set! injection.include-children))
+
+; sh -> bash
+((recipe
+  (recipe_body
+    (shebang
+      (language) @_lang)) @injection.content)
+  (#eq? @_lang "sh")
+  (#set! injection.language "bash")
+  (#set! injection.include-children))
+
+; python3 -> python
+((recipe
+  (recipe_body
+    (shebang
+      (language) @_lang)) @injection.content)
+  (#eq? @_lang "python3")
+  (#set! injection.language "python")
+  (#set! injection.include-children))
+
+; node/nodejs -> javascript
+((recipe
+  (recipe_body
+    (shebang
+      (language) @_lang)) @injection.content)
+  (#any-of? @_lang "node" "nodejs")
+  (#set! injection.language "javascript")
+  (#set! injection.include-children))
+"#;
+
 fn just() -> Language {
     Language {
         file_names: to_vec(&["justfile", "Justfile"]),
@@ -1211,6 +1282,17 @@ fn just() -> Language {
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Just),
         }),
         line_comment_prefix: Some("#".to_string()),
+        injection_query: Some(JUST_INJECTION_QUERY.to_string()),
+        injected_languages: to_vec(&[
+            "bash",
+            "fish",
+            "javascript",
+            "lua",
+            "perl",
+            "python",
+            "ruby",
+            "zsh",
+        ]),
         ..Language::new()
     }
 }
@@ -1812,6 +1894,31 @@ fn xml() -> Language {
     }
 }
 
+/// Based on nvim-treesitter's `yaml` injections. Not ported: plain scalars such as
+/// `run: echo hi` (the host highlights the scalar as a string, which tree-sitter-highlight lets
+/// win over the injected highlight of the first token), Prometheus `expr` (promql) and comments.
+const YAML_INJECTION_QUERY: &str = r#"
+; GitHub Actions ("run"), GitLab CI ("script"), Taskfile ("cmds", "cmd", "sh"). The block
+; scalar indicator (`|`, `>`) is part of the captured node, so the shell sees it as a stray
+; token at the start of the script.
+((block_mapping_pair
+  key: (flow_node) @_run
+  value: (block_node
+    (block_scalar) @injection.content))
+  (#any-of? @_run "run" "script" "before_script" "after_script" "cmds" "cmd" "sh")
+  (#set! injection.language "bash"))
+
+((block_mapping_pair
+  key: (flow_node) @_run
+  value: (block_node
+    (block_sequence
+      (block_sequence_item
+        (block_node
+          (block_scalar) @injection.content)))))
+  (#any-of? @_run "script" "before_script" "after_script" "cmds" "sh")
+  (#set! injection.language "bash"))
+"#;
+
 fn yaml() -> Language {
     Language {
         extensions: to_vec(&["yaml", "yml"]),
@@ -1820,6 +1927,8 @@ fn yaml() -> Language {
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::YAML),
         }),
         line_comment_prefix: Some("#".to_string()),
+        injection_query: Some(YAML_INJECTION_QUERY.to_string()),
+        injected_languages: to_vec(&["bash"]),
         ..Language::new()
     }
 }
