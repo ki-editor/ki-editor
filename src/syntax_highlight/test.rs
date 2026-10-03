@@ -36,14 +36,8 @@ fn highlights_configured_injections() -> anyhow::Result<()> {
 #[test]
 fn highlights_code_snippets_in_markdown() -> anyhow::Result<()> {
     let source = "# Title\n\n```json\n{\"answer\": 42}\n```\n";
-    let (language, errors) = shared::language::Language::extract_lenient(
-        &serde_json::json!({
-            "injection_query": tree_sitter_md::INJECTION_QUERY_BLOCK,
-            "injected_languages": ["json"]
-        }),
-        &crate::config::from_extension("md").unwrap(),
-    );
-    assert!(errors.is_empty(), "{errors:?}");
+    // Markdown injects fenced code blocks by default
+    let language = crate::config::from_extension("md").unwrap();
     let spans = super::HighlightConfigs::new().highlight(
         language,
         source,
@@ -98,4 +92,39 @@ fn syntax_highlight_json() -> anyhow::Result<()> {
             )),
         ])
     })
+}
+
+#[test]
+fn markdown_code_snippet_highlight_matches_standalone_file() -> anyhow::Result<()> {
+    let code = "fn main() {\n    let x: u32 = 42;\n    println!(\"hello {x}\");\n}\n";
+    let markdown = format!("# Title\n\n```rust\n{code}```\n");
+    let highlight = |extension: &str, source: &str| {
+        super::HighlightConfigs::new().highlight(
+            crate::config::from_extension(extension).unwrap(),
+            source,
+            &std::sync::atomic::AtomicUsize::new(0),
+        )
+    };
+    let offset = markdown.find(code).unwrap();
+    let standalone = highlight("rs", code)?;
+    let embedded = highlight("md", &markdown)?;
+    // The style at each byte of the snippet should be the same as when
+    // the snippet is highlighted as a standalone Rust file
+    let style_at = |spans: &super::HighlightedSpans, byte: usize| {
+        spans
+            .0
+            .iter()
+            .rfind(|span| span.byte_range.contains(&byte))
+            .map(|span| span.style_key.clone())
+    };
+    code.char_indices()
+        .filter(|(_, c)| !c.is_whitespace())
+        .for_each(|(index, c)| {
+            assert_eq!(
+                style_at(&embedded, offset + index),
+                style_at(&standalone, index),
+                "unexpected style for {c:?} at byte {index} of the snippet"
+            )
+        });
+    Ok(())
 }

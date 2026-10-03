@@ -862,6 +862,24 @@ fn lua() -> Language {
     }
 }
 
+/// Based on `tree_sitter_md::INJECTION_QUERY_BLOCK`, except that
+/// `injection.include-children` is set for fenced code blocks: their content node has
+/// one `block_continuation` child per line, which would otherwise be excluded from the
+/// injected ranges and split the embedded code into unparsable fragments.
+const MARKDOWN_INJECTION_QUERY: &str = r#"
+(fenced_code_block
+  (info_string
+    (language) @injection.language)
+  (code_fence_content) @injection.content
+  (#set! injection.include-children))
+
+((html_block) @injection.content (#set! injection.language "html"))
+
+(document . (section . (thematic_break) (_) @injection.content (thematic_break)) (#set! injection.language "yaml"))
+
+([(minus_metadata) (plus_metadata)] @injection.content (#set! injection.language "yaml"))
+"#;
+
 fn markdown() -> Language {
     Language {
         extensions: to_vec(&["md", "mdx"]),
@@ -876,6 +894,19 @@ fn markdown() -> Language {
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Markdown),
         }),
         block_comment_affixes: Some(("<!--".to_string(), "-->".to_string())),
+        injection_query: Some(MARKDOWN_INJECTION_QUERY.to_string()),
+        injected_languages: to_vec(&[
+            "bash",
+            "css",
+            "html",
+            "javascript",
+            "json",
+            "python",
+            "rust",
+            "toml",
+            "typescript",
+            "yaml",
+        ]),
         ..Language::new()
     }
 }
