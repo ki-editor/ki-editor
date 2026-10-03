@@ -1,4 +1,6 @@
 #[cfg(test)]
+mod injection_test;
+#[cfg(test)]
 mod test;
 
 use std::{
