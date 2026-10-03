@@ -172,8 +172,6 @@ fn c() -> Language {
     }
 }
 
-const MAKE_INJECTION_QUERY: &str = include_str!("../queries/injections/make.scm");
-
 fn make() -> Language {
     Language {
         file_names: to_vec(&["Makefile", "makefile", "GNUmakefile"]),
@@ -184,7 +182,7 @@ fn make() -> Language {
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Make),
         }),
         line_comment_prefix: Some("#".to_string()),
-        injection_query: Some(MAKE_INJECTION_QUERY.to_string()),
+        injection_query: Some(include_str!("../queries/injections/make.scm").to_string()),
         injected_languages: to_vec(&["bash"]),
         ..Language::new()
     }
@@ -351,8 +349,6 @@ fn diff() -> Language {
     }
 }
 
-const DOCKERFILE_INJECTION_QUERY: &str = include_str!("../queries/injections/dockerfile.scm");
-
 fn dockerfile() -> Language {
     Language {
         file_names: to_vec(&["Dockerfile"]),
@@ -361,13 +357,11 @@ fn dockerfile() -> Language {
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Dockerfile),
         }),
         line_comment_prefix: Some("#".to_string()),
-        injection_query: Some(DOCKERFILE_INJECTION_QUERY.to_string()),
+        injection_query: Some(include_str!("../queries/injections/dockerfile.scm").to_string()),
         injected_languages: to_vec(&["bash"]),
         ..Language::new()
     }
 }
-
-const ELIXIR_INJECTION_QUERY: &str = include_str!("../queries/injections/elixir.scm");
 
 fn elixir() -> Language {
     Language {
@@ -384,7 +378,7 @@ fn elixir() -> Language {
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Elixir),
         }),
         line_comment_prefix: Some("#".to_string()),
-        injection_query: Some(ELIXIR_INJECTION_QUERY.to_string()),
+        injection_query: Some(include_str!("../queries/injections/elixir.scm").to_string()),
         injected_languages: to_vec(&["heex", "json", "markdown", "zig"]),
         ..Language::new()
     }
@@ -423,8 +417,6 @@ fn gitattributes() -> Language {
     }
 }
 
-const GITCOMMIT_INJECTION_QUERY: &str = include_str!("../queries/injections/gitcommit.scm");
-
 fn gitcommit() -> Language {
     Language {
         file_names: to_vec(&["COMMIT_EDITMSG"]),
@@ -433,7 +425,7 @@ fn gitcommit() -> Language {
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Gitcommit),
         }),
         line_comment_prefix: Some("#".to_string()),
-        injection_query: Some(GITCOMMIT_INJECTION_QUERY.to_string()),
+        injection_query: Some(include_str!("../queries/injections/gitcommit.scm").to_string()),
         injected_languages: to_vec(&["diff"]),
         ..Language::new()
     }
@@ -595,8 +587,6 @@ fn hcl() -> Language {
     }
 }
 
-const HEEX_INJECTION_QUERY: &str = include_str!("../queries/injections/heex.scm");
-
 fn heex() -> Language {
     Language {
         extensions: to_vec(&["heex"]),
@@ -615,7 +605,7 @@ fn heex() -> Language {
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Heex),
         }),
         block_comment_affixes: Some(("<!--".to_string(), "-->".to_string())),
-        injection_query: Some(HEEX_INJECTION_QUERY.to_string()),
+        injection_query: Some(include_str!("../queries/injections/heex.scm").to_string()),
         injected_languages: to_vec(&["elixir"]),
         ..Language::new()
     }
@@ -640,10 +630,6 @@ fn latex() -> Language {
     }
 }
 
-const HTML_TAGS_INJECTION_QUERY: &str = include_str!("../queries/injections/html_tags.scm");
-
-const HTML_INJECTION_QUERY: &str = include_str!("../queries/injections/html.scm");
-
 fn html() -> Language {
     Language {
         extensions: to_vec(&["htm", "html", "svg"]),
@@ -658,7 +644,13 @@ fn html() -> Language {
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::HTML),
         }),
         block_comment_affixes: Some(("<!--".to_string(), "-->".to_string())),
-        injection_query: Some(format!("{HTML_TAGS_INJECTION_QUERY}{HTML_INJECTION_QUERY}")),
+        injection_query: Some(
+            concat!(
+                include_str!("../queries/injections/html_tags.scm"),
+                include_str!("../queries/injections/html.scm")
+            )
+            .to_string(),
+        ),
         injected_languages: to_vec(&["css", "javascript", "json", "python", "toml", "typescript"]),
         ..Language::new()
     }
@@ -716,10 +708,6 @@ fn java() -> Language {
     }
 }
 
-const ECMA_INJECTION_QUERY: &str = include_str!("../queries/injections/ecma.scm");
-
-const JSX_INJECTION_QUERY: &str = include_str!("../queries/injections/jsx.scm");
-
 fn javascript() -> Language {
     Language {
         extensions: to_vec(&["js", "mjs", "cjs"]),
@@ -735,7 +723,13 @@ fn javascript() -> Language {
         }),
         line_comment_prefix: Some("//".to_string()),
         block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
-        injection_query: Some(format!("{ECMA_INJECTION_QUERY}{JSX_INJECTION_QUERY}")),
+        injection_query: Some(
+            concat!(
+                include_str!("../queries/injections/ecma.scm"),
+                include_str!("../queries/injections/jsx.scm")
+            )
+            .to_string(),
+        ),
         injected_languages: to_vec(&["css", "graphql", "html", "sql"]),
         ..Language::new()
     }
@@ -789,13 +783,17 @@ fn javascriptreact() -> Language {
         }),
         line_comment_prefix: Some("//".to_string()),
         block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
-        injection_query: Some(format!("{ECMA_INJECTION_QUERY}{JSX_INJECTION_QUERY}")),
+        injection_query: Some(
+            concat!(
+                include_str!("../queries/injections/ecma.scm"),
+                include_str!("../queries/injections/jsx.scm")
+            )
+            .to_string(),
+        ),
         injected_languages: to_vec(&["css", "graphql", "html", "sql"]),
         ..Language::new()
     }
 }
-
-const SVELTE_INJECTION_QUERY: &str = include_str!("../queries/injections/svelte.scm");
 
 fn svelte() -> Language {
     Language {
@@ -811,9 +809,13 @@ fn svelte() -> Language {
         }),
         line_comment_prefix: Some("//".to_string()),
         block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
-        injection_query: Some(format!(
-            "{HTML_TAGS_INJECTION_QUERY}{SVELTE_INJECTION_QUERY}"
-        )),
+        injection_query: Some(
+            concat!(
+                include_str!("../queries/injections/html_tags.scm"),
+                include_str!("../queries/injections/svelte.scm")
+            )
+            .to_string(),
+        ),
         injected_languages: to_vec(&["css", "javascript", "json", "scss", "typescript"]),
         ..Language::new()
     }
@@ -830,8 +832,6 @@ fn json() -> Language {
         ..Language::new()
     }
 }
-
-const JULIA_INJECTION_QUERY: &str = include_str!("../queries/injections/julia.scm");
 
 fn julia() -> Language {
     Language {
@@ -856,13 +856,11 @@ fn julia() -> Language {
         }),
         line_comment_prefix: Some("#".to_string()),
         block_comment_affixes: Some(("#=".to_string(), "=#".to_string())),
-        injection_query: Some(JULIA_INJECTION_QUERY.to_string()),
+        injection_query: Some(include_str!("../queries/injections/julia.scm").to_string()),
         injected_languages: to_vec(&["bash", "markdown"]),
         ..Language::new()
     }
 }
-
-const JUST_INJECTION_QUERY: &str = include_str!("../queries/injections/just.scm");
 
 fn just() -> Language {
     Language {
@@ -873,7 +871,7 @@ fn just() -> Language {
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Just),
         }),
         line_comment_prefix: Some("#".to_string()),
-        injection_query: Some(JUST_INJECTION_QUERY.to_string()),
+        injection_query: Some(include_str!("../queries/injections/just.scm").to_string()),
         injected_languages: to_vec(&[
             "bash",
             "fish",
@@ -900,8 +898,6 @@ fn kiquickfix() -> Language {
     }
 }
 
-const LUA_INJECTION_QUERY: &str = include_str!("../queries/injections/lua.scm");
-
 fn lua() -> Language {
     Language {
         extensions: to_vec(&["lua"]),
@@ -917,13 +913,11 @@ fn lua() -> Language {
         }),
         line_comment_prefix: Some("--".to_string()),
         block_comment_affixes: Some(("--[[".to_string(), "]]".to_string())),
-        injection_query: Some(LUA_INJECTION_QUERY.to_string()),
+        injection_query: Some(include_str!("../queries/injections/lua.scm").to_string()),
         injected_languages: to_vec(&["c"]),
         ..Language::new()
     }
 }
-
-const MARKDOWN_INJECTION_QUERY: &str = include_str!("../queries/injections/markdown.scm");
 
 fn markdown() -> Language {
     Language {
@@ -939,7 +933,7 @@ fn markdown() -> Language {
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Markdown),
         }),
         block_comment_affixes: Some(("<!--".to_string(), "-->".to_string())),
-        injection_query: Some(MARKDOWN_INJECTION_QUERY.to_string()),
+        injection_query: Some(include_str!("../queries/injections/markdown.scm").to_string()),
         injected_languages: to_vec(&[
             "bash",
             "css",
@@ -956,8 +950,6 @@ fn markdown() -> Language {
     }
 }
 
-const NIX_INJECTION_QUERY: &str = include_str!("../queries/injections/nix.scm");
-
 fn nix() -> Language {
     Language {
         formatter: Some(Command::new("nixfmt", &[])),
@@ -973,7 +965,7 @@ fn nix() -> Language {
         }),
         line_comment_prefix: Some("#".to_string()),
         block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
-        injection_query: Some(NIX_INJECTION_QUERY.to_string()),
+        injection_query: Some(include_str!("../queries/injections/nix.scm").to_string()),
         injected_languages: to_vec(&[
             "bash",
             "fish",
@@ -1056,8 +1048,6 @@ fn dune() -> Language {
     }
 }
 
-const PHP_INJECTION_QUERY: &str = include_str!("../queries/injections/php.scm");
-
 fn php() -> Language {
     Language {
         extensions: to_vec(&["php", "php3", "php4", "php5", "php7", "phtml"]),
@@ -1068,7 +1058,7 @@ fn php() -> Language {
         }),
         line_comment_prefix: Some("//".to_string()),
         block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
-        injection_query: Some(PHP_INJECTION_QUERY.to_string()),
+        injection_query: Some(include_str!("../queries/injections/php.scm").to_string()),
         injected_languages: to_vec(&[
             "bash",
             "css",
@@ -1122,8 +1112,6 @@ fn perl() -> Language {
     }
 }
 
-const RESCRIPT_INJECTION_QUERY: &str = include_str!("../queries/injections/rescript.scm");
-
 fn rescript() -> Language {
     Language {
         extensions: to_vec(&["res"]),
@@ -1142,7 +1130,7 @@ fn rescript() -> Language {
         }),
         line_comment_prefix: Some("//".to_string()),
         block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
-        injection_query: Some(RESCRIPT_INJECTION_QUERY.to_string()),
+        injection_query: Some(include_str!("../queries/injections/rescript.scm").to_string()),
         injected_languages: to_vec(&["graphql", "javascript"]),
         ..Language::new()
     }
@@ -1200,8 +1188,6 @@ fn roc() -> Language {
     }
 }
 
-const RUST_INJECTION_QUERY: &str = include_str!("../queries/injections/rust.scm");
-
 fn rust() -> Language {
     Language {
         extensions: to_vec(&["rs"]),
@@ -1217,7 +1203,7 @@ fn rust() -> Language {
         }),
         line_comment_prefix: Some("//".to_string()),
         block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
-        injection_query: Some(RUST_INJECTION_QUERY.to_string()),
+        injection_query: Some(include_str!("../queries/injections/rust.scm").to_string()),
         injected_languages: to_vec(&["json", "rust"]),
         ..Language::new()
     }
@@ -1302,8 +1288,6 @@ fn tree_sitter_query() -> Language {
     }
 }
 
-const TYPESCRIPT_INJECTION_QUERY: &str = include_str!("../queries/injections/typescript.scm");
-
 fn typescript() -> Language {
     Language {
         extensions: to_vec(&["ts", "mts", "cts"]),
@@ -1319,9 +1303,13 @@ fn typescript() -> Language {
         }),
         line_comment_prefix: Some("//".to_string()),
         block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
-        injection_query: Some(format!(
-            "{ECMA_INJECTION_QUERY}{TYPESCRIPT_INJECTION_QUERY}"
-        )),
+        injection_query: Some(
+            concat!(
+                include_str!("../queries/injections/ecma.scm"),
+                include_str!("../queries/injections/typescript.scm")
+            )
+            .to_string(),
+        ),
         injected_languages: to_vec(&["css", "graphql", "html", "sql"]),
         ..Language::new()
     }
@@ -1342,9 +1330,14 @@ fn typescriptreact() -> Language {
         }),
         line_comment_prefix: Some("//".to_string()),
         block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
-        injection_query: Some(format!(
-            "{ECMA_INJECTION_QUERY}{TYPESCRIPT_INJECTION_QUERY}{JSX_INJECTION_QUERY}"
-        )),
+        injection_query: Some(
+            concat!(
+                include_str!("../queries/injections/ecma.scm"),
+                include_str!("../queries/injections/typescript.scm"),
+                include_str!("../queries/injections/jsx.scm")
+            )
+            .to_string(),
+        ),
         injected_languages: to_vec(&["css", "graphql", "html", "sql"]),
         ..Language::new()
     }
@@ -1370,8 +1363,6 @@ fn unison() -> Language {
     }
 }
 
-const XML_INJECTION_QUERY: &str = include_str!("../queries/injections/xml.scm");
-
 fn xml() -> Language {
     Language {
         extensions: to_vec(&["xml", "xaml", "axaml"]),
@@ -1380,13 +1371,11 @@ fn xml() -> Language {
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::XML),
         }),
         block_comment_affixes: Some(("<!--".to_string(), "-->".to_string())),
-        injection_query: Some(XML_INJECTION_QUERY.to_string()),
+        injection_query: Some(include_str!("../queries/injections/xml.scm").to_string()),
         injected_languages: to_vec(&["css", "javascript", "sql"]),
         ..Language::new()
     }
 }
-
-const YAML_INJECTION_QUERY: &str = include_str!("../queries/injections/yaml.scm");
 
 fn yaml() -> Language {
     Language {
@@ -1396,7 +1385,7 @@ fn yaml() -> Language {
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::YAML),
         }),
         line_comment_prefix: Some("#".to_string()),
-        injection_query: Some(YAML_INJECTION_QUERY.to_string()),
+        injection_query: Some(include_str!("../queries/injections/yaml.scm").to_string()),
         injected_languages: to_vec(&["bash"]),
         ..Language::new()
     }
