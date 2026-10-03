@@ -172,14 +172,7 @@ fn c() -> Language {
     }
 }
 
-/// Based on nvim-treesitter's `make` injections. Not ported: comments.
-const MAKE_INJECTION_QUERY: &str = r#"
-((shell_text) @injection.content
-  (#set! injection.language "bash"))
-
-((shell_command) @injection.content
-  (#set! injection.language "bash"))
-"#;
+const MAKE_INJECTION_QUERY: &str = include_str!("../queries/injections/make.scm");
 
 fn make() -> Language {
     Language {
@@ -358,17 +351,7 @@ fn diff() -> Language {
     }
 }
 
-/// Based on nvim-treesitter's `dockerfile` injections. Not ported: `RUN <<EOF` heredocs (the
-/// host highlights each heredoc line as a string, which tree-sitter-highlight lets win over the
-/// injected highlights at the start of each line) and comments.
-const DOCKERFILE_INJECTION_QUERY: &str = r#"
-; RUN, CMD and ENTRYPOINT in shell form. A command continued over multiple lines has one
-; fragment per line, which are combined into one script.
-((shell_command
-  (shell_fragment) @injection.content)
-  (#set! injection.language "bash")
-  (#set! injection.combined))
-"#;
+const DOCKERFILE_INJECTION_QUERY: &str = include_str!("../queries/injections/dockerfile.scm");
 
 fn dockerfile() -> Language {
     Language {
@@ -384,45 +367,7 @@ fn dockerfile() -> Language {
     }
 }
 
-/// Based on nvim-treesitter's `elixir` injections. Not ported: surface (`~F`), eex (`~E`, `~L`),
-/// LiveView Native (`~LVN`), regex (`~r`) and comments.
-const ELIXIR_INJECTION_QUERY: &str = r#"
-; @moduledoc """...""", @doc "...", @typedoc ~S"..."
-(unary_operator
-  operator: "@"
-  operand: (call
-    target: (identifier) @_identifier
-    (arguments
-      [
-        (string
-          (quoted_content) @injection.content)
-        (sigil
-          (quoted_content) @injection.content)
-      ]))
-  (#any-of? @_identifier "moduledoc" "typedoc" "shortdoc" "doc")
-  (#set! injection.language "markdown"))
-
-; ~H"""...""" (HEEx)
-((sigil
-  (sigil_name) @_sigil_name
-  (quoted_content) @injection.content)
-  (#eq? @_sigil_name "H")
-  (#set! injection.language "heex"))
-
-; ~z"..." (Zigler)
-((sigil
-  (sigil_name) @_sigil_name
-  (quoted_content) @injection.content)
-  (#any-of? @_sigil_name "z" "Z")
-  (#set! injection.language "zig"))
-
-; ~j"..."
-((sigil
-  (sigil_name) @_sigil_name
-  (quoted_content) @injection.content)
-  (#any-of? @_sigil_name "j" "J")
-  (#set! injection.language "json"))
-"#;
+const ELIXIR_INJECTION_QUERY: &str = include_str!("../queries/injections/elixir.scm");
 
 fn elixir() -> Language {
     Language {
@@ -478,12 +423,7 @@ fn gitattributes() -> Language {
     }
 }
 
-/// Based on nvim-treesitter's `gitcommit` injections. Not ported: `rebase_command` (git_rebase),
-/// which the grammar only produces in rebase todo lists.
-const GITCOMMIT_INJECTION_QUERY: &str = r#"
-((diff) @injection.content
-  (#set! injection.language "diff"))
-"#;
+const GITCOMMIT_INJECTION_QUERY: &str = include_str!("../queries/injections/gitcommit.scm");
 
 fn gitcommit() -> Language {
     Language {
@@ -655,32 +595,7 @@ fn hcl() -> Language {
     }
 }
 
-/// Based on nvim-treesitter's `heex` injections. Not ported: comments.
-const HEEX_INJECTION_QUERY: &str = r#"
-; Directives are standalone tags like `<%= @x %>`. The partial and ending expression values
-; are fragments of one Elixir expression that spans multiple directives, e.g.
-;     <%= if true do %>
-;       <p>, tree-sitter!</p>
-;     <% end %>
-; so they are combined.
-(directive
-  [
-    (partial_expression_value)
-    (ending_expression_value)
-  ] @injection.content
-  (#set! injection.language "elixir")
-  (#set! injection.include-children)
-  (#set! injection.combined))
-
-((directive
-  (expression_value) @injection.content)
-  (#set! injection.language "elixir"))
-
-; <link href={ Routes.static_path(..) } />
-((expression
-  (expression_value) @injection.content)
-  (#set! injection.language "elixir"))
-"#;
+const HEEX_INJECTION_QUERY: &str = include_str!("../queries/injections/heex.scm");
 
 fn heex() -> Language {
     Language {
@@ -725,102 +640,9 @@ fn latex() -> Language {
     }
 }
 
-/// Based on nvim-treesitter's `html_tags` injections, shared by languages that embed HTML
-/// elements. `#lua-match?` and `#gsub!` are rewritten as `#match?` and explicit `type` values.
-/// Not ported: `style="..."` (a declaration list is not a stylesheet), `on*="..."` handlers
-/// (the attribute value is highlighted as a string by the host, which tree-sitter-highlight
-/// lets win over the injected highlights at the start of the range), lit-html `${}`
-/// attributes (needs `#offset!`), `pattern="..."` (no regex language), and comments.
-const HTML_TAGS_INJECTION_QUERY: &str = r#"
-; <style>...</style>; `lang`/`type` attributes are handled by the rules below
-((style_element
-  (start_tag) @_start_tag
-  (raw_text) @injection.content)
-  (#not-match? @_start_tag "\\s(lang|type)\\s*=")
-  (#set! injection.language "css"))
+const HTML_TAGS_INJECTION_QUERY: &str = include_str!("../queries/injections/html_tags.scm");
 
-((style_element
-  (start_tag
-    (attribute
-      (attribute_name) @_attr
-      (quoted_attribute_value
-        (attribute_value) @_type)))
-  (raw_text) @injection.content)
-  (#eq? @_attr "type")
-  (#eq? @_type "text/css")
-  (#set! injection.language "css"))
-
-; <script>...</script>
-((script_element
-  (start_tag) @_start_tag
-  (raw_text) @injection.content)
-  (#not-match? @_start_tag "\\s(lang|type)\\s*=")
-  (#set! injection.language "javascript"))
-
-; <script type="module">, <script type="text/javascript">
-((script_element
-  (start_tag
-    (attribute
-      (attribute_name) @_attr
-      (quoted_attribute_value
-        (attribute_value) @_type)))
-  (raw_text) @injection.content)
-  (#eq? @_attr "type")
-  (#any-of? @_type "module" "text/javascript" "application/javascript" "text/ecmascript" "application/ecmascript")
-  (#set! injection.language "javascript"))
-
-((script_element
-  (start_tag
-    (attribute
-      (attribute_name) @_attr
-      (quoted_attribute_value
-        (attribute_value) @_type)))
-  (raw_text) @injection.content)
-  (#eq? @_attr "type")
-  (#any-of? @_type "text/typescript" "application/typescript")
-  (#set! injection.language "typescript"))
-
-; <script type="importmap">, <script type="application/json">
-((script_element
-  (start_tag
-    (attribute
-      (attribute_name) @_attr
-      (quoted_attribute_value
-        (attribute_value) @_type)))
-  (raw_text) @injection.content)
-  (#eq? @_attr "type")
-  (#any-of? @_type "importmap" "application/json")
-  (#set! injection.language "json"))
-"#;
-
-/// PyScript injections, which nvim-treesitter adds on top of `html_tags`.
-const HTML_INJECTION_QUERY: &str = r#"
-; PyScript: <py-script>, <py-repl>, <script type="pyscript">
-((element
-  (start_tag
-    (tag_name) @_py_script)
-  (text) @injection.content)
-  (#any-of? @_py_script "py-script" "py-repl")
-  (#set! injection.language "python"))
-
-((script_element
-  (start_tag
-    (attribute
-      (attribute_name) @_attr
-      (quoted_attribute_value
-        (attribute_value) @_type)))
-  (raw_text) @injection.content)
-  (#eq? @_attr "type")
-  (#any-of? @_type "pyscript" "py-script")
-  (#set! injection.language "python"))
-
-((element
-  (start_tag
-    (tag_name) @_py_config)
-  (text) @injection.content)
-  (#eq? @_py_config "py-config")
-  (#set! injection.language "toml"))
-"#;
+const HTML_INJECTION_QUERY: &str = include_str!("../queries/injections/html.scm");
 
 fn html() -> Language {
     Language {
@@ -894,172 +716,9 @@ fn java() -> Language {
     }
 }
 
-/// Based on nvim-treesitter's `ecma` injections. Template literals are captured through their
-/// `string_fragment` children, which sidesteps `#offset!` (unsupported) for the backticks.
-/// CSS-in-JS is parsed as plain CSS rather than nvim-treesitter's `styled`. Not ported: jsdoc,
-/// regex, groq, glimmer and angular.
-const ECMA_INJECTION_QUERY: &str = r#"
-; html`...`, html(`...`), sql`...`, graphql`...`; template substitutions are
-; skipped and the remaining fragments are parsed as one document
-(call_expression
-  function: (identifier) @injection.language
-  arguments: [
-    (arguments
-      (template_string
-        (string_fragment) @injection.content))
-    (template_string
-      (string_fragment) @injection.content)
-  ]
-  (#any-of? @injection.language "html" "sql" "graphql")
-  (#set! injection.combined))
+const ECMA_INJECTION_QUERY: &str = include_str!("../queries/injections/ecma.scm");
 
-; svg`...` or svg(`...`)
-(call_expression
-  function: (identifier) @_name
-  arguments: [
-    (arguments
-      (template_string
-        (string_fragment) @injection.content))
-    (template_string
-      (string_fragment) @injection.content)
-  ]
-  (#eq? @_name "svg")
-  (#set! injection.language "html")
-  (#set! injection.combined))
-
-; gql`...`
-(call_expression
-  function: (identifier) @_name
-  arguments: (template_string
-    (string_fragment) @injection.content)
-  (#eq? @_name "gql")
-  (#set! injection.language "graphql")
-  (#set! injection.combined))
-
-; foo.sql`...` or foo.sql(`...`)
-(call_expression
-  function: (member_expression
-    property: (property_identifier) @_name)
-  arguments: [
-    (arguments
-      (template_string
-        (string_fragment) @injection.content))
-    (template_string
-      (string_fragment) @injection.content)
-  ]
-  (#eq? @_name "sql")
-  (#set! injection.language "sql")
-  (#set! injection.combined))
-
-; /* tagged by a leading #graphql comment */
-((template_string
-  (string_fragment) @injection.content)
-  (#match? @injection.content "^#graphql")
-  (#set! injection.language "graphql"))
-
-; css`...`, keyframes`...`
-(call_expression
-  function: (identifier) @_name
-  arguments: (template_string
-    (string_fragment) @injection.content)
-  (#any-of? @_name "css" "keyframes")
-  (#set! injection.language "css")
-  (#set! injection.combined))
-
-; styled.div`...`
-(call_expression
-  function: (member_expression
-    object: (identifier) @_name)
-  arguments: (template_string
-    (string_fragment) @injection.content)
-  (#eq? @_name "styled")
-  (#set! injection.language "css")
-  (#set! injection.combined))
-
-; styled(Component)`...`
-(call_expression
-  function: (call_expression
-    function: (identifier) @_name)
-  arguments: (template_string
-    (string_fragment) @injection.content)
-  (#eq? @_name "styled")
-  (#set! injection.language "css")
-  (#set! injection.combined))
-
-; styled.div.attrs({ prop: "foo" })`...`
-(call_expression
-  function: (call_expression
-    function: (member_expression
-      object: (member_expression
-        object: (identifier) @_name)))
-  arguments: (template_string
-    (string_fragment) @injection.content)
-  (#eq? @_name "styled")
-  (#set! injection.language "css")
-  (#set! injection.combined))
-
-; styled(Component).attrs({ prop: "foo" })`...`
-(call_expression
-  function: (call_expression
-    function: (member_expression
-      object: (call_expression
-        function: (identifier) @_name)))
-  arguments: (template_string
-    (string_fragment) @injection.content)
-  (#eq? @_name "styled")
-  (#set! injection.language "css")
-  (#set! injection.combined))
-
-; el.innerHTML = `<b>x</b>` or el.innerHTML = '<b>x</b>'
-(assignment_expression
-  left: (member_expression
-    property: (property_identifier) @_prop)
-  right: [
-    (template_string
-      (string_fragment) @injection.content)
-    (string
-      (string_fragment) @injection.content)
-  ]
-  (#any-of? @_prop "outerHTML" "innerHTML")
-  (#set! injection.language "html")
-  (#set! injection.combined))
-
-; @Component({ styles: [`...`] }) and @Component({ styles: `...` })
-(decorator
-  (call_expression
-    function: (identifier) @_name
-    arguments: (arguments
-      (object
-        (pair
-          key: (property_identifier) @_prop
-          value: [
-            (array
-              (template_string
-                (string_fragment) @injection.content))
-            (template_string
-              (string_fragment) @injection.content)
-          ]))))
-  (#eq? @_name "Component")
-  (#eq? @_prop "styles")
-  (#set! injection.language "css")
-  (#set! injection.combined))
-"#;
-
-/// Based on nvim-treesitter's `jsx` injections.
-const JSX_INJECTION_QUERY: &str = r#"
-; <style jsx>{`...`}</style>
-(jsx_element
-  (jsx_opening_element
-    (identifier) @_name
-    (jsx_attribute) @_attr)
-  (jsx_expression
-    (template_string
-      (string_fragment) @injection.content))
-  (#eq? @_name "style")
-  (#eq? @_attr "jsx")
-  (#set! injection.language "css")
-  (#set! injection.combined))
-"#;
+const JSX_INJECTION_QUERY: &str = include_str!("../queries/injections/jsx.scm");
 
 fn javascript() -> Language {
     Language {
@@ -1136,44 +795,7 @@ fn javascriptreact() -> Language {
     }
 }
 
-/// Svelte-specific injections on top of [`HTML_TAGS_INJECTION_QUERY`]. `pug` is not ported.
-const SVELTE_INJECTION_QUERY: &str = r#"
-((svelte_raw_text) @injection.content
-  (#set! injection.language "javascript"))
-
-((style_element
-  (start_tag
-    (attribute
-      (attribute_name) @_attr
-      (quoted_attribute_value
-        (attribute_value) @_lang)))
-  (raw_text) @injection.content)
-  (#eq? @_attr "lang")
-  (#any-of? @_lang "scss" "postcss" "less")
-  (#set! injection.language "scss"))
-
-((script_element
-  (start_tag
-    (attribute
-      (attribute_name) @_attr
-      (quoted_attribute_value
-        (attribute_value) @_lang)))
-  (raw_text) @injection.content)
-  (#eq? @_attr "lang")
-  (#any-of? @_lang "ts" "typescript")
-  (#set! injection.language "typescript"))
-
-((script_element
-  (start_tag
-    (attribute
-      (attribute_name) @_attr
-      (quoted_attribute_value
-        (attribute_value) @_lang)))
-  (raw_text) @injection.content)
-  (#eq? @_attr "lang")
-  (#any-of? @_lang "js" "javascript")
-  (#set! injection.language "javascript"))
-"#;
+const SVELTE_INJECTION_QUERY: &str = include_str!("../queries/injections/svelte.scm");
 
 fn svelte() -> Language {
     Language {
@@ -1209,37 +831,7 @@ fn json() -> Language {
     }
 }
 
-/// Based on nvim-treesitter's `julia` injections. Not ported: regex (`r"..."`) and comments.
-const JULIA_INJECTION_QUERY: &str = r#"
-; Docstrings
-((string_literal
-  (content) @injection.content)
-  .
-  [
-    (module_definition)
-    (abstract_definition)
-    (struct_definition)
-    (function_definition)
-    (macro_definition)
-    (assignment)
-    (const_statement)
-    (call_expression)
-    (identifier)
-  ]
-  (#set! injection.language "markdown"))
-
-; md"**Bold** and _Italics_" and md"""..."""
-((prefixed_string_literal
-  prefix: (identifier) @_prefix
-  (content) @injection.content)
-  (#eq? @_prefix "md")
-  (#set! injection.language "markdown"))
-
-; `git add --help`
-((command_literal
-  (content) @injection.content)
-  (#set! injection.language "bash"))
-"#;
+const JULIA_INJECTION_QUERY: &str = include_str!("../queries/injections/julia.scm");
 
 fn julia() -> Language {
     Language {
@@ -1270,51 +862,7 @@ fn julia() -> Language {
     }
 }
 
-/// Based on nvim-treesitter's `just` injections. The shebang language is restricted to
-/// languages that are known to Ki. Not ported: bash for recipes without a shebang (the host
-/// highlights the recipe line as a string, which tree-sitter-highlight lets win over the injected
-/// highlight of the first token), regex (`=~`) and comments.
-const JUST_INJECTION_QUERY: &str = r#"
-; `ls`
-((external_command
-  (command_body) @injection.content)
-  (#set! injection.language "bash"))
-
-; For shebang recipes, use the shebang executable name as the language
-((recipe
-  (recipe_body
-    (shebang
-      (language) @injection.language)) @injection.content)
-  (#any-of? @injection.language "bash" "zsh" "fish" "python" "perl" "ruby" "lua")
-  (#set! injection.include-children))
-
-; sh -> bash
-((recipe
-  (recipe_body
-    (shebang
-      (language) @_lang)) @injection.content)
-  (#eq? @_lang "sh")
-  (#set! injection.language "bash")
-  (#set! injection.include-children))
-
-; python3 -> python
-((recipe
-  (recipe_body
-    (shebang
-      (language) @_lang)) @injection.content)
-  (#eq? @_lang "python3")
-  (#set! injection.language "python")
-  (#set! injection.include-children))
-
-; node/nodejs -> javascript
-((recipe
-  (recipe_body
-    (shebang
-      (language) @_lang)) @injection.content)
-  (#any-of? @_lang "node" "nodejs")
-  (#set! injection.language "javascript")
-  (#set! injection.include-children))
-"#;
+const JUST_INJECTION_QUERY: &str = include_str!("../queries/injections/just.scm");
 
 fn just() -> Language {
     Language {
@@ -1352,22 +900,7 @@ fn kiquickfix() -> Language {
     }
 }
 
-/// Based on nvim-treesitter's `lua` injections. Only `ffi.cdef` (C) is ported: the others
-/// inject vimscript, tree-sitter queries, luap, luadoc, printf or comments.
-const LUA_INJECTION_QUERY: &str = r#"
-; ffi.cdef([[ int f(int x); ]])
-((function_call
-  name: [
-    (identifier) @_cdef_identifier
-    (dot_index_expression
-      field: (identifier) @_cdef_identifier)
-  ]
-  arguments: (arguments
-    (string
-      content: (string_content) @injection.content)))
-  (#eq? @_cdef_identifier "cdef")
-  (#set! injection.language "c"))
-"#;
+const LUA_INJECTION_QUERY: &str = include_str!("../queries/injections/lua.scm");
 
 fn lua() -> Language {
     Language {
@@ -1390,29 +923,7 @@ fn lua() -> Language {
     }
 }
 
-/// Based on `tree_sitter_md::INJECTION_QUERY_BLOCK`, except that
-/// `injection.include-children` is set on every rule: block nodes have one
-/// `block_continuation` child per line, which would otherwise be excluded from the
-/// injected ranges and split the embedded code into unparsable fragments.
-const MARKDOWN_INJECTION_QUERY: &str = r#"
-(fenced_code_block
-  (info_string
-    (language) @injection.language)
-  (code_fence_content) @injection.content
-  (#set! injection.include-children))
-
-((html_block) @injection.content
-  (#set! injection.language "html")
-  (#set! injection.include-children))
-
-(document . (section . (thematic_break) (_) @injection.content (thematic_break))
-  (#set! injection.language "yaml")
-  (#set! injection.include-children))
-
-([(minus_metadata) (plus_metadata)] @injection.content
-  (#set! injection.language "yaml")
-  (#set! injection.include-children))
-"#;
+const MARKDOWN_INJECTION_QUERY: &str = include_str!("../queries/injections/markdown.scm");
 
 fn markdown() -> Language {
     Language {
@@ -1445,213 +956,7 @@ fn markdown() -> Language {
     }
 }
 
-/// Based on nvim-treesitter's `nix` injections. `#lua-match?` is rewritten as `#match?`, and the
-/// `pre*`/`post*` hooks require a capital letter after the prefix so that attributes such as
-/// `prefix` are not treated as shell. Not ported: language comments such as `/* lua */` (needs
-/// `#gsub!`), regex and comments.
-const NIX_INJECTION_QUERY: &str = r#"
-; Build phases: buildPhase, preInstall, postFixup, script, ...
-((binding
-  attrpath: (attrpath
-    (identifier) @_path)
-  expression: [
-    (string_expression
-      (string_fragment) @injection.content)
-    (indented_string_expression
-      (string_fragment) @injection.content)
-  ])
-  (#match? @_path "^([a-zA-Z]+Phase|(pre|post)[A-Z][a-zA-Z]*|script)$")
-  (#set! injection.language "bash"))
-
-; pkgs.writeShellApplication { text = ''...''; }
-((apply_expression
-  function: (_) @_func
-  argument: (attrset_expression
-    (binding_set
-      (binding
-        attrpath: (attrpath
-          (identifier) @_path)
-        expression: [
-    (string_expression
-      (string_fragment) @injection.content)
-    (indented_string_expression
-      (string_fragment) @injection.content)
-  ]))))
-  (#match? @_func "(^|\\.)writeShellApplication$")
-  (#eq? @_path "text")
-  (#set! injection.language "bash")
-  (#set! injection.combined))
-
-; pkgs.runCommand "name" { } ''...''
-((apply_expression
-  function: (apply_expression
-    function: (apply_expression
-      function: (_) @_func))
-  argument: [
-    (string_expression
-      (string_fragment) @injection.content)
-    (indented_string_expression
-      (string_fragment) @injection.content)
-  ])
-  (#match? @_func "(^|\\.)runCommand[a-zA-Z]*$")
-  (#set! injection.language "bash")
-  (#set! injection.combined))
-
-; pkgs.writeBash "name" ''...'' (also writeDash and writeShellScript)
-((apply_expression
-  function: (apply_expression
-    function: (_) @_func)
-  argument: [
-    (string_expression
-      (string_fragment) @injection.content)
-    (indented_string_expression
-      (string_fragment) @injection.content)
-  ])
-  (#match? @_func "(^|\\.)write(Bash|Dash|ShellScript)[a-zA-Z]*$")
-  (#set! injection.language "bash")
-  (#set! injection.combined))
-
-; pkgs.writeFish "name" ''...''
-((apply_expression
-  function: (apply_expression
-    function: (_) @_func)
-  argument: [
-    (string_expression
-      (string_fragment) @injection.content)
-    (indented_string_expression
-      (string_fragment) @injection.content)
-  ])
-  (#match? @_func "(^|\\.)writeFish[a-zA-Z]*$")
-  (#set! injection.language "fish")
-  (#set! injection.combined))
-
-; pkgs.writeJS "name" ''...'' or pkgs.writeJS "name" { } ''...'' (likewise for the other
-; interpreters below, which take optional arguments)
-((apply_expression
-  function: [
-    (apply_expression
-      function: (_) @_func)
-    (apply_expression
-      function: (apply_expression
-        function: (_) @_func))
-  ]
-  argument: [
-    (string_expression
-      (string_fragment) @injection.content)
-    (indented_string_expression
-      (string_fragment) @injection.content)
-  ])
-  (#match? @_func "(^|\\.)writeJS[a-zA-Z]*$")
-  (#set! injection.language "javascript")
-  (#set! injection.combined))
-
-; pkgs.writePerl "name" ''...''
-((apply_expression
-  function: [
-    (apply_expression
-      function: (_) @_func)
-    (apply_expression
-      function: (apply_expression
-        function: (_) @_func))
-  ]
-  argument: [
-    (string_expression
-      (string_fragment) @injection.content)
-    (indented_string_expression
-      (string_fragment) @injection.content)
-  ])
-  (#match? @_func "(^|\\.)writePerl[a-zA-Z]*$")
-  (#set! injection.language "perl")
-  (#set! injection.combined))
-
-; pkgs.writePy "name" ''...''
-((apply_expression
-  function: [
-    (apply_expression
-      function: (_) @_func)
-    (apply_expression
-      function: (apply_expression
-        function: (_) @_func))
-  ]
-  argument: [
-    (string_expression
-      (string_fragment) @injection.content)
-    (indented_string_expression
-      (string_fragment) @injection.content)
-  ])
-  (#match? @_func "(^|\\.)writePy[a-zA-Z]*[0-9]*[a-zA-Z]*$")
-  (#set! injection.language "python")
-  (#set! injection.combined))
-
-; pkgs.writeRust "name" ''...''
-((apply_expression
-  function: [
-    (apply_expression
-      function: (_) @_func)
-    (apply_expression
-      function: (apply_expression
-        function: (_) @_func))
-  ]
-  argument: [
-    (string_expression
-      (string_fragment) @injection.content)
-    (indented_string_expression
-      (string_fragment) @injection.content)
-  ])
-  (#match? @_func "(^|\\.)writeRust[a-zA-Z]*$")
-  (#set! injection.language "rust")
-  (#set! injection.combined))
-
-; pkgs.writeHaskell "name" { } ''...''
-((apply_expression
-  function: [
-    (apply_expression
-      function: (_) @_func)
-    (apply_expression
-      function: (apply_expression
-        function: (_) @_func))
-  ]
-  argument: [
-    (string_expression
-      (string_fragment) @injection.content)
-    (indented_string_expression
-      (string_fragment) @injection.content)
-  ])
-  (#match? @_func "(^|\\.)writeHaskell[a-zA-Z]*$")
-  (#set! injection.language "haskell")
-  (#set! injection.combined))
-
-; testScript of (runNixOS)Test
-((apply_expression
-  function: (_) @_func
-  argument: (attrset_expression
-    (binding_set
-      (binding
-        attrpath: (attrpath) @_func_name
-        expression: (_
-          (string_fragment) @injection.content)))))
-  (#eq? @_func_name "testScript")
-  (#match? @_func "(^|\\.)(runTest|nixosTest|runNixOSTest)$")
-  (#set! injection.language "python")
-  (#set! injection.combined))
-
-; home-manager Neovim plugin config: { type = "lua"; config = ''...''; }
-((attrset_expression
-  (binding_set
-    (binding
-      attrpath: (attrpath) @_ty_attr
-      expression: (_
-        (string_fragment) @_ty))
-    (binding
-      attrpath: (attrpath) @_cfg_attr
-      expression: (_
-        (string_fragment) @injection.content))))
-  (#eq? @_ty_attr "type")
-  (#eq? @_ty "lua")
-  (#eq? @_cfg_attr "config")
-  (#set! injection.language "lua")
-  (#set! injection.combined))
-"#;
+const NIX_INJECTION_QUERY: &str = include_str!("../queries/injections/nix.scm");
 
 fn nix() -> Language {
     Language {
@@ -1751,21 +1056,7 @@ fn dune() -> Language {
     }
 }
 
-/// Based on nvim-treesitter's `php_only` and `php` injections. Not ported: phpdoc, regex
-/// (`preg_*`), heredoc/nowdoc (the language is the case-sensitive label) and
-/// `shell_exec("...")` and friends (the host highlights the string content, which
-/// tree-sitter-highlight lets win over the injected highlights).
-const PHP_INJECTION_QUERY: &str = r#"
-; Inline HTML outside of <?php ... ?>
-((text) @injection.content
-  (#set! injection.language "html")
-  (#set! injection.combined))
-
-; `ls -la`
-((shell_command_expression
-  (string_content) @injection.content)
-  (#set! injection.language "bash"))
-"#;
+const PHP_INJECTION_QUERY: &str = include_str!("../queries/injections/php.scm");
 
 fn php() -> Language {
     Language {
@@ -1831,34 +1122,7 @@ fn perl() -> Language {
     }
 }
 
-/// Based on nvim-treesitter's `rescript` injections. Not ported: regex (`%re`) and comments.
-const RESCRIPT_INJECTION_QUERY: &str = r#"
-; %raw("...") and %raw(`...`)
-(extension_expression
-  (extension_identifier) @_name
-  (expression_statement
-    [
-      (string
-        (string_fragment) @injection.content)
-      (template_string
-        (template_string_content) @injection.content)
-    ])
-  (#eq? @_name "raw")
-  (#set! injection.language "javascript"))
-
-; %graphql(`...`), %relay(`...`)
-(extension_expression
-  (extension_identifier) @_name
-  (expression_statement
-    [
-      (string
-        (string_fragment) @injection.content)
-      (template_string
-        (template_string_content) @injection.content)
-    ])
-  (#any-of? @_name "graphql" "relay")
-  (#set! injection.language "graphql"))
-"#;
+const RESCRIPT_INJECTION_QUERY: &str = include_str!("../queries/injections/rescript.scm");
 
 fn rescript() -> Language {
     Language {
@@ -1936,31 +1200,7 @@ fn roc() -> Language {
     }
 }
 
-/// Based on nvim-treesitter's `rust` injections. Not ported: Rust in the arguments of other
-/// macros (the host highlights every token of a token tree, which tree-sitter-highlight lets win
-/// over the injected highlights), `html!` (needs `#offset!` to skip the braces), the left-hand
-/// side of `macro_rules!` (it is not Rust syntax), regex, re2c and comments.
-const RUST_INJECTION_QUERY: &str = r#"
-; json!({ "a": 1 }): the JSON is the token tree inside the parentheses
-((macro_invocation
-  macro: [
-    (scoped_identifier
-      name: (_) @_macro_name)
-    (identifier) @_macro_name
-  ]
-  (token_tree
-    (token_tree) @injection.content))
-  (#eq? @_macro_name "json")
-  (#set! injection.language "json")
-  (#set! injection.include-children))
-
-; macro_rules! m { (...) => { ... }; }
-((macro_definition
-  (macro_rule
-    right: (token_tree) @injection.content))
-  (#set! injection.language "rust")
-  (#set! injection.include-children))
-"#;
+const RUST_INJECTION_QUERY: &str = include_str!("../queries/injections/rust.scm");
 
 fn rust() -> Language {
     Language {
@@ -2062,35 +1302,7 @@ fn tree_sitter_query() -> Language {
     }
 }
 
-/// Based on nvim-treesitter's `typescript` injections, on top of [`ECMA_INJECTION_QUERY`].
-const TYPESCRIPT_INJECTION_QUERY: &str = r#"
-; styled.div<{}>`...`
-(call_expression
-  function: (non_null_expression
-    (instantiation_expression
-      (member_expression
-        object: (identifier) @_name
-        property: (property_identifier))
-      type_arguments: (type_arguments)))
-  arguments: (template_string
-    (string_fragment) @injection.content)
-  (#eq? @_name "styled")
-  (#set! injection.language "css")
-  (#set! injection.combined))
-
-; styled.div<T>`...`
-(binary_expression
-  left: (binary_expression
-    left: (member_expression
-      object: (identifier) @_name
-      property: (property_identifier))
-    right: (identifier))
-  right: (template_string
-    (string_fragment) @injection.content)
-  (#eq? @_name "styled")
-  (#set! injection.language "css")
-  (#set! injection.combined))
-"#;
+const TYPESCRIPT_INJECTION_QUERY: &str = include_str!("../queries/injections/typescript.scm");
 
 fn typescript() -> Language {
     Language {
@@ -2158,36 +1370,7 @@ fn unison() -> Language {
     }
 }
 
-/// Based on nvim-treesitter's `xml` injections, except that `injection.combined` is not set so
-/// that every element is parsed on its own.
-const XML_INJECTION_QUERY: &str = r#"
-; <style> and <script> (e.g. in SVG). Children are included because the character
-; data of an element is a child of its `content` node.
-((element
-  (STag
-    (Name) @_name)
-  (content) @injection.content)
-  (#eq? @_name "style")
-  (#set! injection.include-children)
-  (#set! injection.language "css"))
-
-((element
-  (STag
-    (Name) @_name)
-  (content) @injection.content)
-  (#eq? @_name "script")
-  (#set! injection.include-children)
-  (#set! injection.language "javascript"))
-
-; phpMyAdmin dump
-((element
-  (STag
-    (Name) @_name)
-  (content) @injection.content)
-  (#eq? @_name "pma:table")
-  (#set! injection.include-children)
-  (#set! injection.language "sql"))
-"#;
+const XML_INJECTION_QUERY: &str = include_str!("../queries/injections/xml.scm");
 
 fn xml() -> Language {
     Language {
@@ -2203,30 +1386,7 @@ fn xml() -> Language {
     }
 }
 
-/// Based on nvim-treesitter's `yaml` injections. Not ported: plain scalars such as
-/// `run: echo hi` (the host highlights the scalar as a string, which tree-sitter-highlight lets
-/// win over the injected highlight of the first token), Prometheus `expr` (promql) and comments.
-const YAML_INJECTION_QUERY: &str = r#"
-; GitHub Actions ("run"), GitLab CI ("script"), Taskfile ("cmds", "cmd", "sh"). The block
-; scalar indicator (`|`, `>`) is part of the captured node, so the shell sees it as a stray
-; token at the start of the script.
-((block_mapping_pair
-  key: (flow_node) @_run
-  value: (block_node
-    (block_scalar) @injection.content))
-  (#any-of? @_run "run" "script" "before_script" "after_script" "cmds" "cmd" "sh")
-  (#set! injection.language "bash"))
-
-((block_mapping_pair
-  key: (flow_node) @_run
-  value: (block_node
-    (block_sequence
-      (block_sequence_item
-        (block_node
-          (block_scalar) @injection.content)))))
-  (#any-of? @_run "script" "before_script" "after_script" "cmds" "sh")
-  (#set! injection.language "bash"))
-"#;
+const YAML_INJECTION_QUERY: &str = include_str!("../queries/injections/yaml.scm");
 
 fn yaml() -> Language {
     Language {
