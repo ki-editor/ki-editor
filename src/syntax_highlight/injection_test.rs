@@ -119,6 +119,7 @@ fn cases() -> Vec<InjectionCase> {
     ]
     .into_iter()
     .chain(web_cases())
+    .chain(beam_and_ml_cases())
     .collect()
 }
 
@@ -362,6 +363,74 @@ fn web_cases() -> Vec<InjectionCase> {
             "<db>\n<pma:table>",
             "SELECT id FROM users;",
             "</pma:table>\n</db>\n",
+        ),
+    ]
+}
+
+fn beam_and_ml_cases() -> Vec<InjectionCase> {
+    vec![
+        // elixir
+        embed(
+            "ex",
+            "md",
+            "defmodule A do\n  @moduledoc \"\"\"\n",
+            "# Title\n\n  Some *text* and `code`.\n",
+            "  \"\"\"\nend\n",
+        ),
+        embed(
+            "ex",
+            "md",
+            "defmodule A do\n  @doc \"",
+            "# Title\n",
+            "\"\n  def f, do: 1\nend\n",
+        ),
+        embed(
+            "ex",
+            "heex",
+            "defmodule A do\n  def f(assigns), do: ~H\"\"\"\n",
+            "<div class=\"x\"><%= @x %></div>\n",
+            "  \"\"\"\nend\n",
+        ),
+        embed(
+            "ex",
+            "json",
+            "x = ~j(",
+            "{\"answer\": 42, \"ok\": true}",
+            ")\n",
+        ),
+        embed(
+            "ex",
+            "zig",
+            "x = ~z\"\"\"\n",
+            "const x: u32 = 1;\npub fn f() void {}\n",
+            "\"\"\"\n",
+        ),
+        // heex
+        embed("heex", "ex", "<div class={", "@class", "}>x</div>\n"),
+        embed("heex", "ex", "<div><%= ", "foo(@x, 1)", " %></div>\n"),
+        embed(
+            "heex",
+            "ex",
+            "<%= ",
+            "if @a do",
+            " %>\n  <p>x</p>\n<% end %>\n",
+        ),
+        // rescript
+        embed("res", "js", "let a = %raw(\"", "let x = 1; x + 1", "\")\n"),
+        embed("res", "js", "let a = %raw(`", "let x = 1; x + 1", "`)\n"),
+        embed(
+            "res",
+            "graphql",
+            "let a = %graphql(`",
+            "query { user(id: 1) { name } }",
+            "`)\n",
+        ),
+        embed(
+            "res",
+            "graphql",
+            "let a = %relay(`",
+            "query { user(id: 1) { name } }",
+            "`)\n",
         ),
     ]
 }

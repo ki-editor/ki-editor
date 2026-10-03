@@ -359,6 +359,46 @@ fn dockerfile() -> Language {
     }
 }
 
+/// Based on nvim-treesitter's `elixir` injections. Not ported: surface (`~F`), eex (`~E`, `~L`),
+/// LiveView Native (`~LVN`), regex (`~r`) and comments.
+const ELIXIR_INJECTION_QUERY: &str = r#"
+; @moduledoc """...""", @doc "...", @typedoc ~S"..."
+(unary_operator
+  operator: "@"
+  operand: (call
+    target: (identifier) @_identifier
+    (arguments
+      [
+        (string
+          (quoted_content) @injection.content)
+        (sigil
+          (quoted_content) @injection.content)
+      ]))
+  (#any-of? @_identifier "moduledoc" "typedoc" "shortdoc" "doc")
+  (#set! injection.language "markdown"))
+
+; ~H"""...""" (HEEx)
+((sigil
+  (sigil_name) @_sigil_name
+  (quoted_content) @injection.content)
+  (#eq? @_sigil_name "H")
+  (#set! injection.language "heex"))
+
+; ~z"..." (Zigler)
+((sigil
+  (sigil_name) @_sigil_name
+  (quoted_content) @injection.content)
+  (#any-of? @_sigil_name "z" "Z")
+  (#set! injection.language "zig"))
+
+; ~j"..."
+((sigil
+  (sigil_name) @_sigil_name
+  (quoted_content) @injection.content)
+  (#any-of? @_sigil_name "j" "J")
+  (#set! injection.language "json"))
+"#;
+
 fn elixir() -> Language {
     Language {
         extensions: to_vec(&["ex", "exs"]),
@@ -374,6 +414,8 @@ fn elixir() -> Language {
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Elixir),
         }),
         line_comment_prefix: Some("#".to_string()),
+        injection_query: Some(ELIXIR_INJECTION_QUERY.to_string()),
+        injected_languages: to_vec(&["heex", "json", "markdown", "zig"]),
         ..Language::new()
     }
 }
@@ -579,6 +621,33 @@ fn hcl() -> Language {
     }
 }
 
+/// Based on nvim-treesitter's `heex` injections. Not ported: comments.
+const HEEX_INJECTION_QUERY: &str = r#"
+; Directives are standalone tags like `<%= @x %>`. The partial and ending expression values
+; are fragments of one Elixir expression that spans multiple directives, e.g.
+;     <%= if true do %>
+;       <p>, tree-sitter!</p>
+;     <% end %>
+; so they are combined.
+(directive
+  [
+    (partial_expression_value)
+    (ending_expression_value)
+  ] @injection.content
+  (#set! injection.language "elixir")
+  (#set! injection.include-children)
+  (#set! injection.combined))
+
+((directive
+  (expression_value) @injection.content)
+  (#set! injection.language "elixir"))
+
+; <link href={ Routes.static_path(..) } />
+((expression
+  (expression_value) @injection.content)
+  (#set! injection.language "elixir"))
+"#;
+
 fn heex() -> Language {
     Language {
         extensions: to_vec(&["heex"]),
@@ -597,6 +666,8 @@ fn heex() -> Language {
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Heex),
         }),
         block_comment_affixes: Some(("<!--".to_string(), "-->".to_string())),
+        injection_query: Some(HEEX_INJECTION_QUERY.to_string()),
+        injected_languages: to_vec(&["elixir"]),
         ..Language::new()
     }
 }
@@ -1397,6 +1468,35 @@ fn perl() -> Language {
     }
 }
 
+/// Based on nvim-treesitter's `rescript` injections. Not ported: regex (`%re`) and comments.
+const RESCRIPT_INJECTION_QUERY: &str = r#"
+; %raw("...") and %raw(`...`)
+(extension_expression
+  (extension_identifier) @_name
+  (expression_statement
+    [
+      (string
+        (string_fragment) @injection.content)
+      (template_string
+        (template_string_content) @injection.content)
+    ])
+  (#eq? @_name "raw")
+  (#set! injection.language "javascript"))
+
+; %graphql(`...`), %relay(`...`)
+(extension_expression
+  (extension_identifier) @_name
+  (expression_statement
+    [
+      (string
+        (string_fragment) @injection.content)
+      (template_string
+        (template_string_content) @injection.content)
+    ])
+  (#any-of? @_name "graphql" "relay")
+  (#set! injection.language "graphql"))
+"#;
+
 fn rescript() -> Language {
     Language {
         extensions: to_vec(&["res"]),
@@ -1415,6 +1515,8 @@ fn rescript() -> Language {
         }),
         line_comment_prefix: Some("//".to_string()),
         block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
+        injection_query: Some(RESCRIPT_INJECTION_QUERY.to_string()),
+        injected_languages: to_vec(&["graphql", "javascript"]),
         ..Language::new()
     }
 }
