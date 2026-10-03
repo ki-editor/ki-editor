@@ -128,6 +128,7 @@ fn cases() -> Vec<InjectionCase> {
     .chain(web_cases())
     .chain(beam_and_ml_cases())
     .chain(shell_cases())
+    .chain(misc_cases())
     .collect()
 }
 
@@ -542,6 +543,148 @@ fn shell_cases() -> Vec<InjectionCase> {
 
 /// Looks up a language by file extension, or by language key for languages that are only
 /// recognized by file name (such as `dockerfile`).
+const NIX_SH: &str = "echo hello\n    ls | wc -l\n  ";
+
+fn misc_cases() -> Vec<InjectionCase> {
+    vec![
+        // nix
+        embed(
+            "nix",
+            "sh",
+            "{\n  buildPhase = ''\n    ",
+            NIX_SH,
+            "'';\n}\n",
+        ),
+        embed(
+            "nix",
+            "sh",
+            "{\n  postInstall = ''\n    ",
+            NIX_SH,
+            "'';\n}\n",
+        ),
+        embed("nix", "sh", "{\n  script = ''\n    ", NIX_SH, "'';\n}\n"),
+        embed(
+            "nix",
+            "sh",
+            "pkgs.writeShellApplication {\n  text = ''\n    ",
+            NIX_SH,
+            "'';\n}\n",
+        ),
+        embed(
+            "nix",
+            "sh",
+            "pkgs.runCommand \"name\" { } ''\n  ",
+            "echo hello\n  ls | wc -l\n",
+            "''\n",
+        ),
+        embed(
+            "nix",
+            "sh",
+            "pkgs.writeShellScript \"name\" ''\n  ",
+            "echo hello\n  ls | wc -l\n",
+            "''\n",
+        ),
+        embed(
+            "nix",
+            "fish",
+            "pkgs.writeFish \"name\" ''\n  ",
+            "echo hello\n  set x 1\n",
+            "''\n",
+        ),
+        embed(
+            "nix",
+            "haskell",
+            "pkgs.writeHaskell \"name\" { } ''\n",
+            "main :: IO ()\nmain = putStrLn \"hi\"\n",
+            "''\n",
+        ),
+        embed(
+            "nix",
+            "js",
+            "pkgs.writeJS \"name\" { } ''\n  ",
+            "const x = 1;\n  function f(a) { return a + x; }\n",
+            "''\n",
+        ),
+        embed(
+            "nix",
+            "pl",
+            "pkgs.writePerl \"name\" { } ''\n  ",
+            "my $x = 1;\n  print $x;\n",
+            "''\n",
+        ),
+        embed(
+            "nix",
+            "py",
+            "pkgs.writePython3 \"name\" { } ''\n  ",
+            "def f(x):\n      return x + 1\n",
+            "''\n",
+        ),
+        embed(
+            "nix",
+            "rs",
+            "pkgs.writeRust \"name\" { } ''\n  ",
+            "fn main() {\n      let x: u32 = 42;\n  }\n",
+            "''\n",
+        ),
+        embed(
+            "nix",
+            "py",
+            "pkgs.testers.runNixOSTest {\n  testScript = ''\n    ",
+            "def f(x):\n        return x + 1\n  ",
+            "'';\n}\n",
+        ),
+        embed(
+            "nix",
+            "lua",
+            "{\n  type = \"lua\";\n  config = ''\n    ",
+            "local x = 1\n    print(x)\n  ",
+            "'';\n}\n",
+        ),
+        // gitcommit
+        embed(
+            "gitcommit",
+            "diff",
+            "subject\n\nbody\n\n# ------------------------ >8 ------------------------\n",
+            "diff --git a/a b/a\nindex 1..2 100644\n--- a/a\n+++ b/a\n@@ -1 +1 @@\n-a\n+b\n",
+            "",
+        ),
+        // julia
+        embed(
+            "jl",
+            "md",
+            "\"\"\"",
+            "\n# Title\n",
+            "\"\"\"\nfunction f(x)\n    x\nend\n",
+        ),
+        embed("jl", "md", "x = md\"\"\"", "\n# Title\n", "\"\"\"\n"),
+        embed("jl", "sh", "run(`", "ls -la | wc -l", "`)\n"),
+        // lua
+        embed(
+            "lua",
+            "c",
+            "ffi.cdef([[\n",
+            "int f(int x);\nstruct a { int b; };\n",
+            "]])\n",
+        ),
+        embed("lua", "c", "ffi.cdef\"", "int g(void);", "\"\n"),
+        // rust
+        embed(
+            "rs",
+            "json",
+            "fn main() {\n    let j = json!(",
+            "{\"a\": 1, \"b\": [1, 2]}",
+            ");\n}\n",
+        ),
+        embed(
+            "rs",
+            "rs",
+            "macro_rules! m {\n    ($a:expr) => ",
+            "{ $a.len() + Foo::new(1) }",
+            ";\n}\n",
+        ),
+    ]
+}
+
 fn language_of(extension: &str) -> anyhow::Result<Language> {
     crate::config::from_extension(extension)
         .or_else(|| {
@@ -624,6 +767,12 @@ fn check_layers(case: &InjectionCase, host: Language) -> anyhow::Result<Vec<Stri
             .syntax_tree_layer_for_selection(&selection)?
             .is_some_and(|layer| layer.is_injected))
     };
+    // The last byte of the source is outside of the snippet, unless the snippet runs until the end.
+    let host_probe = if case.suffix.is_empty() {
+        0
+    } else {
+        source.len() - 1
+    };
     let first_snippet_byte = case.prefix.len()
         + case
             .snippet
@@ -632,7 +781,7 @@ fn check_layers(case: &InjectionCase, host: Language) -> anyhow::Result<Vec<Stri
     Ok([
         (!is_injected(first_snippet_byte)?)
             .then(|| "a selection inside the snippet should use the injected layer".to_string()),
-        is_injected(source.len() - 1)?
+        is_injected(host_probe)?
             .then(|| "a selection outside the snippet should use the host layer".to_string()),
     ]
     .into_iter()

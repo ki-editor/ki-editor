@@ -478,6 +478,13 @@ fn gitattributes() -> Language {
     }
 }
 
+/// Based on nvim-treesitter's `gitcommit` injections. Not ported: `rebase_command` (git_rebase),
+/// which the grammar only produces in rebase todo lists.
+const GITCOMMIT_INJECTION_QUERY: &str = r#"
+((diff) @injection.content
+  (#set! injection.language "diff"))
+"#;
+
 fn gitcommit() -> Language {
     Language {
         file_names: to_vec(&["COMMIT_EDITMSG"]),
@@ -486,6 +493,8 @@ fn gitcommit() -> Language {
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Gitcommit),
         }),
         line_comment_prefix: Some("#".to_string()),
+        injection_query: Some(GITCOMMIT_INJECTION_QUERY.to_string()),
+        injected_languages: to_vec(&["diff"]),
         ..Language::new()
     }
 }
@@ -1200,6 +1209,38 @@ fn json() -> Language {
     }
 }
 
+/// Based on nvim-treesitter's `julia` injections. Not ported: regex (`r"..."`) and comments.
+const JULIA_INJECTION_QUERY: &str = r#"
+; Docstrings
+((string_literal
+  (content) @injection.content)
+  .
+  [
+    (module_definition)
+    (abstract_definition)
+    (struct_definition)
+    (function_definition)
+    (macro_definition)
+    (assignment)
+    (const_statement)
+    (call_expression)
+    (identifier)
+  ]
+  (#set! injection.language "markdown"))
+
+; md"**Bold** and _Italics_" and md"""..."""
+((prefixed_string_literal
+  prefix: (identifier) @_prefix
+  (content) @injection.content)
+  (#eq? @_prefix "md")
+  (#set! injection.language "markdown"))
+
+; `git add --help`
+((command_literal
+  (content) @injection.content)
+  (#set! injection.language "bash"))
+"#;
+
 fn julia() -> Language {
     Language {
         extensions: to_vec(&["jl"]),
@@ -1223,6 +1264,8 @@ fn julia() -> Language {
         }),
         line_comment_prefix: Some("#".to_string()),
         block_comment_affixes: Some(("#=".to_string(), "=#".to_string())),
+        injection_query: Some(JULIA_INJECTION_QUERY.to_string()),
+        injected_languages: to_vec(&["bash", "markdown"]),
         ..Language::new()
     }
 }
@@ -1309,6 +1352,23 @@ fn kiquickfix() -> Language {
     }
 }
 
+/// Based on nvim-treesitter's `lua` injections. Only `ffi.cdef` (C) is ported: the others
+/// inject vimscript, tree-sitter queries, luap, luadoc, printf or comments.
+const LUA_INJECTION_QUERY: &str = r#"
+; ffi.cdef([[ int f(int x); ]])
+((function_call
+  name: [
+    (identifier) @_cdef_identifier
+    (dot_index_expression
+      field: (identifier) @_cdef_identifier)
+  ]
+  arguments: (arguments
+    (string
+      content: (string_content) @injection.content)))
+  (#eq? @_cdef_identifier "cdef")
+  (#set! injection.language "c"))
+"#;
+
 fn lua() -> Language {
     Language {
         extensions: to_vec(&["lua"]),
@@ -1324,6 +1384,8 @@ fn lua() -> Language {
         }),
         line_comment_prefix: Some("--".to_string()),
         block_comment_affixes: Some(("--[[".to_string(), "]]".to_string())),
+        injection_query: Some(LUA_INJECTION_QUERY.to_string()),
+        injected_languages: to_vec(&["c"]),
         ..Language::new()
     }
 }
@@ -1383,6 +1445,214 @@ fn markdown() -> Language {
     }
 }
 
+/// Based on nvim-treesitter's `nix` injections. `#lua-match?` is rewritten as `#match?`, and the
+/// `pre*`/`post*` hooks require a capital letter after the prefix so that attributes such as
+/// `prefix` are not treated as shell. Not ported: language comments such as `/* lua */` (needs
+/// `#gsub!`), regex and comments.
+const NIX_INJECTION_QUERY: &str = r#"
+; Build phases: buildPhase, preInstall, postFixup, script, ...
+((binding
+  attrpath: (attrpath
+    (identifier) @_path)
+  expression: [
+    (string_expression
+      (string_fragment) @injection.content)
+    (indented_string_expression
+      (string_fragment) @injection.content)
+  ])
+  (#match? @_path "^([a-zA-Z]+Phase|(pre|post)[A-Z][a-zA-Z]*|script)$")
+  (#set! injection.language "bash"))
+
+; pkgs.writeShellApplication { text = ''...''; }
+((apply_expression
+  function: (_) @_func
+  argument: (attrset_expression
+    (binding_set
+      (binding
+        attrpath: (attrpath
+          (identifier) @_path)
+        expression: [
+    (string_expression
+      (string_fragment) @injection.content)
+    (indented_string_expression
+      (string_fragment) @injection.content)
+  ]))))
+  (#match? @_func "(^|\\.)writeShellApplication$")
+  (#eq? @_path "text")
+  (#set! injection.language "bash")
+  (#set! injection.combined))
+
+; pkgs.runCommand "name" { } ''...''
+((apply_expression
+  function: (apply_expression
+    function: (apply_expression
+      function: (_) @_func))
+  argument: [
+    (string_expression
+      (string_fragment) @injection.content)
+    (indented_string_expression
+      (string_fragment) @injection.content)
+  ])
+  (#match? @_func "(^|\\.)runCommand[a-zA-Z]*$")
+  (#set! injection.language "bash")
+  (#set! injection.combined))
+
+; pkgs.writeBash "name" ''...'' (also writeDash and writeShellScript)
+((apply_expression
+  function: (apply_expression
+    function: (_) @_func)
+  argument: [
+    (string_expression
+      (string_fragment) @injection.content)
+    (indented_string_expression
+      (string_fragment) @injection.content)
+  ])
+  (#match? @_func "(^|\\.)write(Bash|Dash|ShellScript)[a-zA-Z]*$")
+  (#set! injection.language "bash")
+  (#set! injection.combined))
+
+; pkgs.writeFish "name" ''...''
+((apply_expression
+  function: (apply_expression
+    function: (_) @_func)
+  argument: [
+    (string_expression
+      (string_fragment) @injection.content)
+    (indented_string_expression
+      (string_fragment) @injection.content)
+  ])
+  (#match? @_func "(^|\\.)writeFish[a-zA-Z]*$")
+  (#set! injection.language "fish")
+  (#set! injection.combined))
+
+; pkgs.writeJS "name" ''...'' or pkgs.writeJS "name" { } ''...'' (likewise for the other
+; interpreters below, which take optional arguments)
+((apply_expression
+  function: [
+    (apply_expression
+      function: (_) @_func)
+    (apply_expression
+      function: (apply_expression
+        function: (_) @_func))
+  ]
+  argument: [
+    (string_expression
+      (string_fragment) @injection.content)
+    (indented_string_expression
+      (string_fragment) @injection.content)
+  ])
+  (#match? @_func "(^|\\.)writeJS[a-zA-Z]*$")
+  (#set! injection.language "javascript")
+  (#set! injection.combined))
+
+; pkgs.writePerl "name" ''...''
+((apply_expression
+  function: [
+    (apply_expression
+      function: (_) @_func)
+    (apply_expression
+      function: (apply_expression
+        function: (_) @_func))
+  ]
+  argument: [
+    (string_expression
+      (string_fragment) @injection.content)
+    (indented_string_expression
+      (string_fragment) @injection.content)
+  ])
+  (#match? @_func "(^|\\.)writePerl[a-zA-Z]*$")
+  (#set! injection.language "perl")
+  (#set! injection.combined))
+
+; pkgs.writePy "name" ''...''
+((apply_expression
+  function: [
+    (apply_expression
+      function: (_) @_func)
+    (apply_expression
+      function: (apply_expression
+        function: (_) @_func))
+  ]
+  argument: [
+    (string_expression
+      (string_fragment) @injection.content)
+    (indented_string_expression
+      (string_fragment) @injection.content)
+  ])
+  (#match? @_func "(^|\\.)writePy[a-zA-Z]*[0-9]*[a-zA-Z]*$")
+  (#set! injection.language "python")
+  (#set! injection.combined))
+
+; pkgs.writeRust "name" ''...''
+((apply_expression
+  function: [
+    (apply_expression
+      function: (_) @_func)
+    (apply_expression
+      function: (apply_expression
+        function: (_) @_func))
+  ]
+  argument: [
+    (string_expression
+      (string_fragment) @injection.content)
+    (indented_string_expression
+      (string_fragment) @injection.content)
+  ])
+  (#match? @_func "(^|\\.)writeRust[a-zA-Z]*$")
+  (#set! injection.language "rust")
+  (#set! injection.combined))
+
+; pkgs.writeHaskell "name" { } ''...''
+((apply_expression
+  function: [
+    (apply_expression
+      function: (_) @_func)
+    (apply_expression
+      function: (apply_expression
+        function: (_) @_func))
+  ]
+  argument: [
+    (string_expression
+      (string_fragment) @injection.content)
+    (indented_string_expression
+      (string_fragment) @injection.content)
+  ])
+  (#match? @_func "(^|\\.)writeHaskell[a-zA-Z]*$")
+  (#set! injection.language "haskell")
+  (#set! injection.combined))
+
+; testScript of (runNixOS)Test
+((apply_expression
+  function: (_) @_func
+  argument: (attrset_expression
+    (binding_set
+      (binding
+        attrpath: (attrpath) @_func_name
+        expression: (_
+          (string_fragment) @injection.content)))))
+  (#eq? @_func_name "testScript")
+  (#match? @_func "(^|\\.)(runTest|nixosTest|runNixOSTest)$")
+  (#set! injection.language "python")
+  (#set! injection.combined))
+
+; home-manager Neovim plugin config: { type = "lua"; config = ''...''; }
+((attrset_expression
+  (binding_set
+    (binding
+      attrpath: (attrpath) @_ty_attr
+      expression: (_
+        (string_fragment) @_ty))
+    (binding
+      attrpath: (attrpath) @_cfg_attr
+      expression: (_
+        (string_fragment) @injection.content))))
+  (#eq? @_ty_attr "type")
+  (#eq? @_ty "lua")
+  (#eq? @_cfg_attr "config")
+  (#set! injection.language "lua")
+  (#set! injection.combined))
+"#;
+
 fn nix() -> Language {
     Language {
         formatter: Some(Command::new("nixfmt", &[])),
@@ -1398,6 +1668,17 @@ fn nix() -> Language {
         }),
         line_comment_prefix: Some("#".to_string()),
         block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
+        injection_query: Some(NIX_INJECTION_QUERY.to_string()),
+        injected_languages: to_vec(&[
+            "bash",
+            "fish",
+            "haskell",
+            "javascript",
+            "lua",
+            "perl",
+            "python",
+            "rust",
+        ]),
         ..Language::new()
     }
 }
@@ -1655,6 +1936,32 @@ fn roc() -> Language {
     }
 }
 
+/// Based on nvim-treesitter's `rust` injections. Not ported: Rust in the arguments of other
+/// macros (the host highlights every token of a token tree, which tree-sitter-highlight lets win
+/// over the injected highlights), `html!` (needs `#offset!` to skip the braces), the left-hand
+/// side of `macro_rules!` (it is not Rust syntax), regex, re2c and comments.
+const RUST_INJECTION_QUERY: &str = r#"
+; json!({ "a": 1 }): the JSON is the token tree inside the parentheses
+((macro_invocation
+  macro: [
+    (scoped_identifier
+      name: (_) @_macro_name)
+    (identifier) @_macro_name
+  ]
+  (token_tree
+    (token_tree) @injection.content))
+  (#eq? @_macro_name "json")
+  (#set! injection.language "json")
+  (#set! injection.include-children))
+
+; macro_rules! m { (...) => { ... }; }
+((macro_definition
+  (macro_rule
+    right: (token_tree) @injection.content))
+  (#set! injection.language "rust")
+  (#set! injection.include-children))
+"#;
+
 fn rust() -> Language {
     Language {
         extensions: to_vec(&["rs"]),
@@ -1670,6 +1977,8 @@ fn rust() -> Language {
         }),
         line_comment_prefix: Some("//".to_string()),
         block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
+        injection_query: Some(RUST_INJECTION_QUERY.to_string()),
+        injected_languages: to_vec(&["json", "rust"]),
         ..Language::new()
     }
 }
