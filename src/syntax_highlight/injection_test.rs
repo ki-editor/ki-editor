@@ -672,14 +672,14 @@ fn misc_cases() -> Vec<InjectionCase> {
             "rs",
             "json",
             "fn main() {\n    let j = json!(",
-            "{\"a\": 1, \"b\": [1, 2]}",
+            "{\"a\": {\"b\": [true, null, 1.5]}}",
             ");\n}\n",
         ),
         embed(
             "rs",
             "rs",
             "macro_rules! m {\n    ($a:expr) => ",
-            "{ $a.len() + Foo::new(1) }",
+            "{ if let Some(x) = Foo::new(1) { x.len() as u8 } else { 0 } }",
             ";\n}\n",
         ),
     ]
