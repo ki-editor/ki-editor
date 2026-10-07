@@ -9,27 +9,28 @@ impl IterBasedSelectionMode for TopNode {
         params: &super::SelectionModeParams<'a>,
     ) -> anyhow::Result<Box<dyn Iterator<Item = ByteRange> + 'a>> {
         let buffer = params.buffer;
-        let tree = buffer.tree().ok_or(anyhow::anyhow!(
-            "TopNode::iter: cannot find Treesitter language"
-        ))?;
-        let root_node_id = tree.root_node().id();
-        Ok(Box::new(
-            tree_sitter_traversal2::traverse(tree.walk(), tree_sitter_traversal2::Order::Pre)
-                .filter(|node| node.id() != root_node_id)
-                .chunk_by(|node| node.byte_range().start)
-                .into_iter()
-                .map(|(_, group)| {
-                    ByteRange::new(
+        let ranges = buffer
+            .collect_ranges_across_layers(|tree| {
+                let root_node_id = tree.root_node().id();
+                tree_sitter_traversal2::traverse(tree.walk(), tree_sitter_traversal2::Order::Pre)
+                    .filter(|node| node.id() != root_node_id)
+                    .chunk_by(|node| node.byte_range().start)
+                    .into_iter()
+                    .filter_map(|(_, group)| {
                         group
                             .into_iter()
-                            .max_by_key(|node| node.byte_range().end)
-                            .unwrap()
-                            .byte_range(),
-                    )
-                })
-                .collect_vec()
-                .into_iter(),
-        ))
+                            .map(|node| node.byte_range())
+                            .max_by_key(|range| range.end)
+                    })
+                    .collect_vec()
+            })?
+            .ok_or(anyhow::anyhow!(
+                "TopNode::iter: cannot find Treesitter language"
+            ))?
+            .into_iter()
+            .map(ByteRange::new)
+            .collect_vec();
+        Ok(Box::new(ranges.into_iter()))
     }
 }
 
