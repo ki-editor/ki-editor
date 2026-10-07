@@ -1834,6 +1834,15 @@ pub fn duplicate_keymap() -> Keymap {
                 "Dup v",
                 Dispatch::ToEditor(DuplicateVertically(Direction::End)),
             ),
+            Keybinding::new_undocumented(
+                key!("m"),
+                "Dup → Jump",
+                Dispatch::ToEditor(ShowJumps {
+                    use_current_selection_mode: false,
+                    prior_change: None,
+                    landing_action: JumpLandingAction::DuplicateWithExtension,
+                }),
+            ),
         ]
         .as_ref(),
     )
