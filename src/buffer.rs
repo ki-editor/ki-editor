@@ -696,7 +696,12 @@ impl Buffer {
     }
 
     pub fn from_path(path: &AbsolutePath, enable_tree_sitter: bool) -> anyhow::Result<Buffer> {
-        let content = path.read()?;
+        // A non-existent file is opened as an empty buffer; it is only created upon saving.
+        let content = if path.as_ref().exists() {
+            path.read()?
+        } else {
+            String::new()
+        };
         let language = if enable_tree_sitter {
             crate::config::from_path(path)
                 .or_else(|| crate::config::from_content_directive(&content))

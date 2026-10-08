@@ -1055,6 +1055,47 @@ fn run_test(
 
 #[serial]
 #[test]
+fn open_new_file_does_not_create_file_until_saved() -> anyhow::Result<()> {
+    execute_test(|s| {
+        let new_file = s.temp_dir().join("new_file.txt").unwrap();
+        Box::new([
+            App(OpenNewFile {
+                path: new_file.clone(),
+            }),
+            Expect(CurrentPath(new_file.clone())),
+            Expect(CurrentComponentContent("")),
+            ExpectCustom(Box::new({
+                let new_file = new_file.clone();
+                move || assert!(!new_file.as_ref().exists())
+            })),
+            Editor(EnterInsertMode(Direction::Start)),
+            Editor(Insert("hello".to_owned())),
+            Editor(EnterNormalMode),
+            Editor(Save),
+            Expect(FileContent(new_file.clone(), "hello".to_string())),
+        ])
+    })
+}
+
+#[serial]
+#[test]
+fn open_new_file_then_quit_without_saving_does_not_create_file() -> anyhow::Result<()> {
+    execute_test(|s| {
+        let new_file = s.temp_dir().join("new_file.txt").unwrap();
+        Box::new([
+            App(OpenNewFile {
+                path: new_file.clone(),
+            }),
+            Editor(EnterInsertMode(Direction::Start)),
+            Editor(Insert("hello".to_owned())),
+            Editor(EnterNormalMode),
+            ExpectCustom(Box::new(move || assert!(!new_file.as_ref().exists()))),
+        ])
+    })
+}
+
+#[serial]
+#[test]
 fn copy_replace_from_different_file() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
