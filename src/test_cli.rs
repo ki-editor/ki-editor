@@ -7,15 +7,14 @@ fn unique_name() -> String {
 }
 
 #[test]
-fn nonexistent_path_with_existing_parent_creates_file() -> anyhow::Result<()> {
+fn nonexistent_path_with_existing_parent_does_not_create_file() -> anyhow::Result<()> {
     let file_path = std::env::temp_dir().join(unique_name());
 
     let action = parse_path_arg(file_path.to_string_lossy().to_string())?;
 
     assert!(matches!(action, EditAction::Open(_)));
-    assert!(file_path.exists());
+    assert!(!file_path.exists());
 
-    std::fs::remove_file(&file_path)?;
     Ok(())
 }
 
