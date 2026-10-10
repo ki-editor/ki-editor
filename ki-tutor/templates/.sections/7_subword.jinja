@@ -1,0 +1,16 @@
+A subword is a part of a word as in the following examples:
+camelCase PascalCase kebab-case snake_case SCREAMING_CASE
+
+You can switch to subword selection mode by clicking {{ _.w }} in normal mode.
+
+╭────────────────┬──────────────────────────────────────────────╮
+│   Movements    │                       Action                 │
+├────────────────┼──────────────────────────────────────────────┤
+│ {{ _.u }} (<), {{ _.o }} (>)   │ Previous or next subword                     │
+├────────────────┼──────────────────────────────────────────────┤
+│ {{ _.j }} (<<), {{ _.l }} (>>) │ Previous or next non-symbol subword          │
+├────────────────┼──────────────────────────────────────────────┤
+│ {{ _.i }} (^), {{ _.k }} (v)   │ Nearest subword in the previous or next line │
+├────────────────┼──────────────────────────────────────────────┤
+│ {{ _.y }} (|<), {{ _.p }} (>|) | First or last subword in the current word    │
+╰────────────────┴──────────────────────────────────────────────╯
