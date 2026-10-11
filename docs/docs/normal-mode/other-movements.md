@@ -47,9 +47,9 @@ but with this, you can extend the selection backward too.
 
 This is similar to Vim's Visual Mode `o`.
 
-### `← Select`/`Select →`
+### `< Move Hist`/`Move Hist >`
 
-Keybindings: `backspace`/`tab`
+Keybindings: hold `q` (the `≡ Move Hist` [momentary layer](../momentary-layers/movement-history-mol.mdx)), then press `u`/`o`.
 
 Go to the previous/next selection. This is similar to Vim's `ctrl+o`/`ctrl+i`, but it onlys work within a file.
 
@@ -57,9 +57,11 @@ This is useful when you messed up the current selection, especially when you are
 using [Syntax Node](./selection-modes/primary.md#syntax), and
 expanding the current selection to parent node.
 
-Use `← Select` to restore the selection to the previous state.  
-Press `Select →` to restore the selection to the current state.
+Use `< Move Hist` to restore the selection to the previous state.  
+Press `Move Hist >` to restore the selection to the current state.
 
-### `← Nav`/`Nav →`
+### `<< Move Hist`/`Move Hist >>`
+
+Keybindings: hold `q` (the `≡ Move Hist` momentary layer), then press `j`/`l`.
 
 These are useful for navigating back to previous locations after actions such as Go to Definition/References or Global Search.

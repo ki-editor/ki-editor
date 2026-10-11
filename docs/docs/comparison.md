@@ -18,7 +18,7 @@ sidebar_position: 3
 
 [^1]:
     The default keybindings for structural navigation in Helix are hard to access: `alt+n`, `alt+p`, `alt+i` and `alt+o`.
-    Also, there's no easy way to [revert to previous selection](normal-mode/other-movements.md#-selectselect-), which is crucial for structural manipulation.
+    Also, there's no easy way to [revert to previous selection](normal-mode/other-movements.md#-move-histmove-hist-), which is crucial for structural manipulation.
 
 [^2]: Added in Helix 25.07, accessible via `space e`.
 
