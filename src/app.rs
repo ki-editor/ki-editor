@@ -302,6 +302,8 @@ impl<T: Frontend> App<T> {
         let first_dispatch = entry_path.map(|entry_path| {
             if entry_path.as_ref().is_dir() {
                 Dispatch::OpenFileExplorer
+            } else if !entry_path.as_ref().exists() {
+                Dispatch::OpenNewFile { path: entry_path }
             } else {
                 Dispatch::OpenFile {
                     path: entry_path,
@@ -803,6 +805,7 @@ impl<T: Frontend> App<T> {
             Dispatch::OpenFile { path, owner, focus } => {
                 self.open_file(&path, owner, true, focus)?;
             }
+            Dispatch::OpenNewFile { path } => self.open_new_file(&path)?,
             Dispatch::OpenFileFromPathBuf { path, owner, focus } => {
                 let canonicalized_path = path.try_into()?;
                 self.open_file(&canonicalized_path, owner, true, focus)?;
@@ -1679,6 +1682,23 @@ impl<T: Frontend> App<T> {
             ));
         }
 
+        self.open_file_unchecked(path, owner, store_history, focus)
+    }
+
+    /// Open a path that does not exist yet as an empty buffer.
+    /// The file will only be created when the buffer is saved.
+    fn open_new_file(&mut self, path: &AbsolutePath) -> anyhow::Result<()> {
+        self.open_file_unchecked(path, BufferOwner::User, true, true)?;
+        Ok(())
+    }
+
+    fn open_file_unchecked(
+        &mut self,
+        path: &AbsolutePath,
+        owner: BufferOwner,
+        store_history: bool,
+        focus: bool,
+    ) -> anyhow::Result<Rc<RefCell<SuggestiveEditor>>> {
         if store_history {
             self.push_current_location_into_navigation_history(true);
             self.context.clear_forward_history();
@@ -3924,6 +3944,11 @@ pub enum Dispatch {
         path: AbsolutePath,
         owner: BufferOwner,
         focus: bool,
+    },
+    /// Open a path that does not exist yet as an empty buffer,
+    /// the file will only be created when the buffer is saved.
+    OpenNewFile {
+        path: AbsolutePath,
     },
     OpenFileFromPathBuf {
         path: PathBuf,

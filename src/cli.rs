@@ -190,7 +190,6 @@ pub(crate) fn parse_path_arg(path: String) -> anyhow::Result<EditAction> {
                 parent: parent.to_path_buf(),
             });
         }
-        std::fs::write(&tmp_path, "")?;
     }
     Ok(EditAction::Open(path.try_into()?))
 }
