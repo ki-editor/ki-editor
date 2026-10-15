@@ -4468,6 +4468,23 @@ fn release_open_mol_should_not_close_popups() -> anyhow::Result<()> {
         ])
     })
 }
+
+#[test]
+/// When Ki is launched without arguments, the untitled root buffer must remain
+/// rendered while a momentary layer is held, otherwise edits are invisible until release.
+fn root_buffer_remains_rendered_while_momentary_layer_is_held() -> anyhow::Result<()> {
+    execute_test(|_| {
+        Box::new([
+            App(HandleKeyEvents(keys!("g").to_vec())),
+            Expect(ExpectKind::ComponentsOrder(vec![
+                ComponentKind::KeymapLegend,
+                ComponentKind::Root,
+            ])),
+            App(HandleKeyEvents(keys!("release-g").to_vec())),
+            Expect(ExpectKind::ComponentsOrder(vec![ComponentKind::Root])),
+        ])
+    })
+}
 #[test]
 fn save_all_sets_dirty_status() -> anyhow::Result<()> {
     execute_test(|s| {

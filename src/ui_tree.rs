@@ -111,17 +111,24 @@ impl UiTree {
     /// This return everything except the root, but if only root exists, then the root will be returned.
     /// This behaviour ensures that the tree always contain a component.
     pub fn components(&self) -> Vec<KindedComponent> {
-        if self.root().children().count() == 0 {
-            Some(self.root().data().clone()).into_iter().collect_vec()
-        } else {
-            let root_id = self.root().node_id();
-            self.root()
-                .traverse_pre_order()
-                .filter(|node| node.node_id() != root_id)
-                .sorted_by_key(|node| node.data().kind)
-                .map(|node| node.data().clone())
-                .collect_vec()
-        }
+        let root_id = self.root().node_id();
+        let children = self
+            .root()
+            .traverse_pre_order()
+            .filter(|node| node.node_id() != root_id)
+            .map(|node| node.data().clone())
+            .collect_vec();
+        // The root (the untitled buffer shown when Ki is launched without arguments)
+        // must stay visible while only overlays (e.g. the keymap legend) are open,
+        // otherwise opening the keymap legend would hide it,
+        // making edits invisible while a momentary layer is held.
+        let root_is_replaced = children.iter().any(|child| !child.kind.is_overlay());
+        let root = (!root_is_replaced).then(|| self.root().data().clone());
+        children
+            .into_iter()
+            .chain(root)
+            .sorted_by_key(|component| component.kind)
+            .collect_vec()
     }
 
     pub fn root_id(&self) -> NodeId {
@@ -337,6 +344,16 @@ pub enum ComponentKind {
     DropdownInfo,
     EditorInfo,
     KeymapLegend,
-    /// The root should not be rendered
+    /// The root is only rendered when no content-displaying component replaces it
     Root,
+}
+
+impl ComponentKind {
+    /// Whether this component is a mere overlay that should not hide the root.
+    fn is_overlay(&self) -> bool {
+        matches!(
+            self,
+            ComponentKind::GlobalInfo | ComponentKind::EditorInfo | ComponentKind::KeymapLegend
+        )
+    }
 }
