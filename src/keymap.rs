@@ -282,7 +282,7 @@ fn secondary_selection_modes_keybindings(
         .chain([
             Keybinding::new_undocumented(
                 key!("d"),
-                "← Search",
+                "Search",
                 Dispatch::OpenSearchPromptWithPriorChange {
                     scope: Scope::Local,
                     if_current_not_found: editor
