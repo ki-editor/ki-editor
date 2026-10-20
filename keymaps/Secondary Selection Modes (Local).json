@@ -16,7 +16,7 @@
         [
             { "normal": "All", "alted": null, "shifted": null },
             { "normal": "Error", "alted": null, "shifted": null },
-            { "normal": "← Search", "alted": null, "shifted": "With" },
+            { "normal": "Search", "alted": null, "shifted": "With" },
             {
                 "normal": "Search This",
                 "alted": null,
