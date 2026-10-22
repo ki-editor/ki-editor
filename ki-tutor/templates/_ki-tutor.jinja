@@ -1,0 +1,36 @@
+/*
+
+        ██   ██   ██
+        ██   ██   ██         _  ___   _____    _ _ _
+        ██   ██   ██        | |/ (_) | ____|__| (_) |_ ___  _ __
+        ▀██▄████▄██▀        | ' /| | |  _| / _` | | __/ _ \| '__|
+             ██             | . \| | | |__| (_| | | || (_) | |
+             ██             |_|\_\_| |_____\__,_|_|\__\___/|_|
+        ▄██▀████▀██▄
+        ██   ██   ██        Multi-cursor combinatoric modal editor
+        ██   ██   ██
+        ██   ██   ██
+
+*/
+{% for name in [
+    "intro",
+    "space_menu",
+    "selection_and_movements",
+    "line",
+    "word",
+    "big_word",
+    "subword",
+    "char",
+    "syntax_node"
+] %}
+    {%- filter wordwrap(74) %}
+const {{name | upper}}: &'static str = "
+{% if name != "intro" -%}
+            {%- from "_heading.jinja" import heading -%}
+            {{- heading(name | replace("_", " ")  | title) }}
+        {%- endif %}
+{% filter replace('\\\n', ' ') | trim %}
+{% include ".sections/" ~ loop.index ~ "_" ~ name ~ ".jinja" %}
+{% endfilter %}
+{% endfilter %}"
+{% endfor %}

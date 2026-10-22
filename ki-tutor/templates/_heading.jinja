@@ -1,0 +1,9 @@
+{%- macro heading(title, width=75) -%}
+{%- set inner = " " ~ title ~ " " -%}
+{%- set box_w = inner|length -%}
+{%- set left = ((width - box_w - 2) // 2) -%}
+{%- set pad = " " * left -%}
+{{ pad }}╭{{ "─" * box_w }}╮
+{{ pad }}│{{ inner }}│
+{{ pad }}╰{{ "─" * box_w }}╯
+{%- endmacro -%}

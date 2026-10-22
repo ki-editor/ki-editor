@@ -1,0 +1,19 @@
+A big word is either a sequence of non-whitespace characters or non-newline whitespace characters or a newline.
+
+You can switch to big word (word*) selection mode by clicking {{ _.S }} (shift + {{ _.s }}) in normal mode.
+
+an example of a big word is a
+url: https://ki-editor.org/docs/normal-mode/selection-modes/primary#word-1
+
+try to select the white space in the following table using the big word selection mode: 
+╭────────────────┬───────────────────────────────────────────────╮
+│   Movements    │                       Action                  │
+├────────────────┼───────────────────────────────────────────────┤
+│ {{ _.u }} (<), {{ _.o }} (>)   │ Previous or next big word                     │
+├────────────────┼───────────────────────────────────────────────┤
+│ {{ _.j }} (<<), {{ _.l }} (>>) │ Previous or next non-whitespace big word      │
+├────────────────┼───────────────────────────────────────────────┤
+│ {{ _.i }} (^), {{ _.k }} (v)   │ Nearest big word in the previous or next line │
+├────────────────┼───────────────────────────────────────────────┤
+│ {{ _.y }} (|<), {{ _.p }} (>|) │ First or last non-whitespace big word         │
+╰────────────────┴───────────────────────────────────────────────╯
