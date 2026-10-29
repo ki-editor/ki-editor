@@ -31,6 +31,73 @@ impl Crossterm {
     }
 }
 
+/// Spawns a thread that restores the terminal when Ki receives a termination
+/// signal (e.g. `kill <pid>`), then terminates the process as the signal would have.
+///
+/// This runs on its own thread and writes straight to `/dev/tty` instead of going
+/// through the `Crossterm` frontend, because the main thread may be stuck
+/// (possibly while holding the frontend lock), which is usually why the user is
+/// sending a signal in the first place.
+///
+/// Note that `SIGKILL` (`kill -9`) cannot be caught, so it will still leave the
+/// terminal in raw mode.
+#[cfg(unix)]
+pub fn restore_terminal_on_termination_signal() -> anyhow::Result<()> {
+    use signal_hook::consts::{SIGHUP, SIGINT, SIGQUIT, SIGTERM};
+
+    let mut signals = signal_hook::iterator::Signals::new([SIGTERM, SIGHUP, SIGINT, SIGQUIT])?;
+    std::thread::spawn(move || {
+        if let Some(signal) = signals.forever().next() {
+            log::info!("Received signal {signal}, restoring terminal before exiting");
+            restore_terminal();
+            // Unregister our handler and re-raise the signal so that the
+            // parent process observes the usual termination status.
+            let _ = signal_hook::low_level::emulate_default_handler(signal);
+            std::process::exit(128 + signal);
+        }
+    });
+    Ok(())
+}
+
+/// Restores the terminal when the main thread panics, before the panic message is
+/// printed, so that the message ends up on the normal screen instead of being lost
+/// in the alternate screen.
+///
+/// Panics on other threads are left alone because they don't stop the app, and
+/// restoring the terminal under a running app would break its UI.
+#[cfg(unix)]
+pub fn restore_terminal_on_panic() {
+    let previous_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        if std::thread::current().name() == Some("main") {
+            restore_terminal();
+        }
+        previous_hook(info);
+    }));
+}
+
+/// Best-effort restoration of everything done by `enter_alternate_screen`,
+/// `enable_raw_mode` and `enable_mouse_capture`. Errors are ignored since the
+/// terminal may already be gone (e.g. on `SIGHUP`).
+#[cfg(unix)]
+fn restore_terminal() {
+    let _ = std::fs::OpenOptions::new()
+        .write(true)
+        .open("/dev/tty")
+        .map(|mut tty| {
+            let _ = execute!(
+                tty,
+                PopKeyboardEnhancementFlags,
+                DisableMouseCapture,
+                DisableBracketedPaste,
+                SetCursorStyle::DefaultUserShape,
+                Show,
+                LeaveAlternateScreen,
+            );
+        });
+    let _ = crossterm::terminal::disable_raw_mode();
+}
+
 #[cfg(not(windows))]
 use crossterm::event::PopKeyboardEnhancementFlags;
 use crossterm::{

@@ -123,6 +123,9 @@ const_format = "0.2.36"
 once_cell.workspace = true
 json5 = "1.3.1"
 
+[target.'cfg(unix)'.dependencies]
+signal-hook = "0.3.18"
+
 [dev-dependencies]
 serial_test = "~3.2.0"
 pretty_assertions = "1.3.0"
