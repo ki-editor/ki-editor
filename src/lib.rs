@@ -133,6 +133,11 @@ pub fn run(config: RunConfig) -> anyhow::Result<()> {
     let (priority_sender, priority_receiver) = crossbeam_channel::unbounded();
     let syntax_highlighter_sender = syntax_highlight::start_thread(sender.clone());
 
+    #[cfg(unix)]
+    frontend::crossterm::restore_terminal_on_termination_signal()?;
+    #[cfg(unix)]
+    frontend::crossterm::restore_terminal_on_panic();
+
     let app = App::from_channel(
         Rc::new(Mutex::new(Crossterm::new())),
         config.working_directory.unwrap_or(".".try_into()?),
