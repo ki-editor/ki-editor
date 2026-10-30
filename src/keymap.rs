@@ -944,11 +944,11 @@ pub fn multicursor_momentary_layer_keymap(editor: &Editor) -> Keymap {
             Keybinding::new_undocumented(
                 key!("m"),
                 "Jump Add Curs",
-                Dispatch::ToEditor(ShowJumps {
+                Dispatch::CloseKeymapLegendAndShowJumps {
                     use_current_selection_mode: true,
                     prior_change: Some(PriorChange::EnterMultiCursorMode),
                     landing_action: JumpLandingAction::MoveSelection,
-                }),
+                },
             ),
             Keybinding::new_undocumented(
                 key!("space"),
@@ -1652,11 +1652,11 @@ pub fn swap_keymap() -> Keymap {
         Keybinding::new_undocumented(
             key!("m"),
             "Jump Swap",
-            Dispatch::ToEditor(ShowJumps {
+            Dispatch::CloseKeymapLegendAndShowJumps {
                 use_current_selection_mode: true,
                 prior_change: Some(PriorChange::EnterSwapMode),
                 landing_action: JumpLandingAction::MoveSelection,
-            }),
+            },
         ),
     ])
 }
@@ -1714,11 +1714,11 @@ pub fn eat_keymap() -> Keymap {
         Keybinding::new_undocumented(
             key!("m"),
             "Eat → Jump",
-            Dispatch::ToEditor(ShowJumps {
+            Dispatch::CloseKeymapLegendAndShowJumps {
                 use_current_selection_mode: false,
                 prior_change: None,
                 landing_action: JumpLandingAction::Eat,
-            }),
+            },
         ),
     ])
 }
@@ -1874,11 +1874,11 @@ pub fn cut_keymap() -> Keymap {
         Keybinding::new_undocumented(
             key!("m"),
             "Cut → Jump",
-            Dispatch::ToEditor(ShowJumps {
+            Dispatch::CloseKeymapLegendAndShowJumps {
                 use_current_selection_mode: false,
                 prior_change: None,
                 landing_action: JumpLandingAction::CutWithMovement,
-            }),
+            },
         ),
     ])
 }
@@ -2004,11 +2004,11 @@ pub fn delete_keymap() -> Keymap {
         Keybinding::new_undocumented(
             key!("m"),
             "Delete → Jump",
-            Dispatch::ToEditor(ShowJumps {
+            Dispatch::CloseKeymapLegendAndShowJumps {
                 use_current_selection_mode: false,
                 prior_change: None,
                 landing_action: JumpLandingAction::DeleteWithMovement,
-            }),
+            },
         ),
     ])
 }

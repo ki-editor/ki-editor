@@ -2273,6 +2273,37 @@ fn jump_inside_eat_momentary_layer() -> anyhow::Result<()> {
 }
 
 #[test]
+fn jump_inside_swap_momentary_layer_closes_legend_so_all_visible_targets_get_labels(
+) -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            App(TerminalDimensionChanged(Dimension {
+                width: 60,
+                height: 15,
+            })),
+            Editor(SetContent((0..12).map(|n| format!("line{n}")).join("\n"))),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+            // Holding "t" opens the Swap momentary layer, whose legend reserves
+            // space at the bottom of the screen, shrinking the editor.
+            App(HandleKeyEvents(keys!("t").to_vec())),
+            Expect(ComponentCount(2)),
+            // Pressing "m" (Jump) must give the space back to the editor, so that
+            // targets that would have been hidden behind the legend are labelled.
+            App(HandleKeyEvents(keys!("m").to_vec())),
+            Expect(ComponentCount(1)),
+            Expect(JumpChars(&[
+                ';', 'a', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 's',
+            ])),
+        ])
+    })
+}
+
+#[test]
 fn switch_view_alignment() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
