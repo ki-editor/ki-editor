@@ -95,22 +95,10 @@ impl Hunk {
             Insert,
         }
 
-        // We only take the first diff_op, because the `old` and `new` string should contain only one diff hunk.
-
-        let diff_ops = diff.ops().iter().collect_vec();
-
-        debug_assert!(diff_ops.len() <= 1);
-
-        let Some(diff_op) = diff_ops.first() else {
-            // This case will happen when both `old` and `new` are empty strings,
-            // which can happen when the hunk is:
-            // 1. A newly added single empty line
-            // 2. A newly removed single empty line
-            return Default::default();
-        };
-
         let (lines, decorations): (Vec<_>, Vec<_>) = diff
-            .iter_inline_changes(diff_op)
+            .ops()
+            .iter()
+            .flat_map(|diff_op| diff.iter_inline_changes(diff_op))
             .enumerate()
             .filter_map(|(line_index, change)| {
                 let kind = match change.tag() {
