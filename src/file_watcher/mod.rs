@@ -145,13 +145,6 @@ impl EventHandler {
         };
         let path = path.to_path_buf();
         match event.kind {
-            EventKind::Modify(ModifyKind::Data(_)) => {
-                if let Ok(path) = AbsolutePath::try_from(path) {
-                    if path.is_file() {
-                        callback.call(FileWatcherEvent::ContentModified(path));
-                    }
-                }
-            }
             EventKind::Modify(ModifyKind::Name(_)) => {
                 if let Some(source) = self.rename_source.take() {
                     if let Ok(destination) = path.try_into() {
@@ -167,9 +160,27 @@ impl EventHandler {
                 // file change.
                 else if !path.exists() {
                     self.rename_source = Some(path);
+                } else if let Ok(path) = AbsolutePath::try_from(path) {
+                    if path.is_file() {
+                        callback.call(FileWatcherEvent::ContentModified(path));
+                    }
                 }
             }
-            EventKind::Create(_) => callback.call(FileWatcherEvent::PathCreated),
+            EventKind::Modify(_) => {
+                if let Ok(path) = AbsolutePath::try_from(path) {
+                    if path.is_file() {
+                        callback.call(FileWatcherEvent::ContentModified(path));
+                    }
+                }
+            }
+            EventKind::Create(_) => {
+                if let Ok(abs_path) = AbsolutePath::try_from(path) {
+                    if abs_path.is_file() {
+                        callback.call(FileWatcherEvent::ContentModified(abs_path));
+                    }
+                }
+                callback.call(FileWatcherEvent::PathCreated);
+            }
             EventKind::Remove(_) => callback.call(FileWatcherEvent::PathRemoved(path)),
             _ => (),
         }
