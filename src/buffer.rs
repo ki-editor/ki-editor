@@ -159,12 +159,8 @@ impl Buffer {
             }
 
             // Only reload if the last_modified_time is actually changed
-            // this is to prevent unnecessary rereading, for example,
-            // after saving this file, a file modified notification will be received
-            // and upon handling this notification, we would not want to
-            // read the file again, if the notification is generated
-            // because of the save.
-            if path.last_modified_time().ok() == self.last_synced_time {
+            // this is to prevent unnecessary rereading (unless force is true)
+            if !force && path.last_modified_time().ok() == self.last_synced_time {
                 return Ok(Dispatches::default());
             }
 
