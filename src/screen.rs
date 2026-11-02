@@ -62,13 +62,23 @@ impl Screen {
 
     /// The `new_screen` need not be the same size as the old screen (`self`).
     pub fn diff(&mut self, old_screen: &mut Screen) -> Vec<PositionedCell> {
-        // We use `IndexSet` instead of `HashSet` because the latter does not preserve ordering,
-        // which can cause re-render to flicker like old TV (at least on Kitty term)
+        let new_cells = self.get_positioned_cells();
+        let old_cells = old_screen.get_positioned_cells();
 
-        let new = self.get_positioned_cells();
-        let old: indexmap::IndexSet<PositionedCell> =
-            old_screen.get_positioned_cells().into_iter().collect();
-        new.into_iter()
+        // Fast path: if dimensions and cell counts match, both are in the exact same sorted order
+        if new_cells.len() == old_cells.len() {
+            let mut diff = Vec::new();
+            for (new, old) in new_cells.into_iter().zip(old_cells.into_iter()) {
+                if new != old {
+                    diff.push(new);
+                }
+            }
+            return diff;
+        }
+
+        let old: indexmap::IndexSet<PositionedCell> = old_cells.into_iter().collect();
+        new_cells
+            .into_iter()
             .filter(|cell| !old.contains(cell))
             .collect_vec()
     }

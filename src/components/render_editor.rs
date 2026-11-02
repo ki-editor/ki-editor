@@ -906,8 +906,6 @@ impl Editor {
             }),
         ));
 
-        let content = buffer.rope().to_string();
-
         let diagnostics = buffer.diagnostics();
         let diagnostics = diagnostics
             .iter()
@@ -986,9 +984,21 @@ impl Editor {
                 is_protected_range_start: false,
             })
         };
+        let visible_slice_str = buffer
+            .rope()
+            .get_byte_slice(visible_line_byte_range.clone())
+            .map(|s| s.to_string())
+            .unwrap_or_default();
+        let visible_offset = visible_line_byte_range.start;
+
         let custom_regex_highlights = lazy_regex::regex!("(?i)#[0-9a-f]{6}")
-            .find_iter(&content)
-            .map(|m| (m.as_str().to_string(), m.range()))
+            .find_iter(&visible_slice_str)
+            .map(move |m| {
+                (
+                    m.as_str().to_string(),
+                    (m.start() + visible_offset)..(m.end() + visible_offset),
+                )
+            })
             .filter_map(|(hex, range)| {
                 let color = crate::themes::Color::from_hex(&hex).ok()?;
                 Some(HighlightSpan {
@@ -1008,12 +1018,13 @@ impl Editor {
             .regex_highlight_rules
             .iter()
             .filter_map(|rule| {
-                let captures = rule.regex.captures(&content)?;
+                let captures = rule.regex.captures(&visible_slice_str)?;
                 let get_highlight_span = |name: &'static str, source: Source| {
                     let match_ = captures.name(name)?;
+                    let range = (match_.start() + visible_offset)..(match_.end() + visible_offset);
                     Some(HighlightSpan {
                         source,
-                        range: HighlightSpanRange::ByteRange(match_.range()),
+                        range: HighlightSpanRange::ByteRange(range),
                         set_symbol: None,
                         is_cursor: false,
                         is_protected_range_start: false,
