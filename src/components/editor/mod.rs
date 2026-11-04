@@ -70,7 +70,6 @@ pub enum Mode {
 pub enum PriorChange {
     EnterMultiCursorMode,
     EnableSelectionExtension,
-    EnterSwapMode,
 }
 
 #[derive(PartialEq, Eq, Clone, Debug)]
@@ -4527,7 +4526,6 @@ impl Editor {
             match prior_change {
                 PriorChange::EnterMultiCursorMode => self.mode = Mode::MultiCursor,
                 PriorChange::EnableSelectionExtension => self.enable_selection_extension(),
-                PriorChange::EnterSwapMode => self.enter_swap_mode(),
             }
         }
     }
