@@ -157,6 +157,7 @@ pub enum ExpectKind {
     CurrentPrimarySelection(&'static str),
     CurrentCursorDirection(Direction),
     CurrentViewAlignment(Option<ViewAlignment>),
+    CurrentScrollOffset(usize),
     ComponentsLength(usize),
     Quickfixes(Box<[QuickfixListItem]>),
     AppGrid(String),
@@ -355,6 +356,9 @@ impl ExpectKind {
                 component.borrow().editor().current_view_alignment(),
                 *view_alignment,
             ),
+            CurrentScrollOffset(scroll_offset) => {
+                contextualize(component.borrow().editor().scroll_offset(), *scroll_offset)
+            }
             GridCellBackground(row_index, column_index, background_color) => {
                 let grid = component
                     .borrow_mut()

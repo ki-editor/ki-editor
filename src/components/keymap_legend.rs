@@ -668,6 +668,48 @@ T
     }
 
     #[test]
+    fn closing_keymap_legend_restores_scroll_offset() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                App(crate::app::Dispatch::TerminalDimensionChanged(
+                    crate::app::Dimension {
+                        width: 60,
+                        height: 15,
+                    },
+                )),
+                Editor(DispatchEditor::SetContent(
+                    (1..=40).map(|line| format!("l{line}\n")).collect(),
+                )),
+                // The cursor is near the bottom of the editor, so it would be
+                // hidden once the keymap legend shrinks the editor.
+                Editor(DispatchEditor::SelectLineAt(12)),
+                Expect(CurrentScrollOffset(0)),
+                App(ShowMenu(KeymapLegendConfig {
+                    title: "T".to_string(),
+                    keymap: Keymap::new(&[Keybinding::new_undocumented(
+                        key!("x"),
+                        "Xray",
+                        Dispatch::Null,
+                    )]),
+                })),
+                // The editor re-centres on the cursor while the legend is open
+                Expect(AppGridContains("12│l12\n13│█13\n14│l14\n15│l15\nT\n")),
+                App(HandleKeyEvent(key!("esc"))),
+                Expect(CurrentComponentPath(Some(s.main_rs()))),
+                // Rendering the screen recalculates the layout, giving the
+                // editor back its original rectangle.
+                Expect(AppGridContains(" 1│l1\n")),
+                Expect(CurrentScrollOffset(0)),
+            ])
+        })
+    }
+
+    #[test]
     fn desired_height_accounts_for_content_and_title_lines() {
         let keymap_legend = KeymapLegend::new(
             KeymapLegendConfig {
