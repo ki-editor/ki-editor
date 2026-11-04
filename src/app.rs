@@ -1212,6 +1212,19 @@ impl<T: Frontend> App<T> {
                 self.handle_dispatch_editor(DispatchEditor::SetKeymapOverride(None))?;
                 self.layout.close_keymap_legend();
             }
+            Dispatch::CloseKeymapLegendAndShowJumps {
+                use_current_selection_mode,
+                prior_change,
+                landing_action,
+            } => {
+                self.layout.close_keymap_legend();
+                self.layout.recalculate_layout(&self.context);
+                self.handle_dispatch_editor(DispatchEditor::ShowJumps {
+                    use_current_selection_mode,
+                    prior_change,
+                    landing_action,
+                })?;
+            }
             Dispatch::CloseAppKeymapLegend => {
                 self.keymap_override = None;
                 self.layout.close_app_keymap_legend();
@@ -4085,6 +4098,13 @@ pub enum Dispatch {
     CloseEditorInfo,
     CloseGlobalInfo,
     CloseKeymapLegend,
+    /// Close the keymap legend before showing jumps, so that the editor regains the space
+    /// reserved by the legend and every visible target gets a jump label.
+    CloseKeymapLegendAndShowJumps {
+        use_current_selection_mode: bool,
+        prior_change: Option<PriorChange>,
+        landing_action: crate::keymap_override::jump::JumpLandingAction,
+    },
     CloseAppKeymapLegend,
     CycleMarkedFile(Movement),
     OpenAlternateFile,

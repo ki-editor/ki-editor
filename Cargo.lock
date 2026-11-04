@@ -1417,6 +1417,7 @@ dependencies = [
  "serde_path_to_error",
  "serial_test",
  "shared",
+ "signal-hook",
  "similar",
  "strum",
  "strum_macros",
