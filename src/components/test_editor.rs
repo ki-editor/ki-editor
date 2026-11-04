@@ -2212,6 +2212,93 @@ fn jump_inside_delete_momentary_layer_release_before_target() -> anyhow::Result<
 }
 
 #[test]
+fn jump_swap_returns_to_normal_mode_after_landing() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("apple banana cake durian egg".to_string())),
+            Editor(SetRectangle(Rectangle {
+                origin: Position::default(),
+                width: 100,
+                height: 1,
+            })),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            // "t" activates the Swap momentary layer, "m" triggers Jump Swap, and "d"
+            // lands on "durian", swapping it with "apple".
+            App(HandleKeyEvents(keys!("t m release-t d").to_vec())),
+            Expect(CurrentComponentContent("durian banana cake apple egg")),
+            Expect(CurrentSelectedTexts(&["apple"])),
+            Expect(JumpChars(&[])),
+            Expect(CurrentMode(Mode::Normal)),
+            // A subsequent movement should move the selection, not swap it.
+            App(HandleKeyEvent(key!("l"))),
+            Expect(CurrentComponentContent("durian banana cake apple egg")),
+            Expect(CurrentSelectedTexts(&["egg"])),
+        ])
+    })
+}
+
+#[test]
+fn jump_swap_returns_to_normal_mode_after_cancel() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("apple banana cake durian egg".to_string())),
+            Editor(SetRectangle(Rectangle {
+                origin: Position::default(),
+                width: 100,
+                height: 1,
+            })),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            App(HandleKeyEvents(keys!("t m release-t esc").to_vec())),
+            Expect(JumpChars(&[])),
+            Expect(CurrentMode(Mode::Normal)),
+            // A subsequent movement should move the selection, not swap it.
+            App(HandleKeyEvent(key!("l"))),
+            Expect(CurrentComponentContent("apple banana cake durian egg")),
+            Expect(CurrentSelectedTexts(&["banana"])),
+        ])
+    })
+}
+
+#[test]
+fn jump_add_cursor_returns_to_normal_mode_after_landing() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("apple banana cake durian egg".to_string())),
+            Editor(SetRectangle(Rectangle {
+                origin: Position::default(),
+                width: 100,
+                height: 1,
+            })),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            // "b" activates the Multi-cursor momentary layer, "m" triggers Jump Add Curs,
+            // and "d" adds a cursor at "durian".
+            App(HandleKeyEvents(keys!("b m release-b d").to_vec())),
+            Expect(CurrentSelectedTexts(&["apple", "durian"])),
+            Expect(JumpChars(&[])),
+            Expect(CurrentMode(Mode::Normal)),
+            // A subsequent movement should move all cursors, not add another cursor.
+            App(HandleKeyEvent(key!("l"))),
+            Expect(CurrentSelectedTexts(&["banana", "egg"])),
+        ])
+    })
+}
+
+#[test]
 fn jump_inside_cut_momentary_layer() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([

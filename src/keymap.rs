@@ -946,8 +946,8 @@ pub fn multicursor_momentary_layer_keymap(editor: &Editor) -> Keymap {
                 "Jump Add Curs",
                 Dispatch::CloseKeymapLegendAndShowJumps {
                     use_current_selection_mode: true,
-                    prior_change: Some(PriorChange::EnterMultiCursorMode),
-                    landing_action: JumpLandingAction::MoveSelection,
+                    prior_change: None,
+                    landing_action: JumpLandingAction::AddCursor,
                 },
             ),
             Keybinding::new_undocumented(
@@ -1654,8 +1654,8 @@ pub fn swap_keymap() -> Keymap {
             "Jump Swap",
             Dispatch::CloseKeymapLegendAndShowJumps {
                 use_current_selection_mode: true,
-                prior_change: Some(PriorChange::EnterSwapMode),
-                landing_action: JumpLandingAction::MoveSelection,
+                prior_change: None,
+                landing_action: JumpLandingAction::Swap,
             },
         ),
     ])

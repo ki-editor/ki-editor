@@ -14,6 +14,14 @@ use crate::{
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum JumpLandingAction {
     MoveSelection,
+    /// Swap the current selection with the jump target.
+    /// Dispatched directly (instead of entering `Mode::Swap`) so that the editor
+    /// stays in Normal mode after landing.
+    Swap,
+    /// Add a cursor at the jump target.
+    /// Dispatched directly (instead of entering `Mode::MultiCursor`) so that the editor
+    /// stays in Normal mode after landing.
+    AddCursor,
     DeleteWithMovement,
     CutWithMovement,
     Eat,
@@ -53,6 +61,12 @@ impl KeymapOverrideTrait for JumpKeymapOverride {
                 let landing_dispatch = match self.landing_action {
                     JumpLandingAction::MoveSelection => {
                         Dispatch::ToEditor(DispatchEditor::MoveSelection(movement))
+                    }
+                    JumpLandingAction::Swap => {
+                        Dispatch::ToEditor(DispatchEditor::SwapWithMovement(movement))
+                    }
+                    JumpLandingAction::AddCursor => {
+                        Dispatch::ToEditor(DispatchEditor::AddCursorWithMovement(movement))
                     }
                     JumpLandingAction::DeleteWithMovement => {
                         Dispatch::ToEditor(DispatchEditor::DeleteWithMovement(movement))
