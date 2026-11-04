@@ -7246,3 +7246,126 @@ fn coarse_undo_redo_should_not_group_insertions_iniated_in_different_insert_sess
         ])
     })
 }
+
+fn editor_rectangle(width: usize, height: usize) -> Rectangle {
+    Rectangle {
+        origin: Position::default(),
+        width,
+        height,
+    }
+}
+
+/// Puts the cursor on the last visible line of a 15-line-tall editor, then
+/// shrinks the editor (like opening a keymap legend does), which re-centres
+/// the view on the cursor. `steps` run while the editor is shrunk.
+fn run_shrink_then_restore_test(
+    steps: fn() -> Vec<Step>,
+    expected_scroll_offset_after_restore: ExpectKind,
+) -> anyhow::Result<()> {
+    execute_test(move |s| {
+        [
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent(
+                (1..=40).map(|line| format!("l{line}\n")).collect(),
+            )),
+            Editor(SetRectangle(editor_rectangle(40, 15))),
+            Editor(SelectLineAt(13)),
+            Expect(CurrentScrollOffset(0)),
+            Editor(SetRectangle(editor_rectangle(40, 5))),
+            Expect(CurrentScrollOffset(12)),
+        ]
+        .into_iter()
+        .chain(steps())
+        .chain([
+            Editor(SetRectangle(editor_rectangle(40, 15))),
+            Expect(expected_scroll_offset_after_restore.clone()),
+        ])
+        .collect_vec()
+        .into_boxed_slice()
+    })
+}
+
+#[test]
+fn scroll_offset_is_restored_when_shrunk_rectangle_returns_to_original() -> anyhow::Result<()> {
+    run_shrink_then_restore_test(Vec::new, CurrentScrollOffset(0))
+}
+
+#[test]
+fn scroll_offset_is_restored_when_cursor_moves_but_stays_visible_in_original_view(
+) -> anyhow::Result<()> {
+    run_shrink_then_restore_test(
+        || vec![Editor(SelectLineAt(12)), Expect(CurrentScrollOffset(12))],
+        CurrentScrollOffset(0),
+    )
+}
+
+#[test]
+fn scroll_offset_is_not_restored_if_doing_so_would_hide_the_cursor() -> anyhow::Result<()> {
+    // Line 14 is visible in the shrunk view (scroll offset unchanged),
+    // but would be hidden at the original scroll offset of 0.
+    run_shrink_then_restore_test(
+        || vec![Editor(SelectLineAt(14)), Expect(CurrentScrollOffset(12))],
+        CurrentScrollOffset(12),
+    )
+}
+
+#[test]
+fn scroll_offset_is_not_restored_after_cursor_jumps_out_of_view() -> anyhow::Result<()> {
+    run_shrink_then_restore_test(
+        || {
+            vec![
+                Editor(SelectLineAt(30)),
+                Expect(Not(Box::new(CurrentScrollOffset(12)))),
+            ]
+        },
+        Not(Box::new(CurrentScrollOffset(0))),
+    )
+}
+
+#[test]
+fn scroll_offset_is_not_restored_after_user_scrolls() -> anyhow::Result<()> {
+    run_shrink_then_restore_test(
+        || vec![Editor(SetScrollOffset(10))],
+        CurrentScrollOffset(10),
+    )
+}
+
+#[test]
+fn scroll_offset_is_not_restored_after_user_switches_view_alignment() -> anyhow::Result<()> {
+    run_shrink_then_restore_test(
+        || vec![Editor(SwitchViewAlignment), Expect(CurrentScrollOffset(13))],
+        CurrentScrollOffset(13),
+    )
+}
+
+#[test]
+fn scroll_offset_is_restored_after_stacked_shrinks() -> anyhow::Result<()> {
+    run_shrink_then_restore_test(
+        || {
+            vec![
+                Editor(SetRectangle(editor_rectangle(40, 3))),
+                Editor(SetRectangle(editor_rectangle(40, 5))),
+            ]
+        },
+        CurrentScrollOffset(0),
+    )
+}
+
+#[test]
+fn remembered_scroll_offset_is_forgotten_after_unrelated_resize() -> anyhow::Result<()> {
+    // A width change (e.g. a terminal resize) means the original rectangle is gone,
+    // so returning to it later must not restore a stale scroll offset.
+    run_shrink_then_restore_test(
+        || {
+            vec![
+                Editor(SetRectangle(editor_rectangle(50, 15))),
+                Expect(CurrentScrollOffset(12)),
+            ]
+        },
+        CurrentScrollOffset(12),
+    )
+}

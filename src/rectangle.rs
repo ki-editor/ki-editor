@@ -155,6 +155,14 @@ fn split(length: usize, count: usize) -> Vec<Split> {
 }
 
 impl Rectangle {
+    /// Whether `self` is `original` with only its height reduced,
+    /// e.g. when a keymap legend reserves space at the bottom of the screen.
+    pub fn is_shrunk_from(&self, original: &Rectangle) -> bool {
+        self.origin == original.origin
+            && self.width == original.width
+            && self.height < original.height
+    }
+
     // A method to split a rectangle into two smaller ones based on a fixed ratio of 0.5 and return a border between them
     #[cfg(test)]
     fn split(&self, vertical: bool) -> (Rectangle, Rectangle, Border) {

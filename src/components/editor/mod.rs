@@ -133,10 +133,54 @@ impl Component for Editor {
         // Only update and recalculate scroll offset
         // if the new rectangle is different from the current rectangle
 
-        if self.rectangle != rectangle {
-            self.rectangle = rectangle;
-            self.recalculate_scroll_offset(context);
+        if self.rectangle == rectangle {
+            return;
         }
+        let previous_rectangle = std::mem::replace(&mut self.rectangle, rectangle);
+        let previous_scroll_offset = self.scroll_offset;
+
+        // Forget the remembered scroll offset if something other than
+        // `set_rectangle` has moved the view since it was recorded
+        // (e.g. the user scrolled, or the cursor moved out of view).
+        let remembered = self
+            .scroll_offset_before_shrink
+            .take()
+            .filter(|remembered| remembered.scroll_offset_after_shrink == self.scroll_offset);
+
+        // Returning to the remembered rectangle (e.g. a keymap legend closed):
+        // restore the original scroll offset, as long as the primary selection
+        // remains visible with it.
+        if let Some(scroll_offset) = remembered
+            .as_ref()
+            .filter(|remembered| remembered.rectangle == self.rectangle)
+            .map(|remembered| remembered.scroll_offset)
+            .filter(|scroll_offset| self.primary_selection_is_visible_at(*scroll_offset, context))
+        {
+            self.scroll_offset = scroll_offset;
+        }
+
+        self.recalculate_scroll_offset(context);
+
+        self.scroll_offset_before_shrink = match remembered {
+            // Shrunk further or partially restored (e.g. stacked legends):
+            // keep remembering the original scroll offset.
+            Some(remembered) if self.rectangle.is_shrunk_from(&remembered.rectangle) => {
+                Some(ScrollOffsetBeforeShrink {
+                    scroll_offset_after_shrink: self.scroll_offset,
+                    ..remembered
+                })
+            }
+            // Either restored, or the rectangle changed in an unrelated way
+            // (e.g. terminal resize), so the remembered offset no longer applies.
+            Some(_) => None,
+            None => (self.scroll_offset != previous_scroll_offset
+                && self.rectangle.is_shrunk_from(&previous_rectangle))
+            .then_some(ScrollOffsetBeforeShrink {
+                rectangle: previous_rectangle,
+                scroll_offset: previous_scroll_offset,
+                scroll_offset_after_shrink: self.scroll_offset,
+            }),
+        };
     }
 
     fn rectangle(&self) -> &Rectangle {
@@ -497,6 +541,23 @@ pub struct Editor {
     /// does not permanently forget the original column. Reset to `None` by any
     /// other dispatch. See [`DispatchEditor::MoveCursorVertically`].
     insert_mode_sticky_column: Option<usize>,
+
+    /// Remembers the scroll offset from before the editor was shrunk
+    /// (e.g. by a keymap legend reserving space at the bottom of the screen),
+    /// so that it can be restored once the editor regains its original rectangle.
+    scroll_offset_before_shrink: Option<ScrollOffsetBeforeShrink>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ScrollOffsetBeforeShrink {
+    /// The rectangle before the shrink.
+    rectangle: Rectangle,
+    /// The scroll offset before the shrink, to be restored.
+    scroll_offset: usize,
+    /// The scroll offset last set by `set_rectangle` while shrunk.
+    /// If the current scroll offset differs from this, the view has been moved
+    /// by something else, so the remembered scroll offset is forgotten.
+    scroll_offset_after_shrink: usize,
 }
 
 #[derive(Clone, Default)]
@@ -752,6 +813,7 @@ impl Editor {
             incremental_search_matches: None,
             insert_session: InsertSession::next(),
             insert_mode_sticky_column: None,
+            scroll_offset_before_shrink: None,
         }
     }
 
@@ -800,6 +862,7 @@ impl Editor {
             incremental_search_matches: None,
             insert_session: InsertSession::next(),
             insert_mode_sticky_column: None,
+            scroll_offset_before_shrink: None,
         }
     }
 
@@ -886,20 +949,66 @@ impl Editor {
     /// Scroll offset recalculation is always based on the position of the cursor
     fn recalculate_scroll_offset(&mut self, context: &Context) {
         // Update scroll_offset if primary selection is out of view.
-        let primary_selection_range = self.selection_set.primary_selection().extended_range();
-        let line_range = self
-            .buffer()
-            .char_index_range_to_line_range(primary_selection_range)
-            .unwrap_or_default();
-        let render_area = self.render_area(context);
-        let out_of_viewport = |row: usize| {
-            row.saturating_sub(self.scroll_offset) > render_area.height.saturating_sub(1)
-                || row < self.scroll_offset
-        };
-        if out_of_viewport(line_range.start) || out_of_viewport(line_range.end.saturating_sub(1)) {
+        if self.primary_selection_is_out_of_viewport(self.scroll_offset, context) {
             self.align_selection_to_center(context);
             self.current_view_alignment = None;
         }
+    }
+
+    fn primary_selection_line_range(&self) -> Range<usize> {
+        let primary_selection_range = self.selection_set.primary_selection().extended_range();
+        self.buffer()
+            .char_index_range_to_line_range(primary_selection_range)
+            .unwrap_or_default()
+    }
+
+    fn primary_selection_is_out_of_viewport(
+        &self,
+        scroll_offset: usize,
+        context: &Context,
+    ) -> bool {
+        let line_range = self.primary_selection_line_range();
+        let render_area = self.render_area(context);
+        let out_of_viewport = |row: usize| {
+            row.saturating_sub(scroll_offset) > render_area.height.saturating_sub(1)
+                || row < scroll_offset
+        };
+        out_of_viewport(line_range.start) || out_of_viewport(line_range.end.saturating_sub(1))
+    }
+
+    /// Whether the first and last lines of the primary selection would be visible
+    /// with the given scroll offset, according to both `recalculate_scroll_offset`
+    /// and the actually rendered grid (which accounts for wrapped lines and
+    /// sticky parent lines).
+    fn primary_selection_is_visible_at(&self, scroll_offset: usize, context: &Context) -> bool {
+        let line_range = self.primary_selection_line_range();
+        !self.primary_selection_is_out_of_viewport(scroll_offset, context)
+            && [line_range.start, line_range.end.saturating_sub(1)]
+                .into_iter()
+                .all(|line_index| self.line_is_rendered_at(context, line_index, scroll_offset))
+    }
+
+    fn line_is_rendered_at(
+        &self,
+        context: &Context,
+        line_index: usize,
+        scroll_offset: usize,
+    ) -> bool {
+        let grid = self.get_grid_with_scroll_offset(
+            context,
+            false,
+            scroll_offset,
+            Default::default(),
+            self.dimension(),
+            &self.reveal(),
+            &RenderTitleMode::Tabline,
+            true,
+        );
+        let line_number = format!("{}{}", line_index + 1, LINE_NUMBER_VERTICAL_BORDER);
+        grid.grid
+            .to_string()
+            .lines()
+            .any(|line| line.contains(&line_number))
     }
 
     /// Aligns the selection to show the target line within the available viewport.
@@ -918,11 +1027,7 @@ impl Editor {
         line_range_to_target: impl Fn(Range<usize>) -> usize,
         available_height_multiplier: F,
     ) {
-        let primary_selection_range = self.selection_set.primary_selection().extended_range();
-        let line_range = self
-            .buffer()
-            .char_index_range_to_line_range(primary_selection_range)
-            .unwrap_or_default();
+        let line_range = self.primary_selection_line_range();
 
         let available_height = self
             .rectangle
@@ -935,29 +1040,14 @@ impl Editor {
         } else {
             line_range_to_target(line_range.clone())
         };
-        for i in (0..available_height_multiplier(available_height)).rev() {
-            let new_scroll_offset = target_line_index.saturating_sub(i);
-            let grid = self.get_grid_with_scroll_offset(
-                context,
-                false,
-                new_scroll_offset,
-                Default::default(),
-                self.dimension(),
-                &self.reveal(),
-                &RenderTitleMode::Tabline,
-                true,
-            );
-            let grid_string = grid.grid.to_string();
-            let grid_string_lines = grid_string.lines().collect_vec();
-            let target_line_number =
-                format!("{}{}", target_line_index + 1, LINE_NUMBER_VERTICAL_BORDER);
-            let target_line_index_in_range = grid_string_lines
-                .iter()
-                .any(|line| line.contains(&target_line_number));
-            if target_line_index_in_range {
-                self.scroll_offset = new_scroll_offset;
-                return;
-            }
+        if let Some(new_scroll_offset) = (0..available_height_multiplier(available_height))
+            .rev()
+            .map(|i| target_line_index.saturating_sub(i))
+            .find(|new_scroll_offset| {
+                self.line_is_rendered_at(context, target_line_index, *new_scroll_offset)
+            })
+        {
+            self.scroll_offset = new_scroll_offset;
         }
     }
 
@@ -2544,6 +2634,7 @@ impl Editor {
     }
 
     fn apply_scroll(&mut self, direction: Direction, scroll_height: usize) {
+        self.scroll_offset_before_shrink = None;
         self.scroll_offset = match direction {
             Direction::Start => self.scroll_offset.saturating_sub(scroll_height),
             Direction::End => self.scroll_offset.saturating_add(scroll_height),
@@ -3476,6 +3567,7 @@ impl Editor {
     }
 
     pub fn switch_view_alignment(&mut self, context: &Context) {
+        self.scroll_offset_before_shrink = None;
         self.current_view_alignment = Some(match self.current_view_alignment {
             Some(ViewAlignment::Top) => {
                 self.align_selection_to_center(context);
@@ -3548,6 +3640,7 @@ impl Editor {
 
     #[cfg(test)]
     pub fn set_scroll_offset(&mut self, scroll_offset: usize) {
+        self.scroll_offset_before_shrink = None;
         self.scroll_offset = scroll_offset;
     }
 
