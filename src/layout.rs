@@ -37,6 +37,7 @@ pub type BufferContentsMap = std::collections::HashMap<String, String>;
 /// hover text, diagnostics, etc.
 pub struct Layout {
     background_suggestive_editors: IndexMap<AbsolutePath, Rc<RefCell<SuggestiveEditor>>>,
+    last_focused_suggestive_editor: Option<Rc<RefCell<SuggestiveEditor>>>,
     background_file_explorer: Rc<RefCell<FileExplorer>>,
     background_quickfix_list: Option<Rc<RefCell<Editor>>>,
 
@@ -58,6 +59,7 @@ impl Layout {
         Ok(Layout {
             background_quickfix_list: None,
             background_suggestive_editors: IndexMap::new(),
+            last_focused_suggestive_editor: None,
             background_file_explorer: Rc::new(RefCell::new(FileExplorer::new(working_directory)?)),
             rectangles,
             borders,
@@ -91,6 +93,11 @@ impl Layout {
         let node = self.tree.get_current_node();
         let removed_path = node.data().component().borrow().path();
         if let Some(path) = &removed_path {
+            if let Some(last) = &self.last_focused_suggestive_editor {
+                if last.borrow().editor().path().as_ref() == Some(path) {
+                    self.last_focused_suggestive_editor = None;
+                }
+            }
             self.background_suggestive_editors.shift_remove(path);
             if let Some((_, editor)) = self
                 .background_suggestive_editors
@@ -102,7 +109,25 @@ impl Layout {
                 self.tree.remove(node.node_id(), true);
             }
         } else {
-            self.tree.remove(node.node_id(), true);
+            // Non-file component (such as FileExplorer). Restore the current file editor.
+            let fallback_editor = self
+                .last_focused_suggestive_editor
+                .clone()
+                .or_else(|| {
+                    self.background_suggestive_editors
+                        .iter()
+                        .find(|(_, editor)| {
+                            editor.borrow().editor().buffer().owner() == BufferOwner::User
+                        })
+                        .map(|(_, editor)| editor.clone())
+                });
+
+            if let Some(editor) = fallback_editor {
+                self.tree.remove_all_root_children();
+                self.replace_and_focus_current_suggestive_editor(editor);
+            } else {
+                self.tree.remove(node.node_id(), true);
+            }
         };
 
         self.recalculate_layout(context);
@@ -361,6 +386,11 @@ impl Layout {
     }
 
     pub fn remove_suggestive_editor(&mut self, path: &AbsolutePath) {
+        if let Some(last) = &self.last_focused_suggestive_editor {
+            if last.borrow().editor().path().as_ref() == Some(path) {
+                self.last_focused_suggestive_editor = None;
+            }
+        }
         self.background_suggestive_editors.shift_remove(path);
     }
 
@@ -688,6 +718,7 @@ impl Layout {
         &mut self,
         editor: Rc<RefCell<SuggestiveEditor>>,
     ) {
+        self.last_focused_suggestive_editor = Some(editor.clone());
         self.add_suggestive_editor(editor.clone());
         self.replace_node_child(
             self.tree.root_id(),
