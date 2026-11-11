@@ -2994,6 +2994,28 @@ fn open_search_prompt_in_file_explorer() -> anyhow::Result<()> {
 }
 
 #[test]
+fn closing_file_explorer_restores_last_focused_editor() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.foo_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            App(RevealInExplorer(s.main_rs())),
+            Expect(CurrentComponentTitle("File Explorer".to_string())),
+            App(CloseCurrentWindow),
+            Expect(CurrentComponentPath(Some(s.main_rs()))),
+        ])
+    })
+}
+
+#[test]
 fn open_search_prompt_with_current_selection() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
