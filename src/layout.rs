@@ -109,15 +109,20 @@ impl Layout {
                 self.tree.remove(node.node_id(), true);
             }
         } else {
-            // Non-file component (such as FileExplorer). Restore the current file editor.
-            let fallback_editor = self.last_focused_suggestive_editor.clone().or_else(|| {
-                self.background_suggestive_editors
-                    .iter()
-                    .find(|(_, editor)| {
-                        editor.borrow().editor().buffer().owner() == BufferOwner::User
+            // When closing the File Explorer, restore the last focused file editor.
+            // Other non-file components (prompts, info panels, etc.) are simply removed.
+            let fallback_editor = (node.data().kind() == ComponentKind::FileExplorer)
+                .then(|| {
+                    self.last_focused_suggestive_editor.clone().or_else(|| {
+                        self.background_suggestive_editors
+                            .iter()
+                            .find(|(_, editor)| {
+                                editor.borrow().editor().buffer().owner() == BufferOwner::User
+                            })
+                            .map(|(_, editor)| editor.clone())
                     })
-                    .map(|(_, editor)| editor.clone())
-            });
+                })
+                .flatten();
 
             if let Some(editor) = fallback_editor {
                 self.tree.remove_all_root_children();
