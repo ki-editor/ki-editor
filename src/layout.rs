@@ -110,17 +110,14 @@ impl Layout {
             }
         } else {
             // Non-file component (such as FileExplorer). Restore the current file editor.
-            let fallback_editor = self
-                .last_focused_suggestive_editor
-                .clone()
-                .or_else(|| {
-                    self.background_suggestive_editors
-                        .iter()
-                        .find(|(_, editor)| {
-                            editor.borrow().editor().buffer().owner() == BufferOwner::User
-                        })
-                        .map(|(_, editor)| editor.clone())
-                });
+            let fallback_editor = self.last_focused_suggestive_editor.clone().or_else(|| {
+                self.background_suggestive_editors
+                    .iter()
+                    .find(|(_, editor)| {
+                        editor.borrow().editor().buffer().owner() == BufferOwner::User
+                    })
+                    .map(|(_, editor)| editor.clone())
+            });
 
             if let Some(editor) = fallback_editor {
                 self.tree.remove_all_root_children();

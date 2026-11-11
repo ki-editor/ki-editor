@@ -65,17 +65,25 @@ impl Screen {
         let new_cells = self.get_positioned_cells();
         let old_cells = old_screen.get_positioned_cells();
 
-        // Fast path: if dimensions and cell counts match, both are in the exact same sorted order
-        if new_cells.len() == old_cells.len() {
-            let mut diff = Vec::new();
-            for (new, old) in new_cells.into_iter().zip(old_cells.into_iter()) {
-                if new != old {
-                    diff.push(new);
-                }
-            }
-            return diff;
+        // Fast path: when both screens have cells at exactly the same positions (in the same
+        // sorted order), compare them pairwise instead of building a set.
+        // Equal length alone is not enough, e.g. 80x24 and 24x80 have the same cell count.
+        let same_layout = new_cells.len() == old_cells.len()
+            && new_cells
+                .iter()
+                .zip(old_cells.iter())
+                .all(|(new, old)| new.position == old.position);
+        if same_layout {
+            return new_cells
+                .into_iter()
+                .zip(old_cells)
+                .filter(|(new, old)| new != old)
+                .map(|(new, _)| new)
+                .collect_vec();
         }
 
+        // We use `IndexSet` instead of `HashSet` because the latter does not preserve ordering,
+        // which can cause re-render to flicker like old TV (at least on Kitty term)
         let old: indexmap::IndexSet<PositionedCell> = old_cells.into_iter().collect();
         new_cells
             .into_iter()
